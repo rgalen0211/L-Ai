@@ -49,7 +49,7 @@ test('the helper reads the one row as a security-definer function (like connect_
 test('the migration changes nothing else: its statements are the column, two functions, the person rule, the revokes, one grant and the gate', () => {
   const stmts = MIG.replace(/\$\$.*?\$\$/g, '$$$$').split(';').map((s) => s.trim()).filter(Boolean).map((s) => s.replace(/^begin /, '').split(' ').slice(0, 4).join(' '));
   assert.deepEqual(stmts.filter((s) => !/^begin$|^commit$/.test(s)), ['alter table public.connect_flags add', 'create function ryagram_private.connect_open() returns', 'create or replace function', 'create function public.admin_connect_set_open(p_on boolean)', 'revoke all on function', 'revoke all on function', 'grant execute on function', 'select ryagram_private.gate_apply()']);
-  assert.match(RB, /drop function public\.admin_connect_set_open\(boolean\); drop function ryagram_private\.connect_open\(\); alter table public\.connect_flags drop column open_to_all; commit;$/);
+  assert.match(RB, /drop function public\.admin_connect_set_open\(boolean\); drop function ryagram_private\.connect_open\(\); alter table public\.connect_flags drop column open_to_all; select ryagram_private\.gate_apply\(\); commit;$/);
 });
 
 test('ONLY live step 36 and the admin function turn it on, and step 37 turns it off; no other SQL file in the repo sets it', () => {

@@ -23,6 +23,7 @@ import test_film_card_requests as fc  # noqa: E402
 
 setUpModule = core.setUpModule
 LISTED, UNLISTED, DISABLED, ADMIN, WORKER = (str(uuid.UUID(int=i)) for i in (601, 602, 603, 604, 605))
+WAIT_UNLISTED, WAIT_LISTED = (str(uuid.UUID(int=i)) for i in (606, 607))   # signed up while sign-up is a waiting list: not let in yet
 RB = core.ROOT / "rollbacks" / "20261121000700_connect_ai_open_to_all_rollback.sql"
 
 
@@ -37,6 +38,9 @@ class ConnectOpen(core.Base):
         d.execute("insert into public.connect_access (user_id, enabled) values (%s, true), (%s, false)", (LISTED, DISABLED))
         d.execute("insert into public.app_admins (user_id) values (%s)", (ADMIN,))
         d.execute("insert into public.workers (user_id, name) values (%s, 'open-test-worker')", (WORKER,))
+        d.execute("insert into auth.users (id, email) values (%s,'wu@x'),(%s,'wl@x')", (WAIT_UNLISTED, WAIT_LISTED))
+        d.execute("insert into public.connect_access (user_id, enabled) values (%s, true)", (WAIT_LISTED,))
+        d.execute("update public.account_status set status = 'waiting', source = 'signup' where user_id in (%s, %s)", (WAIT_UNLISTED, WAIT_LISTED))
 
     def ok(self, who):
         return self.db.as_(None).c.execute("select ryagram_private.connect_person_ok(%s)", (who,)).fetchone()[0]
@@ -53,6 +57,16 @@ class ConnectOpen(core.Base):
         self.assertEqual([self.ok(x) for x in (LISTED, UNLISTED, DISABLED, ADMIN, WORKER)], [True, True, False, False, False])
         self.flag(False)
         self.assertFalse(self.ok(UNLISTED), "turning it off again refuses the account at once")
+
+    def test_a_waiting_account_stays_refused_with_the_flag_on_and_is_let_in_when_admitted(self):
+        for on in (False, True):
+            self.flag(on)
+            self.assertEqual([self.ok(x) for x in (WAIT_UNLISTED, WAIT_LISTED)], [False, False], "on the sign-up waiting list nobody connects, listed or not (flag on: %s)" % on)
+        self.flag(True)
+        self.db.as_(None).c.execute("update public.account_status set status = 'active' where user_id = %s", (WAIT_UNLISTED,))
+        self.assertTrue(self.ok(WAIT_UNLISTED), "admitted from the waiting list, and the flag is on: allowed")
+        self.flag(False)
+        self.assertFalse(self.ok(WAIT_UNLISTED), "admitted but unlisted and the flag off: refused again")
 
     def test_who_may_flip_it(self):
         self.app(ADMIN).one("select public.admin_connect_set_open(true)")
@@ -79,6 +93,8 @@ class ConnectOpen(core.Base):
         self.db.as_(None).c.execute(RB.read_text(encoding="utf-8"))
         self.assertFalse(self.ok(UNLISTED))
         self.assertTrue(self.ok(LISTED))
+        self.assertFalse(self.ok(WAIT_LISTED), "G5: a listed account still WAITING on the sign-up list is refused after the undo (the undo ends with gate_apply)")
+        self.assertFalse(self.ok(WAIT_UNLISTED))
         d = self.db.as_(None).c
         self.assertIsNone(d.execute("select to_regprocedure('public.admin_connect_set_open(boolean)')").fetchone()[0])
         self.assertIsNone(d.execute("select to_regprocedure('ryagram_private.connect_open()')").fetchone()[0])

@@ -25,6 +25,7 @@ const mutants = [
   ['the admin function is open to anon', MG, 'grant execute on function public.admin_connect_set_open(boolean) to authenticated;', 'grant execute on function public.admin_connect_set_open(boolean) to authenticated, anon;'],
   ['the migration turns the flag on itself', MG, 'select ryagram_private.gate_apply();', 'update public.connect_flags set open_to_all = true where id;\nselect ryagram_private.gate_apply();'],
   ['the rollback does not restore the old rule', RB, '  select exists (select 1 from public.connect_access a where a.user_id = p_owner and a.enabled)\n', '  select true\n'],
+  ['the rollback does not end with gate_apply (a listed WAITING account could connect after it)', RB, 'select ryagram_private.gate_apply();                       -- puts', '-- puts'],
   ['the rollback leaves the flag column behind', RB, 'alter table public.connect_flags drop column open_to_all;\n', ''],
   ['the ON step turns it off', ON, 'set open_to_all = true', 'set open_to_all = false'],
   ['the OFF step leaves it on', OFF, 'set open_to_all = false', 'set open_to_all = true'],
