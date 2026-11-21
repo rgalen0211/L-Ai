@@ -1917,6 +1917,7 @@
             ? h('p', { class: 'working' }, p.elapsed ? `Working\u2026 ${p.elapsed}` : 'Working\u2026')
             : h('dl', { class: 'progress-fields' },
               row('Stage', p.stage), row(p.countLabel, p.count), row('ETA', p.eta), row('Running for', p.running)),
+          p.note ? h('p', { class: 'form-note job-step-note' }, p.note) : null,
           !j.progress_detail && j.progress_note ? h('p', { class: 'form-note' }, j.progress_note) : null);
       }
 
