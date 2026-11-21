@@ -393,9 +393,16 @@
           h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null)),
         h('div', {}, form, startStrip ? [h('div', { class: 'or' }, 'or start from a line'), startStrip] : null)))));
       const quiet = [intakeLink, requestLink, looksLink, help].filter(Boolean);
-      return [hero, startCard,
-              h('section', { class: 'site-section', 'aria-labelledby': 'films-h' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), list),
-              deptCards, credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null];
+      // Ryan 11-20 11:55: no long vertical scroll. The hero, the Start card and the tab row sit on the first screen; the films (in their own scroll panel), the departments and the credits and links are flip sections.
+      const filmsSection = h('div', { class: 'home-films' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), h('div', { class: 'scroll-panel' }, list));
+      const deptSection = deptCards ? h('div', { class: 'home-depts' }, h('div', { class: 'scroll-panel' }, deptCards)) : null;
+      const moreBits = [credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null].filter(Boolean);
+      const moreSection = moreBits.length ? h('div', { class: 'home-more' }, moreBits) : null;
+      const flip = window.ryagramFlip.create({ h, label: 'Home', address: false, sections: [
+        { id: 'films', label: 'Your films', el: filmsSection },
+        { id: 'departments', label: 'Departments', el: deptSection, hidden: !deptSection },
+        { id: 'credits', label: 'Credits and links', el: moreSection, hidden: !moreSection }] });
+      return [hero, startCard, flip.el];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
