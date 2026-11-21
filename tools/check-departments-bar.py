@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/dept-bar-shots')
 IDS = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio', 'forecasts']
-LABELS = {'forecasts': 'Forecasts', 'data_films': 'Data films', 'compilations': 'Compilations', 'geo_intelligence': 'Opportunity Map', 'games': 'Games', 'animation_studio': 'Animation Studio', 'studio': 'Studio'}
+LABELS = {'forecasts': 'Forecasts', 'data_films': 'Data films', 'compilations': 'Compilations', 'geo_intelligence': 'Perfect City', 'games': 'Games', 'animation_studio': 'Animation Studio', 'studio': 'Studio'}
 
 
 class H(http.server.SimpleHTTPRequestHandler):

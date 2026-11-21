@@ -381,7 +381,7 @@
       // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list.
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : ['myFilms'], error: null };
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
@@ -547,7 +547,7 @@
       // ?deptextra adds an id the page does not know and a 'working' one it has no page for (both must be ignored). Interest is one row per person per department, and nothing is ever sent.
       my_departments() {
         if (typeof location !== 'undefined' && /[?&]nodept/.test(location.search || '')) return fail('my_departments is not available');
-        const rows = [{ id: 'data_films', label: 'Data films', status: 'working' }, { id: 'compilations', label: 'Compilations', status: 'soon' }, { id: 'geo_intelligence', label: 'Opportunity Map', status: 'soon' },
+        const rows = [{ id: 'data_films', label: 'Data films', status: 'working' }, { id: 'compilations', label: 'Compilations', status: 'soon' }, { id: 'geo_intelligence', label: 'Perfect City', status: 'soon' },
                       { id: 'games', label: 'Games', status: 'soon' }, { id: 'animation_studio', label: 'Animation Studio', status: 'soon' }, { id: 'studio', label: 'Studio', status: 'soon' }];
         if (typeof location !== 'undefined' && /[?&]deptforecasts/.test(location.search || '')) rows.push({ id: 'forecasts', label: 'Forecasts', status: 'soon' });
         if (typeof location !== 'undefined' && /[?&]deptextra/.test(location.search || '')) rows.push({ id: 'time_machine', label: 'Time machine', status: 'working' }, { id: 'games', label: 'Games again', status: 'working' });

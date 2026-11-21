@@ -8,7 +8,7 @@
   const KNOWN = {
     data_films: { label: 'Data films', page: true, sentence: 'Questions answered with public data, drawn as a short animated film, with every source shown.' },
     compilations: { label: 'Compilations', line: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.', picture: 'phrase' },
-    geo_intelligence: { label: 'Opportunity Map', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
+    geo_intelligence: { label: 'Perfect City', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
     games: { label: 'Games', line: 'Play with your own data and footage in small games you can share.', placeholder: true },
     animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' },
     // Studio (Ryan 2026-11-18, Q639 yes, wording as filed; working name): `sections` are the fuller words shown under the line on its page, always (they are approved, unlike DETAILS below).
@@ -43,7 +43,7 @@
       notYet: ['No game can be played yet.', 'There is no price and no date.']
     }
   };
-  // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Opportunity Map Coming soon pages and a Forecasts group on the Data films page,
+  // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Perfect City Coming soon pages and a Forecasts group on the Data films page,
   // shown only when the site switch deptStills is exactly true (OFF). The files are NOT in the repo: each frame asks for /assets/dept-stills/<name>-<n>.svg, then .png, and stays hidden if neither
   // exists, so with no files nothing shows. Alt text is the draft in proposals/DEPT-PAGES-STILLS-1105.md (made-up lines, a made-up county, SAMPLE numbers).
   const STILLS = {
@@ -71,7 +71,7 @@
   const WORDS = {
     soonGroup: 'Coming soon', soonMark: 'soon', tag: 'Coming soon', button: 'Tell me when it’s ready', noted: 'Noted. We’ll let you know here when it is ready.', takeBack: 'Take it back',
     saveError: 'Couldn’t save that just now. Try again in a minute.', fewLines: 'Start one in your AI', yourFilms: 'Your data films', noAi: 'No AI? Build it step by step',
-    unavailable: 'This page isn’t available on this account'
+    unavailable: 'This page isn’t available on this account', invitedOnly: 'Sign-up for this is for invited accounts for now.'
   };
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
@@ -99,6 +99,9 @@
   // ---------------------------------------------------------------- the bar and the pages
   function create({ h, data, startUi }) {
     let model = null, cleanup = () => {}, mountToken = 0;
+    // May this account start films by talking to an AI? The SAME gate #/start itself uses (app-start.js canStart: connectAccess() exactly true; a failing check is no). Every way into #/start on these pages asks this,
+    // and the Coming soon sign-up asks it too (the server's register_department_interest answers only an invited account). Without app-start.js loaded the answer is no.
+    const mayStart = async () => (window.ryagramStart && window.ryagramStart.canStart ? window.ryagramStart.canStart(data) : false);
 
     async function load() {
       let rows = null;
@@ -159,8 +162,7 @@
       cleanup();
       cleanup = () => { document.body.classList.remove('has-departments'); if (slot) { slot.replaceChildren(); slot.hidden = true; } };
       if (!slot || !flagOn()) return false;
-      let invited = false;
-      try { invited = (await data.connectAccess()) === true; } catch { invited = false; }       // not invited (an administrator account never is) is no reason to hide the way to the departments
+      const invited = await mayStart();       // not invited (an administrator account never is) is no reason to hide the way to the departments
       if (mine !== mountToken) return false;
       const m = await load();
       if (mine !== mountToken || !hasAny(m)) return false;
@@ -201,14 +203,17 @@
 
     // A department that works: heading and sentence, the AI strip, your films, and the no-AI way.
     async function workingPage(id) {
-      const strip = startUi ? await startUi().strip() : null;
+      const invited = await mayStart();
+      const strip = invited && startUi ? await startUi().strip() : null;
       let projects = [];
       try { projects = await data.listProjects(); } catch { projects = []; }
       const list = projects.length
         ? h('ul', { class: 'project-list' }, projects.map(p => h('li', {}, h('a', { href: `#/p/${p.id}` }, p.title), h('span', { class: 'meta' }, p.latest ? ` Version ${p.latest.number}` : ''))))
-        : h('p', { class: 'form-intro' }, 'No data films yet. Start one in your AI, or build one step by step.');
+        : h('p', { class: 'form-intro' }, invited ? 'No data films yet. Start one in your AI, or build one step by step.' : 'No data films yet. Build one step by step.');
+      // "Start one in your AI" and its link only for an account #/start works for; anyone else would land on Your projects with no word why (WEB dead-end sweep row 1).
+      const aiBlock = invited ? [h('h2', {}, WORDS.fewLines), strip || h('p', { class: 'meta' }, h('a', { href: '#/start' }, 'Connect your AI to start films by talking'))] : [];
       return [h('h1', { tabindex: '-1' }, KNOWN[id].label), h('p', { class: 'form-intro' }, KNOWN[id].sentence), stillsBlock(id),
-              h('h2', {}, WORDS.fewLines), strip || h('p', { class: 'meta' }, h('a', { href: '#/start' }, 'Connect your AI to start films by talking')),
+              ...aiBlock,
               h('h2', {}, WORDS.yourFilms), list, h('p', { class: 'meta' }, h('a', { href: '#/build' }, WORDS.noAi))];
     }
 
@@ -220,7 +225,7 @@
         h('p', { class: 'meta' }, 'An illustration with public-domain words (Lincoln, 1863) and made-up timestamps, not a screenshot.'));
     }
 
-    // The Opportunity Map picture (CC1 for Claude 15:30 item 3, behind locationPreview, OFF): text only like the phrase picture, and EVERY place and number in it is MADE UP. The real Dayton
+    // The Perfect City picture (CC1 for Claude 15:30 item 3, behind locationPreview, OFF): text only like the phrase picture, and EVERY place and number in it is MADE UP. The real Dayton
     // demo stills are not used here: they are OpenStreetMap data that stays private until attorney row G11. Each line carries the label the real page will use. DRAFT WORDS (proposals\CC1-LOCATION-PAGE-WORDS-DRAFT.md).
     function locationPicture() {
       return h('div', { class: 'soon-picture', role: 'img', 'aria-label': 'An illustration of a site check on a made-up map' },
@@ -239,8 +244,10 @@
       try { noted = (await data.myDepartmentInterests()).includes(id); } catch { noted = false; }
       const area = h('div', { class: 'soon-action' });
       const msg = h('p', { class: 'form-note', role: 'status', 'aria-live': 'polite' });
-      const offered = !PAGE_ONLY.includes(id) || !!(model && model.announced && model.announced.has(id));        // a page-owned id the server has not named cannot take a sign-up: say so instead of a button that would fail
+      const invited = await mayStart();        // register_department_interest answers only an invited account ('This is for invited accounts for now.'): anyone else gets a plain line, never a button that cannot work (WEB dead-end sweep row 2)
+      const offered = invited && (!PAGE_ONLY.includes(id) || !!(model && model.announced && model.announced.has(id)));        // a page-owned id the server has not named cannot take a sign-up: say so instead of a button that would fail
       const draw = () => {
+        if (!invited) { area.replaceChildren(h('p', { class: 'meta', id: 'soon-invited-only' }, WORDS.invitedOnly)); return; }
         if (!offered) { area.replaceChildren(h('p', { class: 'meta', id: 'soon-none' }, 'Nothing to sign up for yet. We will say here when it is ready.')); return; }
         if (noted) {
           const back = h('button', { class: 'link-button', type: 'button', id: 'soon-takeback', onclick: async () => {

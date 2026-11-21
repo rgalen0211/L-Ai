@@ -37,6 +37,7 @@ function world({ invited = true, rows = null, listFails = false } = {}) {
     addEventListener: t => add(log.win, t), removeEventListener: t => del(log.win, t),
     matchMedia: () => ({ matches: false, addEventListener: t => add(log.media, t), removeEventListener: t => del(log.media, t) }) };
   const ctx = { window: win, document: { body, addEventListener: t => add(log.doc, t), removeEventListener: t => del(log.doc, t) }, location: { hash: '#/' }, console, Promise, Object, Array, Set, Map, String, setTimeout, clearTimeout };
+  vm.runInNewContext(read('assets/app-start.js'), ctx);
   vm.runInNewContext(read('assets/app-departments.js'), ctx);
   const gates = { access: [], list: [] }, asks = { list: 0 };
   const data = { connectAccess: () => { const g = gate(); gates.access.push(g); return g.p.then(() => invited); }, myDepartments: () => { asks.list++; const g = gate(); gates.list.push(g); return g.p.then(() => { if (listFails) throw new Error('down'); return rows || [{ id: 'data_films', status: 'working' }, { id: 'games', status: 'soon' }]; }); } };
@@ -87,8 +88,11 @@ test('EVERY ACCOUNT: an account that is not invited (an administrator) still get
   assert.ok(inv.slot.children[0].all(e => e.tag === 'a').map(a => a.text).includes('Start'), 'an invited account has Start');
 });
 
-test('NO MOUNT: without the flag, or with no slot, nothing is drawn and nothing is listened to', async () => {
-  const off = world(); off.win.ryagramConfig = { departments: false }; assert.equal(await off.ui.mountBar(off.slot), false);
+// A bar that mounts when it must not waits on gates nobody opens, so a plain await would hang: the gates are opened and the answer must come within a deadline, or the test FAILS fast (WEB 11-21, GAMES M3).
+const within = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what}: no answer within ${ms} ms (a bar that should not mount is waiting to mount)`)), ms).unref())]);
+test('NO MOUNT: without the flag, or with no slot, nothing is drawn and nothing is listened to', { timeout: 15000 }, async () => {
+  const off = world(); off.win.ryagramConfig = { departments: false }; const offP = off.ui.mountBar(off.slot); await off.release();
+  assert.equal(await within(offP, 5000, 'flag off'), false);
   assert.equal(off.slot.children.length, 0); assert.equal(off.count(off.log.win, 'hashchange'), 0);
-  const none = world(); assert.equal(await none.ui.mountBar(null), false);
+  const none = world(); const noneP = none.ui.mountBar(null); await none.release(); assert.equal(await within(noneP, 5000, 'no slot'), false);
 });

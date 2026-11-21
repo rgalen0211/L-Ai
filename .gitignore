@@ -3,3 +3,4 @@ supabase/.temp/
 private/
 *.geo-real.json
 geo-dayton-real*.json
+.mut-dm/

@@ -1,5 +1,5 @@
 """Ryan 11-20 11:01: a new user must reach EVERY department's page, and every department that is not launch-ready must have a Coming soon page. Real Chrome, mock mode, LOCAL server only, desktop 1280 and phone 390,
-for an invited account, a not-invited one (an administrator never is), a non-admin account and one whose my_departments() fails. For each of the seven departments (Data films, Compilations, Opportunity Map, Games,
+for an invited account, a not-invited one (an administrator never is), a non-admin account and one whose my_departments() fails. For each of the seven departments (Data films, Compilations, Perfect City, Games,
 Animation Studio, Studio, Forecasts) the page is opened BOTH from the top bar (on a phone through the Menu) and from its card on Your projects and must show its own heading, never the home page, a blank or the 'isn't
 available' page; Data films is the working page, the six others are Coming soon pages with the tag and either the 'Tell me when it's ready' button or (Forecasts, which the server does not name yet) the plain
 'Nothing to sign up for yet' line; with ?deptforecasts the server names Forecasts and it gets the button too.   Needs Chrome.   python tools/check-departments-all.py [outdir]"""
@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/dept-all-shots')
-DEPTS = [('data_films', 'Data films'), ('compilations', 'Compilations'), ('geo_intelligence', 'Opportunity Map'), ('games', 'Games'), ('animation_studio', 'Animation Studio'), ('studio', 'Studio'), ('forecasts', 'Forecasts')]
+DEPTS = [('data_films', 'Data films'), ('compilations', 'Compilations'), ('geo_intelligence', 'Perfect City'), ('games', 'Games'), ('animation_studio', 'Animation Studio'), ('studio', 'Studio'), ('forecasts', 'Forecasts')]
 
 
 class H(http.server.SimpleHTTPRequestHandler):
@@ -41,8 +41,13 @@ def judge(p, tag, did, label, how):
     check(here == f'#/d/{did}' and label.lower() in h1.lower() and 'Your projects' not in h1 and 'isn’t available' not in body, f'{tag}: {label} from the {how} opens its own page ({h1!r}, {here})')
     if did == 'data_films':
         check('your data films' in body.lower(), f'{tag}: {label} is the working page')
+        notinv = '&noinvite' in p.url                                  # dead-end sweep row 1 (11-21): the AI heading and its #/start link only for an account #/start works for
+        starts = p.locator('main a[href="#/start"]').count()
+        check((starts == 0 and 'start one in your ai' not in body.lower()) if notinv else ('start one in your ai' in body.lower()), f'{tag}: {label} shows the way into #/start only to an invited account ({starts} link(s))')
     else:
+        notinv = '&noinvite' in p.url                              # dead-end sweep row 2 (11-21): a not-invited account gets the plain invited-only line, never a button the server refuses
         want = ('tell me when it’s ready' in body.lower()) if did != 'forecasts' or '&deptforecasts' in p.url else ('nothing to sign up for yet' in body.lower())
+        if notinv: want = ('invited accounts for now' in body.lower()) and p.locator('#soon-notify').count() == 0
         check('coming soon' in body.lower() and want, f'{tag}: {label} is a Coming soon page with {"its sign-up button" if did != "forecasts" or "&deptforecasts" in p.url else "the plain no-sign-up line"}')
     check(len(body.strip()) > 80, f'{tag}: {label} is not a blank page')
 

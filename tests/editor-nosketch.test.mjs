@@ -122,9 +122,9 @@ const ROWS_SRC = between('function extraLookRows()', 'function paintLook()');
 function lookRows({ look = {}, locked = false, aiTouched = [] } = {}) {
   const ops = [];
   const said = [];
-  const factory = vm.runInNewContext(`(function (h, ed, locked, apply, btn, say) { ${ROWS_SRC} return extraLookRows; })`, { Number, String, Array, Set });
+  const factory = vm.runInNewContext(`(function (h, ed, locked, apply, btn, say, renderPath) { ${ROWS_SRC} return extraLookRows; })`, { Number, String, Array, Set });
   const btn = (label, cls, onclick, attrs = {}) => { const b = h('button', attrs, label); b.addEventListener('click', onclick); return b; };
-  const rows = factory(h, { state: { look }, aiTouched: () => aiTouched }, locked, op => ops.push(op), btn, t => said.push(t))();
+  const rows = factory(h, { state: { look }, aiTouched: () => aiTouched }, locked, op => ops.push(op), btn, t => said.push(t), () => null)();
   const root = h('div', {}, ...rows);
   return { root, ops, said, sel: () => root.all(e => e.tag === 'select')[0], num: () => root.all(e => e.tag === 'input' && e.attrs.type === 'number')[0], colours: () => root.all(e => e.tag === 'input' && e.attrs.type === 'color') };
 }

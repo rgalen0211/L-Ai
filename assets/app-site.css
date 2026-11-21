@@ -43,6 +43,18 @@ body.ryagram-look .film-card-body h3 a{color:var(--ink);text-decoration:none}   
 .film-card-body .meta{margin:0}
 .film-card-actions{display:flex;flex-wrap:wrap;gap:8px;margin:auto 0 0;padding-top:12px}
 
+/* the Departments row on Your projects (assets/app-departments.js cardsRow, markup by WEB, base rules in app.css): the SAME card as above, so the page has one card, not two */
+.dept-cards{margin:32px 0}
+.dept-cards>h2{margin:0 0 12px}
+.dept-card-list{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.dept-card{position:relative;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--paper);transition:border-color .15s ease,box-shadow .15s ease}
+.dept-card:hover,.dept-card:focus-within{border-color:var(--brand-deep);box-shadow:0 2px 12px rgba(0,0,0,.08)}
+body.ryagram-look .dept-card a{color:var(--ink);text-decoration:none;font-size:1.05rem}
+.dept-card a::after{content:"";position:absolute;inset:0}
+.dept-card .soon-tag,.dept-card .dept-card-open{margin-left:8px}
+.dept-card p.meta{margin:4px 0 0}
+@media (prefers-reduced-motion:reduce){.dept-card{transition:none}}
+
 .home-links{display:flex;flex-wrap:wrap;gap:8px 24px;margin:32px 0 8px;padding:0;list-style:none}
 .admin-link{font-weight:600}
 
@@ -53,7 +65,8 @@ body.ryagram-look .film-card-body h3 a{color:var(--ink);text-decoration:none}   
   .nav .app-account .button{white-space:nowrap}
   .start-card{margin:16px 0 24px;padding:16px}
   .start-card .start-actions .button{width:100%}
-  .film-grid,.site-card-grid{grid-template-columns:1fr;gap:12px}
+  .film-grid,.site-card-grid,.dept-card-list{grid-template-columns:1fr;gap:12px}
+  .dept-cards{margin:24px 0}
   .film-card{flex-direction:row}
   .film-thumb{flex:0 0 112px;aspect-ratio:auto;align-self:stretch}
   .film-thumb-letter{font-size:1.8rem}
@@ -69,3 +82,5 @@ body.ryagram-look .film-card-body h3 a{color:var(--ink);text-decoration:none}   
 @media (max-width:520px){.site-card-link{display:flex;align-items:center;min-height:44px}label:has(>input[type=radio]):not(.builder-card):not(.le *),label:has(>input[type=checkbox]):not(.builder-card):not(.le *){display:flex;align-items:center;gap:10px;min-height:44px}.builder-sample-link a{display:inline-flex;align-items:center;min-height:44px}}
 /* at 701 to 980 px app.css hides every header link of an admin's bar (.has-departments .nav.has-admin .app-account a.app-nav-link, 0,5,1): the Admin link must stay (FACES 11-20) */
 .has-departments .nav.has-admin .app-account a.app-nav-link.admin-link{display:inline-flex}
+/* "Request a film" in the project page's note is a 44 px tap target on a phone (WEB 11-20: it measured 17 px) */
+@media (max-width:520px){.request-pointer a{display:inline-flex;align-items:center;min-height:44px}}

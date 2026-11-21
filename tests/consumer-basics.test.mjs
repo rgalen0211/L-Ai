@@ -74,7 +74,7 @@ test('ROUND 2: back links are comfortable to tap, the first loading line has a s
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.spinner\{animation:none\}\}/);
   const lib = read('assets/app-library.js');
   assert.ok(lib.includes("h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading…'"));
-  assert.ok(lib.includes("'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'"));
+  assert.ok(lib.includes("'A contact sheet is a grid of still frames to check the look. It usually takes about 4 to 5 minutes. A preview is a short clip. The final film is the full render.'"));
 });
 
 test('FOOTER (Ryan Q26, 2026-10-18): the app footer says "Contact: ryagram@uselai.com" as one link, between Help and Terms of Use', () => {

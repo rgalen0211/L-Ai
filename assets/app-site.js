@@ -51,12 +51,18 @@
       job().finally(() => { running--; pump(); });
     }
   }
-  function filmCard({ h, project, statusEl, updated, edit, data, version }) {
+  // The card's small line: the parts that exist, with a middle dot only BETWEEN two of them (never a leading or trailing dot when one is missing).
+  function metaLine(h, parts) {
+    const out = [];
+    parts.filter(x => x !== null && x !== undefined && x !== false && x !== '').forEach((x, i) => { if (i) out.push(' \u00b7 '); out.push(x); });
+    return out;
+  }
+  function filmCard({ h, project, statusEl, updated, parts, edit, data, version }) {
     const letter = () => h('span', { class: 'film-thumb-letter' }, String(project.title || '?').trim().slice(0, 1).toUpperCase() || '?');
     const holder = h('a', { class: 'film-thumb', href: `#/p/${project.id}`, tabindex: '-1', 'aria-hidden': 'true' }, letter());
     const li = h('li', { class: 'film-card' }, holder,
       h('div', { class: 'film-card-body' }, h('h3', {}, h('a', { href: `#/p/${project.id}` }, project.title)),
-        h('p', { class: 'meta' }, statusEl, ' ', updated),
+        h('p', { class: 'meta' }, parts ? metaLine(h, parts) : [statusEl, ' ', updated]),
         h('p', { class: 'film-card-actions' }, h('a', { class: 'button secondary small', href: `#/p/${project.id}` }, 'Open'), edit ? [' ', edit] : null)));
     if (version && data && typeof data.artifactsFor === 'function' && typeof data.fileUrl === 'function') {
       const load = () => { queue.push(async () => { const url = await pictureFor(data, version); if (url && li.isConnected) { const img = h('img', { src: url, alt: '', loading: 'lazy', draggable: 'false' }); img.addEventListener('error', () => { seen.drop(version); holder.replaceChildren(letter()); }); holder.replaceChildren(img); }       // an address that stopped working puts the plain tile back and is asked again next time

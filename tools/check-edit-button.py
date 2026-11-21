@@ -1,6 +1,6 @@
 """The Edit button and the 'live editor isn't on for this account' page (WEB 11-17, Ryan's standing order item 2), real Chrome, mock mode, LOCAL server only (127.0.0.1).
-Three configs, each a LOCAL copy of ryagram-config.js: liveEditor true (everyone: every project row and the top of the project page carry Edit, and it opens the editor), 'account' with an empty
-switch list (the mock has none: the button still shows, and the editor address says plainly the editor is not on for this account and offers the way home, instead of the library),
+Three configs, each a LOCAL copy of ryagram-config.js: liveEditor true (everyone: every project row and the top of the project page carry Edit, and it opens the editor), 'account' with this account NOT on the list (no Edit link anywhere,
+because a link would land on the not-on page; the typed address says plainly the editor is not on and offers the way home), 'account' with this account ON the list (mock ?editoron: Edit shows and opens the editor),
 and false (no Edit button anywhere, and the editor address also says it is not on). Needs Chrome.
 
     python tools/check-edit-button.py [outdir]        (default D:/Ryagram-scratch/WEB/edit-button-shots)
@@ -45,8 +45,8 @@ def main():
 
     with sync_playwright() as pw:
         b = pw.chromium.launch(channel='chrome')
-        for value in ('true', "'account'", 'false'):
-            print(f'liveEditor: {value}')
+        for value, onlist in (('true', False), ("'account'", False), ("'account'", True), ('false', False)):
+            print(f'liveEditor: {value}' + (' (account on the list)' if onlist else ''))
             body = re.sub(r"liveEditor:\s*(?:true|false|'account')", f'liveEditor: {value}', cfg)
             assert f'liveEditor: {value}' in body
             for name, opts in (('desktop', dict(viewport={'width': 1280, 'height': 900})), ('phone', dict(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True))):
@@ -54,23 +54,30 @@ def main():
                 ctx.route('**/assets/ryagram-config.js*', (lambda b2: lambda r: r.fulfill(status=200, content_type='text/javascript', body=b2))(body))
                 ctx.route('https://claude.ai/**', lambda r: r.abort())
                 p = ctx.new_page()
+                q = '&editoron' if onlist else ''
                 errs = []
                 p.on('pageerror', lambda e: errs.append(str(e)))
-                tag = f"{value.strip(chr(39))}-{name}"
-                p.goto(f'{base}/app/?mock#/', wait_until='load')
+                tag = f"{value.strip(chr(39))}{'-on' if onlist else ''}-{name}"
+                p.goto(f'{base}/app/?mock{q}#/', wait_until='load')
                 p.wait_for_selector('ul.film-grid a[href^="#/p/"]', timeout=20000)
                 p.wait_for_timeout(400)
                 rows = p.locator('ul.film-grid li').count()
                 edits = p.locator('ul.film-grid li a[data-edit-project]').count()
                 p.screenshot(path=str(OUT / f'{tag}-1-library.png'))
-                shown = value != 'false'
+                metas = p.locator('ul.film-grid li p.meta').all_inner_texts()
+                check(metas and all(not re.search(r'^\s*·|·\s*$|·\s*·', t) for t in metas), f'{name}: no stray dot on a film card date line {metas[:2]}')
+                shown = value == 'true' or (value == "'account'" and onlist)
                 check(edits == (rows if shown else 0), f'{name}: Edit on every project row when shown ({edits} of {rows})')
-                p.goto(f'{base}/app/?mock#/p/{PID}', wait_until='load')
+                p.goto(f'{base}/app/?mock{q}#/p/{PID}', wait_until='load')
                 p.wait_for_selector('h1:visible:has-text("Obesity")', timeout=20000)
+                if name == 'phone' and tag.startswith('true'):
+                    rq = p.locator('.request-pointer a')
+                    if rq.count():
+                        check(rq.first.bounding_box()['height'] >= 44, f'phone: Request a film is a 44 px tap target ({rq.first.bounding_box()["height"]}px)')
                 top = p.locator('.actions-row a[data-edit-project]').count()
                 check(top == (1 if shown else 0), f'{name}: Edit at the top of the project page ({top})')
                 p.screenshot(path=str(OUT / f'{tag}-2-project.png'))
-                if value == 'true':
+                if shown:
                     p.click('.actions-row a[data-edit-project]')
                     p.wait_for_selector('img.le-svg', timeout=20000)
                     check('/editor/data/' in p.url, f'{name}: Edit opens the editor ({p.url.split("#")[1]})')
@@ -86,10 +93,7 @@ def main():
                     check((before['pos'] == 'static') == (name == 'phone'), f'{name}: the header is {before["pos"]} (static only on a phone)')
                     p.screenshot(path=str(OUT / f'{tag}-3-editor.png'))
                 else:
-                    if shown:
-                        p.click('.actions-row a[data-edit-project]')
-                    else:
-                        p.goto(f'{base}/app/?mock#/editor/data/{PID}', wait_until='load')
+                    p.goto(f'{base}/app/?mock{q}#/editor/data/{PID}', wait_until='load')
                     p.wait_for_selector('h1:visible:has-text("isn’t on for this account")', timeout=20000)
                     check(p.locator('#editor-off-home').is_visible() and 'Your projects' not in p.inner_text('main h1'), f'{name}: the editor address says it is not on, with the way home, not the library')
                     p.screenshot(path=str(OUT / f'{tag}-3-not-on.png'))

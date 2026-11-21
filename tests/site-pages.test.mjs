@@ -206,3 +206,14 @@ test('WIRING: one Admin link in the header (no menu), the Admin page only for an
   assert.ok(html.indexOf('app-site.js') > 0 && html.indexOf('app-site.js') < html.indexOf('app-library.js'), 'the card module loads before the library');
   assert.match(html, /app-site\.css\?v=/);
 });
+
+test('FILM CARD META (WEB 11-20): the dot goes only BETWEEN the parts that exist, never a leading or trailing one', () => {
+  const { S } = load();
+  const meta = parts => h('div', {}, S.filmCard({ h, project: project('m', 'M'), parts, edit: null })).all(e => e.attrs.class === 'meta')[0].text;
+  assert.equal(meta(['Version 2', 'Sent', 'updated Nov 3']), 'Version 2 · Sent · updated Nov 3');
+  assert.equal(meta(['Version 2', null, 'updated Nov 3']), 'Version 2 · updated Nov 3', 'no state: no doubled dot');
+  assert.equal(meta(['No versions yet', null, null]), 'No versions yet', 'no date: no trailing dot');
+  assert.equal(meta([null, null, 'updated Nov 3']), 'updated Nov 3', 'only a date: no leading dot');
+  assert.equal(meta(['Version 1', '', false, undefined]), 'Version 1');
+  assert.equal(meta([]), '');
+});
