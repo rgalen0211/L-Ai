@@ -121,7 +121,7 @@ class PolicyGrants(unittest.TestCase):
     def test_live_order(self):
         before = [m for m in core.MIGRATIONS if m.name < FIX.name]
         later = [m for m in core.MIGRATIONS if m.name > FIX.name]
-        c = build("g_live", [*before, LEDGER, STRIPE, DISPUTES], after=[OLD_TAIL])
+        c = build("g_live", [*before, LEDGER, STRIPE], after=[OLD_TAIL])            # live as it was before the fix: no DISPUTES then
         try:
             # As live was before the fix: exactly the two upload functions missing, for `authenticated`.
             self.assertEqual({(fn, role) for fn, role, _ in missing_grants(c)},
@@ -180,7 +180,8 @@ def executable_by_authenticated(c):
 
 
 # The order Ryan applies on live: the phase-2b files (whose tail revokes every ryagram_private function) went in BEFORE the funnel migration, so they cannot mask a missing revoke in it.
-LIVE_ORDER = [*[m for m in core.MIGRATIONS if m.name < "20261017000900"], LEDGER, STRIPE, DISPUTES, *[m for m in core.MIGRATIONS if m.name >= "20261017000900"]]
+LIVE_ORDER = [*[m for m in core.MIGRATIONS if m.name < "20261017000900"], LEDGER, STRIPE, *[m for m in core.MIGRATIONS if m.name >= "20261017000900"],
+              DISPUTES]                                    # GEO 11-21: live applies it last (CC1 10:57 LOW 8)
 
 
 class PrivateSchemaClosed(unittest.TestCase):

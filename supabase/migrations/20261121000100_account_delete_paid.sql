@@ -8,7 +8,7 @@
 -- request row stays, and Ryan closes the account by hand.
 -- Why M5: support_requests.email and invite_redemptions.email outlived the account (support_requests set owner_id to null on delete;
 -- an unanswered request was kept with no end). account_redact_contact replaces the address in both, for the person's own rows
--- (by owner, and by the address itself, any case), BEFORE the login goes. The support message itself is kept (its retention is
+-- (by owner, or by the address itself in any case where the row has no owner; a creator application by its address), BEFORE the login goes. The support message itself is kept (its retention is
 -- support's: answered requests 3 years); the row no longer names the person.
 -- Nothing here reaches the Stripe customer record (it keeps the email at Stripe); the Privacy page says so (GEO review L4).
 begin;
@@ -38,19 +38,25 @@ declare
   addr text := lower(trim(coalesce(p_email, '')));
   support int;
   invites int;
+  applications int;
 begin
   if p_owner is null then
     raise exception 'No account named.' using errcode = '22023';
   end if;
   update public.support_requests s set email = 'redacted@deleted.invalid'
     where s.email <> 'redacted@deleted.invalid'
-      and (s.owner_id = p_owner or (addr <> '' and lower(s.email) = addr));
+      and (s.owner_id = p_owner or (s.owner_id is null and addr <> '' and lower(s.email) = addr));   -- never another person's row (CC1 10:57)
   get diagnostics support = row_count;
   update public.invite_redemptions r set email = 'redacted'
     where r.email <> 'redacted'
-      and (r.user_id = p_owner or (addr <> '' and lower(r.email) = addr));
+      and (r.user_id = p_owner or (r.user_id is null and addr <> '' and lower(r.email) = addr));
+  -- a creator application names no account: matched by the address alone (CC1 10:57 LOW 5)
+  update public.creator_applications c set email = 'redacted@deleted.invalid', name = 'Deleted'
+    where c.email <> 'redacted@deleted.invalid' and addr <> '' and lower(c.email) = addr;
+  get diagnostics applications = row_count;
   get diagnostics invites = row_count;
-  return jsonb_build_object('support_requests_redacted', support, 'invite_redemptions_redacted', invites);
+  return jsonb_build_object('support_requests_redacted', support, 'invite_redemptions_redacted', invites,
+                            'creator_applications_redacted', applications);
 end $$;
 
 revoke execute on function public.account_erase_paid_content(uuid), public.account_redact_contact(uuid, text)

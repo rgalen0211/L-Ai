@@ -149,20 +149,25 @@ class Account(core.Base):
         mine = self.admin(add, RYAN, "ryan@example.com")
         by_addr = self.admin(add, None, "Ryan@Example.COM")                    # sent before signing in, the same address in another case
         other = self.admin(add, OTHER, "other@example.com")
+        same_addr_other_owner = self.admin(add, OTHER, "ryan@example.com")       # CC1 10:57 LOW 5: another person's row, the same address
+        app = self.admin("insert into creator_applications (name, email, kind, makes, link, question) values (%s, %s, 'teacher', 'lessons', 'https://example.invalid/c', 'What would you ask the data?') returning id", "Ryan Tester", "RYAN@example.com")
         self.admin("insert into invite_codes (code_hash, label, max_uses, expires_at) values (%s, 'test', 5, now() + interval '1 day') returning 1",
                    "a" * 64)
         r_mine = self.admin("insert into invite_redemptions (code_hash, email, user_id) values (%s, 'ryan@example.com', %s) returning id", "a" * 64, RYAN)
         r_other = self.admin("insert into invite_redemptions (code_hash, email, user_id) values (%s, 'other@example.com', %s) returning id", "a" * 64, OTHER)
         out = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "  RYAN@example.com ")
-        self.assertEqual(out, {"support_requests_redacted": 2, "invite_redemptions_redacted": 1})   # MUST-FAIL: before the fix nothing
+        self.assertEqual({k: out[k] for k in ("support_requests_redacted", "invite_redemptions_redacted", "creator_applications_redacted")},
+                         {"support_requests_redacted": 2, "invite_redemptions_redacted": 1, "creator_applications_redacted": 1})   # MUST-FAIL: before the fix nothing
+        self.assertEqual(self.admin("select email from support_requests where id = %s", same_addr_other_owner), "ryan@example.com")   # never another person's
+        self.assertEqual(self.admin("select name, email from creator_applications where id = %s", app), ("Deleted", "redacted@deleted.invalid"))
         for sid in (mine, by_addr):
             self.assertEqual(self.admin("select email from support_requests where id = %s", sid), "redacted@deleted.invalid")
         self.assertEqual(self.admin("select message from support_requests where id = %s", mine), "Please help with my credits.")
         self.assertEqual(self.admin("select email from support_requests where id = %s", other), "other@example.com")
         self.assertEqual(self.admin("select email from invite_redemptions where id = %s", r_mine), "redacted")
         self.assertEqual(self.admin("select email from invite_redemptions where id = %s", r_other), "other@example.com")
-        self.assertEqual(self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com"),
-                         {"support_requests_redacted": 0, "invite_redemptions_redacted": 0})     # safe to run twice
+        again = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com")
+        self.assertEqual(sum(v for v in again.values()), 0)                                                  # safe to run twice
 
     def test_GEO_only_the_service_role_can_erase_or_redact(self):
         for who in (RYAN, "anon"):

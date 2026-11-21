@@ -19,6 +19,7 @@ export interface Deps {
   eraseContent(owner: string): Promise<{ uploads_left?: number; films_left?: number } | null>;
   redactContact(owner: string, email: string): Promise<void>;
   requestDeletion(owner: string, email: string, reason: string): Promise<void>;
+  blockLogin(owner: string): Promise<void>;          // a paying customer's login is blocked until Ryan closes the account (CC1 10:57 LOW 7)
   deleteUser(owner: string): Promise<void>;
 }
 
@@ -65,11 +66,16 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     if (c.has_credit_history) {
       step = "erase";
       const left = await deps.eraseContent(user.id);
-      if ((left?.uploads_left ?? 0) > 0 || (left?.films_left ?? 0) > 0) throw new Error("some files are still in storage");
+      // a missing count is a failure, never zero (CC1 10:57 LOW 6)
+      if (typeof left?.uploads_left !== "number" || typeof left?.films_left !== "number" || left.uploads_left > 0 || left.films_left > 0) {
+        throw new Error("some files are still in storage, or the count is missing");
+      }
       step = "request";
       await deps.requestDeletion(user.id, user.email, "credit history");
+      step = "block";
+      await deps.blockLogin(user.id);
       return reply(202, { status: "requested", files_removed: paths.length + uploads.length,
-        message: "Your films and uploaded files are deleted. Your payment history is kept as a financial record, so your account itself is closed by hand within 30 days." });
+        message: "Your films and uploaded files are deleted, and you can no longer sign in. Your payment history is kept as a financial record, so your account itself is closed by hand within 30 days." });
     }
     step = "login";
     await deps.deleteUser(user.id);
@@ -78,6 +84,8 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     console.error(`delete-account ${step}: ${(err as Error).message}`);
     return reply(500, { error: step === "check" || step === "files"
       ? "Nothing was deleted. Try again in a minute."
-      : "Your files were removed, but the account couldn't be finished just now. Try again in a minute." });
+      : step === "erase"
+        ? "Some of your files couldn't be removed just now. Try again in a minute; nothing else was changed."
+        : "Your files were removed, but the account couldn't be finished just now. Try again in a minute." });
   }
 }

@@ -17,6 +17,7 @@ function world(check = {}, over = {}) {
       redactContact: async (owner, email) => { calls.push(['redact', owner, email]); },
       eraseContent: async owner => { calls.push(['erase', owner]); return { uploads_left: 0, films_left: 0 }; },
       requestDeletion: async (owner, email, reason) => { calls.push(['request', owner, reason]); },
+      blockLogin: async owner => { calls.push(['block', owner]); },
       deleteUser: async owner => { calls.push(['deleteUser', owner]); },
       ...over,
     }
@@ -56,9 +57,9 @@ test('a running render blocks it; credit history still deletes files and uploads
   const body = await res.json();
   assert.equal(body.status, 'requested');
   assert.equal(body.files_removed, 2);
-  assert.match(body.message, /films and uploaded files are deleted/);
+  assert.match(body.message, /films and uploaded files are deleted, and you can no longer sign in/);
   // MUST-FAIL: before the fix only the request was recorded and NO file was touched
-  assert.deepEqual(w.calls, [['remove', 1], ['remove-uploads', 1], ['redact', ME, 'Ryan@Example.com'], ['erase', ME], ['request', ME, 'credit history']]);
+  assert.deepEqual(w.calls, [['remove', 1], ['remove-uploads', 1], ['redact', ME, 'Ryan@Example.com'], ['erase', ME], ['request', ME, 'credit history'], ['block', ME]]);
   assert.ok(!w.calls.some(c => c[0] === 'deleteUser'));                       // the login and the ledger stay
 });
 
@@ -68,8 +69,19 @@ test('a paid account whose files are not all gone is not recorded as done (GEO 1
   const res = await call(w.deps, { confirm_email: 'ryan@example.com' });
   console.error = quiet;
   assert.equal(res.status, 500);
-  assert.match((await res.json()).error, /files were removed/);
+  assert.match((await res.json()).error, /Some of your files couldn't be removed/);   // CC1 10:57 LOW 6: never 'files were removed' here
   assert.ok(!w.calls.some(c => c[0] === 'request'));                         // asked again, it retries
+});
+
+test('a missing count from the erase step is a failure, never read as zero (CC1 10:57 LOW 6)', async () => {
+  for (const left of [null, {}, { uploads_left: 0 }, { films_left: 0 }, { uploads_left: '0', films_left: 0 }]) {
+    const quiet = console.error; console.error = () => {};
+    const w = world({ has_credit_history: true }, { eraseContent: async () => left });
+    const res = await call(w.deps, { confirm_email: 'ryan@example.com' });
+    console.error = quiet;
+    assert.equal(res.status, 500, JSON.stringify(left));                     // MUST-FAIL: before r2 a missing count read as 0
+    assert.ok(!w.calls.some(c => c[0] === 'request' || c[0] === 'block'));
+  }
 });
 
 test('the email is removed from support and invite rows before the login goes; a failure there keeps the login (GEO 11-21 M5)', async () => {

@@ -34,6 +34,10 @@ serve((req) => handle(req, {
   requestDeletion: async (owner, email, reason) => {
     await rpc("account_request_deletion", { p_owner: owner, p_email: email, p_reason: reason });
   },
+  async blockLogin(owner) {                                                                        // CC1 10:57 LOW 7
+    const { error } = await service.auth.admin.updateUserById(owner, { ban_duration: "876000h" });   // about 100 years: until Ryan's hand close deletes it
+    if (error) throw new Error(error.message);
+  },
   async deleteUser(owner) {
     const { error } = await service.auth.admin.deleteUser(owner);
     if (error) throw new Error(error.message);

@@ -1,14 +1,20 @@
--- Ryagram: chargebacks and second refunds (GEO 2026-11-21, CC1 10:4x; GEO-SECURITY-PRIVACY-REVIEW-1121 M6 and L1). NOT APPLIED.
--- Run AFTER phase-2b/stripe_test_mode.sql. One transaction. Changes nothing already recorded.
+-- Ryagram: chargebacks and second refunds (GEO 2026-11-21, CC1 10:4x; GEO-SECURITY-PRIVACY-REVIEW-1121 M6 and L1; CC1 10:57 r2). NOT APPLIED.
+-- Run AFTER phase-2b/stripe_test_mode.sql and BEFORE the two dispute events are added to the Stripe webhook (supabase/README.md): an
+-- event that arrives first is recorded as not used, and its later deliveries replay as that. One transaction. Changes nothing recorded.
 --
 --   charge.dispute.created   a pack payment is disputed   -> needs_review (credits unchanged: the dispute may still be won)
---   charge.dispute.closed    lost                         -> the pack is reversed, as a full refund is (once only)
+--                            (its credits already gone)    -> ignored (nothing to do)
+--   charge.dispute.closed    lost, for the pack's amount   -> the pack is reversed, as a full refund is (once only)
+--                            lost, for a different amount  -> needs_review (a partial chargeback: adjust by hand)
 --                            won, or an inquiry closed     -> ignored (credits unchanged)
 --   charge.refunded          in full, AFTER an earlier partial refund of the same payment
 --                                                         -> needs_review (it used to reverse ALL the pack's credits, even
 --                                                            after Ryan had adjusted the partial by hand: a double debit)
+--                            any refund AFTER the credits were taken back
+--                                                         -> ignored (no hand change needed)
 --
--- Stripe must send the two dispute events to the webhook endpoint (supabase/README.md, the events list).
+-- stripe_partial_refunds starts EMPTY: partial refunds recorded before this file was run are not in it (their stripe_events rows say
+-- 'Partial refund of ...' but do not name the payment). Before running this on live, check those rows by hand (README).
 begin;
 
 -- A payment that had a partial refund: any later "refunded in full" for it is held for review.
@@ -33,6 +39,13 @@ begin
     outcome := 'needs_review'; detail := 'Refund of a payment that is not a pack (a plan invoice?). Credits unchanged.'; return;
   end if;
   owner := p.owner_id;
+  -- First: credits already taken back (a full refund or a lost dispute) means nothing is left to adjust, whatever this refund is.
+  if exists (select 1 from public.credit_ledger r join public.credit_ledger b on b.id = r.resolves_id
+             where b.stripe_event_id = p.purchase_event_id and b.entry = 'purchase' and r.entry = 'purchase_reversal') then
+    outcome := 'ignored';
+    detail := format('Already reversed: the credits for %s were already taken back, so this refund needs no hand change.', p.price_code);
+    return;
+  end if;
   if coalesce(p_data->>'amount_refunded', '') !~ '^[0-9]+$'
      or (p_data->>'amount_refunded')::int is distinct from (p_data->>'amount')::int then   -- partial, or amounts missing
     insert into public.stripe_partial_refunds (payment_intent, first_event_id) values (p.payment_intent, p_event_id)
@@ -41,10 +54,6 @@ begin
     detail := format('Partial refund of %s: %s of %s cents. Credits unchanged; adjust by hand if needed.',
                      p.price_code, p_data->>'amount_refunded', p_data->>'amount');
     return;
-  end if;
-  if exists (select 1 from public.credit_ledger r join public.credit_ledger b on b.id = r.resolves_id
-             where b.stripe_event_id = p.purchase_event_id and b.entry = 'purchase' and r.entry = 'purchase_reversal') then
-    outcome := 'ignored'; detail := 'Already reversed.'; return;      -- a second refund event for the same payment
   end if;
   if exists (select 1 from public.stripe_partial_refunds where payment_intent = p.payment_intent) then
     outcome := 'needs_review';
@@ -66,13 +75,21 @@ language plpgsql set search_path = '' as $$
 declare
   p public.stripe_payments;
   st text := coalesce(p_data->>'status', '');
+  reversed boolean;
 begin
   select * into p from public.stripe_payments where payment_intent = p_data->>'payment_intent';
   if not found then
     outcome := 'needs_review'; detail := 'Dispute on a payment that is not a pack (a plan invoice?). Credits unchanged.'; return;
   end if;
   owner := p.owner_id;
+  reversed := exists (select 1 from public.credit_ledger r join public.credit_ledger b on b.id = r.resolves_id
+                      where b.stripe_event_id = p.purchase_event_id and b.entry = 'purchase' and r.entry = 'purchase_reversal');
   if p_type = 'charge.dispute.created' then
+    if reversed then
+      outcome := 'ignored';
+      detail := format('Dispute opened on %s, whose credits were already taken back. Nothing to do.', p.price_code);
+      return;
+    end if;
     outcome := 'needs_review';
     detail := format('Dispute opened on %s (%s cents, reason %s). Credits unchanged until it closes; if it is lost they are removed.',
                      p.price_code, coalesce(p_data->>'amount', '?'), coalesce(p_data->>'reason', 'not given'));
@@ -83,9 +100,14 @@ begin
     outcome := 'ignored'; detail := format('Dispute on %s closed as %s. Credits unchanged.', p.price_code, coalesce(nullif(st, ''), 'no status'));
     return;
   end if;
-  if exists (select 1 from public.credit_ledger r join public.credit_ledger b on b.id = r.resolves_id
-             where b.stripe_event_id = p.purchase_event_id and b.entry = 'purchase' and r.entry = 'purchase_reversal') then
+  if reversed then
     outcome := 'ignored'; detail := 'Already reversed.'; return;      -- refunded, or a dispute already lost
+  end if;
+  if coalesce(p_data->>'amount', '') !~ '^[0-9]+$' or (p_data->>'amount')::int <> p.amount_cents then
+    outcome := 'needs_review';
+    detail := format('Partial chargeback on %s: %s of %s cents lost. Credits unchanged; adjust by hand.',
+                     p.price_code, coalesce(p_data->>'amount', '?'), p.amount_cents);
+    return;
   end if;
   if exists (select 1 from public.stripe_partial_refunds where payment_intent = p.payment_intent) then
     outcome := 'needs_review';

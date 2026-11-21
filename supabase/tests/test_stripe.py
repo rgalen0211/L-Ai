@@ -219,6 +219,31 @@ class Stripe(unittest.TestCase):
         self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_L", "lost"), livemode=True), "refused_live")
         self.assertEqual(self.balance(), 10)
 
+    # -- CC1 10:57 r2: amounts and order
+    def test_GEO_a_partial_chargeback_is_held_not_reversed_in_full(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_PC"))
+        # MUST-FAIL (CC1 M1): before r2 a lost dispute for HALF the amount took back the WHOLE pack
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_PC", "lost", amount=600), event="evt_PC"), "needs_review")
+        self.assertIn("Partial chargeback", self.detail("evt_PC")[1])
+        self.assertEqual(self.balance(), 10)
+
+    def test_GEO_a_partial_refund_after_the_credits_were_taken_back_asks_for_nothing(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_AR"))
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_AR", 1200, 1200)), "applied")
+        # MUST-FAIL (CC1 M2): before r2 this said 'adjust by hand if needed', inviting a second debit by hand
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_AR", 1200, 300), event="evt_Late"), "ignored")
+        self.assertIn("no hand change", self.detail("evt_Late")[1])
+        self.assertNotIn("adjust by hand", self.detail("evt_Late")[1])
+        self.assertEqual(self.balance(), 0)
+
+    def test_GEO_a_dispute_opened_after_the_credits_were_taken_back_says_so(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_CA"))
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_CA", "lost")), "applied")
+        # MUST-FAIL (CC1 M2): before r2 this said 'if it is lost they are removed' for a pack already taken back
+        self.assertEqual(self.apply("charge.dispute.created", self.dispute("pi_CA", "needs_response"), event="evt_LateOpen"), "ignored")
+        self.assertIn("already taken back", self.detail("evt_LateOpen")[1])
+        self.assertEqual(self.balance(), 0)
+
     def test_GEO_people_cannot_read_the_partial_refunds_table(self):
         # permission denied (42501) exactly: a MISSING table would raise too, and must not pass this test
         self.assertEqual(self.admin("select count(*) from stripe_partial_refunds"), 0)
