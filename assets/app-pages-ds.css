@@ -177,3 +177,41 @@ body.ryagram-ds.ryagram-look .button[data-locked]:disabled{cursor:not-allowed}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-list .builder-card,:is(body.ryagram-ds.ryagram-look,body) .dataset-scroll .builder-card{padding-block:8px}
 @media(max-width:640px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) h1{font-size:1.3rem;margin-bottom:6px}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold) h3{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold) summary{min-height:32px}}
 @media(max-width:640px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) h2{margin:0 0 4px}:is(body.ryagram-ds.ryagram-look,body) .ds-page:has(.builder-steps)>footer,:is(body.ryagram-ds.ryagram-look,body):has(.builder-steps) footer{margin-top:8px}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-summary+.form-note,:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) details+.form-note{font-size:.8rem;margin:6px 0}}
+/* Home as flip sections (Ryan 11-20 11:55: no long pages): a short parallax hero, the Start card, then Your films / Departments / Credits and links as flip sections; the lists scroll in their own panel */
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero{min-height:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .copy{padding-block:14px 64px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .lede{display:none}
+body:has(.home-films) footer{margin-top:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .actions{margin-top:14px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero h1.display{font-size:clamp(1.9rem,3.4vw,2.5rem);margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start{margin-top:-56px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .card{padding:14px 28px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .start-actions{margin-top:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .or{margin:10px 0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start h2{margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .flip{margin-top:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.home-films){padding-top:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .eyebrow{display:none}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .flip-bar{margin-bottom:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head h2{font-size:1.25rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card{flex-direction:row;align-items:stretch}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-thumb{aspect-ratio:auto;flex:0 0 132px;border-bottom:0;border-right:1px solid var(--line)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body{padding:12px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body h3{margin:0 0 2px;font-size:1.0625rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body h3 a{min-height:32px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head h2{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-actions .button{min-height:36px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body .meta{margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head{margin:0 0 8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head a{min-height:44px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .scroll-panel{max-height:min(22vh,176px)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .scroll-panel{max-height:min(30vh,240px)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-cards h2{display:none}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card:first-child{min-height:0;padding:14px 24px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card-list{gap:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card{padding:16px 20px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-more .credit-balance{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-more .home-links{margin:12px 0 0}
+@media(max-width:700px){:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .copy{padding-block:20px 64px}:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .lede{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .card{padding:16px 18px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .inner{gap:14px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .meta{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:1fr}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .scroll-panel,:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .scroll-panel{max-height:min(24vh,200px)}}
+#library .home-films .site-section-head h2,#library .home-more h2{margin-top:0}

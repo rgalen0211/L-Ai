@@ -122,8 +122,8 @@ with sync_playwright() as pw:
 
     # ---- the other pages (Account, Credits, My films, Tutorial): measured to the bottom of the footer, the mock bar (a test artefact) hidden
     cfg2 = re.sub(r":\s*'account'", ': true', cfg)
-    PAGE_LIMITS = {'Account': (1.5, 1.6), 'Credits': (1.5, 1.7), 'My films': (1.4, 1.5), 'Tutorial': (1.4, 1.5), 'Help': (1.3, 1.5)}
-    ROUTE = {'Account': '#/account', 'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build', 'Help': '#/help'}
+    PAGE_LIMITS = {'Account': (1.5, 1.6), 'Credits': (1.5, 1.7), 'My films': (1.4, 1.5), 'Tutorial': (1.4, 1.5), 'Help': (1.3, 1.5), 'Home': (1.4, 1.8)}
+    ROUTE = {'Account': '#/account', 'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build', 'Help': '#/help', 'Home': '#/'}
 
     def foot(p):
         return p.evaluate("Math.round(document.querySelector('footer').getBoundingClientRect().bottom + scrollY)")
@@ -166,7 +166,21 @@ with sync_playwright() as pw:
                     p.keyboard.press('ArrowRight'); p.wait_for_timeout(500)
                     check(p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") == 1, f'{name}: ArrowRight goes to the next section')
                     p.locator('.flip-tab').nth(0).click(); p.wait_for_timeout(500)
-            if name == 'Tutorial':
+            if name == 'Home':
+                check(p.locator('.flip-tab').count() == 3, f'{name} {kind}: the home page is three sections ({p.locator(".flip-tab").count()})')
+                check(p.evaluate("(() => { const b = document.querySelector('.hero .button.primary'), r = b.getBoundingClientRect(); const s = document.querySelector('#start-new .button.primary'), q = s.getBoundingClientRect(); const f = document.querySelector('.flip-bar').getBoundingClientRect(); return r.bottom <= innerHeight && q.bottom <= innerHeight && f.top < innerHeight })()"), f'{name} {kind}: the primary button, Start a new film and the tab row are on the first screen')
+                check(p.evaluate("getComputedStyle(document.querySelector('.home-films .scroll-panel')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: Your films scrolls in its own panel')
+                check(p.evaluate("document.querySelector('.hero').getBoundingClientRect().height") <= h_ * 0.4, f'{name} {kind}: the parallax hero is short')
+                check(p.locator('.hero [data-parallax]').count() >= 1, f'{name} {kind}: the parallax layers are still there')
+                for i in range(3):
+                    p.locator('.flip-tab').nth(i).click(); p.wait_for_timeout(500)
+                    r = foot(p) / h_
+                    check(r <= lim, f'{name} {kind}: section {i + 1} is {r:.2f} x the screen (at most {lim})')
+                check(p.locator('.dept-card').count() >= 6 and p.locator('.home-links a').count() >= 1, f'{name} {kind}: every department card and the home links are still there')
+                if kind == 'desktop':
+                    p.locator('.flip-tab').nth(0).click(); p.keyboard.press('ArrowRight'); p.wait_for_timeout(500)
+                    check(p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") == 1, f'{name}: ArrowRight goes to the next section')
+            elif name == 'Tutorial':
                 check(p.locator('.flip-tab').count() == 2, f'{name} {kind}: step 1 flips between ready-made films and your own data')
                 p.locator('.flip-tab').nth(1).click(); p.wait_for_timeout(500)
                 check(p.evaluate("getComputedStyle(document.querySelector('.dataset-scroll')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: the dataset list scrolls in its own panel')
