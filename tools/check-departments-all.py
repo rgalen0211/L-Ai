@@ -61,6 +61,8 @@ with sync_playwright() as pw:
             for did, label in DEPTS:
                 # from the card on Your projects
                 p.goto(f'http://127.0.0.1:{PORT}/app/{q}#/', wait_until='load'); p.wait_for_selector('.dept-card', timeout=20000)
+                _t = p.locator('.flip-tab:has-text("Departments")')
+                if _t.count(): _t.click(); p.wait_for_timeout(600)          # the department cards are the Departments section of the home page
                 p.locator(f'.dept-card a[href="#/d/{did}"]').click(); judge(p, tag, did, label, 'card')
                 # from the top bar (a phone opens the Menu first; a desktop opens the Coming soon list for a Coming soon page)
                 p.goto(f'http://127.0.0.1:{PORT}/app/{q}#/', wait_until='load'); p.wait_for_selector('.dept-bar', state='attached', timeout=20000)
