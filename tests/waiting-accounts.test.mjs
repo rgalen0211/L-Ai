@@ -33,7 +33,7 @@ test('sign-up checks (Q378 A): an email address only, the problem in plain words
 
 test('sign-up (Q378 A) goes ONLY through the join function with the trimmed address, relays its answers, and never sets a status or touches Auth itself', async () => {
   const W = load({ waitingAccounts: true }); const calls = [];
-  const data = answer => ({ joinWaiting: async e => { calls.push(e); return answer; } });
+  const data = answer => ({ joinWaiting: async (e, over18) => { calls.push(e); assert.equal(over18, true); return answer; } });
   assert.deepEqual(await W.signUp(data({ ok: true, off: false, message: 'sent' }), ' a@b.co ', true), { ok: true, off: false, message: 'sent' });
   assert.equal(calls[0], 'a@b.co');
   assert.deepEqual(await W.signUp(data({ ok: false, off: true, message: 'not open yet' }), 'a@b.co', true), { ok: false, off: true, message: 'not open yet' });
@@ -44,7 +44,7 @@ test('sign-up (Q378 A) goes ONLY through the join function with the trimmed addr
 
 test('the data layer: join and approve-waiting go through CONNECT\'s functions with exactly their body fields; a 409 from join reads as "not open yet"', async () => {
   const src = read('assets/app-data.js');
-  assert.match(src, /functions\.invoke\('join', \{ body: \{ email: String\(email \|\| ''\)\.trim\(\) \} \}\)/);
+  assert.match(src, /functions\.invoke\('join', \{ body: \{ email: String\(email \|\| ''\)\.trim\(\), adult_confirmed: true \} \}\)/);
   assert.match(src, /functions\.invoke\('approve-waiting', \{ body: \{ user_id: userId, reason \} \}\)/);
   assert.match(src, /off: status === 409/);
   assert.ok(!/rpc\('admin_approve_waiting'/.test(src), 'approving never calls the database directly (the function sends the email and pays once)');
@@ -109,17 +109,26 @@ test('the waitlist section offers "Create an account" only when the switch is ex
 const dataWith = invoke => { const win = {}; vm.runInNewContext(read('assets/app-data.js'), { window: win, console }); return win.ryagramData({ functions: { invoke } }); };
 const httpError = (status, body) => ({ data: null, error: { message: 'Edge Function returned a non-2xx status code', context: { status, json: async () => body } } });
 
+test('joinWaiting and the 18+ box (CONNECT 94ab6162 refuses without adult_confirmed: true): ticked sends the field, anything else sends nothing', async () => {
+  const calls = [];
+  const D = dataWith(async (name, opts) => { calls.push([name, opts]); return { data: { message: 'ok' }, error: null }; });
+  for (const x of [false, undefined, null, 'true', 1]) { const r = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', x))); assert.equal(r.ok, false); assert.match(r.message, /18 or older/); }
+  assert.equal(calls.length, 0, 'unticked: no request');
+  assert.equal((await D.joinWaiting('a@b.co', true)).ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['join', { body: { email: 'a@b.co', adult_confirmed: true } }]]);
+});
+
 test('joinWaiting for real: the trimmed address goes in {email}; 200 is ok with the server words; 409 is "off" (not open yet); other errors carry the server words; a broken reply falls back to plain words', async () => {
   const calls = [];
   let D = dataWith(async (name, opts) => { calls.push([name, opts]); return { data: { message: 'If that email can join, a link is on its way.' }, error: null }; });
-  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('  a@b.co '))), { ok: true, off: false, message: 'If that email can join, a link is on its way.' });
-  assert.equal(calls[0][0], 'join'); assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), { body: { email: 'a@b.co' } });
+  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('  a@b.co ', true))), { ok: true, off: false, message: 'If that email can join, a link is on its way.' });
+  assert.equal(calls[0][0], 'join'); assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), { body: { email: 'a@b.co', adult_confirmed: true } });
   D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet. Join the waitlist instead.' }));
-  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co'))), { ok: false, off: true, message: 'Making an account is not open yet. Join the waitlist instead.' });
+  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))), { ok: false, off: true, message: 'Making an account is not open yet. Join the waitlist instead.' });
   D = dataWith(async () => httpError(429, { error: 'Too many tries. Wait a while, then try again.' }));
-  const t = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co'))); assert.equal(t.off, false); assert.equal(t.message, 'Too many tries. Wait a while, then try again.');
+  const t = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.equal(t.off, false); assert.equal(t.message, 'Too many tries. Wait a while, then try again.');
   D = dataWith(async () => ({ data: null, error: { message: 'network', context: { status: 0, json: async () => { throw new Error('not json'); } } } }));
-  const n = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co'))); assert.equal(n.ok, false); assert.equal(n.off, false); assert.match(n.message, /Try again in a minute/);
+  const n = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.equal(n.ok, false); assert.equal(n.off, false); assert.match(n.message, /Try again in a minute/);
 });
 
 test('adminApproveWaiting for real: {user_id, reason} to approve-waiting; the server answer comes back; a refusal throws with the server words', async () => {

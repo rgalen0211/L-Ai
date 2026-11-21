@@ -429,8 +429,10 @@
         return data;
       },
       // "Create an account" (Q378 A, Ryan 11-04 15:47): CONNECT's join function, email only; the person chooses a password from the emailed link. {ok, off, message}: off = not open yet (409).
-      async joinWaiting(email) {
-        const { data, error } = await client.functions.invoke('join', { body: { email: String(email || '').trim() } });
+      // The 18+ box (Ryan 11-21): CONNECT's join wants { email, adult_confirmed: true }. Sent ONLY for a ticked box; anything else sends nothing. (The older join ignores the extra field.)
+      async joinWaiting(email, over18) {
+        if (over18 !== true) return { ok: false, off: false, message: 'Tick the box to say you are 18 or older.' };
+        const { data, error } = await client.functions.invoke('join', { body: { email: String(email || '').trim(), adult_confirmed: true } });
         if (!error) return { ok: true, off: false, message: data && data.message };
         let text = 'Couldn’t send that just now. Try again in a minute.', status = 0;
         try { status = error.context.status || 0; text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }

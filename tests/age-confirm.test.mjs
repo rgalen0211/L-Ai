@@ -14,7 +14,7 @@ test('only a real tick (the value true) passes the age check; the problem is in 
   for (const x of [false, undefined, null, 'true', 'on', 1, 0, '', {}, ['x']]) assert.match(W.ageProblem(x), /18 or older/, String(JSON.stringify(x)));
 });
 
-test('unticked sends nothing; ticked goes to the join function with the email only (no age field the server would drop)', async () => {
+test('unticked sends nothing; ticked passes the tick to the join call', async () => {
   const W = load(); const calls = [];
   const data = { joinWaiting: async (...a) => { calls.push(a); return { ok: true, off: false, message: 'sent' }; } };
   for (const x of [false, undefined, null, 'true', 1]) {
@@ -23,8 +23,12 @@ test('unticked sends nothing; ticked goes to the join function with the email on
   }
   assert.equal(calls.length, 0, 'no request when unticked');
   assert.deepEqual(await W.signUp(data, ' a@b.co ', true), { ok: true, off: false, message: 'sent' });
-  assert.deepEqual(calls, [['a@b.co']], 'ticked: the trimmed email alone');
-  assert.match(read('assets/app-data.js'), /functions\.invoke\('join', \{ body: \{ email: String\(email \|\| ''\)\.trim\(\) \} \}\)/);
+  assert.deepEqual(calls, [['a@b.co', true]], 'ticked: the trimmed email, and the tick passed on');
+  assert.match(read('assets/app-data.js'), /functions\.invoke\('join', \{ body: \{ email: String\(email \|\| ''\)\.trim\(\), adult_confirmed: true \} \}\)/);
+});
+
+test("the invite-code form: redeem-invite (unchanged on CONNECT's branch, it reads code and email only) keeps its two fields; unticked sends nothing", () => {
+  assert.match(read('assets/app-auth.js'), /functions\.invoke\('redeem-invite', \{\s*body: \{ code: inviteForm\.elements\.code\.value, email: inviteForm\.elements\.email\.value\.trim\(\) \}/);
 });
 
 test('both sign-up forms have the box: a label with the words, not native "required" (so the error line shows), described by the error line', () => {
@@ -55,5 +59,5 @@ test('honest words: nothing on the page says the confirmation is recorded or kep
     const near = panel.match(/[^<>]*18[^<>]*/g).join(' ');
     assert.ok(!/record|stored|kept|saved|logged|verif/i.test(near), id);
   }
-  assert.ok(!/over18|age/i.test(read('assets/app-data.js').match(/async joinWaiting[\s\S]*?\n      },/)[0].replace(/message/g, '')), 'the join call carries no age field');
+  assert.ok(!/record|stored|kept|saved/i.test(read('assets/app-data.js').match(/async joinWaiting[\s\S]*?\n      },/)[0].replace(/\/\/.*$/gm, '')), 'no words about recording in the join call');
 });

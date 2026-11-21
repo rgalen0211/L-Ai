@@ -967,6 +967,8 @@
           }
           if (name === 'join') {
             // Mock of CONNECT's join (Q378 A): the same answer for a new and a known address; 409 while the switch is off. The mock adds the address to the waiting list, not confirmed yet.
+            // Like CONNECT's join (Ryan 11-21): 400 unless the body carries adult_confirmed: true (the boolean).
+            if (body.adult_confirmed !== true) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Confirm that you are 18 or older to make an account.' }) } } };
             const email = String(body.email || '').trim().toLowerCase();
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Enter a valid email address.' }) } } };
             if (typeof location !== 'undefined' && /[?&]joinoff/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 409, json: async () => ({ error: 'Making an account is not open yet. Join the waitlist instead.' }) } } };
