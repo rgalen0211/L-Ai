@@ -17,7 +17,7 @@ const gated = line => /hash === '#\/admin[^']*' && await data\.isAppAdmin\(\)\)\
 
 // the Admin link: added only inside the isAppAdmin() answer, after an early return for anything but a plain true
 function linkGated(src) {
-  const i = src.indexOf("h('a', { class: 'app-nav-link admin-link', href: '#/admin' }, 'Admin')");
+  const i = src.indexOf("h('a', { class: 'menu-link admin-link', href: '#/admin', role: 'menuitem' }, 'Admin')");
   if (i < 0) return { found: false };
   const before = src.slice(Math.max(0, i - 400), i);
   return { found: true, asks: /data\.isAppAdmin\(\)\)\.then\(yes => \{\s*if \(!alive \|\| yes !== true\) return;/.test(before) };
