@@ -84,13 +84,6 @@ test('SOURCED FACTS (Claude fact-check 01:50, Q72): two separate Claude paths th
   for (const [, href] of page.matchAll(/<a href="(https?:[^"]+)"/g)) assert.ok(/support\.claude\.com|fonts\./.test(href), `an outside link must be a source we checked: ${href}`);
 });
 
-test('the guide tells the person what the data hand-over does (Q634): their AI can hand over a table, they see it first, nothing is used until they press Accept, and it is labelled unverified; the same words as the card', () => {
-  assert.match(page, /It can hand Ryagram a table of data it found for you, with its sources\. It waits for you in Ryagram: you see it, see where your AI says it came from \(Ryagram has not checked this\), and nothing is used until you press Accept yourself\. Ryagram labels it &ldquo;Unverified, user-supplied&rdquo;\./);
-  const card = read('assets/app-prepared.js');
-  assert.ok(card.includes('Ryagram has not checked this') && card.includes("const TRUST_LABEL = 'Unverified, user-supplied'"), 'the card says the same thing about what the AI declared, and its label is the quoted one');
-  assert.ok(read('assets/app-uploads.js').includes("unverified_user: 'Unverified, user-supplied'"), 'which is the label the upload path itself uses');
-});
-
 test('a person who is not invited is told so, and told how to ask: "invite-only for now" (the words the consent page uses) and a way to reach us (the help page)', () => {
   assert.match(page, /has been invited to try connections\. Connecting an AI is invite-only for now; to ask for an invite, write to us from the <a href="\/help\/">help page<\/a>\./);
   const consent = fs.readdirSync(path.join(root, 'supabase/migrations')).map(f => read('supabase/migrations/' + f)).join('\n');

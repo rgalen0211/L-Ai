@@ -27,6 +27,8 @@ const appUrl = Deno.env.get("CONNECT_APP_URL") ?? "https://uselai.com/app/";
 // "Use Claude's published identity" (client ID metadata documents) is OFF unless this setting is exactly "on". It must stay off wherever the SQL
 // migration 20261110000100_connect_cimd.sql has not been applied: with it on, the metadata tells Claude to use that method and every sign-in would fail.
 const cimdOn = (Deno.env.get("CONNECT_CIMD") ?? "").trim().toLowerCase() === "on";
+// CONNECT_PREPARED_DATA (default off): "on" = the AI may hand Ryagram a table (submit_prepared_data, list_my_data) and the submit_data scope is advertised. Set it in the SAME step as the site push that turns uploads on; until then none of it exists, so no table can wait for a card the person cannot see (GAMES 11-21).
+const preparedDataOn = (Deno.env.get("CONNECT_PREPARED_DATA") ?? "").trim().toLowerCase() === "on";
 // The address clients are told to use. Inside the platform the request's own Host is an internal name (edge-runtime.supabase.com, found by the
 // pre-flight), so it must not be derived from the request. CONNECT_PUBLIC_URL pins it; without that, the platform's own project address
 // (SUPABASE_URL, a public address and NOT a key) plus /functions/v1/connect. Never the request headers on the platform.
@@ -43,7 +45,7 @@ const db = new ConnectDb(async (text, params) => {
   return await sql.unsafe(text, params as unknown[]) as unknown as Record<string, unknown>[];
 }, appUrl);
 const compile = makeCompile(Ajv2020);
-const mcpApp = { enabled: Deno.env.get("CONNECT_MCP_APP") === "on", chatEditor: Deno.env.get("CONNECT_CHAT_EDITOR") === "on", homePanel: Deno.env.get("CONNECT_HOME_PANEL") === "on", probe: Deno.env.get("CONNECT_MAP_PROBE") === "on", uiDomain: Deno.env.get("CONNECT_UI_DOMAIN") || undefined, appUrl };
+const mcpApp = { enabled: Deno.env.get("CONNECT_MCP_APP") === "on", chatEditor: Deno.env.get("CONNECT_CHAT_EDITOR") === "on", homePanel: Deno.env.get("CONNECT_HOME_PANEL") === "on", probe: Deno.env.get("CONNECT_MAP_PROBE") === "on", preparedData: preparedDataOn, uiDomain: Deno.env.get("CONNECT_UI_DOMAIN") || undefined, appUrl };
 
 Deno.serve(async (req) => {
   try {
@@ -51,6 +53,7 @@ Deno.serve(async (req) => {
     return await handleRequest(req, {
       store: db.authStore(), consentUrl, publicBase,
       cimd: cimdOn ? { fetch: defaultCimdFetcher, allowed: CIMD_ALLOWED } : undefined,
+      preparedData: preparedDataOn,
       mcp: {
         data: null as never, policy: db.policy(), deps: { compile }, mcpApp,
         async verifyToken(token: string) { return await db.verify(await sha256hex(token)); },

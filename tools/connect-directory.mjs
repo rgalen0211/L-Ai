@@ -17,9 +17,11 @@ const BAD_DESCRIPTION = [/ignore (all |any )?(previous|prior|above)/i, /do not (
 const INVISIBLE = (s) => [...s].some((c) => { const n = c.codePointAt(0); return (n >= 0x200b && n <= 0x200f) || (n >= 0x202a && n <= 0x202e) || n === 0x2060 || n === 0xfeff; });
 const SECRET_LOOK = [/\bsk-[A-Za-z0-9]{10,}/, /\beyJ[A-Za-z0-9_-]{10,}\./, /\bBearer\s+[A-Za-z0-9._-]{10,}/, /"password"\s*:\s*"(?!IN THE VENDOR)/i];
 
+/** The two data tools (Q634) are in the connector's list only while its switch CONNECT_PREPARED_DATA is on, which Ryan sets in the same step as the site's uploads flag; so the listing must describe them exactly when assets/ryagram-config.js says uploads: true (tests/connect-prepared-data.test.mjs pins the three together). */
 export async function registry() {
   const { toolList } = await import('../supabase/functions/connect-core/mcp.ts');
-  return toolList();
+  const uploadsOn = /^\s*uploads:\s*true\b/m.test(fs.readFileSync(path.join(ROOT, 'assets/ryagram-config.js'), 'utf8'));
+  return toolList(false, false, false, uploadsOn);
 }
 
 export function load(dir = DIR) {

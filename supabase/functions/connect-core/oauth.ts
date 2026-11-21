@@ -23,9 +23,13 @@ export interface OAuthDeps {
   consentUrl: string;
   /** Client ID Metadata Documents ("Use Claude's published identity"). Absent = not supported: the metadata does not advertise it and an https client_id is refused. */
   cimd?: CimdDeps;
+  /** CONNECT_PREPARED_DATA: advertise the submit_data scope (Q634). */
+  preparedData?: boolean;
 }
 
 export const SCOPES = ["read", "write", "render_free", "edit", "fetch_data", "submit_data"];
+/** What the metadata advertises (and so what a client asks for at the consent page): submit_data only while the data hand-over is switched on (CONNECT_PREPARED_DATA), so no one is asked to consent to a tool that is not there. */
+export const scopesAdvertised = (preparedData = false) => preparedData ? SCOPES : SCOPES.filter((s) => s !== "submit_data");
 const NO_STORE = { "Cache-Control": "no-store", Pragma: "no-cache" };
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, mcp-protocol-version",
                "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Max-Age": "600" };
@@ -43,7 +47,7 @@ export function randomToken(prefix: string): string {
   return prefix + btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export const authorizationServerMetadata = (base: string, cimd = false) => ({
+export const authorizationServerMetadata = (base: string, cimd = false, preparedData = false) => ({
   issuer: base,
   authorization_endpoint: `${base}/authorize`,
   token_endpoint: `${base}/token`,
@@ -55,22 +59,22 @@ export const authorizationServerMetadata = (base: string, cimd = false) => ({
   authorization_response_iss_parameter_supported: true,           // RFC 9207: the redirect carries iss = this issuer
   token_endpoint_auth_methods_supported: ["none"],
   revocation_endpoint_auth_methods_supported: ["none"],
-  scopes_supported: SCOPES,
+  scopes_supported: scopesAdvertised(preparedData),
   service_documentation: "https://uselai.com/",
   ...(cimd ? { client_id_metadata_document_supported: true } : {}),
 });
 /** The same server described the OpenID way, because clients that follow the MCP discovery order for an issuer with a path try
  *  `<issuer>/.well-known/openid-configuration` and Supabase routes nothing else to us. Ryagram issues no ID tokens and has no userinfo;
  *  the OpenID-required fields below are present only so those clients accept the document. `openid` is not a scope we grant. */
-export const openIdShapedMetadata = (base: string, cimd = false) => ({
-  ...authorizationServerMetadata(base, cimd),
+export const openIdShapedMetadata = (base: string, cimd = false, preparedData = false) => ({
+  ...authorizationServerMetadata(base, cimd, preparedData),
   jwks_uri: `${base}/.well-known/jwks.json`,
   subject_types_supported: ["public"],
   id_token_signing_alg_values_supported: ["RS256"],
 });
-export const protectedResourceDoc = (base: string) => ({
+export const protectedResourceDoc = (base: string, preparedData = false) => ({
   resource: `${base}/mcp`, authorization_servers: [base], bearer_methods_supported: ["header"],
-  scopes_supported: SCOPES, resource_name: "Ryagram", resource_documentation: "https://uselai.com/",
+  scopes_supported: scopesAdvertised(preparedData), resource_name: "Ryagram", resource_documentation: "https://uselai.com/",
 });
 
 /** The plain words behind an OAuth error code from the database. */
@@ -125,10 +129,10 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
     if (!ok) return json(429, { error: "slow_down", error_description: "Too many requests. Wait a few minutes." }, { "Retry-After": "300" });
   }
 
-  if (req.method === "GET" && route.startsWith("/.well-known/oauth-authorization-server")) return json(200, authorizationServerMetadata(d.baseUrl, !!d.cimd));
-  if (req.method === "GET" && route.startsWith("/.well-known/openid-configuration")) return json(200, openIdShapedMetadata(d.baseUrl, !!d.cimd));
+  if (req.method === "GET" && route.startsWith("/.well-known/oauth-authorization-server")) return json(200, authorizationServerMetadata(d.baseUrl, !!d.cimd, !!d.preparedData));
+  if (req.method === "GET" && route.startsWith("/.well-known/openid-configuration")) return json(200, openIdShapedMetadata(d.baseUrl, !!d.cimd, !!d.preparedData));
   if (req.method === "GET" && route === "/.well-known/jwks.json") return json(200, { keys: [] });             // we sign no tokens
-  if (req.method === "GET" && route.startsWith("/.well-known/oauth-protected-resource")) return json(200, protectedResourceDoc(d.baseUrl));
+  if (req.method === "GET" && route.startsWith("/.well-known/oauth-protected-resource")) return json(200, protectedResourceDoc(d.baseUrl, !!d.preparedData));
 
   if (route === "/register" && req.method === "POST") {
     let body: Record<string, unknown>;

@@ -1364,7 +1364,7 @@ const openRyagramHome: ToolDef = {
 // ---------------------------------------------------------------------------------------------- AI-prepared data (Q634)
 const PREP_URL = "^https://[A-Za-z0-9][A-Za-z0-9.-]*\\.[A-Za-z][A-Za-z0-9-]*(/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]*)?$";
 const submitPrepared: ToolDef = {
-  name: "submit_prepared_data", title: "Hand Ryagram a table of data you prepared", scope: "submit_data", readOnly: false, idempotent: false,
+  name: "submit_prepared_data", title: "Hand Ryagram a table of data you prepared", scope: "submit_data", readOnly: false, idempotent: false, preparedData: true,
   description: "Use this when the person wants a film about data that is NOT in Ryagram's catalog and you have found it (for example an official statistics table). Send the cleaned table as CSV text (at most 200 KB, 5,000 rows, 40 columns), "
     + "either LONG (one row per place and year, columns like place, year, value) or WIDE (one row per place, one column per year titled 2010, 2011 ...), plus the sources you used (1 to 5 https addresses), the licence, the units and a short change log "
     + "(at most 12 steps) saying what you did to the data. It does NOT become usable data: it waits for the PERSON to look at it in the Ryagram app (their preview, your sources and change log shown as declared by you and not checked by Ryagram) and press Accept; you cannot accept, confirm or use it. "
@@ -1402,7 +1402,7 @@ const submitPrepared: ToolDef = {
 };
 
 const listMyData: ToolDef = {
-  name: "list_my_data", title: "List the person's own uploaded data", scope: "read", readOnly: true, idempotent: true,
+  name: "list_my_data", title: "List the person's own uploaded data", scope: "read", readOnly: true, idempotent: true, preparedData: true,
   description: "Shows the datasets the person has uploaded or accepted from you (never their rows): the NAME a story uses for each (u_ and 24 characters), its label, whether it is approved, the places (U.S. states or counties) and whether it is yearly or monthly, and how many tables you handed over are still waiting for the person to accept. "
     + "Use a dataset's name as the dataset of a render clip in set_story only when its status is approved.",
   inputSchema: obj({}),

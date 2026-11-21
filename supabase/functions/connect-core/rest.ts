@@ -16,7 +16,7 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
 export function openApi(baseUrl: string): Record<string, unknown> {
   const paths: Record<string, unknown> = {};
   // exactly the tools GET /v1/tools lists (mcp.ts toolList()): an unlisted tool, a chat-editor tool or a home-panel tool is "no such tool" over REST, so the document must not offer it
-  for (const t of TOOLS.filter((x) => x.listed !== false && !x.chatEditor && !x.homePanel)) {
+  for (const t of TOOLS.filter((x) => x.listed !== false && !x.chatEditor && !x.homePanel && !x.preparedData)) {
     paths[`/v1/tools/${t.name}`] = { post: {
       operationId: t.name, summary: t.title, description: t.description,
       "x-openai-isConsequential": !t.readOnly,
