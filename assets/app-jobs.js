@@ -25,7 +25,9 @@
   // The worker's refusal text is for engineers: ryagram.worker.schema joins EVERY fault with "; " ("$: unknown key 'outro'; $.sequence.fps: \"x\" is not one of 24, 25, 30").
   // plainDetail splits it, turns each fault into a sentence a person can act on, and for a fault it does not know says so plainly -- never nothing. The raw text is kept
   // (rawDetail) and shown behind "Get help with this". Golden strings in tests/smoke-fixes.test.mjs come from the real validate_story on planted stories.
-  const LOOKS_LIKE_CODE = /[$\[\]{}]|::|Traceback|\bat line\b|\bException\b|\b[a-z]+_[a-z_]+\b/;
+  // Also (WEB 11-21, WORKER's table proposals/WORKER-FREE-PREVIEW-FAILURES-1121.md): an "...Error" word (KeyError), "exit 1:", a file name (preview.mp4, x.json), a bare limit number ("limit 52428800", "61234567 bytes")
+  // and the lower-case jargon "sidecar", "engine commit", "preflight". A full stop in ordinary prose is not caught: a file name needs one of the listed endings right after its dot.
+  const LOOKS_LIKE_CODE = /[$\[\]{}]|::|Traceback|\bat line\b|\bException\b|\b[a-z]+_[a-z_]+\b|\b[A-Z][a-z]+Error\b|^\s*exit \d+\b|\b[\w-]+\.(?:mp4|json|png|csv|py|log|txt)\b|\blimit \d{3,}|\b\d{5,} bytes\b|\b(?:[Ss]idecar|[Ee]ngine commit|[Pp]reflight)\b/;
   const UNREADABLE = 'The render machine gave a reason Ryagram cannot put into plain words. Open “Get help with this” to see it, or send it to us.';
   const unquote = t => String(t).trim().replace(/^(['"“])(.*)\1$/, '$2');
   function where(path) {
@@ -63,11 +65,17 @@
   const rawDetail = job => String((job && job.error_detail) || '').trim();
 
   // One sentence for a finished job that did not complete, by error class.
+  // DRAFT FOR RYAN (WEB 11-21, from WORKER's failure table): the words for a limit with no next step, for the machine's own setup (engine_unsupported), and for checks that did not run.
+  const LIMIT_NEXT = 'Try a shorter preview window, or ask us to help.';
+  const UNSUPPORTED = 'The render machine cannot make this kind of film yet. Nothing is wrong with your story. Tell us and we will fix it.';
+  const CHECKS_DID_NOT_RUN = 'Ryagram’s checks could not run on this render. Nothing is wrong with your story. You can try again, or open “Get help with this”.';
   function problem(job) {
     const plain = plainDetail(job.error_detail);
     const detail = plain ? ` ${plain}` : '';
     if (job.state === 'cancelled') return 'Cancelled.';
+    if (job.error_code === 'engine_unsupported' || job.error_class === 'engine_unsupported') return UNSUPPORTED;                   // the machine's setup, not the story: never "Fix the story"
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
+      if (/checks did not run/i.test(String(job.error_detail || ''))) return CHECKS_DID_NOT_RUN;   // the machine's fault, not the story's: never "Change the story"
       return `Ryagram’s checks stopped this render.${detail} Change the story, then make a new preview.`;
     }
     switch (job.error_class) {
@@ -78,7 +86,7 @@
       case 'invalid_input':
         return `The story or its settings weren’t accepted.${detail} Fix the story and submit again.`;
       case 'limit':
-        return `It went over a size or memory limit.${detail}`;
+        return `It went over a size or memory limit.${detail} ${LIMIT_NEXT}`;
       default:
         return `It failed for a reason Ryagram doesn’t recognise.${detail} You can try again.`;
     }
