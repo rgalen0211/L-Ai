@@ -139,6 +139,47 @@ class ExpiredFilmsGone(unittest.TestCase):
         _, did, _ = self.delivered("gone-0007")
         self.denied(OTHER, "select mark_deliveries_removed(%s::uuid[])", [str(did)])
 
+    # ---------------------------------------------------------------- the undo (CC1 11-21 G2) and the after-check (G4: live-steps 39)
+    MIG = po.core.ROOT / "migrations" / "20261121000200_expired_films_really_gone.sql"
+    RB = po.core.ROOT / "rollbacks" / "20261121000200_expired_films_really_gone_rollback.sql"
+    CHECK = po.core.ROOT / "live-steps" / "39_expired_films_gone_after_check.sql"
+    TICK_DEF = "select pg_get_functiondef(to_regprocedure('public.render_orders_tick()'))"
+
+    def run_file(self, path):
+        return self.db.as_(None).c.execute(path.read_text(encoding="utf-8"))
+
+    def test_the_rollback_restores_the_original_tick_drops_the_mark_and_the_migration_puts_it_back(self):
+        self.assertIn("due_deliveries", self.admin(self.TICK_DEF))
+        self.run_file(self.RB)
+        tick = self.admin(self.TICK_DEF)
+        self.assertNotIn("due_deliveries", tick)
+        self.assertIn("update public.render_deliveries set deleted_at = now() where id = d.id", tick, "the 20261017000600 body")
+        self.assertIsNone(self.admin("select to_regprocedure('public.mark_deliveries_removed(uuid[])')"))
+        _, did, _ = self.delivered("gone-rb01")
+        self.expire(did)
+        self.tick()
+        self.assertEqual(self.marks(did), (True, True), "after the undo the tick marks at once again, as before M2")
+        self.run_file(self.RB)                                   # a second undo: nothing to do, no error
+        self.run_file(self.MIG)                                  # and the change goes back on
+        self.assertIn("due_deliveries", self.admin(self.TICK_DEF))
+        self.assertIsNotNone(self.admin("select to_regprocedure('public.mark_deliveries_removed(uuid[])')"))
+
+    def test_the_rollback_stops_in_words_on_a_tick_changed_by_hand(self):
+        drifted = self.admin(self.TICK_DEF).replace("'due_deliveries', ids", "'due', ids", 1)
+        self.db.as_(None).c.execute(drifted)
+        with self.assertRaises(Exception) as cm:
+            self.run_file(self.RB)
+        self.assertIn("neither the M2 one nor the original", str(cm.exception))
+        self.db.c.execute("rollback")                            # the file's own transaction ended in the error: close it
+        self.assertIsNotNone(self.admin("select to_regprocedure('public.mark_deliveries_removed(uuid[])')"), "nothing was changed")
+
+    def test_the_after_check_is_all_true_after_the_migration_and_false_after_the_undo(self):
+        rows = self.run_file(self.CHECK).fetchall()
+        self.assertTrue(rows and all(ok for _, ok in rows), rows)
+        self.run_file(self.RB)
+        after = dict(self.run_file(self.CHECK).fetchall())
+        self.assertEqual(sum(1 for v in after.values() if not v), 3, after)
+
 
 if __name__ == "__main__":
     unittest.main()
