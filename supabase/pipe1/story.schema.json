@@ -1118,6 +1118,7 @@
     "what depends on the dataset or the run: a callout's period, entity, reading time and overlap; network_context.at; shares_order naming every band; the shares view only on a dataset with a composition",
     "free text: the worker tests Unicode categories (Cc, Cf, Cs, Co, Cn); the schema's pattern blocks the common ones only",
     "the story at most 256 KB, no duplicate keys, no NaN or Infinity",
+    "an outro needs a non-empty brand.channel (the engine names that channel on the end card; ENGINE 11-20)",
     "brand and outro text: no link in any letter case (the pattern is case-sensitive), and brand.channel, brand.handle and brand.credit_line may not name the product (the 'Ryagram' rule, ryagram.profile.brand)",
     "the live look (the ENGINE checks these at render time, not the worker): choropleth.diverging needs choropleth.mode 'solid'; state.metal_finish_style 'county' needs choropleth low, high and diverging.mid"
   ]
