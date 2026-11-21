@@ -622,7 +622,7 @@ def main():
             check(site_doc != doc and ('data-app-url="%s"' % SITE) in site_doc, 'the page as the host reads it carries the site address on its root')
             DATA_PROJECT = '11111111-2222-4333-8444-555555555555'
 
-            def site_page(html, mode, project, reply=None):
+            def site_page(html, mode, project, reply=None, site_editor=True):
                 c = b.new_context(viewport={'width': 390, 'height': 800}, device_scale_factor=2, is_mobile=True, has_touch=True)
                 p = c.new_page()
                 p.on('pageerror', lambda e: None)
@@ -632,7 +632,7 @@ def main():
                 if reply:
                     p.evaluate('(r) => { window.__openLink = r; }', reply)
                 p.wait_for_function("window.__log.some(m => m.method === 'ui/notifications/initialized')", timeout=8000)
-                p.evaluate("(sc) => openWith(sc)", {'project_id': project, 'mode': mode, 'title': 'A data film'})
+                p.evaluate("(sc) => openWith(sc)", {'project_id': project, 'mode': mode, 'title': 'A data film', 'site_editor': site_editor})
                 p.wait_for_timeout(900)
                 return c, p
             SEE = 'See the real frames on the site'
@@ -668,6 +668,11 @@ def main():
             c12, p12 = site_page(doc, 'data', DATA_PROJECT)
             check(p12.frames[1].get_by_role('button', name=SEE).count() == 0, 'a connector with no site address configured has no such button')
             c12.close()
+            for what, flag in (('said the site editor is not on for this account', False), ('said nothing about it', None), ('sent the word true as text', 'true')):
+                c14, p14 = site_page(site_doc, 'data', DATA_PROJECT, None, flag)
+                check(p14.frames[1].get_by_role('button', name=SEE).count() == 0, 'a result that %s has no button (it would lead to the not-on page)' % what)
+                check(p14.frames[1].locator('.le-panel').count() > 0, 'but the editor itself is there')
+                c14.close()
             c13, p13 = site_page(site_doc, 'data', '../../etc')
             check(p13.frames[1].get_by_role('button', name=SEE).count() == 0, 'a film id that is not the form the site uses has no such button')
             c13.close()
