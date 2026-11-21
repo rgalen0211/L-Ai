@@ -1,7 +1,7 @@
 // Ryagram design system: behaviour (WEB, 2026-11-20). No dependencies. Pairs with assets/ryagram-ds.css; both only act under body.ryagram-ds.
 //
 // CONTRACT for pages (PAGES-FLIP, EDITOR-PORT and every later page use ONLY this):
-//   window.ryagramDs.mount(root)  call it after a view has been drawn into `root` (a container element). It initialises every [data-flip] carousel, every .wb workbench and every
+//   window.ryagramDs.mount(root)  call it after a view has been drawn into `root` (a container element). It initialises every [data-flip] carousel, and every
 //                                 [data-parallax] layer inside `root`, and DISPOSES whatever the previous mount() set up (so a view that is replaced leaves no listener behind).
 //   window.ryagramDs.init(root)   the same without disposing the previous mount; returns a dispose() function (for a view that owns its own lifetime).
 //   window.ryagramDs.unmount()    dispose the current mount (sign-out).
@@ -13,13 +13,9 @@
 //     <div class="flip-viewport"><div class="flip-track"><section class="flip-panel" id="p1" role="tabpanel">...</section> ...</div></div>
 //     <div class="flip-dots"><button class="flip-dot" aria-label="Section 1"></button> ...</div><p class="flip-hint"></p>
 //   </div>      (a long list inside a panel goes in <div class="scroll-panel">; the page itself never grows with a list)
-// Workbench (a page that fits ONE screen): <body class="wb-page">; <div class="wb"> with .wb-panel.left / .stage / .right / .timeline, each header + .body; buttons [data-collapse="left|right|bottom"];
-//   resize handles <div class="wb-resize v left" data-resize="left" tabindex="0" role="separator">. Collapse state and sizes are kept in localStorage under ryagram.ds.panels.
 // The account menu in the header is wired here too (button [data-account-btn], panel [data-account-menu]).
 (() => {
   const reduce = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const LS = 'ryagram.ds.panels';
-  const store = { get() { try { return JSON.parse(localStorage.getItem(LS) || '{}'); } catch { return {}; } }, set(o) { try { localStorage.setItem(LS, JSON.stringify(o)); } catch { /* private mode */ } } };
 
   // ---- flip carousel
   function initFlip(flip, off) {
@@ -68,31 +64,6 @@
     flip.ryagramFlip = { go: n => go(n), index: () => i };
   }
 
-  // ---- workbench: collapse, drag + keyboard resize, state kept
-  function initWb(wb, off) {
-    const saved = store.get(), listeners = [];
-    const on = (el, ev, fn, opt) => { el.addEventListener(ev, fn, opt); listeners.push(() => el.removeEventListener(ev, fn, opt)); };
-    for (const k of ['left', 'right', 'bottom']) { if (saved[k + 'Size']) wb.style.setProperty(`--wb-${k}`, saved[k + 'Size']); if (saved[k + 'Collapsed']) wb.dataset[k] = 'collapsed'; }
-    const sync = k => { for (const b of wb.querySelectorAll(`[data-collapse="${k}"]`)) b.setAttribute('aria-expanded', String(wb.dataset[k] !== 'collapsed')); };
-    for (const b of wb.querySelectorAll('[data-collapse]')) { sync(b.dataset.collapse); on(b, 'click', () => { const k = b.dataset.collapse; wb.dataset[k] = wb.dataset[k] === 'collapsed' ? '' : 'collapsed'; sync(k); const s = store.get(); s[k + 'Collapsed'] = wb.dataset[k] === 'collapsed'; store.set(s); }); }
-    const setSize = (k, px) => { const v = Math.round(Math.max(160, Math.min(k === 'bottom' ? wb.getBoundingClientRect().height * .6 : 520, px))) + 'px'; wb.style.setProperty(`--wb-${k}`, v); const s = store.get(); s[k + 'Size'] = v; store.set(s); };
-    for (const h of wb.querySelectorAll('[data-resize]')) {
-      const k = h.dataset.resize;
-      on(h, 'pointerdown', e => {
-        h.classList.add('drag'); h.setPointerCapture(e.pointerId); const rect = wb.getBoundingClientRect();
-        const mv = ev => setSize(k, k === 'left' ? ev.clientX - rect.left : k === 'right' ? rect.right - ev.clientX : rect.bottom - ev.clientY);
-        const up = () => { h.classList.remove('drag'); h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); };
-        h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up);
-      });
-      on(h, 'keydown', e => {
-        const step = e.shiftKey ? 48 : 16, cur = parseFloat(getComputedStyle(wb).getPropertyValue(`--wb-${k}`)) || (k === 'bottom' ? 260 : 280);
-        const grow = k === 'left' ? 'ArrowRight' : k === 'right' ? 'ArrowLeft' : 'ArrowUp', shrink = k === 'left' ? 'ArrowLeft' : k === 'right' ? 'ArrowRight' : 'ArrowDown';
-        if (e.key === grow) { setSize(k, cur + step); e.preventDefault(); } else if (e.key === shrink) { setSize(k, cur - step); e.preventDefault(); }
-      });
-    }
-    off.push(() => listeners.forEach(f => f()));
-  }
-
   // ---- parallax: one transform per layer per frame; off under reduced motion
   function initParallax(root, off) {
     const layers = [...root.querySelectorAll('[data-parallax]')];
@@ -135,7 +106,6 @@
     const off = [];
     if (!root) return () => {};
     for (const f of root.querySelectorAll('[data-flip]')) initFlip(f, off);
-    for (const w of root.querySelectorAll('.wb')) initWb(w, off);
     initParallax(root, off);
     return () => { for (const f of off.splice(0)) { try { f(); } catch { /* ignore */ } } };
   }
