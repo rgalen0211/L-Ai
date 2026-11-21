@@ -104,3 +104,53 @@ test('ROW 3 HELP FAQ: "How do I connect Claude or ChatGPT?" is true for everyone
   assert.ok(first.indexOf('invited') < first.indexOf('open Account, then Connected AIs'), 'the caveat comes before the steps');
   assert.doesNotMatch(first, /^Open Account/);
 });
+
+// ---------------------------------------------------------------------------------------------- ROW 4: the live editor's "Start the render"
+// renderPath, RENDER_SOON and showCommit are cut out of the page's source (assets/app-editor.js) and run against fakes, so the BEHAVIOUR is tested: the made-up job (startJob) only in mock mode.
+const EDSRC = read('assets/app-editor.js');
+const SHOW = (() => { const i = EDSRC.indexOf('const renderPath ='), j = EDSRC.indexOf("// On the person's own computer the maker builds", i); assert.ok(i > 0 && j > i, 'markers'); return EDSRC.slice(i, j); })();
+function commitPanel({ host = null, mock = false } = {}) {
+  const started = [];
+  const renderBox = { hidden: true, kids: [], replaceChildren(...k) { this.kids = k.flat(Infinity).filter(x => x != null && x !== false); }, querySelector: () => ({ focus() {} }) };
+  const btn = (label, cls, onclick) => h('button', { type: 'button', class: cls, onclick }, label);
+  const f = vm.runInNewContext(`(function (h, btn, host, window, renderBox, committedWords, startJob, startHostBuild, closeRender) { ${SHOW}; return { showCommit, renderPath }; })`, { Array, String });
+  const api = f(h, btn, host, { ryagramMock: mock ? {} : undefined }, renderBox, () => ['Line colour: blue'], () => started.push('fake'), () => started.push('host'), () => {});
+  api.showCommit();
+  return { box: wrap(renderBox.kids), started, api };
+}
+const startBtns = box => all(box, n => n.tag === 'button' && text(n) === 'Start the render');
+
+test('ROW 4 LIVE EDITOR: on the website (no host.render, not mock) there is NO "Start the render" button and no made-up job can start; the panel says plainly the render is coming soon and points to the film’s page', () => {
+  const { box, started, api } = commitPanel({ host: null, mock: false });
+  assert.equal(api.renderPath(), null);
+  assert.equal(startBtns(box).length, 0);
+  const soon = byId(box.kids, 'le-render-soon');
+  assert.equal(soon.length, 1);
+  assert.equal(text(soon[0]), 'Rendering the final film from here is coming soon. For now, make it from the film’s page.');
+  assert.ok(textOf([box]).includes('Line colour: blue'), 'what it is made from is still shown');
+  assert.ok(all(box, n => n.tag === 'button' && text(n) === 'Close').length === 1, 'a way out');
+  assert.deepEqual(started, []);
+  const hostWithoutRender = commitPanel({ host: { rpc() {} }, mock: false });          // a host page that has no render function is the same: nothing pretend
+  assert.equal(startBtns(hostWithoutRender.box).length, 0);
+});
+
+test('ROW 4 MOCK AND HOST: in mock mode the made-up job still starts (every mock check relies on it); with a real host.render the real build starts, never the made-up job', async () => {
+  const m = commitPanel({ host: null, mock: true });
+  assert.equal(m.api.renderPath(), 'mock');
+  assert.equal(startBtns(m.box).length, 1);
+  assert.equal(byId(m.box.kids, 'le-render-soon').length, 0);
+  await startBtns(m.box)[0].attrs.onclick();
+  assert.deepEqual(m.started, ['fake']);
+  const r = commitPanel({ host: { render: () => {} }, mock: false });
+  assert.equal(r.api.renderPath(), 'host');
+  await startBtns(r.box)[0].attrs.onclick();
+  assert.deepEqual(r.started, ['host']);
+  const both = commitPanel({ host: { render: () => {} }, mock: true });
+  assert.equal(both.api.renderPath(), 'host', 'a real render path beats the mock');
+});
+
+test('ROW 4 THE MADE-UP JOB IS REACHED ONLY THROUGH THE MOCK GATE: startJob is referenced from exactly one place in the page', () => {
+  const uses = EDSRC.replace(/^\s*\/\/.*$/gm, '').split('startJob').length - 1;
+  assert.equal(uses, 2, 'the definition and the one mock-gated use');
+  assert.match(EDSRC, /path === 'mock' \? \[btn\('Start the render', 'primary', startJob\)\]/);
+});

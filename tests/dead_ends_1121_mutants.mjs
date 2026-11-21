@@ -17,6 +17,9 @@ const mutants = [
   ["row 2: the sign-up button is drawn for an account that is not invited", DP, "if (!invited) { area.replaceChildren(", "if (false) { area.replaceChildren("],
   ["row 2: the invited-only line promises a retry", DP, "invitedOnly: 'Sign-up for this is for invited accounts for now.'", "invitedOnly: 'Sign-up for this is for invited accounts for now. Try again in a minute.'"],
   ["row 3: the help entry drops its invited-only sentence", 'help/index.html', "Connecting an AI is for invited accounts for now. If you do not see Connected AIs under Account, your account is not invited yet; ask us and we will tell you when it opens for you. If you do see it: open Account", "Open Account"],
+  ["row 4: no real path falls back to the made-up job again", ED, "window.ryagramMock ? 'mock' : null);", "'mock');"],
+  ["row 4: the coming-soon line is not shown", ED, "path ? null : h('p', { class: 'form-note', id: 'le-render-soon'", "null ? null : h('p', { class: 'form-note', id: 'le-render-soon'"],
+  ["row 4: the mock loses its made-up job", ED, "path === 'mock' ? [btn('Start the render', 'primary', startJob)]", "path === 'mock' ? []"],
 ];
 
 function run(cwd) {

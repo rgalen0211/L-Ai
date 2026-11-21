@@ -1133,11 +1133,17 @@
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
       }
       const closeRender = () => { renderBox.hidden = true; renderBox.replaceChildren(); };
+      // Which render path is real HERE: the person's own computer (host.render), or nothing yet. startJob() below is a MADE-UP job (2,820 invented frames, then 'Your film is ready'): it runs ONLY in mock mode
+      // (the test mock, ?mock on localhost), never for a real account on the website (WEB dead-end sweep row 4, 11-21). With no real path the panel says so in plain words and offers no Start button.
+      const renderPath = () => (host && typeof host.render === 'function' ? 'host' : window.ryagramMock ? 'mock' : null);
+      const RENDER_SOON = 'Rendering the final film from here is coming soon. For now, make it from the film’s page.';       // DRAFT FOR RYAN (WEB 11-21)
       function showCommit() {
+        const path = renderPath();
         renderBox.hidden = false;
-        renderBox.replaceChildren(h('h2', {}, 'What will render'), h('p', { class: 'meta' }, 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.'),
+        renderBox.replaceChildren(h('h2', {}, path ? 'What will render' : 'What the film will be made from'), h('p', { class: 'meta' }, 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.'),
           h('ul', {}, committedWords().map(t => h('li', {}, t))),
-          h('div', { class: 'le-actions' }, btn('Start the render', 'primary', host && typeof host.render === 'function' ? startHostBuild : startJob), btn('Not yet', 'secondary', closeRender)));
+          path ? null : h('p', { class: 'form-note', id: 'le-render-soon', role: 'status' }, RENDER_SOON),
+          h('div', { class: 'le-actions' }, ...(path === 'host' ? [btn('Start the render', 'primary', startHostBuild)] : path === 'mock' ? [btn('Start the render', 'primary', startJob)] : []), btn(path ? 'Not yet' : 'Close', 'secondary', closeRender)));
         renderBox.querySelector('button').focus();
       }
       // On the person's own computer the maker builds the film itself (POST /api/live/render, one at a time) and answers when it is made: there is no job row and no per-frame numbers to
