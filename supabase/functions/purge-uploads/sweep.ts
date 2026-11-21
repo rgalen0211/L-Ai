@@ -14,7 +14,7 @@ export interface Deps {
   remove(paths: string[]): Promise<void>;
   markRemoved(ids: string[]): Promise<number>;
   // WORKER 2026-11-21 (GEO's privacy review M3): the films made FROM a removed upload (the rule is in migration
-  // 20261121000200: everything when the person deleted it; the drafts only under Don't keep). Same pattern: list,
+  // 20261121000300: everything when the person deleted it; the drafts only under Don't keep). Same pattern: list,
   // remove from ryagram-artifacts, then mark only what Storage no longer has.
   dueFilms?(limit: number): Promise<{ artifact_id: string; storage_path: string }[]>;
   removeFilms?(paths: string[]): Promise<void>;

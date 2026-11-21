@@ -1,5 +1,5 @@
 """Films made FROM a customer's upload go when the upload goes (WORKER 2026-11-21, GEO's privacy review M3;
-migrations/20261121000200_upload_films_gone.sql).
+migrations/20261121000300_upload_films_gone.sql).
 
 THE RULE: the person deleted their data -> every film made from it goes, the final film too; 'Don't keep' -> the drafts
 (sheet, preview) go and a paid final film stays until its own 30 days. A file is marked removed only when Storage no

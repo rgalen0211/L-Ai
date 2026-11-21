@@ -1,4 +1,4 @@
--- AFTER 20261121000200_upload_films_gone.sql (films made FROM a customer's upload go when the upload goes; GEO's privacy review M3): one SELECT, read-only, changes nothing. Every ok must be true.
+-- AFTER 20261121000300_upload_films_gone.sql (films made FROM a customer's upload go when the upload goes; GEO's privacy review M3): one SELECT, read-only, changes nothing. Every ok must be true.
 -- Run it on the same project right after the migration. Before the migration the first two rows answer false, never an error. Every column is named.
 select 'upload_films_due_for_deletion exists and lists only films of REMOVED uploads' as check_name,
        coalesce((select p.prosrc like '%d.source = ''upload'' and d.deleted_at is not null%'
