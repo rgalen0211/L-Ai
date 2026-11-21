@@ -92,7 +92,7 @@ with sync_playwright() as pw:
         check(h1(p) != 'Waiting list', 'a non-admin does not get the list')
         # create an account, signed out
         go(p, '')
-        p.click('text=Sign out'); p.wait_for_selector('#sign-in:not([hidden])', timeout=8000)
+        p.evaluate("document.querySelector('#sign-out').click()"); p.wait_for_selector('#sign-in:not([hidden])', timeout=8000)
         check(p.locator('#create-link').is_visible(), 'the sign-in page offers "Create an account"')
         p.click('#create-link'); p.wait_for_selector('#create-account:not([hidden])', timeout=5000)
         check(p.evaluate("document.activeElement.id") == 'create-account-title', 'focus moves to the new page title')
@@ -105,7 +105,7 @@ with sync_playwright() as pw:
         p.fill('#ca-email', 'new.person@example.com'); p.click('#create-account-form button'); p.wait_for_timeout(400)
         check('on its way' in p.inner_text('#create-account-note') and p.locator('#create-account-error').is_hidden(), 'join answers with the same "link is on its way" words')
         go(p, '&joinoff', '#/')
-        if p.locator('text=Sign out').count(): p.click('text=Sign out'); p.wait_for_selector('#sign-in:not([hidden])', timeout=8000)
+        if p.locator('#account-avatar').is_visible(): p.evaluate("document.querySelector('#sign-out').click()"); p.wait_for_selector('#sign-in:not([hidden])', timeout=8000)
         p.click('#create-link'); p.wait_for_selector('#create-account:not([hidden])', timeout=5000)
         p.fill('#ca-email', 'later.person@example.com'); p.click('#create-account-form button'); p.wait_for_timeout(400)
         check('not open yet' in p.inner_text('#create-account-error'), 'while the switch is off, join says "not open yet" and points to the waitlist')

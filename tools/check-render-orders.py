@@ -4,6 +4,7 @@ Also: the 12-character password text, and the Request a film pointer on a projec
 
     python tools/check-render-orders.py [outdir]        (default D:/Ryagram-scratch/WEB/render-shots)
 """
+import re
 import http.server
 import socketserver
 import sys
@@ -116,7 +117,7 @@ def main():
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 run_until_ladder(p)
                 p.get_by_role('button', name='Render final film').click(); p.get_by_role('button', name='Yes, render it').click()   # the confirm is in the page (11-18)
-                p.wait_for_selector('.jobs-panel .job:has-text("Final render")', timeout=15000)
+                p.get_by_role('tab', name=re.compile('Jobs')).click(); p.wait_for_selector('.jobs-list-panel .job:has-text("Final render")', timeout=15000)
                 check(p.evaluate("window.ryagramMock.client.db.render_orders[0].state") == 'running', 'with auto_render on the full render starts at once (an order is running and the final job is listed)')
                 ctx.close()
                 # ---- the small fixes

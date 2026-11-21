@@ -81,8 +81,8 @@ def main():
                     p.wait_for_selector('.uploads-panel', state='attached', timeout=15000)
                     adv = p.locator('details.advanced-panel')
                     if adv.count() and adv.first.get_attribute('open') is None:
-                        adv.first.locator('summary').first.click()
-                    p.locator('.uploads-panel').scroll_into_view_if_needed()
+                        p.get_by_role('tab', name=re.compile('Advanced')).click(); adv.first.locator('summary').first.click()
+                    p.get_by_role('tab', name=re.compile('Advanced')).click(); p.locator('.uploads-panel').scroll_into_view_if_needed()
                     p.set_input_files('#upload-file', str(f))
                     if not p.is_checked('#upload-rights'):
                         p.check('#upload-rights')

@@ -54,6 +54,7 @@ with sync_playwright() as pw:
         p = open_page(b, on_cfg, opts, errs)
         p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/', wait_until='load'); p.wait_for_selector('h1:has-text("Your projects")')
         check(p.locator('a:has-text("What do you want to make?")').count() == 1, 'the projects page has the link (switch on)')
+        p.locator('.flip-tab:has-text("Credits and links")').click(); p.wait_for_timeout(600)          # the home links are the third flip section of the home page
         p.click('a:has-text("What do you want to make?")'); p.wait_for_selector('h2:has-text("What do you want to make?")')
         check(p.locator('.intake-choice').count() == 4, 'one basic question first: four answers')
         # compilation: no second question
@@ -78,7 +79,7 @@ with sync_playwright() as pw:
         p.click('[data-choice="map"]'); p.wait_for_selector('a:has-text("Open the builder")')
         href = p.get_attribute('a:has-text("Open the builder")', 'href')
         check(href == '#/build?type=map&q=county', f'a map lands on the builder with the type and the county search ({href})')
-        p.click('a:has-text("Open the builder")'); p.wait_for_selector('h2:has-text("Which data?")', timeout=15000)
+        p.click('a:has-text("Open the builder")'); p.wait_for_selector('h2:has-text("Which data?")', timeout=15000); p.get_by_role('tab', name=re.compile('Your own data')).click()   # step 1 flips between ready-made films and the dataset list
         check(p.input_value('#bd-filter') == 'county', 'the dataset list opens already narrowed to counties')
         cards = p.locator('.builder-card').all_inner_texts()
         check(len(cards) >= 1 and all('county' in c.lower() or 'counties' in c.lower() for c in cards), f'every dataset shown is a county one ({len(cards)} shown)')

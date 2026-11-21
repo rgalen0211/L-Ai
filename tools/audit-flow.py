@@ -109,7 +109,7 @@ def main():
                 p.fill('#acct-password2', 'short')
                 p.click('button:has-text("Change password")')
                 shot('11-password-too-short')
-                p.click('#sign-out')
+                p.evaluate("document.querySelector('#sign-out').click()")   # Sign out lives in the account menu now
                 p.wait_for_timeout(800)
                 shot('12-after-sign-out')
                 ctx.close()

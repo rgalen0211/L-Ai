@@ -171,6 +171,7 @@
       library.hidden = false;
       account.hidden = false;
       $('account-email').textContent = user.email || '';
+      { const av = $('account-avatar'), parts = String((user.email || '').split('@')[0] || '?').split(/[._\-+ ]+/).filter(Boolean); if (av) av.textContent = (parts.length > 1 ? parts[0][0] + parts[1][0] : String(parts[0] || '?').slice(0, 2)).toUpperCase(); }   // the avatar button in the account menu shows the person's initials
       if (status.textContent === 'You have signed out.') say('');               // the 'You have signed out.' note belongs to the signed-out page; no signed-in screen shows it, on any sign-in path or refresh
       // Mount once per sign-in; token refreshes fire this again and must not reset the page.
       if (!unmount) {

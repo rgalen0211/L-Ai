@@ -18,7 +18,7 @@ test('SIGN-IN: a person with no invite is not left at a dead end: waitlist, emai
 
 test('HEADER AND FOOTER: Help and Account are words in the header; Help and Contact are in the app footer', () => {
   const html = read('app/index.html');
-  assert.match(html, /<a class="app-nav-link" href="\/help\/">Help<\/a><a class="app-nav-link" href="#\/account">Account<\/a><a id="account-email"/);
+  assert.match(html, /<a class="menu-link" role="menuitem" href="#\/account">Account<\/a><a class="menu-link" role="menuitem" href="\/help\/">Help<\/a>/);
   assert.match(html, /<footer class="app-foot">[\s\S]*<a href="\/help\/">Help<\/a><a href="mailto:ryagram@uselai\.com">Contact: ryagram@uselai\.com<\/a>/);
   assert.match(read('assets/app.css'), /\.app-nav-link\{[^}]*min-height:40px/);
 });
@@ -50,14 +50,15 @@ test('EMPTY LIBRARY AND CREDITS: the first screen says what a project is and wha
   assert.doesNotMatch(lib, /it starts as r1/);
 });
 
-test('VERSION PAGE: the ready-made films and the editor come first, then sources, then Render; the raw story and the own-data upload are folded under Advanced (all controls kept)', () => {
+test('VERSION PAGE (flip sections, WEB 11-20): the first screen is the band, the key facts and the flip bar; the sections are Make it (the ready-made films, then Render), Jobs, The data, Files, Editor, Advanced; the raw story and the own-data upload are in Advanced (all controls kept)', () => {
   const lib = read('assets/app-library.js');
-  const ret = lib.slice(lib.indexOf("        picker,\n        byodPointer,\n        saved,"));
-  assert.match(ret, /^ {8}picker,\n {8}byodPointer,\n {8}saved,[^\n]*\n {8}chat,\n {8}sources\.el,\n {8}jobs\.el,\n {8}files\.el,/, 'order: picker, its confirmation, chat, sources, render, files');
+  const ret = lib.slice(lib.indexOf("      const makeIt = h('div', { class: 'make-it' }, picker, byodPointer, saved, jobs.el, lookApply,"));
+  assert.match(ret, /\{ id: 'make', label: 'Make it', el: makeIt \},\n\s+\{ id: 'jobs', label: 'Jobs', el: jobs\.listPanel \},\n\s+\{ id: 'data', label: 'The data', el: sources\.el \},\n\s+\{ id: 'files', label: 'Files', el: h\('div', \{\}, h\('div', \{ class: 'scroll-panel' \}, files\.el\)\) \},\n\s+\{ id: 'editor', label: 'Editor', el: chat[^\n]*hidden: !chat \},\n\s+\{ id: 'advanced', label: 'Advanced', el: advancedEl \}/, 'order: Make it, Jobs, The data, Files, Editor, Advanced');
   assert.doesNotMatch(lib, /story, locked \? null : save, saved, error\)/, 'saved messages are not hidden inside the folded form');
-  assert.match(ret, /advanced = h\('details', \{ class: 'advanced-panel', id: 'advanced-panel' \}, h\('summary', \{\}, 'Advanced: your own data and the story file'\),/);
-  assert.match(ret, /uploads\?\.el, storyForm\)/);
-  for (const keep of ['sources.el', 'uploads?.el', 'picker', 'chat', 'storyForm', 'jobs.el', 'files.el']) assert.ok(ret.includes(keep), keep);       // nothing was dropped, only moved or folded
+  assert.match(lib, /const advancedEl = h\('div', \{ class: 'advanced-panel', id: 'advanced-panel' \}, h\('h2', \{\}, 'Advanced: your own data and the story file'\),/);
+  assert.match(lib, /uploads\?\.el, storyForm\);/);
+  for (const keep of ['sources.el', 'uploads?.el', 'picker', 'chat', 'storyForm', 'jobs.el', 'files.el', 'jobs.listPanel']) assert.ok(lib.includes(keep), keep);       // nothing was dropped, only moved
+  assert.match(lib, /factCards,\n\s+flip\.el\n/, 'the page is the band, the facts, then the flip');
 });
 
 test('STORY SAVE: the "Saved" message also appears beside the Save story button (inside the folded form), not only above it', () => {
@@ -87,5 +88,5 @@ test('DELIVERY LINK SURVIVES A FINISHED RENDER (found by tools/check-delivery-e2
   const lib = read('assets/app-library.js');
   const controls = lib.slice(lib.indexOf("const controls = h('div', { class: 'run-controls' },"), lib.indexOf("'Jobs keep running if you leave this page.'"));
   assert.ok(!controls.includes('orderBox'), 'orderBox inside the run controls would be hidden with them');
-  assert.ok(lib.includes('controls, orderBox, balanceNote, lockedNote, error, listEl);'));
+  assert.ok(lib.includes('controls, orderBox, balanceNote, lockedNote, error);'));
 });

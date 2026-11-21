@@ -1,0 +1,288 @@
+/* Long pages as flip sections (WEB 2026-11-20, Ryan 11:55; design system v1.1: proposals/WEB-DESIGN-1120/ds-v11.css). Tokens fall back to the site's own so this works with or without assets/ryagram-ds.css. */
+.ds-page{--ds-line:var(--line,rgba(255,255,255,.12));--ds-surface:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));--ds-r:20px;--ds-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 8px 24px rgba(0,0,0,.35)}
+
+/* hero band: the film's own frame behind the title, or a plain gradient when it has none */
+.page-hero{position:relative;isolation:isolate;overflow:hidden;border-radius:var(--ds-r);border:1px solid var(--ds-line);padding:32px;margin:0 0 24px;background:radial-gradient(60% 120% at 85% 0,rgba(255,138,61,.16),transparent 60%),var(--paper,#1b1b23)}
+.page-hero .hero-frame{position:absolute;inset:0;z-index:-2;background-size:cover;background-position:center;opacity:.55;filter:saturate(1.05)}
+.page-hero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(11,12,17,.88) 0%,rgba(11,12,17,.55) 55%,rgba(11,12,17,.2) 100%)}
+.page-hero .back{display:inline-flex;align-items:center;min-height:44px}
+.page-hero h1{margin:0 0 8px}
+.page-hero .meta{margin:0 0 16px}
+.page-hero .actions-row{margin:0}
+
+/* the key facts: equal cards, never flush to an edge */
+.fact-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:0 0 24px}
+.fact-card{padding:24px;border-radius:var(--ds-r);border:1px solid var(--ds-line);background:var(--ds-surface);box-shadow:var(--ds-shadow);min-width:0}
+.fact-card .k{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#9a99a3);margin:0 0 8px}
+.fact-card .v{font-size:1.125rem;font-weight:650;margin:0 0 4px;overflow-wrap:anywhere}
+.fact-card .s{font-size:.875rem;color:var(--muted,#9a99a3);margin:0}
+
+/* the flip bar, panels, dots */
+.flip{position:relative;margin:0 0 24px}
+.flip-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.flip-tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;flex:1 1 auto;min-width:0;padding:4px 0}
+.flip-tabs::-webkit-scrollbar{display:none}
+.flip-tab{flex:0 0 auto;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--ds-line);background:transparent;color:var(--ink,#f4f3ef);font:600 .875rem/1 inherit;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.flip-tab:hover{background:rgba(255,255,255,.06)}
+.flip-tab[aria-selected=true]{background:var(--ds-surface);border-color:rgba(255,255,255,.2);box-shadow:var(--ds-shadow)}
+.flip-tab .n{font-size:.75rem;opacity:.6}
+.flip-arrow{flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:var(--ds-surface);color:var(--ink,#f4f3ef);cursor:pointer;display:grid;place-items:center;font-size:1.25rem;font-family:inherit}
+.flip-arrow:disabled{opacity:.35;cursor:default}
+.flip-viewport{overflow:hidden;border-radius:var(--ds-r)}
+.flip-track{display:flex;transition:transform .45s cubic-bezier(.2,.7,.2,1);align-items:flex-start}
+.flip-panel{flex:0 0 100%;min-width:0;padding:2px;box-sizing:border-box}
+.flip-panel[aria-hidden=true]{max-height:60px;overflow:hidden}            /* an unseen section never makes the page tall */
+.flip-dots{display:flex;justify-content:center;gap:8px;margin-top:16px}
+.flip-dot{position:relative;width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.2);border:0;padding:0}
+.flip-dot[aria-current=true]{background:var(--accent,#ff8a3d);transform:scale(1.25)}
+.flip-where{text-align:center;margin:8px 0 0}
+@media(prefers-reduced-motion:reduce){.flip-track{transition:none}}
+
+/* a section is a card with real padding; a long list scrolls inside its own panel */
+.flip-panel>.app-panel,.flip-panel>.jobs-panel,.flip-panel>section,.flip-panel>div.advanced-panel{padding:32px;border-radius:var(--ds-r);border:1px solid var(--ds-line);background:var(--ds-surface);box-shadow:var(--ds-shadow);margin:0}
+.scroll-panel{max-height:min(46vh,420px);overflow:auto;overscroll-behavior:contain;padding-right:8px;scrollbar-width:thin}
+@media(max-width:640px){.page-hero{padding:24px}.flip-panel>.app-panel,.flip-panel>.jobs-panel,.flip-panel>section,.flip-panel>div.advanced-panel{padding:24px}}
+
+/* Make it: the render ladder is three step cards side by side (contact sheet, preview, final film), not a tall column */
+.jobs-panel .run-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
+.jobs-panel .run-controls>.run-step{padding:20px;border:1px solid var(--ds-line);border-radius:16px;background:rgba(255,255,255,.03);min-width:0;display:flex;flex-direction:column;gap:8px}
+.jobs-panel .run-controls>.run-step .inline-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
+.jobs-panel .run-controls>.run-step input{min-width:0}
+.jobs-panel .run-controls>[data-key=no-film-yet],.jobs-panel .run-controls>.run-timing{grid-column:1/-1}
+.jobs-panel .jobs-head{margin-bottom:8px}
+.jobs-panel>.form-note:not(.run-timing){margin:0 0 4px}
+.make-it>*+*{margin-top:16px}
+@media(max-width:900px){.jobs-panel .run-controls{grid-template-columns:1fr}}
+
+/* compact first screen: the band, the facts and the ladder together stay within about 1.4 screens at 1280x800 */
+:is(body.ryagram-ds.ryagram-look,body) .page-hero{padding:24px 32px;margin-bottom:16px}
+:is(body.ryagram-ds.ryagram-look,body) .page-hero h1{font-size:clamp(1.75rem,3.2vw,2.5rem);margin-bottom:4px}
+:is(body.ryagram-ds.ryagram-look,body) .page-hero .meta{margin-bottom:12px}
+:is(body.ryagram-ds.ryagram-look,body) .fact-cards{margin-bottom:16px;gap:16px}
+:is(body.ryagram-ds.ryagram-look,body) .fact-card{padding:20px 24px}
+:is(body.ryagram-ds.ryagram-look,body) .fact-card .s{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+:is(body.ryagram-ds.ryagram-look,body) .flip-bar{margin-bottom:12px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls>.run-step .inline-row input{flex:1 1 90px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel>.form-intro,:is(body.ryagram-ds.ryagram-look,body) .jobs-panel>.form-note:not(.run-timing){font-size:.875rem;margin:0 0 4px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel h2{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel>.jobs-panel{padding:24px 32px}
+:is(body.ryagram-ds.ryagram-look,body) .make-it>*+*{margin-top:12px}
+:is(body.ryagram-ds.ryagram-look,body) .make-it .template-picker{margin:0}
+
+/* tighter still: title and actions share a row on a wide screen; the render notes are captions; the step cards are short */
+@media(min-width:900px){:is(body.ryagram-ds.ryagram-look,body) .page-hero{display:grid;grid-template-columns:1fr auto;column-gap:24px;align-items:end}:is(body.ryagram-ds.ryagram-look,body) .page-hero>.back,:is(body.ryagram-ds.ryagram-look,body) .page-hero>h1,:is(body.ryagram-ds.ryagram-look,body) .page-hero>.meta{grid-column:1}:is(body.ryagram-ds.ryagram-look,body) .page-hero>.actions-row{grid-column:2;grid-row:1/4;align-self:end;justify-content:flex-end}}
+:is(body.ryagram-ds.ryagram-look,body) .page-hero{padding:16px 32px 20px;margin-bottom:16px}
+:is(body.ryagram-ds.ryagram-look,body) .fact-card{padding:16px 24px}
+:is(body.ryagram-ds.ryagram-look,body) .fact-card .v{font-size:1.0625rem}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel>.form-intro,:is(body.ryagram-ds.ryagram-look,body) .jobs-panel>.form-note:not(.run-timing){font-size:.8125rem;line-height:1.4;margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls{margin-top:12px;gap:12px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls>.run-step{padding:14px 16px;gap:6px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls>.run-step label{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls>.run-timing{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .make-it .template-picker>summary{padding:12px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .make-it .byod-pointer{margin:0;font-size:.8125rem}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel>.jobs-panel{padding:20px 28px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .credit-balance{margin:8px 0 0}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel h2{font-size:1.5rem;margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .jobs-head{align-items:baseline}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls{border:0;padding:0;background:none;box-shadow:none}
+:is(body.ryagram-ds.ryagram-look,body) .flip-where{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}      /* still announced; the tabs and dots already show where you are */
+:is(body.ryagram-ds.ryagram-look,body) .flip-dots{margin-top:12px}
+:is(body.ryagram-ds.ryagram-look,body) .flip{margin-bottom:8px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel>.jobs-head,:is(body.ryagram-ds.ryagram-look,body) .jobs-list-panel>.jobs-head{margin-top:0;padding-top:0}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel h2{margin-top:0}
+:is(body.ryagram-ds.ryagram-look,body) .fact-card .s{-webkit-line-clamp:1}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel>.form-intro{display:none}
+:is(body.ryagram-ds.ryagram-look,body) .ds-page>footer,:is(body.ryagram-ds.ryagram-look,body) .ds-page footer.site-footer{margin-top:24px;padding-block:16px}
+/* long content inside a section scrolls in its own panel, never the page (Ryan 11:55) */
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .template-picker[open]>form{max-height:46vh;overflow:auto;padding-right:8px}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .advanced-panel{max-height:44vh;overflow:auto}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel>.jobs-panel,:is(body.ryagram-ds.ryagram-look,body) .flip-panel>.app-panel{padding:16px 28px}
+:is(body.ryagram-ds.ryagram-look,body) .flip-dots{margin-top:4px}
+:is(body.ryagram-ds.ryagram-look,body) .page-hero{padding:12px 32px 16px;margin-bottom:12px}
+body.ds-page .app-main{padding-top:24px;padding-bottom:32px}
+body.ds-page:has(.mock-bar) .app-main{padding-bottom:96px}
+/* Tutorial (#/build): ready-made films side by side, the dataset wall scrolls inside its own panel (Ryan 11:55) */
+@media(min-width:900px){:is(body.ryagram-ds.ryagram-look,body) .builder-ready .builder-list{grid-template-columns:repeat(3,minmax(0,1fr))}:is(body.ryagram-ds.ryagram-look,body) .builder-ready{margin-bottom:12px}}
+:is(body.ryagram-ds.ryagram-look,body) .dataset-scroll{max-height:min(34vh,300px)}
+:is(body.ryagram-ds.ryagram-look,body) .builder-ready h2{margin-bottom:4px}
+/* Tutorial: the title, the step chips and the tip take little room; every step fits in about a screen and a half (Ryan 11:55) */
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) h1{font-size:clamp(1.6rem,4vw,2.4rem);margin-bottom:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .form-intro{margin:0 0 8px}
+:is(body.ryagram-ds.ryagram-look,body) .builder-steps{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-bottom:8px;padding-bottom:2px}
+:is(body.ryagram-ds.ryagram-look,body) .builder-steps li{flex:0 0 auto;white-space:nowrap}
+@media(max-width:640px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-tip,:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .form-intro{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) h2{font-size:1.25rem;margin:8px 0 4px}}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) h2{margin:8px 0 4px;font-size:1.4rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .flip-bar{margin-top:4px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source{margin:8px 0;padding:8px 14px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-nav{margin-top:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-tip{margin:4px 0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-list{margin:8px 0;gap:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .flip-dots{display:none}
+:is(body.ryagram-ds.ryagram-look,body) .dataset-scroll{max-height:min(28vh,240px)}
+:is(body.ryagram-ds.ryagram-look,body) .dataset-scroll{max-height:min(22vh,190px)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source{font-size:.9rem;line-height:1.35}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source h3{margin:0 0 2px;font-size:1rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source p{margin:2px 0}
+@media(max-width:640px){:is(body.ryagram-ds.ryagram-look,body) .builder-start .meta{display:none}:is(body.ryagram-ds.ryagram-look,body) .builder-start{min-height:44px;padding:8px 14px}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-summary{gap:2px 10px;font-size:.92rem}}
+/* the design system's header is sticky (72 px): focus and scroll-into-view stop below it, so a step's first control is never under the header (check-builder, check-intake) */
+html{scroll-padding-top:88px}
+/* the render panel's credit line is a caption row, not a card, and the step cards sit close to it (keeps the Version page's first section within about 1.7 screens) */
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .credit-balance{padding:12px 20px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls{margin-bottom:8px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .jobs-head{margin-bottom:0}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel>.jobs-panel{padding:16px 28px}
+/* a locked button shows the not-allowed cursor (its reason is the tooltip); the design system's disabled rule had made it the default arrow (check-smoke-fixes) */
+body.ryagram-ds.ryagram-look .button[data-locked]:disabled{cursor:not-allowed}
+/* Help: the form is the first section and sits on the first screen in two columns (email and topic | message and Send); the quick answers sit in their own scroll panels (Ryan 11-20: no long pages) */
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.help-answers) .form-intro{margin:0 0 12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.help-answers) .flip-bar{margin-bottom:10px}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form{display:grid;grid-template-columns:1fr 1.4fr;gap:0 28px;padding:20px 28px;align-items:start}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form .choices{margin:10px 0 0}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form .choice{margin:2px 0}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form textarea{min-height:0}
+.help-answers .scroll-panel{max-height:min(46vh,380px)}
+.help-answers details{border-bottom:1px solid var(--ds-line);padding:2px 0}
+.help-answers summary{cursor:pointer;font-weight:600;padding:10px 0;min-height:44px;display:flex;align-items:center}
+.help-answers details p{margin:0 0 12px;color:var(--ink-2,inherit)}
+@media(max-width:700px){:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form{grid-template-columns:1fr;padding:16px 18px}:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form .choices{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form .choices legend{grid-column:1/-1}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.help-answers) .form-intro{display:none}}
+/* Tutorial: every step within 1.4 screens (desktop) and 1.5 (phone): the source box is a row, the Review summary two columns, the Measure and Years steps keep the source one tap away, the years sit side by side (Ryan 11-20) */
+:is(body.ryagram-ds.ryagram-look,body) .builder-source-fold{padding:0;border:0;background:none}
+:is(body.ryagram-ds.ryagram-look,body) .builder-source-fold>details{border:1px solid var(--ds-line);border-radius:var(--ds-r);padding:0 14px;background:var(--ds-surface)}
+:is(body.ryagram-ds.ryagram-look,body) .builder-source-fold>details>summary{min-height:44px;display:flex;align-items:center;font-weight:600;cursor:pointer}
+:is(body.ryagram-ds.ryagram-look,body) .builder-years{flex-wrap:nowrap}
+:is(body.ryagram-ds.ryagram-look,body) .builder-years input{flex:1 1 0;min-width:0;max-width:140px}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel:has(.dataset-scroll) h2+.form-note{display:none}
+@media(min-width:900px){
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold){display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 22px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold)>details{flex:1 0 100%}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-summary{grid-template-columns:max-content 1fr max-content 1fr;gap:2px 18px}
+}
+/* second pass: tighter gap under the flip bar, the source box compact (a row on desktop, small type on a phone) */
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .flip-bar{margin-bottom:4px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold) p{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold)>details>p{margin:2px 0 6px}
+@media(max-width:640px){
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold){padding:6px 12px;font-size:.85rem;line-height:1.3}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold) h3{font-size:.95rem;margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold) summary{min-height:36px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-summary{font-size:.9rem;gap:1px 10px}
+}
+@media(min-width:900px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold)>details{flex:0 0 auto}}
+:is(body.ryagram-ds.ryagram-look,body) .dataset-scroll{max-height:min(19vh,150px)}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel:has(.dataset-scroll) h2{margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .dataset-scroll{max-height:min(17vh,136px)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold){margin:6px 0}
+:is(body.ryagram-ds.ryagram-look,body) #bd-filter{min-height:44px;height:44px;margin-bottom:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-list .builder-card,:is(body.ryagram-ds.ryagram-look,body) .dataset-scroll .builder-card{padding-block:8px}
+@media(max-width:640px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) h1{font-size:1.3rem;margin-bottom:6px}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold) h3{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-source:not(.builder-source-fold) summary{min-height:32px}}
+@media(max-width:640px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) h2{margin:0 0 4px}:is(body.ryagram-ds.ryagram-look,body) .ds-page:has(.builder-steps)>footer,:is(body.ryagram-ds.ryagram-look,body):has(.builder-steps) footer{margin-top:8px}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) .builder-summary+.form-note,:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.builder-steps) details+.form-note{font-size:.8rem;margin:6px 0}}
+/* Home as flip sections (Ryan 11-20 11:55: no long pages): a short parallax hero, the Start card, then Your films / Departments / Credits and links as flip sections; the lists scroll in their own panel */
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero{min-height:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .copy{padding-block:8px 64px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .lede{display:none}
+body:has(.home-films) footer{margin-top:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .actions{margin-top:14px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .hero h1.display{font-size:clamp(1.9rem,3.4vw,2.5rem);margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start{margin-top:-56px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .card{padding:24px 28px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .start-actions{margin-top:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .or{margin:10px 0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start h2{margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .flip{margin-top:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.home-films){padding-top:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .eyebrow{display:none}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .flip-bar{margin-bottom:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head h2{font-size:1.25rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card{flex-direction:row;align-items:stretch}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-thumb{aspect-ratio:auto;flex:0 0 132px;border-bottom:0;border-right:1px solid var(--line)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body{padding:12px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body h3{margin:0 0 2px;font-size:1.0625rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body h3 a{min-height:32px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head h2{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-actions .button{min-height:40px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body .meta{margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head{margin:0 0 8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head a{min-height:44px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .scroll-panel{max-height:min(22vh,176px)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .scroll-panel{max-height:min(26vh,208px)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-cards h2{display:none}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card:first-child{min-height:0;padding:24px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card-list{gap:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card{padding:24px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-more .credit-balance{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-more .home-links{margin:12px 0 0}
+@media(max-width:700px){:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .copy{padding-block:8px 64px}:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .lede{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .card{padding:24px 24px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .inner{gap:14px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .meta{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:1fr}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .scroll-panel,:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .scroll-panel{max-height:min(24vh,200px)}}
+#library .home-films .site-section-head h2,#library .home-more h2{margin-top:0}
+/* Version page (Ryan 11-20 amendment 2): a short band, slim key facts, the template picker and the own-data pointer on one row, tight step cards; every section within 1.4 screens (desktop) and 1.8 (phone) */
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero{padding:8px 28px 12px;margin-bottom:10px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:32px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero h1{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .meta{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{margin-bottom:10px;gap:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{padding:10px 20px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .k{margin:0 0 2px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .v{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .flip-bar{margin-bottom:8px}
+#library .jobs-panel h2,#library .flip-panel h2{margin-top:0}
+@media(min-width:901px){:is(body.ryagram-ds.ryagram-look,body) .make-it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}:is(body.ryagram-ds.ryagram-look,body) .make-it>*{margin-top:0;grid-column:1/-1}:is(body.ryagram-ds.ryagram-look,body) .make-it>.template-picker{grid-column:1}:is(body.ryagram-ds.ryagram-look,body) .make-it>.byod-pointer{grid-column:2;white-space:nowrap}}
+@media(max-width:640px){
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero{padding:4px 16px 8px;margin-bottom:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row{gap:6px;margin-top:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row .button{min-height:44px;padding:0 14px;font-size:.8125rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:40px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{grid-template-columns:1fr;gap:6px;margin-bottom:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{display:grid;grid-template-columns:74px minmax(0,1fr);align-items:baseline;gap:0 10px;padding:8px 14px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .s{display:none}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>h1{display:inline-block;margin-right:10px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>.meta{display:inline-block}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{gap:0;border:1px solid var(--ds-line);border-radius:var(--ds-r);background:var(--ds-surface);overflow:hidden}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:6px 14px;grid-template-columns:78px minmax(0,1fr)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card+.fact-card{border-top:1px solid var(--ds-line)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .v{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.jobs-panel>.form-note:not(.run-timing){font-size:.75rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step{border:0;background:none;padding:2px 0;border-top:1px solid var(--ds-line);border-radius:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.jobs-panel{padding:10px 14px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row .button{min-height:48px;line-height:1.2;padding:4px 10px;white-space:normal;text-align:center;font-size:.75rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it .template-picker>summary{font-size:.9375rem;padding:0 12px;min-height:44px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.template-picker{padding:2px 12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step .inline-row{flex-wrap:nowrap}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step:first-of-type .inline-row .button,:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step .inline-row .button{padding:0 12px;font-size:.8125rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .credit-balance{padding:6px 14px;margin:2px 0 0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-timing{margin:2px 0 0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>*+*{margin-top:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.jobs-panel,:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .flip-panel>.app-panel{padding:14px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls{gap:8px;margin-top:8px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls>.run-step{padding:10px 12px;gap:4px}
+}
+@media(min-width:901px){
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it .template-picker>summary{padding:8px 16px;min-height:44px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step{padding:10px 14px;gap:4px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.jobs-panel{padding:12px 24px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.template-picker{padding:4px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls{margin-top:6px;margin-bottom:0;gap:10px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .credit-balance{margin:4px 0 0;padding:8px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-timing{display:inline-block;margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step input{min-height:44px}
+}
+@media(min-width:901px){
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>h1{grid-row:2;justify-self:start}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>.meta{grid-row:2;justify-self:end;align-self:end;margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>.back{grid-row:1}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>.actions-row{grid-row:1/3}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{padding:8px 20px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .k{font-size:.6875rem;margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it .template-picker>summary{padding:2px 16px}
+}
+/* Credits (Ryan 11-20 amendment 2): the title and balance sit close, the packs (or plans) are one row of cards on a wide screen and slim rows on a phone; both tabs within 1.35 screens (desktop) and 1.5 (phone) */
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .back{min-height:40px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) h1{margin:0 0 12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .credit-balance{margin:0 0 6px;padding:10px 24px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-bar{margin-bottom:4px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-panel h2,#library .flip-panel:has(.offer-list) h2{margin:0 0 8px;font-size:1.25rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .offer-list{gap:8px;margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .offer{padding:8px 16px;flex-wrap:nowrap}
+@media(min-width:901px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-panel .offer-list{grid-template-columns:repeat(3,minmax(0,1fr))}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-panel .offer{flex-wrap:wrap;padding:14px 18px}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-panel .offer .button{margin-left:auto}}
+@media(max-width:640px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .offer .meta{flex:1 1 auto}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .offer .button{margin-left:auto}}

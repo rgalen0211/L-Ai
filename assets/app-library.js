@@ -12,7 +12,7 @@
   };
   const KIND_LABELS = {
     final_video: 'Final film', preview: 'Preview', contact_sheet: 'Contact sheet', thumbnail: 'Thumbnail',
-    receipt: 'Receipt (JSON)', receipt_text: 'Receipt', metering: 'Metering'
+    receipt: 'Receipt (for computers)', receipt_text: 'Receipt', metering: 'Usage note'
   };
   const UUID = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
 
@@ -114,8 +114,9 @@
     };
     Promise.resolve().then(() => data.isAppAdmin()).then(yes => {
       if (!alive || yes !== true) return;                                         // the check belongs to THIS mount: a later sign-in starts its own
-      menu = h('a', { class: 'app-nav-link admin-link', href: '#/admin' }, 'Admin');
-      slot.prepend(menu);
+      menu = h('a', { class: 'menu-link admin-link', href: '#/admin', role: 'menuitem' }, 'Admin');
+      const panel = slot.querySelector('#account-menu'), sep = panel && panel.querySelector('.menu-sep');       // the account menu holds it (Help, Account, Admin, Sign out); an older page without the menu keeps it in the bar
+      if (panel && sep) panel.insertBefore(menu, sep); else slot.prepend(menu);
       if (slot.parentElement) slot.parentElement.classList.add('has-admin');           // lets the phone header wrap onto a second row instead of overflowing
     }).catch(() => { /* a failed check shows nothing new */ });
     return cleanup;
@@ -147,7 +148,7 @@
         // The plain library address goes to the door only for an invited account with no AI connected and no 'Not now' in the last 7 days; any failure shows the library.
         else if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
         else if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
-        else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
+        else if ((m = hash.match(new RegExp(`^#/v/${UUID}(?:\\?section=[a-z0-9_-]+)?$`)))) view = await versionView(m[1], onStop);
         else if ((m = hash.match(/^#\/account(?:\?connect=(claude|chatgpt))?$/))) view = await accountView(m[1] || '');
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
         else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)(?:\/([0-9a-fA-F-]{36}))?$/))) view = editorUi().editorView(m[1], onStop, m[2] || null);
@@ -192,8 +193,9 @@
       const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
       if (mine !== token) return;
       root.replaceChildren(...[notice, view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
+      if (window.ryagramDs) window.ryagramDs.mount(root);                     // the design system's carousels, workbenches and parallax in this view (the previous view's are disposed)
       polishPage(hash);
-      root.querySelector('h1')?.focus();
+      root.querySelector('h1')?.focus({ preventScroll: true });
     }
 
     // A stranger's three small needs on every signed-in page (WEB 11-20 stranger walk): the tab says where you are, an admin page goes back to the Admin page (not to the user's home), and a page with no way back gets one.
@@ -222,7 +224,7 @@
       const topics = O.TOPICS.map(([id, label]) => h('label', { class: 'choice' },
         h('input', { type: 'radio', name: 'help-topic', value: id, ...(id === (job ? 'render' : 'other') ? { checked: true } : {}) }), ' ', label));
       const topicValue = () => form.querySelector('input[name="help-topic"]:checked')?.value;
-      const message = h('textarea', { id: 'help-message', required: true, rows: '6', maxlength: '4000' });
+      const message = h('textarea', { id: 'help-message', required: true, rows: '5', maxlength: '4000' });
       const trap = h('input', { id: 'help-website', name: 'website', type: 'text', tabindex: '-1', autocomplete: 'off' });   // honeypot
       const send = h('button', { class: 'button primary', type: 'submit' }, 'Send');
       const form = h('form', { class: 'contact-form', onsubmit: async event => {
@@ -239,15 +241,30 @@
           } catch (err) { showError(error, err); }
         });
       } },
-        h('label', { for: 'help-email' }, 'Your email'), email,
-        h('fieldset', { class: 'choices' }, h('legend', {}, 'What is it about?'), topics),
-        h('label', { for: 'help-message' }, 'What happened?'), message,
-        h('div', { class: 'hp-field', 'aria-hidden': 'true' }, h('label', { for: 'help-website' }, 'Leave this empty'), trap),
-        job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
-        send, error);
+        h('div', { class: 'help-col' }, h('label', { for: 'help-email' }, 'Your email'), email,
+          h('fieldset', { class: 'choices' }, h('legend', {}, 'What is it about?'), topics)),
+        h('div', { class: 'help-col' }, h('label', { for: 'help-message' }, 'What happened?'), message,
+          h('div', { class: 'hp-field', 'aria-hidden': 'true' }, h('label', { for: 'help-website' }, 'Leave this empty'), trap),
+          job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
+          send, error));
+      // the form is the main action and stays on the first screen; the quick answers (the same words as the help pages) sit in two more flip sections (Ryan 11-20: no long pages)
+      const qa = (q, ...a) => h('details', {}, h('summary', {}, q), ...a.map(t => h('p', {}, t)));
+      const answers = (...items) => h('div', { class: 'help-answers' }, h('div', { class: 'scroll-panel' }, ...items));
+      const flip = window.ryagramFlip.create({ h, label: 'Help', address: false, sections: [
+        { id: 'write', label: 'Write to us', el: h('div', {}, form, done) },
+        { id: 'films', label: 'Films and credits', el: answers(
+          qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If it waits more than an hour we stop it and give your credits back.'),
+          qa('Why is my film still "Queued"?', 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. The Render panel shows your place in line.'),
+          qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits.'),
+          qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.')) },
+        { id: 'account', label: 'Account and reports', el: answers(
+          qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
+          qa('How do I report a film?', 'Every public film page has a \u201cReport this film\u201d link, or use the report form. For reports about child safety, private information, harassment or copyright we hide the film right away while we review it.'),
+          qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, Ryagram will read spreadsheets (CSV and similar files). If a file can\u2019t be read you\u2019ll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.')) }
+      ] });
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
-              h('p', { class: 'form-intro' }, 'Common questions are answered in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
-              form, done];
+              h('p', { class: 'form-intro' }, 'Common questions are answered below and in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
+              flip.el];
     }
 
     function errorLine() {
@@ -363,15 +380,29 @@
       const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
       const aiInvited = startOn() ? await connectAllowed(data).catch(() => false) : false;               // the Ask your AI button only for an account the connector counts as invited (the Start strip's own rule); the page it opens does nothing for anyone else
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
-      const startCard = h('section', { class: 'start-card', 'aria-labelledby': 'start-card-h' }, h('h2', { id: 'start-card-h' }, 'Start a new film'),
-        h('p', { class: 'meta' }, 'Pick a ready-made film, or name your own. Ryagram draws it from public data, with its sources shown. The first picture is free.'),
-        h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null),
-        form);
+      // The home as a design-system page (WEB 11-20, Ryan's approved mockup): a parallax hero with a frame of our own films, the Start card overlapping it, the films as picture cards, the departments, credits.
+      const back = h('div', { class: 'layer back', 'data-parallax': '.16', role: 'img', 'aria-label': 'A map of the United States with interstate highways drawn in blue, from one of our own films' });
+      back.style.backgroundImage = 'url(/assets/ryagram-hero-interstate.jpg)';
+      const hero = h('section', { class: 'hero', 'aria-labelledby': 'home-h1' }, back, h('div', { class: 'layer glow', 'data-parallax': '.05' }),
+        h('div', { class: 'container' }, h('div', { class: 'copy' }, h('p', { class: 'eyebrow' }, 'Welcome back'), h('h1', { tabindex: '-1', class: 'display', id: 'home-h1' }, 'Your projects'),
+          h('p', { class: 'lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
+          h('div', { class: 'actions' }, h('a', { class: 'button primary', href: '#/', onclick: ev => { ev.preventDefault(); const t = document.getElementById('start-new'); if (t) { t.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' }); const f = t.querySelector('input'); if (f) f.focus({ preventScroll: true }); } } }, 'Start a new film'), filmsLink ? h('a', { class: 'button', href: '#/films' }, 'See your films') : null))));
+      const startCard = h('section', { class: 'ds-start', id: 'start-new', 'aria-labelledby': 'start-card-h' }, h('div', { class: 'container' }, h('div', { class: 'card' }, h('div', { class: 'inner' },
+        h('div', {}, h('p', { class: 'eyebrow' }, 'Start'), h('h2', { id: 'start-card-h' }, 'Start a new film'),
+          h('p', { class: 'meta' }, 'Pick a ready-made film, or name your own. Ryagram draws it from public data, with its sources shown. The first picture is free.'),
+          h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null)),
+        h('div', {}, form, startStrip ? [h('div', { class: 'or' }, 'or start from a line'), startStrip] : null)))));
       const quiet = [intakeLink, requestLink, looksLink, help].filter(Boolean);
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro page-lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
-              startStrip, startCard,
-              h('section', { class: 'site-section', 'aria-labelledby': 'films-h' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), list),
-              deptCards, credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null];
+      // Ryan 11-20 11:55: no long vertical scroll. The hero, the Start card and the tab row sit on the first screen; the films (in their own scroll panel), the departments and the credits and links are flip sections.
+      const filmsSection = h('div', { class: 'home-films' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), h('div', { class: 'scroll-panel' }, list));
+      const deptSection = deptCards ? h('div', { class: 'home-depts' }, h('div', { class: 'scroll-panel' }, deptCards)) : null;
+      const moreBits = [credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null].filter(Boolean);
+      const moreSection = moreBits.length ? h('div', { class: 'home-more' }, moreBits) : null;
+      const flip = window.ryagramFlip.create({ h, label: 'Home', address: false, sections: [
+        { id: 'films', label: 'Your films', el: filmsSection },
+        { id: 'departments', label: 'Departments', el: deptSection, hidden: !deptSection },
+        { id: 'credits', label: 'Credits and links', el: moreSection, hidden: !moreSection }] });
+      return [hero, startCard, flip.el];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -1004,10 +1035,13 @@
           current ? h('p', {}, current) : null,
           h('button', { class: 'button secondary small', type: 'button',
                         onclick: event => go(event.currentTarget, 'Opening…', () => data.openBillingPortal()) }, 'Manage plan')) : null,
+        packs.length && plans.length ? window.ryagramFlip.create({ h, label: 'Credits', address: false, sections: [
+          { id: 'packs', label: 'Credit packs', el: h('div', {}, h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)), h('p', { class: 'form-note' }, 'Pack credits never expire.')) },
+          { id: 'plans', label: 'Monthly plans', el: h('div', {}, h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)), h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')) }] }).el : [
         packs.length ? [h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)),
                         h('p', { class: 'form-note' }, 'Pack credits never expire.')] : null,
         plans.length ? [h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)),
-                        h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')] : null,
+                        h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')] : null],
         offers.length ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
         h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.')
@@ -1071,7 +1105,7 @@
     }
 
     // --- #/v/<id>  one version
-    async function versionView(id, onStop) {
+    async function versionView(id, onStop, sectionFromHash = null) {
       const { version: v, project, parent, artifacts } = await data.getVersion(id);
       const locked = !EDITABLE.includes(v.state);
       const error = errorLine();
@@ -1086,9 +1120,16 @@
       };
 
       const files = filesSection(v, artifacts);
+      const facts = { data: h('p', { class: 'v' }, 'Loading…'), dataSub: h('p', { class: 's' }), credits: h('p', { class: 'v' }, creditsOn() ? '…' : 'Free'), creditsSub: h('p', { class: 's' }), job: h('p', { class: 'v' }, 'No jobs yet'), jobSub: h('p', { class: 's' }) };
+      const onJobs = list => {
+        const j = list[0];                                                   // newest first
+        facts.job.replaceChildren(j ? `${window.ryagramJobs.typeLabel(j.job_type)}: ${STATE_LABELS[j.state] || j.state}` : 'No jobs yet');
+        facts.jobSub.textContent = j ? (window.ryagramJobs.isActive(j) ? 'Working on it. This page updates itself.' : `Updated ${date(j.updated_at || j.created_at)}`) : 'Start with a contact sheet.';
+      };
       const jobs = jobsPanel(v, {
         settled: () => files.refresh(),
-        versionChanged: () => route()
+        versionChanged: () => route(),
+        onJobs
       });
       onStop(jobs.stop);
 
@@ -1125,7 +1166,11 @@
         story, locked ? null : save, savedHere, error);
 
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
-      const sources = sourcesPanel(v, !locked);
+      const sources = sourcesPanel(v, !locked, rows => {
+        const first = rows && rows[0] ? window.ryagramSources.cardView(rows[0]) : null;
+        facts.data.textContent = first ? first.title : 'No data chosen yet';
+        facts.dataSub.textContent = first ? `${first.publisher} · ${first.coverage}` : 'Choose a ready-made film to start.';
+      });
       // Using an upload as this film's data points the story's render clips at it (v1: one uploaded dataset per film).
       const uploads = uploadsOn() ? uploadsPanel(v, !locked, async (ref, ds) => {
         let built = window.ryagramUploads.useInStory(v.story_spec, ref);
@@ -1173,7 +1218,34 @@
         refreshJobs: () => jobs.refresh()
       }) : null;
 
+      // the film's own latest picture behind the title (its thumbnail or contact sheet); a film without one keeps the plain band
+      const heroFrame = h('div', { class: 'hero-frame', 'aria-hidden': 'true' });
+      const framed = (artifacts || []).find(a => a.kind === 'thumbnail') || (artifacts || []).find(a => a.kind === 'contact_sheet');
+      if (framed && typeof data.fileUrl === 'function') data.fileUrl(framed.storage_path).then(u => { if (u) heroFrame.style.backgroundImage = `url("${String(u).replace(/"/g, '%22')}")`; }).catch(() => {});
+      if (creditsOn()) data.creditBalances().then(rows => { facts.credits.replaceChildren(window.ryagramCredits.balanceLine(rows)); facts.creditsSub.textContent = 'The final film uses credits. Contact sheets are free.'; }).catch(() => { facts.credits.textContent = 'Couldn’t load'; });
+      else facts.creditsSub.textContent = 'Nothing here uses credits yet.';
+      const factCards = h('div', { class: 'fact-cards', role: 'group', 'aria-label': 'Key facts' },
+        h('div', { class: 'fact-card' }, h('p', { class: 'k' }, 'Data'), facts.data, facts.dataSub),
+        h('div', { class: 'fact-card' }, h('p', { class: 'k' }, 'Credits'), facts.credits, facts.creditsSub),
+        h('div', { class: 'fact-card' }, h('p', { class: 'k' }, 'Latest job'), facts.job, facts.jobSub));
+      const advancedEl = h('div', { class: 'advanced-panel', id: 'advanced-panel' }, h('h2', {}, 'Advanced: your own data and the story file'),
+        h('p', { class: 'form-note' }, 'Most films start from a ready-made film. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
+        uploads?.el, storyForm);
+      advanced = advancedEl;
+      let flip = null;
+      const makeIt = h('div', { class: 'make-it' }, picker, byodPointer, saved, jobs.el, lookApply, v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null);
+      if (byodPointer) byodPointer.addEventListener('click', () => flip && flip.go('advanced'), true);       // the pointer opens Advanced: that is now a section
+      flip = window.ryagramFlip.create({ h, label: 'This version', initial: sectionFromHash, sections: [
+        { id: 'make', label: 'Make it', el: makeIt },
+        { id: 'jobs', label: 'Jobs', el: jobs.listPanel },
+        { id: 'data', label: 'The data', el: sources.el },
+        { id: 'files', label: 'Files', el: h('div', {}, h('div', { class: 'scroll-panel' }, files.el)) },
+        { id: 'editor', label: 'Editor', el: chat || h('p', { class: 'form-note' }), hidden: !chat },
+        { id: 'advanced', label: 'Advanced', el: advancedEl }
+      ] });
+      onStop(() => flip.destroy());
       return [
+        h('div', { class: 'page-hero' }, heroFrame,
         h('a', { href: `#/p/${project.id}`, class: 'back' }, `← ${project.title}`),
         h('h1', { tabindex: '-1' }, `Version ${v.number} `, badge(v.state)),
         h('p', { class: 'meta' }, parent ? `Made from version ${parent.number} · ` : '', `created ${date(v.created_at)}`),
@@ -1187,27 +1259,16 @@
                   catch (err) { showError(error, err); }
                 });
               } }, 'Archive this version')
-            : null),
-        v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
-        picker,
-        byodPointer,
-        saved,                                      // "Template applied and saved ...": shown here, not inside the folded story file
-        chat,
-        sources.el,
-        jobs.el,
-        files.el,
-        lookApply,
-        // Everything below is still here, just folded: the story file itself and your own data (a spreadsheet) are for people who want them.
-        advanced = h('details', { class: 'advanced-panel', id: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
-          h('p', { class: 'form-note' }, 'Most films start from a ready-made film above. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
-          uploads?.el, storyForm)
+            : null)),
+        factCards,
+        flip.el
       ];
     }
 
     // "What this film is made from": one card per source with its publisher, coverage and a short licence
     // that opens the full text. The facts come from the database, not from this page (sync_version_sources).
     // Hidden when that SQL isn't applied yet; a problem (too many sources, data we can't run) shows in place.
-    function sourcesPanel(v, editable) {
+    function sourcesPanel(v, editable, onRows = () => {}) {
       const S = window.ryagramSources;
       const el = h('section', { class: 'app-panel sources-panel', 'aria-labelledby': 'sources-title', hidden: true },
         h('h2', { id: 'sources-title' }, 'What this film is made from'));
@@ -1223,6 +1284,7 @@
         if (mine !== latest) return;
         if (rows === null) { el.hidden = true; return; }              // not available yet
         el.hidden = false;
+        try { onRows(rows); } catch { /* the facts card keeps what it had */ }
         const cards = rows.map(r => {
           const c = S.cardView(r);
           const full = c.licenceFull ? h('div', { class: 'source-licence-full', hidden: true },
@@ -1651,7 +1713,7 @@
     // Realtime pushes changes; every 10 s it also re-reads while anything is
     // in flight (queue positions move with other people's jobs) or whenever
     // Realtime is not connected.
-    function jobsPanel(v, { settled, versionChanged }) {
+    function jobsPanel(v, { settled, versionChanged, onJobs = () => {} }) {
       const J = window.ryagramJobs;
       let jobs = [];
       let positions = {};
@@ -1887,6 +1949,7 @@
         }
         syncControls();
         const shown = jobs.filter(j => j.job_type !== 'film_bundle');           // the editor's own background drawing (film_bundle, 'Film files') is not a job the person asked for: never listed, never shown failing (Q645 live walk 11-20)
+        try { onJobs(shown); } catch { /* the facts card keeps what it had */ }
         listEl.replaceChildren(shown.length
           ? h('ul', { class: 'job-list' }, shown.map(jobItem))
           : h('p', { class: 'form-intro' }, 'No jobs yet. Start with a contact sheet.'));
@@ -1956,20 +2019,29 @@
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
         h('p', { class: 'form-note' }, 'A contact sheet is a grid of still frames to check the look. It usually takes about 4 to 5 minutes. A preview is a short clip. The final film is the full render.'),
-        nextStrip, controls, orderBox, balanceNote, lockedNote, error, listEl);
+        nextStrip, controls, orderBox, balanceNote, lockedNote, error);
+      // the job list is its OWN section (the Jobs tab) and scrolls inside its own panel; a status stuck on a hidden tab is refreshed the moment the page is visible again
+      const listPanel = h('section', { class: 'jobs-list-panel', 'aria-labelledby': 'jobs-list-title' },
+        h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-list-title' }, 'Jobs'), h('span', { class: 'meta live-note-copy' }, liveNote.textContent)),
+        h('div', { class: 'scroll-panel jobs-scroll' }, listEl));
+      const mirrorLive = new MutationObserver(() => { const c = listPanel.querySelector('.live-note-copy'); if (c) c.textContent = liveNote.textContent; });
+      mirrorLive.observe(liveNote, { childList: true, characterData: true, subtree: true });
+      const onVisible = () => { if (!document.hidden && !stopped) refresh(); };
+      document.addEventListener('visibilitychange', onVisible);
 
       return {
         el,
+        listPanel,
         refresh,
         storyChanged(sha) { storySha = sha; v.story_sha256 = sha; syncControls(); },
-        stop() { stopped = true; clearInterval(timer); watch.stop(); }
+        stop() { stopped = true; clearInterval(timer); watch.stop(); document.removeEventListener('visibilitychange', onVisible); mirrorLive.disconnect(); }
       };
     }
 
     window.addEventListener('hashchange', route);
     route();
     if (departmentsOn()) deptUi().mountBar(document.getElementById('dept-slot'));              // the top bar's departments; on any failure the header stays as it was
-    return () => { token++; stopAdminNav(); document.title = titleWas; if (brand && brandWas) brand.setAttribute('href', brandWas); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
+    return () => { token++; stopAdminNav(); if (window.ryagramDs) window.ryagramDs.unmount(); document.title = titleWas; if (brand && brandWas) brand.setAttribute('href', brandWas); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
   }
 
   window.ryagramLibrary = { mount };

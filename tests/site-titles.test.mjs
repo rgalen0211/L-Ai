@@ -68,8 +68,8 @@ test('A WAY BACK: a page with none gets "← All projects" before its heading; n
 
 test('SIGN-OUT: the title the page had is put back; the polish runs on every page the library draws, after it is ready and before focus moves', () => {
   assert.match(LIB, /const titleWas = document\.title;/);
-  assert.match(LIB, /return \(\) => \{ token\+\+; stopAdminNav\(\); document\.title = titleWas;/);
+  assert.match(LIB, /return \(\) => \{ token\+\+; stopAdminNav\(\); if \(window\.ryagramDs\) window\.ryagramDs\.unmount\(\); document\.title = titleWas;/);
   const k = LIB.indexOf('polishPage(hash);'); assert.ok(k > 0);
-  const around = LIB.slice(k - 200, k + 120);
-  assert.ok(around.indexOf('root.replaceChildren') > -1 && around.indexOf('polishPage(hash)') < around.indexOf("root.querySelector('h1')?.focus()"), 'after the page is in place, before the heading takes focus');
+  const around = LIB.slice(k - 400, k + 160);
+  assert.ok(around.indexOf('root.replaceChildren') > -1 && around.indexOf('polishPage(hash)') < around.indexOf("root.querySelector('h1')?.focus({ preventScroll: true })"), 'after the page is in place, before the heading takes focus');
 });

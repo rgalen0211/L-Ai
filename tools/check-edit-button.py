@@ -82,7 +82,7 @@ def main():
                     p.wait_for_selector('img.le-svg', timeout=20000)
                     check('/editor/data/' in p.url, f'{name}: Edit opens the editor ({p.url.split("#")[1]})')
                     # GEO 11-17 points 2-4: the page does not move on the first edit, the card heading has no blank band, a phone's header does not stay over the page
-                    m = "(() => { const r = s => document.querySelector(s).getBoundingClientRect(); return { titleH: Math.round(r('.le-top h1').height), below: Math.round(r('.le-view').top + window.scrollY), h2: Math.round(document.querySelector('.le-panel h2').getBoundingClientRect().top - r('.le-panel').top), pos: getComputedStyle(document.querySelector('body>header')).position } })()"
+                    m = "(() => { const r = s => document.querySelector(s).getBoundingClientRect(); return { titleH: Math.round(r('.le-top h1').height), below: Math.round(r('.le-view').top + window.scrollY), h2: Math.round(document.querySelector('.le-panel h2').getBoundingClientRect().top - r('.le-panel').top), pos: getComputedStyle(document.querySelector('body>header')).position, headH: Math.round(document.querySelector('body>header').getBoundingClientRect().height) } })()"
                     p.wait_for_selector('.le-pill:has-text("Saved")')
                     before = p.evaluate(m)
                     p.click('[data-preset="white-background"]')
@@ -90,7 +90,8 @@ def main():
                     after = p.evaluate(m)
                     check(before['titleH'] == after['titleH'] and before['below'] == after['below'], f'{name}: the first edit moves nothing ({before} -> {after})')
                     check(before['h2'] <= 16, f'{name}: no blank band above the Look heading ({before["h2"]}px)')
-                    check((before['pos'] == 'static') == (name == 'phone'), f'{name}: the header is {before["pos"]} (static only on a phone)')
+                    # the design system's header is ONE row and sticky on every screen (72 px); GEO's old rule (static on a phone) was about the former two-row header that hid the Undo row
+                    check(before['pos'] == 'sticky' and before['headH'] <= 80, f'{name}: the header is {before["pos"]} and one row ({before["headH"]}px; sticky, one row on every screen)')
                     p.screenshot(path=str(OUT / f'{tag}-3-editor.png'))
                 else:
                     p.goto(f'{base}/app/?mock{q}#/editor/data/{PID}', wait_until='load')
