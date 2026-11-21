@@ -17,6 +17,11 @@ union all select 'join_reserve still has the join limits and the turn-taking loc
 union all select 'nobody signed in or anonymous can read or write the settings row (the flag is the dashboards alone)',
        coalesce(not has_table_privilege('anon', 'public.ops_settings', 'select') and not has_table_privilege('authenticated', 'public.ops_settings', 'select')
          and not has_table_privilege('authenticated', 'public.ops_settings', 'update') and not has_table_privilege('service_role', 'public.ops_settings', 'update'), false)
+union all select 'the 18+ record: the table is closed to every API role and the trigger on new accounts is there',
+       coalesce(to_regclass('public.account_adult_confirmation') is not null
+         and not has_table_privilege('anon', 'public.account_adult_confirmation', 'select') and not has_table_privilege('authenticated', 'public.account_adult_confirmation', 'select')
+         and not has_table_privilege('service_role', 'public.account_adult_confirmation', 'insert') and not has_table_privilege('authenticated', 'public.account_adult_confirmation', 'insert')
+         and exists (select 1 from pg_trigger t where t.tgrelid = 'auth.users'::regclass and t.tgname = 'account_adult_new_trg' and not t.tgisinternal), false)
 union all select 'sign-up is ' || case when coalesce((select (to_jsonb(o) ->> 'join_open')::boolean from public.ops_settings o limit 1), false) then 'OPEN: a stranger who joins is '
                                        || case when coalesce((select (to_jsonb(o) ->> 'waiting_accounts')::boolean from public.ops_settings o limit 1), false) then 'put on the waiting list (the brake, step 20, is on)' else 'let in at once' end
                                   else 'CLOSED by this flag (the state right after the migration)' end,

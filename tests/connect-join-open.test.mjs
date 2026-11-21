@@ -15,10 +15,13 @@ const OLD = flat(read('supabase/migrations/20261106000100_waiting_gate_hardening
 const fn = (sql, name) => { const m = new RegExp('create (?:or replace )?function ' + name.replace('.', '\\.') + '\\([^)]*\\)[\\s\\S]*?end \\$\\$;', 'i').exec(sql); assert.ok(m, 'no definition of ' + name); return m[0]; };
 
 test('the flag is OFF by default and not null, on the one settings row; the migration turns nothing on', () => {
-  assert.match(MIG, /^begin; alter table public\.ops_settings add column join_open boolean not null default false; /);
+  assert.match(MIG, /^begin; create table public\.account_adult_confirmation /);
+  assert.match(MIG, / alter table public\.ops_settings add column join_open boolean not null default false; /);
   assert.ok(!/join_open\s*=\s*true/.test(MIG), 'no update that turns it on');
   assert.match(MIG, / select ryagram_private\.gate_apply\(\); commit;$/);
-  assert.ok(!/\b(grant|revoke|drop) /i.test(MIG), 'no grant, revoke or drop: join_reserve keeps its owner and grants through create or replace');
+  assert.ok(!/\b(grant|drop) /i.test(MIG), 'no grant and no drop: join_reserve keeps its owner and grants through create or replace');
+  const revokes = (MIG.match(/revoke [^;]*;/g) || []).map((x) => x.replace(/^revoke (all|execute) on (table |function )?/, '').split(' ')[0]);
+  assert.deepEqual(revokes, ['public.account_adult_confirmation', 'ryagram_private.account_adult_new()'], 'the only revokes are on the two new objects');
 });
 
 test('join_reserve is the 20261106000100 function plus exactly one changed condition: with the flag taken out it is the old function character for character', () => {
@@ -37,7 +40,7 @@ test('the limits and the lock are still there with the flag on (5 an hour, 10 a 
 test('the rollback restores the 20261106000100 function byte for byte, drops the flag, and ends with the gate line', () => {
   assert.equal(fn(RB, 'public.join_reserve'), fn(OLD, 'public.join_reserve'));
   assert.ok(!/join_open/.test(fn(RB, 'public.join_reserve')));
-  assert.match(RB, /alter table public\.ops_settings drop column join_open; select ryagram_private\.gate_apply\(\); commit;$/);
+  assert.match(RB, /alter table public\.ops_settings drop column join_open; drop trigger account_adult_new_trg on auth\.users; drop function ryagram_private\.account_adult_new\(\); drop table public\.account_adult_confirmation; select ryagram_private\.gate_apply\(\); commit;$/);
   assert.ok(fs.existsSync(new URL('../supabase/rollbacks/20261121000800_join_open_rollback.sql', import.meta.url)) && !fs.existsSync(new URL('../supabase/migrations/20261121000800_join_open_rollback.sql', import.meta.url)), 'the rollback is outside migrations/');
 });
 
@@ -52,11 +55,22 @@ test('ONLY live step 47 turns it on and 48 turns it off; no other SQL file in th
 
 test('the check step (46) names every column, looks at the flag, the function text, the grants and the settings row, and says which way the flag is', () => {
   const c = flat(read('supabase/live-steps/46_join_open_check.sql'));
-  assert.equal((c.match(/union all select/g) || []).length, 4, 'five rows');
-  for (const part of ["column_name = 'join_open' and is_nullable = 'NO'", "like '%join_open%'", "like '%waiting_on()%'", "has_function_privilege('service_role'", "not has_function_privilege('authenticated'", "not has_function_privilege('anon'", "like '%pg_advisory_xact_lock%'", "like '%>= 200%'", "has_table_privilege('anon', 'public.ops_settings', 'select')", "has_table_privilege('service_role', 'public.ops_settings', 'update')", "CLOSED by this flag", "the brake, step 20"]) assert.ok(c.includes(part), part);
+  assert.equal((c.match(/union all select/g) || []).length, 5, 'six rows');
+  for (const part of ["column_name = 'join_open' and is_nullable = 'NO'", "like '%join_open%'", "like '%waiting_on()%'", "has_function_privilege('service_role'", "not has_function_privilege('authenticated'", "not has_function_privilege('anon'", "like '%pg_advisory_xact_lock%'", "like '%>= 200%'", "has_table_privilege('anon', 'public.ops_settings', 'select')", "has_table_privilege('service_role', 'public.ops_settings', 'update')", "CLOSED by this flag", "the brake, step 20", "to_regclass('public.account_adult_confirmation') is not null", "has_table_privilege('authenticated', 'public.account_adult_confirmation', 'select')", "t.tgname = 'account_adult_new_trg'"]) assert.ok(c.includes(part), part);
 });
 
 test('nothing else in the repo redefines join_reserve after the hardening except this file (so the flag cannot be lost to a later migration)', () => {
   const later = fs.readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => f.endsWith('.sql') && f > '20261106000100_waiting_gate_hardening.sql' && f !== '20261121000800_join_open.sql');
   for (const f of later) assert.ok(!/function public\.join_reserve/.test(read('supabase/migrations/' + f)), f + ' redefines join_reserve');
+});
+
+test('the 18+ record: a closed table, one row per account, written only by the trigger when the new account carries adult_confirmed = true, and never able to stop a sign-up', () => {
+  assert.match(MIG, /create table public\.account_adult_confirmation \( user_id uuid primary key references auth\.users \(id\) on delete cascade, confirmed_at timestamptz not null default now\(\), source text not null check \(source = 'join'\) \);/);
+  assert.match(MIG, /alter table public\.account_adult_confirmation enable row level security; revoke all on public\.account_adult_confirmation from public, anon, authenticated, service_role;/);
+  assert.ok(!/create policy/i.test(MIG), 'no policy: nothing for the account gate to cover');
+  const t = fn(MIG, 'ryagram_private.account_adult_new');
+  assert.match(t, /security definer set search_path = ''/);
+  assert.match(t, /begin begin if new\.raw_user_meta_data ->> 'adult_confirmed' = 'true' then insert into public\.account_adult_confirmation \(user_id, source\) values \(new\.id, 'join'\) on conflict \(user_id\) do nothing; end if; exception when others then raise warning /);
+  assert.match(MIG, /create trigger account_adult_new_trg after insert on auth\.users for each row execute function ryagram_private\.account_adult_new\(\);/);
+  assert.ok(!/confirmed_at\s*=|update public\.account_adult_confirmation/i.test(MIG), 'the time is the moment of the row, never set from the metadata');
 });

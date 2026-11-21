@@ -10,7 +10,8 @@ const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdo
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-joinopen');
 const MG = 'supabase/migrations/20261121000800_join_open.sql', RB = 'supabase/rollbacks/20261121000800_join_open_rollback.sql', ON = 'supabase/live-steps/47_join_open_ON.sql', OFF = 'supabase/live-steps/48_join_open_OFF.sql', CHK = 'supabase/live-steps/46_join_open_check.sql';
-const SUITES = ['connect-join-open.test.mjs'];
+const SUITES = ['connect-join-open.test.mjs', 'connect-join-adult.test.mjs'];
+const JN = 'supabase/functions/join/join.ts', IX = 'supabase/functions/join/index.ts';
 const COND = "if not ryagram_private.waiting_on() and not coalesce((select o.join_open from public.ops_settings o limit 1), false) then";
 const mutants = [
   ['the flag is ON by default', MG, 'join_open boolean not null default false;', 'join_open boolean not null default true;'],
@@ -29,6 +30,17 @@ const mutants = [
   ['the rollback forgets the gate line', RB, 'select ryagram_private.gate_apply();                       -- same', '-- same'],
   ['the ON step turns it off', ON, 'set join_open = true', 'set join_open = false'],
   ['the OFF step leaves it on', OFF, 'set join_open = false', 'set join_open = true'],
+  ['the function no longer asks for the 18+ box', JN, '  if (body.adult_confirmed !== true) return reply(400, { error: ADULT_WORDS });', ''],
+  ['any truthy value counts as the box', JN, 'if (body.adult_confirmed !== true)', 'if (!body.adult_confirmed)'],
+  ['the invite does not carry the confirmation', JN, 'await deps.invite(email, `${deps.siteUrl}/app/`, { adult_confirmed: true });', 'await deps.invite(email, `${deps.siteUrl}/app/`, {} as { adult_confirmed: true });'],
+  ['index.ts drops the data on the way to Supabase Auth', IX, 'inviteUserByEmail(email, { redirectTo, data })', 'inviteUserByEmail(email, { redirectTo })'],
+  ['the trigger records every account, box or not', MG, "if new.raw_user_meta_data ->> 'adult_confirmed' = 'true' then", 'if true then'],
+  ['the trigger can stop a sign-up (no guard)', MG, 'exception when others then', 'exception when no_data_found then'],
+  ['the record table is open to the signed-in role', MG, 'revoke all on public.account_adult_confirmation from public, anon, authenticated, service_role;', 'revoke all on public.account_adult_confirmation from public, anon, service_role;'],
+  ['the record table accepts any source', MG, "check (source = 'join')", "check (source <> '')"],
+  ['the rollback leaves the 18+ table behind', RB, 'drop table public.account_adult_confirmation;', ''],
+  ['the rollback leaves the 18+ trigger behind', RB, 'drop trigger account_adult_new_trg on auth.users;\n', ''],
+  ['the check no longer looks at the 18+ trigger', CHK, "and t.tgname = 'account_adult_new_trg' ", ''],
   ['the check no longer looks at who can run join_reserve', CHK, "         and has_function_privilege('service_role', to_regprocedure('public.join_reserve(text,text)'), 'execute')\n", ''],
 ];
 
@@ -40,7 +52,7 @@ function fresh() {
   fs.mkdirSync(path.join(scratch, 'supabase'), { recursive: true });
   fs.cpSync(path.join(root, 'supabase'), path.join(scratch, 'supabase'), { recursive: true });
   fs.mkdirSync(path.join(scratch, 'tests'), { recursive: true });
-  fs.copyFileSync(path.join(root, 'tests/connect-join-open.test.mjs'), path.join(scratch, 'tests/connect-join-open.test.mjs'));
+  for (const t of SUITES) fs.copyFileSync(path.join(root, 'tests', t), path.join(scratch, 'tests', t));
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();

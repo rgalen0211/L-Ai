@@ -1,5 +1,5 @@
 -- SIGN-UP OPEN AT LAUNCH: the exact undo of migrations/20261121000800_join_open.sql. NOT APPLIED, and NOT a migration: it lives outside migrations/ so nothing applies it by accident.
--- It puts public.join_reserve back exactly as 20261106000100_waiting_gate_hardening.sql defined it (answers 'off' whenever the waiting switch is off) and drops the flag. Accounts that joined while it was open stay as they are (ACTIVE); nobody is removed.
+-- It puts public.join_reserve back exactly as 20261106000100_waiting_gate_hardening.sql defined it (answers 'off' whenever the waiting switch is off) and drops the flag, the 18+ record table, its trigger and its function. Accounts that joined while it was open stay as they are (ACTIVE); nobody is removed.
 -- The flag's value is lost with the column. Ends with gate_apply, like the migration.
 begin;
 
@@ -27,6 +27,9 @@ begin
 end $$;
 
 alter table public.ops_settings drop column join_open;
+drop trigger account_adult_new_trg on auth.users;
+drop function ryagram_private.account_adult_new();
+drop table public.account_adult_confirmation;        -- the recorded 18+ confirmations are lost with it: copy them out first (select * from public.account_adult_confirmation) if they should be kept
 
 select ryagram_private.gate_apply();                       -- same closing line as the migration
 

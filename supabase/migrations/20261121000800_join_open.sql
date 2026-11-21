@@ -7,8 +7,36 @@
 -- So after launch: join_open ON + waiting switch OFF = a stranger joins and is in; the brake (live-step 20) = new sign-ups wait instead; live-step 21 puts it back. join_open OFF + switch OFF = join closed, as today.
 -- The migration turns NOTHING on: join_open is false after it. Ryan flips it with live-step 47 (and back with 48). Only the dashboard (the table owner) can write the flag: ops_settings is closed to every API role.
 -- join_reserve keeps its name, arguments, owner and grants (service role only; create or replace keeps them).
+--
+-- ALSO IN THIS FILE (CC1's 13:5x order; Ryan's 11:30 'Age 18+'): the 18+ confirmation is RECORDED WITH THE ACCOUNT. The join function now refuses without adult_confirmed: true and passes it on as the new account's user metadata;
+-- the trigger below copies it into public.account_adult_confirmation (user, time, source) in the same moment the account row is made, so a later change of the metadata cannot change the record. Closed to every API role (the
+-- dashboard reads it); no policy, so the account gate has nothing to cover. If the recording ever failed, the account is still made (a warning is logged): a sign-up never fails because of this record.
+-- Only accounts made through join carry it; accounts made by an invite or a code (before this) have no row.
 
 begin;
+
+create table public.account_adult_confirmation (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  confirmed_at timestamptz not null default now(),
+  source text not null check (source = 'join')
+);
+alter table public.account_adult_confirmation enable row level security;
+revoke all on public.account_adult_confirmation from public, anon, authenticated, service_role;
+
+create function ryagram_private.account_adult_new() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  begin
+    if new.raw_user_meta_data ->> 'adult_confirmed' = 'true' then
+      insert into public.account_adult_confirmation (user_id, source) values (new.id, 'join') on conflict (user_id) do nothing;
+    end if;
+  exception when others then
+    raise warning 'account_adult_confirmation not recorded: %', sqlstate;        -- never stops a sign-up (the whole check is inside: even a missing column cannot)
+  end;
+  return new;
+end $$;
+revoke execute on function ryagram_private.account_adult_new() from public, anon, authenticated, service_role;
+create trigger account_adult_new_trg after insert on auth.users for each row execute function ryagram_private.account_adult_new();
 
 alter table public.ops_settings add column join_open boolean not null default false;        -- Ryan's flag: a stranger who joins is let in (with the waiting switch off); false = join is closed unless the waiting list is on
 
