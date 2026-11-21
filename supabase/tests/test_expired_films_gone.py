@@ -1,5 +1,5 @@
 """An expired paid film is marked deleted only once its file is really gone (WORKER 2026-11-21, GEO's privacy review M2;
-migrations/20261121000100_expired_films_really_gone.sql).
+migrations/20261121000200_expired_films_really_gone.sql).
 
 Before, render_orders_tick() marked the delivery and its artifact deleted BEFORE ops-tick removed the file, so one failed
 Storage remove left the customer's film stored for good while every row said it was gone. Now the tick only lists what is

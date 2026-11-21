@@ -1,4 +1,4 @@
--- AFTER 20261121000100_expired_films_really_gone.sql (an expired paid film is marked deleted only once its file is really gone; GEO's privacy review M2): one SELECT, read-only, changes nothing. Every ok must be true.
+-- AFTER 20261121000200_expired_films_really_gone.sql (an expired paid film is marked deleted only once its file is really gone; GEO's privacy review M2): one SELECT, read-only, changes nothing. Every ok must be true.
 -- Run it on the same project right after the migration. Before the migration the first three rows answer false, never an error. Every column is named.
 select 'render_orders_tick no longer marks a delivery deleted (it lists due_deliveries instead)' as check_name,
        coalesce((select p.prosrc like '%''due_deliveries''%' and p.prosrc not like '%update public.render_deliveries set deleted_at%'
