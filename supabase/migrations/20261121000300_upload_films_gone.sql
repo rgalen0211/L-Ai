@@ -70,5 +70,5 @@ revoke execute on function public.upload_films_due_for_deletion(int), public.mar
 grant execute on function public.upload_films_due_for_deletion(int), public.mark_upload_films_removed(uuid[]) to service_role;
 
 select ryagram_private.gate_apply();                       -- like every migration after the waiting list
--- Check after running: supabase/live-steps/31_upload_films_gone_after_check.sql (every ok true).
+-- Check after running: supabase/live-steps/40_upload_films_gone_after_check.sql (every ok true).
 commit;

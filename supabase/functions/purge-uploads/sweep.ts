@@ -41,22 +41,26 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       removed += await deps.markRemoved(batch.map((r) => r.dataset_id));
     }
     // then the films made from removed uploads (after the spreadsheets, so a just-removed upload's films go this run)
-    let films: { films_due: number; films_removed: number } | undefined;
+    // ON ITS OWN: a failure here (the functions rolled back, a database error) is logged and reported, and never turns the
+    // spreadsheets' sweep above into a failed run (CC1 11-21 G2: the M3 rollback must not break the hourly sweep).
+    let films: { films_due: number; films_removed: number } | { films_error: true } | undefined;
     if (deps.dueFilms && deps.removeFilms && deps.markFilmsRemoved) {
-      step = "films-list";
-      const fdue = (await deps.dueFilms(500)).filter((r) => r && typeof r.storage_path === "string" && r.storage_path.includes("/"));
-      let fremoved = 0;
-      for (let i = 0; i < fdue.length; i += BATCH) {
-        const batch = fdue.slice(i, i + BATCH);
-        step = "films-remove";
-        try { await deps.removeFilms(batch.map((r) => r.storage_path)); } catch (err) {
-          console.error(`purge-uploads films remove: ${(err as Error).message}`);   // marked nothing; retried next run
-          continue;
+      try {
+        const fdue = (await deps.dueFilms(500)).filter((r) => r && typeof r.storage_path === "string" && r.storage_path.includes("/"));
+        let fremoved = 0;
+        for (let i = 0; i < fdue.length; i += BATCH) {
+          const batch = fdue.slice(i, i + BATCH);
+          try { await deps.removeFilms(batch.map((r) => r.storage_path)); } catch (err) {
+            console.error(`purge-uploads films remove: ${(err as Error).message}`);   // marked nothing; retried next run
+            continue;
+          }
+          fremoved += await deps.markFilmsRemoved(batch.map((r) => r.artifact_id));
         }
-        step = "films-mark";
-        fremoved += await deps.markFilmsRemoved(batch.map((r) => r.artifact_id));
+        films = { films_due: fdue.length, films_removed: fremoved };
+      } catch (err) {
+        console.error(`purge-uploads films: ${(err as Error).message}`);           // retried next run; the spreadsheets went
+        films = { films_error: true };
       }
-      films = { films_due: fdue.length, films_removed: fremoved };
     }
     return reply(caller, 200, { due: due.length, removed, ...(films ?? {}) });
   } catch (err) {

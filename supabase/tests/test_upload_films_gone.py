@@ -168,6 +168,40 @@ class UploadFilmsGone(up.core.Base):
         self.denied(RYAN, "select * from upload_films_due_for_deletion()")
         self.denied(RYAN, "select mark_upload_films_removed(%s::uuid[])", [str(prev)])
 
+    # ---------------------------------------------------------------- the undo (CC1 11-21 G2) and the after-check (G4: live-steps 40)
+    MIG = up.ROOT / "migrations" / "20261121000300_upload_films_gone.sql"
+    RB = up.ROOT / "rollbacks" / "20261121000300_upload_films_gone_rollback.sql"
+    CHECK = up.ROOT / "live-steps" / "40_upload_films_gone_after_check.sql"
+    FNS = ("public.upload_films_due_for_deletion(integer)", "public.mark_upload_films_removed(uuid[])",
+           "ryagram_private.upload_film_due(public.artifacts)")
+
+    def run_file(self, path):
+        return self.db.as_(None).c.execute(path.read_text(encoding="utf-8"))
+
+    def present(self):
+        return tuple(self.admin("select to_regprocedure(%s) is not null", f) for f in self.FNS)
+
+    def test_the_rollback_drops_the_three_functions_and_the_migration_puts_them_back(self):
+        self.assertEqual(self.present(), (True, True, True))
+        self.run_file(self.RB)
+        self.assertEqual(self.present(), (False, False, False))
+        self.run_file(self.RB)                                   # a second undo: nothing to do, no error
+        self.run_file(self.MIG)
+        self.assertEqual(self.present(), (True, True, True))
+        ds, _, vid = self.ready_upload()                         # and it works again after
+        prev, _ = self.film(vid, ds, "preview", "preview", 12)
+        self.db.as_(RYAN).one("select request_dataset_deletion(%s) is null", ds)
+        self.db.as_(RYAN).one("select delete_dataset_forever(%s) is null", ds)
+        self.sweep_the_upload(ds)
+        self.assertIn(str(prev), self.due())
+
+    def test_the_after_check_is_all_true_after_the_migration_and_false_after_the_undo(self):
+        rows = self.run_file(self.CHECK).fetchall()
+        self.assertTrue(rows and all(ok for _, ok in rows), rows)
+        self.run_file(self.RB)
+        after = dict(self.run_file(self.CHECK).fetchall())
+        self.assertTrue(sum(1 for v in after.values() if not v) >= 4, after)
+
 
 if __name__ == "__main__":
     unittest.main()

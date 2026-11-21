@@ -116,3 +116,11 @@ test('a film path that is not a storage path is never sent to Storage', async ()
   assert.deepEqual(await (await call(w.deps)).json(), { due: 0, removed: 0, films_due: 0, films_removed: 0 });
   assert.deepEqual(w.calls, []);
 });
+
+test('a failing films phase (e.g. after the M3 rollback) never fails the spreadsheets sweep', async () => {
+  const w = filmWorld(3, 0, { dueFilms: async () => { throw new Error('function upload_films_due_for_deletion() does not exist'); } });
+  const res = await call(w.deps);
+  assert.equal(res.status, 200, 'the hourly run still succeeds');
+  assert.deepEqual(await res.json(), { due: 3, removed: 3, films_error: true });
+  assert.deepEqual(w.calls, [['remove', 3], ['mark', 3]], 'and every due spreadsheet was removed and marked');
+});
