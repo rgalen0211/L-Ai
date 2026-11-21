@@ -1,0 +1,73 @@
+-- An expired paid film is marked deleted only once its file is really gone (WORKER 2026-11-21, GEO's privacy review M2).
+--
+-- Before: render_orders_tick() set render_deliveries.deleted_at and artifacts.deleted_at for every expired delivery, and
+-- only THEN handed the file paths to ops-tick to remove. If that Storage remove failed (one error, a timeout), the rows
+-- already said 'deleted', no later tick looked at them again, and the customer's film stayed in Storage for good while
+-- everything said it was gone.
+--
+-- Now: the tick LISTS the expired deliveries (their file paths and ids) and still ends the order as 'expired' (the
+-- customer can no longer reach the film: ryagram_private.delivery_object already refuses any delivery past expires_at).
+-- ops-tick removes the files, then calls public.mark_deliveries_removed(ids), which marks a delivery and its artifact
+-- deleted ONLY when storage.objects no longer holds the file (the same rule as public.mark_uploads_removed). A failed
+-- remove leaves the delivery due, so the next tick (every minute) lists it and tries again.
+--
+-- Nothing applied is edited: this file replaces the function body and adds one function. Service role only.
+
+begin;
+
+create or replace function public.render_orders_tick() returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  s record;
+  d record;
+  expired int := 0;
+  paths jsonb := '[]'::jsonb;
+  ids jsonb := '[]'::jsonb;
+  n_days int;
+begin
+  select approval_days into n_days from public.ops_settings where id;
+  for s in select id from public.render_stages
+           where stage = 'final_render' and state = 'awaiting_approval' and awaiting_since < now() - make_interval(days => n_days)
+           for update skip locked loop
+    perform ryagram_private.final_close(s.id, 'expired', 'approval_expired', null, null);
+    expired := expired + 1;
+  end loop;
+  -- expired deliveries: listed, NOT marked deleted here (mark_deliveries_removed does that once the file is gone)
+  for d in select r.id, r.order_id, a.storage_path from public.render_deliveries r
+           left join public.artifacts a on a.id = r.artifact_id
+           where r.deleted_at is null and r.expires_at < now()
+           order by r.expires_at limit 500
+           for update of r skip locked loop
+    update public.render_orders set state = 'expired', error_code = 'delivery_expired'
+      where id = d.order_id and state <> 'expired';
+    if d.storage_path is not null then
+      paths := paths || to_jsonb(d.storage_path);
+    end if;
+    ids := ids || to_jsonb(d.id);
+  end loop;
+  return jsonb_build_object('approvals_expired', expired, 'delete_objects', paths, 'due_deliveries', ids);
+end $$;
+
+create function public.mark_deliveries_removed(p_delivery_ids uuid[]) returns int
+language plpgsql security definer set search_path = '' as $$
+declare n int;
+begin
+  with gone as (
+    select r.id, r.artifact_id from public.render_deliveries r
+    left join public.artifacts a on a.id = r.artifact_id
+    where r.id = any (p_delivery_ids) and r.deleted_at is null and r.expires_at < now()
+      and (a.storage_path is null
+           or not exists (select 1 from storage.objects o where o.bucket_id = 'ryagram-artifacts' and o.name = a.storage_path))),
+  arts as (
+    update public.artifacts set deleted_at = now()
+      where id in (select artifact_id from gone where artifact_id is not null) and deleted_at is null
+      returning id)
+  update public.render_deliveries set deleted_at = now() where id in (select id from gone);
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+revoke execute on function public.mark_deliveries_removed(uuid[]) from public, anon, authenticated;
+grant execute on function public.mark_deliveries_removed(uuid[]) to service_role;
+
+commit;

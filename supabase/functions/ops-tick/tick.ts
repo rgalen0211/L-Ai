@@ -11,9 +11,12 @@ export interface Deps {
   markNotified(keys: string[]): Promise<number>;
   purge?(): Promise<unknown>;       // the retention purge (does real work once a day; a failure here never stops the tick)
   // render orders (PIPE-1): finals waiting for Ryan longer than approval_days are expired (their holds released), and
-  // deliveries past their 30 days are marked deleted; their film objects are removed here (SQL can't remove stored files)
-  orders?(): Promise<{ approvals_expired: number; delete_objects: string[] }>;
+  // deliveries past their 30 days are LISTED; their film objects are removed here (SQL can't remove stored files), then
+  // markDeliveriesRemoved marks deleted only those whose file is really gone, so a failed remove is retried next tick
+  // (WORKER 2026-11-21, GEO's privacy review M2)
+  orders?(): Promise<{ approvals_expired: number; delete_objects: string[]; due_deliveries?: string[] }>;
   removeArtifacts?(paths: string[]): Promise<void>;
+  markDeliveriesRemoved?(ids: string[]): Promise<number>;
   sender: Sender;
 }
 
@@ -72,10 +75,23 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       const o = await deps.orders();
       const paths = (o.delete_objects ?? []).filter((x) => typeof x === "string" && x.length > 0);
       let removed = 0;
+      let removeErrors = 0;
       if (paths.length && deps.removeArtifacts) {
-        for (let i = 0; i < paths.length; i += 100) { await deps.removeArtifacts(paths.slice(i, i + 100)); removed += Math.min(100, paths.length - i); }
+        // one failing batch never stops the others, nor the marking below: what failed stays due and is retried next tick
+        for (let i = 0; i < paths.length; i += 100) {
+          try { await deps.removeArtifacts(paths.slice(i, i + 100)); removed += Math.min(100, paths.length - i); }
+          catch (e) { removeErrors += 1; console.error("film remove failed; retried next tick", (e as Error).message); }
+        }
       }
-      orders = { approvals_expired: o.approvals_expired, films_removed: removed };
+      const due = (o.due_deliveries ?? []).filter((x) => typeof x === "string" && x.length > 0);
+      if (deps.markDeliveriesRemoved) {
+        // only what is REALLY gone from Storage is marked deleted (SQL checks storage.objects)
+        const gone = due.length ? await deps.markDeliveriesRemoved(due) : 0;
+        orders = { approvals_expired: o.approvals_expired, films_removed: gone, films_still_due: due.length - gone,
+                   ...(removeErrors ? { remove_errors: removeErrors } : {}) };
+      } else {
+        orders = { approvals_expired: o.approvals_expired, films_removed: removed, ...(removeErrors ? { remove_errors: removeErrors } : {}) };
+      }
     } catch (e) { console.error("render_orders_tick failed", (e as Error).message); orders = { error: true }; }
   }
   return reply(caller, 200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, urgent: urgentSent, urgent_held: urgentHeld, notified, held, mode: deps.sender.mode,
