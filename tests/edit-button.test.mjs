@@ -8,9 +8,28 @@ import path from 'node:path';
 const root = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const lib = fs.readFileSync(path.join(root, 'assets/app-library.js'), 'utf8').replace(/\r\n/g, '\n');
 
-test('the Edit link is shown only where the editor is released (true or account), strictly, and opens the data editor for that project', () => {
-  assert.match(lib, /const liveEditorShown = \(\) => window\.ryagramConfig\?\.liveEditor === true \|\| window\.ryagramConfig\?\.liveEditor === 'account';/);
-  assert.match(lib, /const editLink = \(id, cls\) => liveEditorShown\(\) \? h\('a', \{ class: cls, href: `#\/editor\/data\/\$\{id\}`/);
+test('the Edit link follows the SAME test as the editor route (liveEditorOn: true, or account AND on the list), so an account that is not on the list is never offered a link into the not-on page', () => {
+  assert.doesNotMatch(lib, /liveEditorShown/, 'the config-only test is gone');
+  assert.match(lib, /const liveEditorOn = \(\) => window\.ryagramSwitches\?\.featureOn\('liveEditor'\) === true;/);
+  assert.match(lib, /const editLink = \(id, cls\) => liveEditorOn\(\) \? h\('a', \{ class: cls, href: `#\/editor\/data\/\$\{id\}`/);
+  const uses = lib.split('\n').filter(l => /Edit/.test(l) && /href: `#\/editor\//.test(l));
+  assert.ok(uses.length >= 2 && uses.every(l => /liveEditorOn\(\)/.test(l)), 'every place that links into the editor is gated by liveEditorOn');
+});
+
+test('behaviour: editLink is null for an account off the list and a link for one on it (config account, switch list decides)', () => {
+  const m = lib.match(/const liveEditorOn = [^\n]+\n/)[0] + lib.match(/const editLink = [^\n]+\n/)[0];
+  const run = (cfg, list) => {
+    const feature = (n) => cfg[n] === true || (cfg[n] === 'account' && list.includes(n));
+    const win = { ryagramConfig: cfg, ryagramSwitches: { featureOn: feature } };
+    const h = (tag, attrs, ...kids) => ({ tag, attrs, kids });
+    return new Function('window', 'h', m + 'return editLink;')(win, h);
+  };
+  assert.equal(run({ liveEditor: 'account' }, ['myFilms'])('x', 'c'), null, 'off account: no Edit link');
+  assert.equal(run({ liveEditor: 'account' }, [])('x', 'c'), null, 'empty list: no Edit link');
+  assert.equal(run({ liveEditor: false }, ['liveEditor'])('x', 'c'), null, 'flag off: no Edit link');
+  const on = run({ liveEditor: 'account' }, ['liveEditor'])('x', 'c');
+  assert.equal(on.attrs.href, '#/editor/data/x', 'on account: the link opens that project');
+  assert.equal(run({ liveEditor: true }, [])('x', 'c').attrs['data-edit-project'], 'x', 'everyone: the link');
 });
 
 test('every project row and the top of the project page carry it', () => {
