@@ -29,7 +29,7 @@ async function pageOf(id, { invited = true, throws = false, rows, connected = []
   const data = {
     connectAccess: async () => { if (throws) throw new Error('down'); return invited; },
     myConnectedAis: async () => connected,
-    myDepartments: async () => rows || (invited ? [{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'soon' }, { id: 'games', status: 'soon' }] : []),
+    myDepartments: async () => rows || (invited ? ['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio'].map(id => ({ id, status: 'soon' })).concat([{ id: 'data_films', status: 'working' }]) : []),
     myDepartmentInterests: async () => [],
     registerDepartmentInterest: async d => { calls.push(['register', d]); if (!invited) throw new Error('This is for invited accounts for now.'); },
     withdrawDepartmentInterest: async d => { calls.push(['withdraw', d]); },
@@ -66,4 +66,29 @@ test('ROW 1 DATA FILMS PAGE: an account that is NOT invited sees no link to #/st
   assert.equal(startLinks(inv.view).length >= 1, true, 'an invited account with no AI connected is led to #/start, where it works');
   const link = startLinks(inv.view)[0];
   assert.ok(textOf([link]).includes('Connect your AI to start films by talking'));
+});
+
+// ---------------------------------------------------------------------------------------------- ROW 2: Coming soon sign-up
+test('ROW 2 COMING SOON: an account that is NOT invited gets a plain line and NO "Tell me when it’s ready" button (the server would refuse it for ever); an invited account keeps the working button', async () => {
+  for (const id of ['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']) {
+    for (const opt of [{ invited: false, rows: [] }, { throws: true, rows: [] }]) {
+      const p = await pageOf(id, opt);
+      assert.equal(byId(p.view, 'soon-notify').length, 0, `${id}: no button`);
+      assert.equal(byId(p.view, 'soon-invited-only').length, 1, `${id}: the honest line`);
+      assert.equal(textOf(byId(p.view, 'soon-invited-only')), 'Sign-up for this is for invited accounts for now.');
+      assert.ok(!/Try again/.test(textOf(p.view)), 'no retry promise');
+    }
+    const inv = await pageOf(id, { invited: true });
+    assert.equal(byId(inv.view, 'soon-notify').length, 1, `${id}: invited keeps the button`);
+    assert.equal(byId(inv.view, 'soon-invited-only').length, 0);
+  }
+});
+
+test('ROW 2 AND THE FALLBACK LIST: a non-invited account whose list is empty (the server answers [] for it) still reaches the page, with the line and without the button', async () => {
+  const p = await pageOf('compilations', { invited: false, rows: [] });
+  const t = textOf(p.view);
+  assert.ok(t.includes('Coming soon') && t.includes('Compilations') && t.includes('Say a phrase.'));
+  assert.deepEqual(p.calls, []);
+  const m = await p.ui.load();
+  assert.ok(m.soon.includes('compilations'));
 });

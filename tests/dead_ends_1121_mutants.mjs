@@ -14,6 +14,8 @@ const mutants = [
   ["row 1: the Data films page shows the AI heading and #/start link to every account", DP, 'const aiBlock = invited ?', 'const aiBlock = true ?'],
   ["row 1: a failing connect check counts as invited", SM, 'catch { return false; } }', 'catch { return true; } }'],
   ["row 1: the strip no longer uses the shared gate", SM, 'if (!(await canStart(data))) return null;', 'if (false) return null;'],
+  ["row 2: the sign-up button is drawn for an account that is not invited", DP, "if (!invited) { area.replaceChildren(", "if (false) { area.replaceChildren("],
+  ["row 2: the invited-only line promises a retry", DP, "invitedOnly: 'Sign-up for this is for invited accounts for now.'", "invitedOnly: 'Sign-up for this is for invited accounts for now. Try again in a minute.'"],
 ];
 
 function run(cwd) {

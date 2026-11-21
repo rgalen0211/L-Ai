@@ -71,7 +71,7 @@
   const WORDS = {
     soonGroup: 'Coming soon', soonMark: 'soon', tag: 'Coming soon', button: 'Tell me when it’s ready', noted: 'Noted. We’ll let you know here when it is ready.', takeBack: 'Take it back',
     saveError: 'Couldn’t save that just now. Try again in a minute.', fewLines: 'Start one in your AI', yourFilms: 'Your data films', noAi: 'No AI? Build it step by step',
-    unavailable: 'This page isn’t available on this account'
+    unavailable: 'This page isn’t available on this account', invitedOnly: 'Sign-up for this is for invited accounts for now.'
   };
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
@@ -244,8 +244,10 @@
       try { noted = (await data.myDepartmentInterests()).includes(id); } catch { noted = false; }
       const area = h('div', { class: 'soon-action' });
       const msg = h('p', { class: 'form-note', role: 'status', 'aria-live': 'polite' });
-      const offered = !PAGE_ONLY.includes(id) || !!(model && model.announced && model.announced.has(id));        // a page-owned id the server has not named cannot take a sign-up: say so instead of a button that would fail
+      const invited = await mayStart();        // register_department_interest answers only an invited account ('This is for invited accounts for now.'): anyone else gets a plain line, never a button that cannot work (WEB dead-end sweep row 2)
+      const offered = invited && (!PAGE_ONLY.includes(id) || !!(model && model.announced && model.announced.has(id)));        // a page-owned id the server has not named cannot take a sign-up: say so instead of a button that would fail
       const draw = () => {
+        if (!invited) { area.replaceChildren(h('p', { class: 'meta', id: 'soon-invited-only' }, WORDS.invitedOnly)); return; }
         if (!offered) { area.replaceChildren(h('p', { class: 'meta', id: 'soon-none' }, 'Nothing to sign up for yet. We will say here when it is ready.')); return; }
         if (noted) {
           const back = h('button', { class: 'link-button', type: 'button', id: 'soon-takeback', onclick: async () => {
