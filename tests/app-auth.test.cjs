@@ -247,7 +247,7 @@ test('invite codes: hidden until the invite email is set up; a code and email go
   h.inviteForm.elements.over18.checked = true;
   await h.redeem();
   assert.equal(h.els['invite-error'].hidden, true);
-  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.invoked)), [{ name: 'redeem-invite', body: { code: 'RYA-K7M2-9QPX', email: 'new@example.com' } }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.invoked)), [{ name: 'redeem-invite', body: { code: 'RYA-K7M2-9QPX', email: 'new@example.com', adult_confirmed: true } }]);
   assert.equal(h.els['invite-note'].textContent, 'sent');
   assert.equal(h.inviteForm.elements.code.value, '');
   const bad = harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true },

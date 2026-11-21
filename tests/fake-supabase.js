@@ -939,6 +939,8 @@
                              expires_in: 900, file_name: 'Ryagram-for-Windows.zip', size_bytes: 287309824, sha256: 'c'.repeat(64) }, error: null };
           }
           if (name === 'redeem-invite') {
+            // Like CONNECT's redeem-invite (16b0bde5): 400 unless the body carries adult_confirmed: true (the boolean).
+            if (body.adult_confirmed !== true) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Confirm that you are 18 or older to make an account.' }) } } };
             // Mock: RYA-TEST-CODE works; the "email" is the link /app/?mock&invite=mock-invite-token.
             const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
             if (code !== 'RYATESTCODE' && code !== 'TESTCODE') {

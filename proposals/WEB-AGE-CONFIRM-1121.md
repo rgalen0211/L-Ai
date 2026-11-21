@@ -8,11 +8,11 @@ A required tick box, "I am 18 or older." (DRAFT FOR RYAN wording), on the Create
 
 ## Update 11-21 (ac): WEB now sends adult_confirmed
 
-CONNECT's join (branch connect-join-open-1121, 94ab6162) answers 400 unless the body carries `adult_confirmed: true` (the boolean). WEB's create-account call now sends `{ email, adult_confirmed: true }`, and ONLY when the box is ticked (unticked: nothing is sent; `joinWaiting` refuses again itself). The mock join refuses without it too, so the Chrome check proves it. The invite-code form calls `redeem-invite`, which CONNECT did not change (it reads `code` and `email` only), so that call is unchanged and the page's tick stays a page-only block there.
+CONNECT's join (branch connect-join-open-1121, 94ab6162) answers 400 unless the body carries `adult_confirmed: true` (the boolean). WEB's create-account call now sends `{ email, adult_confirmed: true }`, and ONLY when the box is ticked (unticked: nothing is sent; `joinWaiting` refuses again itself). The mock join refuses without it too, so the Chrome check proves it. The invite-code form's `redeem-invite` call (CONNECT 16b0bde5, same branch) refuses without the same boolean, so it now sends `{ code, email, adult_confirmed: true }`, only when its box is ticked (unticked: nothing is sent); the mock redeem refuses without it too. The emailed-link accept panel only runs `verifyOtp` and sets a password (no function that CONNECT changed), and the waiting page's `claim-invite` is for an existing account, so neither needs the box. The live redeem-invite on origin/main ignores unknown fields (redeem.ts:39-42 reads `code` and `email` only), so this is safe to ship before CONNECT's deploy.
 
 Safe to ship before CONNECT's deploy: the live join on origin/main reads only `body.email` (supabase/functions/join/join.ts:36-38) and ignores any other field, so the extra field changes nothing there.
 
-Still CONNECT's: the deploy of join (and its migration, which copies the confirmation into public.account_adult_confirmation when the account is made). The site words still do not say the tick is recorded; add such words only after the deploy. Still open: the invite-code path (`redeem-invite`) stores nothing.
+Still CONNECT's: the deploy of join (and its migration, which copies the confirmation into public.account_adult_confirmation when the account is made). The site words still do not say the tick is recorded; add such words only after the deploy. Both paths are stored by CONNECT's deploy, not before.
 
 ## What it did NOT do (before ac; true still for redeem-invite)
 

@@ -27,8 +27,8 @@ test('unticked sends nothing; ticked passes the tick to the join call', async ()
   assert.match(read('assets/app-data.js'), /functions\.invoke\('join', \{ body: \{ email: String\(email \|\| ''\)\.trim\(\), adult_confirmed: true \} \}\)/);
 });
 
-test("the invite-code form: redeem-invite (unchanged on CONNECT's branch, it reads code and email only) keeps its two fields; unticked sends nothing", () => {
-  assert.match(read('assets/app-auth.js'), /functions\.invoke\('redeem-invite', \{\s*body: \{ code: inviteForm\.elements\.code\.value, email: inviteForm\.elements\.email\.value\.trim\(\) \}/);
+test("the invite-code form: redeem-invite (CONNECT 16b0bde5 refuses without the boolean) gets { code, email, adult_confirmed: true } and only when the box is ticked", () => {
+  assert.match(read('assets/app-auth.js'), /functions\.invoke\('redeem-invite', \{\s*body: \{ code: inviteForm\.elements\.code\.value, email: inviteForm\.elements\.email\.value\.trim\(\), adult_confirmed: true \}/);
 });
 
 test('both sign-up forms have the box: a label with the words, not native "required" (so the error line shows), described by the error line', () => {
