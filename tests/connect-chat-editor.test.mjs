@@ -352,6 +352,10 @@ test('the clip list is ONE bounded box that scrolls inside itself, and no rule o
   const css = lookCss();
   assert.ok(css.includes('.le-list{max-height:min(38vh,280px);overflow:auto;'), 'a bounded scroll box (the page no longer lengthens with every clip)');
   assert.ok(!/\.le-list\{[^}]*display\s*:/.test(css), 'the list\'s own show and hide (phone only) stays the site\'s');
+  assert.ok(/\.le-list\{[^}]*background-attachment:local,scroll/.test(css), 'a scroll shadow on the edge that has more behind it (a phone draws no scrollbar)');
+  assert.ok(!/overscroll-behavior\s*:\s*contain/.test(css), 'a swipe that reaches the end of the list is passed on to the chat');
+  assert.ok(!/\.le-top h1\{[^}]*(white-space:nowrap|text-overflow)/.test(css), 'a long film title wraps, it is never cut');
+  assert.ok(/\.le-listnote\{/.test(css));
   assert.ok(!/display\s*:\s*none/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), 'nothing is hidden by the look');
   assert.ok(!/url\(|@import|<\/style/i.test(css), 'it loads nothing');
 });

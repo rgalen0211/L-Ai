@@ -231,6 +231,21 @@
     const card = root.querySelector('.le-card');
     if (card && !(card.nextElementSibling && card.nextElementSibling.classList.contains('le-nopic'))) card.insertAdjacentElement('afterend', h('p', { class: 'meta le-nopic', role: 'status' }, NOPIC));
   }
+  // a phone draws no scrollbar, so a list that is taller than its box says so in words (GAMES 11-20 23:42): how many clips there are, and when the end is reached
+  function listNote(root) {
+    const list = root.querySelector('.le-list');
+    if (!list) return;
+    let note = list.nextElementSibling && list.nextElementSibling.classList.contains('le-listnote') ? list.nextElementSibling : null;
+    if (!note) {
+      note = h('p', { class: 'meta le-listnote', hidden: true });
+      list.insertAdjacentElement('afterend', note);
+      list.addEventListener('scroll', () => listNote(root), { passive: true });
+    }
+    const n = list.querySelectorAll('.le-item').length, over = list.scrollHeight > list.clientHeight + 1, end = list.scrollTop + list.clientHeight >= list.scrollHeight - 2;
+    const text = over ? (end ? 'That is all ' + n + ' clips.' : n + ' clips. Scroll the list to see them all.') : '';
+    if (note.textContent !== text) note.textContent = text;       // only a real change is written, so the observer below is not woken by its own note
+    if (note.hidden !== !over) note.hidden = !over;
+  }
   function reword() {
     const root = document.getElementById('live-root');
     if (!root || typeof root.querySelectorAll !== 'function') return;
@@ -239,6 +254,7 @@
       else if (window.ryagramLiveHost.mode === 'data' && p.textContent.indexOf(STAND_OLD) > 0) p.textContent = p.textContent.replace(STAND_OLD, '');
     });
     noSketch(root);
+    listNote(root);
   }
 
   // ---- the call that opened the panel tells us which film: its result (with the title), or failing that the arguments the host says it was called with

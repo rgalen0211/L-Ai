@@ -87,7 +87,7 @@ def main():
         b = pw.chromium.launch(channel='chrome')
         try:
             for name, opts, fullscreen in (('desktop', dict(viewport={'width': 1280, 'height': 900}), True),
-                                           ('phone', dict(viewport={'width': 390, 'height': 1200}, device_scale_factor=2, is_mobile=True, has_touch=True), False)):
+                                           ('phone', dict(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True), False)):
                 print(name)
                 phone = name == 'phone'
                 ctx = b.new_context(**opts)
@@ -119,6 +119,21 @@ def main():
                     lh = fr.evaluate("(function(){var l=document.querySelector('.le-list');return [l.clientHeight,l.scrollHeight,document.documentElement.scrollHeight]})()")
                     check(lh[0] <= 281 and lh[1] > lh[0], 'the clip list is a bounded box that scrolls inside itself (shows %s px of %s)' % (lh[0], lh[1]))
                     check(lh[2] <= 1300, 'the whole phone panel is about one screen and a half, not a 2,666 px scroll (%s px)' % lh[2])
+                    # a phone draws no scrollbar, so a list with more clips behind its edge says so (GAMES 11-20 23:42): words under it, a scroll shadow on it, and a swipe that reaches its end is passed on to the chat
+                    note = fr.locator('.le-listnote')
+                    check(note.is_visible() and re.match(r'^4 clips\. Scroll the list to see them all\.$', note.inner_text() or '') is not None, 'a list with clips out of sight says how many there are and that it scrolls (%r)' % (note.inner_text() if note.count() else None))
+                    lcss = fr.evaluate("(function(){var s=getComputedStyle(document.querySelector('.le-list'));return [s.backgroundAttachment,s.overscrollBehaviorY,s.backgroundImage.split('gradient').length-1]})()")
+                    check('local' in lcss[0] and lcss[2] >= 2, 'the list edge carries a scroll shadow that follows the scrolling (%s)' % lcss)
+                    check(lcss[1] != 'contain', 'a swipe that reaches the end of the list is passed on to the chat, not trapped (%s)' % lcss[1])
+                    fr.evaluate("document.querySelector('.le-list').scrollTop = 100000")
+                    h.wait_for_timeout(250)
+                    check(note.inner_text() == 'That is all 4 clips.', 'at the end of the list the words say so (%r)' % note.inner_text())
+                    fr.evaluate("document.querySelector('.le-list').scrollTop = 0")
+                    h.wait_for_timeout(250)
+                    check(note.inner_text().startswith('4 clips.'), 'and back at the top they ask to scroll again')
+                    tcss = fr.evaluate("(function(){var t=getComputedStyle(document.querySelector('.le-top h1')),s=document.querySelector('.le-status').getBoundingClientRect().height;return [t.whiteSpace,t.textOverflow,s]})()")
+                    check(tcss[0] == 'normal' and tcss[1] != 'ellipsis', 'a long film title wraps, it is not cut (%s)' % tcss[:2])
+                    check(tcss[2] <= 20, 'the status line keeps its room but is a small line, not a band above the picture (%.0f px)' % tcss[2])
                 else:
                     check(order() == ['v1', 'v2', 'v3'], 'the clips come from the draft the host forwarded')
                     n0 = len(calls())
@@ -182,6 +197,10 @@ def main():
                 check(not outside, 'no request left the page' + (': %s' % outside[:2] if outside else ''))
                 check(not [e for e in errors if 'Content Security Policy' in e or 'Refused' in e], 'no policy violation')
                 check(not errors, 'no console error' + (': %s' % errors[:2] if errors else ''))
+                if phone:
+                    # the checks above run at a real phone height (844 px); an element shot of an iframe taller than the window comes out blank, so the window is made as tall as the panel for the shot only
+                    h.set_viewport_size({'width': 390, 'height': int(h.evaluate("document.getElementById('v').getBoundingClientRect().height")) + 20})
+                    h.wait_for_timeout(200)
                 h.locator('#v').screenshot(path=str(OUT / ('chat-editor-%s.png' % name)))
                 ctx.close()
             # a host that never opens a film, and one that refuses to start

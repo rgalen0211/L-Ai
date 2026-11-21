@@ -78,6 +78,11 @@ const mutants = [
   ['the look file is dropped from the page', B, "'assets/app-editor.css', 'tools/chat-editor/chat-look-editor.css'];", "'assets/app-editor.css'];"],
   ['the clip list grows the page again', LK, '.le-list{max-height:min(38vh,280px);overflow:auto;', '.le-list{overflow:auto;'],
   ['the clip list is bounded so loosely the page is long again (real Chrome)', LK, 'max-height:min(38vh,280px)', 'max-height:min(380vh,2800px)', 'browser'],
+  ['the list note is never written (a phone shows no sign of the clips out of sight; real Chrome)', H, "    listNote(root);\n  }", "  }", 'browser'],
+  ['the list note says nothing at the end of the list (real Chrome)', H, "(end ? 'That is all ' + n + ' clips.' : ", "(end ? '' : ", 'browser'],
+  ['the list loses its scroll shadow', LK, 'background-attachment:local,scroll', 'background-attachment:scroll'],
+  ['the list traps a swipe again', LK, 'scrollbar-color:rgba(255,255,255,.25) transparent;background:', 'scrollbar-color:rgba(255,255,255,.25) transparent;overscroll-behavior:contain;background:'],
+  ['a long title is cut again', LK, '.le-top h1{flex:1 1 auto;', '.le-top h1{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;flex:1 1 auto;'],
   ['the look hides the slider keys hint', LK, '.le-keys{margin:0 0 var(--s2)}', '.le-keys{margin:0 0 var(--s2);display:none}'],
   ['the panel does not say drafts are kept by Ryagram', H, "'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'", "''"],
 ];
@@ -93,6 +98,7 @@ function fresh() {
   for (const d of ['supabase/functions', 'tests', 'assets', 'tools/chat-editor', 'tools/maker-live']) fs.cpSync(path.join(root, d), path.join(scratch, d), { recursive: true });
   fs.copyFileSync(path.join(root, 'tools/check-chat-editor.py'), path.join(scratch, 'tools/check-chat-editor.py'));
   fs.copyFileSync(path.join(root, 'tools/build-chat-editor.mjs'), path.join(scratch, 'tools/build-chat-editor.mjs'));
+  fs.copyFileSync(path.join(root, 'tools/connect-e2e.mjs'), path.join(scratch, 'tools/connect-e2e.mjs'));      // the page test reads the live smoke script's page budget
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();

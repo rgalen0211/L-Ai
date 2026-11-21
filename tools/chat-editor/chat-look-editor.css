@@ -17,7 +17,8 @@ a{color:var(--link)}
 .le-chatbar{margin:0 0 var(--s2);gap:var(--s2)}
 .le-chatbar .meta{flex:1 1 240px}
 .le-top{margin:0 0 var(--s2);gap:var(--s2)}
-.le-top h1{flex:1 1 auto;font:600 1.0625rem/1.2 var(--serif);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+.le-top h1{flex:1 1 auto;font:600 1.0625rem/1.2 var(--serif);letter-spacing:-.01em}          /* a long title wraps, it is never cut (GAMES 11-20 23:42) */
+.le-status{min-height:1.4em;margin:0 0 var(--s2);font-size:var(--t-caption)}          /* keeps its room (a first message must not push the page), in a smaller line */
 
 /* the picture and its slider */
 .le-view{border-radius:var(--radius-sm);border-color:var(--line);background:var(--bg)}
@@ -27,8 +28,9 @@ a{color:var(--link)}
 .le-keys{margin:0 0 var(--s2)}
 .le-ticks{font-size:var(--t-caption);color:var(--muted)}
 
-/* the clips: the list is one bounded box that scrolls inside itself (the same scroll box the home panel uses), so the page ends where the Clip card ends */
-.le-list{max-height:min(38vh,280px);overflow:auto;padding-right:var(--s2);scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent;overscroll-behavior:contain}
+/* the clips: the list is one bounded box that scrolls inside itself, so the page ends where the Clip card ends. A phone draws no scrollbar, so the box says it scrolls twice: a shadow on the bottom edge while there is more behind it (the "scroll shadow": it follows the scrolling by itself), and one line of words under it (tools/chat-editor/live-host.js). A swipe that reaches the end passes on to the chat. */
+.le-list{max-height:min(38vh,280px);overflow:auto;padding-right:var(--s2);scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent;background:linear-gradient(transparent,var(--bg-2) 70%) center bottom,radial-gradient(farthest-side at 50% 100%,rgba(255,255,255,.28),transparent) center bottom;background-repeat:no-repeat;background-size:100% 36px,100% 12px;background-attachment:local,scroll}
+.le-listnote{margin:var(--s1) 0 0;color:var(--accent-2)}
 .le-item{gap:var(--s2);padding:var(--s2) 0;border-top-color:var(--line)}
 .le-itemtext{font-size:var(--t-small)}
 .le-mv{gap:var(--s1)}
