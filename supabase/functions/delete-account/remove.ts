@@ -85,7 +85,8 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     return reply(500, { error: step === "check" || step === "files"
       ? "Nothing was deleted. Try again in a minute."
       : step === "erase"
-        ? "Some of your files couldn't be removed just now. Try again in a minute; nothing else was changed."
+        // by now the files were removed from storage and the contact details redacted: say only what is still open (CC1 11:15 LOW b)
+        ? "Your files and contact details were removed, but not all of your files could be confirmed as deleted just now. Try again in a minute; your account is not closed yet."
         : "Your files were removed, but the account couldn't be finished just now. Try again in a minute." });
   }
 }

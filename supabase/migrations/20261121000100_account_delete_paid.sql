@@ -39,6 +39,8 @@ declare
   support int;
   invites int;
   applications int;
+  labels int;
+  creator_labels int;
 begin
   if p_owner is null then
     raise exception 'No account named.' using errcode = '22023';
@@ -47,15 +49,29 @@ begin
     where s.email <> 'redacted@deleted.invalid'
       and (s.owner_id = p_owner or (s.owner_id is null and addr <> '' and lower(s.email) = addr));   -- never another person's row (CC1 10:57)
   get diagnostics support = row_count;
+  -- the code a person was invited with names them ('invite: <name>'): its label goes first, while the redemption still points at it
+  -- (CC1 11:15 LOW d); retention_purge still removes it 12 months on (its label still starts 'invite: ')
+  update public.invite_codes k set label = 'invite: (deleted)'
+    where k.label like 'invite: %' and k.label <> 'invite: (deleted)'
+      and exists (select 1 from public.invite_redemptions r where r.code_hash = k.code_hash
+                    and (r.user_id = p_owner or (r.user_id is null and addr <> '' and lower(r.email) = addr)));
+  get diagnostics labels = row_count;
+  -- a creator's invite is labelled 'creator #<application id> <name>' (creator_flow.sql): its name goes too, found by the application, before that is redacted
+  update public.invite_codes k set label = 'creator #' || c.id || ' (deleted)'
+    from public.creator_applications c
+    where addr <> '' and lower(c.email) = addr and k.label like 'creator #' || c.id || ' %' and k.label <> 'creator #' || c.id || ' (deleted)';
+  get diagnostics creator_labels = row_count;
+  labels := labels + creator_labels;
   update public.invite_redemptions r set email = 'redacted'
     where r.email <> 'redacted'
       and (r.user_id = p_owner or (r.user_id is null and addr <> '' and lower(r.email) = addr));
-  -- a creator application names no account: matched by the address alone (CC1 10:57 LOW 5)
-  update public.creator_applications c set email = 'redacted@deleted.invalid', name = 'Deleted'
-    where c.email <> 'redacted@deleted.invalid' and addr <> '' and lower(c.email) = addr;
+  get diagnostics invites = row_count;                    -- right after its own update (CC1 11:15 LOW a)
+  -- a creator application names no account: matched by the address alone (CC1 10:57 LOW 5). lower(email) is UNIQUE
+  -- (creator_applications_email_key), so each row gets ITS OWN address: one fixed address would collide on the second applicant (CC1 11:15 HIGH)
+  update public.creator_applications c set email = 'redacted+' || c.id || '@deleted.invalid', name = 'Deleted'
+    where addr <> '' and lower(c.email) = addr;
   get diagnostics applications = row_count;
-  get diagnostics invites = row_count;
-  return jsonb_build_object('support_requests_redacted', support, 'invite_redemptions_redacted', invites,
+  return jsonb_build_object('support_requests_redacted', support, 'invite_redemptions_redacted', invites, 'invite_labels_redacted', labels,
                             'creator_applications_redacted', applications);
 end $$;
 

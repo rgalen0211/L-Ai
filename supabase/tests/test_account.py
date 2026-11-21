@@ -159,7 +159,7 @@ class Account(core.Base):
         self.assertEqual({k: out[k] for k in ("support_requests_redacted", "invite_redemptions_redacted", "creator_applications_redacted")},
                          {"support_requests_redacted": 2, "invite_redemptions_redacted": 1, "creator_applications_redacted": 1})   # MUST-FAIL: before the fix nothing
         self.assertEqual(self.admin("select email from support_requests where id = %s", same_addr_other_owner), "ryan@example.com")   # never another person's
-        self.assertEqual(self.admin("select name, email from creator_applications where id = %s", app), ("Deleted", "redacted@deleted.invalid"))
+        self.assertEqual(self.admin("select name, email from creator_applications where id = %s", app), ("Deleted", f"redacted+{app}@deleted.invalid"))
         for sid in (mine, by_addr):
             self.assertEqual(self.admin("select email from support_requests where id = %s", sid), "redacted@deleted.invalid")
         self.assertEqual(self.admin("select message from support_requests where id = %s", mine), "Please help with my credits.")
@@ -168,6 +168,44 @@ class Account(core.Base):
         self.assertEqual(self.admin("select email from invite_redemptions where id = %s", r_other), "other@example.com")
         again = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com")
         self.assertEqual(sum(v for v in again.values()), 0)                                                  # safe to run twice
+
+    # -- GEO 11-21 r3 (CC1 11:15)
+    APP = ("insert into creator_applications (name, email, kind, makes, link, question) values (%s, %s, 'teacher', 'lessons', "
+           "'https://example.invalid/c', 'What would you ask the data?') returning id")
+
+    def test_GEO_two_applicants_who_delete_their_accounts_each_get_their_own_redacted_address(self):
+        a1 = self.admin(self.APP, "Ryan Tester", "ryan@example.com")
+        a2 = self.admin(self.APP, "Other Tester", "other@example.com")
+        svc = self.db.as_("service")
+        self.assertEqual(svc.one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com")["creator_applications_redacted"], 1)
+        # MUST-FAIL: r2 gave every application one fixed address; creator_applications_email_key (UNIQUE lower(email)) refused the second
+        self.assertEqual(svc.one("select account_redact_contact(%s, %s)", OTHER, "other@example.com")["creator_applications_redacted"], 1)
+        got = dict(self.db.as_(None).all("select id, email from creator_applications"))
+        self.assertEqual(got, {a1: f"redacted+{a1}@deleted.invalid", a2: f"redacted+{a2}@deleted.invalid"})
+
+    def test_GEO_each_count_is_its_own_update_s(self):
+        self.admin("insert into invite_codes (code_hash, label, max_uses, expires_at) values (%s, 'test', 5, now() + interval '1 day') returning 1", "b" * 64)
+        self.admin("insert into invite_redemptions (code_hash, email, user_id) values (%s, 'ryan@example.com', %s) returning id", "b" * 64, RYAN)
+        self.admin("insert into invite_redemptions (code_hash, email, user_id) values (%s, 'Ryan@Example.com', null) returning id", "b" * 64)
+        out = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com")
+        # MUST-FAIL: r2 read the invite count AFTER the applications update, so it said 0 here (no application)
+        self.assertEqual((out["invite_redemptions_redacted"], out["creator_applications_redacted"]), (2, 0))
+
+    def test_GEO_the_name_on_the_person_s_invite_codes_goes_too_but_a_group_label_stays(self):
+        code = "insert into invite_codes (code_hash, label, max_uses, expires_at) values (%s, %s, 5, now() + interval '1 day') returning 1"
+        redeem = "insert into invite_redemptions (code_hash, email, user_id) values (%s, %s, %s) returning id"
+        app = self.admin(self.APP, "Ryan Tester", "Ryan@Example.com")
+        for h, label in (("c", "invite: Ryan Tester"), ("d", "invite: Other Tester"), ("e", "Beta wave 1"), ("f", f"creator #{app} Ryan Tester")):
+            self.admin(code, h * 64, label)
+        self.admin(redeem, "c" * 64, "ryan@example.com", RYAN)
+        self.admin(redeem, "d" * 64, "other@example.com", OTHER)
+        self.admin(redeem, "e" * 64, "ryan@example.com", RYAN)
+        out = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com")
+        labels = dict(self.db.as_(None).all("select left(code_hash, 1), label from invite_codes"))
+        # MUST-FAIL: r2 left 'invite: Ryan Tester' and 'creator #N Ryan Tester' on the codes
+        self.assertEqual(labels, {"c": "invite: (deleted)", "d": "invite: Other Tester", "e": "Beta wave 1", "f": f"creator #{app} (deleted)"})
+        self.assertEqual(out["invite_labels_redacted"], 2)
+        self.assertEqual(self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com")["invite_labels_redacted"], 0)
 
     def test_GEO_on_delete_mail_we_sent_the_person_is_erased_and_their_address_leaves_other_messages(self):
         add = "insert into ops_outbox (kind, mode, to_addr, subject, body) values (%s, 'dry_run', %s, 's', %s) returning id"
@@ -183,6 +221,18 @@ class Account(core.Base):
         self.assertEqual(body.count("[deleted address]"), 2)
         self.assertEqual(self.admin("select to_addr from ops_outbox where id = %s", other), "other@example.com")
         self.assertEqual((out.get("outbox_rows_erased"), out.get("outbox_rows_redacted")), (1, 1))
+
+    def test_GEO_only_the_whole_address_leaves_a_message_never_a_longer_one_containing_it(self):
+        add = "insert into ops_outbox (kind, mode, to_addr, subject, body) values (%s, 'dry_run', %s, 's', %s) returning id"
+        body = "From bryan@example.com, ryan@example.company, ryan@exampleXcom, ryan.x@example.com and RYAN@example.com."
+        alert = self.admin(add, "alert", "ops@uselai.com", body)
+        other = self.admin(add, "invite", "bryan@example.com", "Join with this link")
+        out = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com")
+        # MUST-FAIL: r2's strpos/replace turned bryan@example.com into b[deleted address] and cut into ryan@example.company
+        self.assertEqual(self.admin("select body from ops_outbox where id = %s", alert),
+                         "From bryan@example.com, ryan@example.company, ryan@exampleXcom, ryan.x@example.com and [deleted address].")
+        self.assertEqual(self.admin("select to_addr from ops_outbox where id = %s", other), "bryan@example.com")
+        self.assertEqual((out["outbox_rows_erased"], out["outbox_rows_redacted"]), (0, 1))
 
     def test_GEO_only_the_service_role_can_erase_or_redact(self):
         for who in (RYAN, "anon"):

@@ -69,7 +69,9 @@ test('a paid account whose files are not all gone is not recorded as done (GEO 1
   const res = await call(w.deps, { confirm_email: 'ryan@example.com' });
   console.error = quiet;
   assert.equal(res.status, 500);
-  assert.match((await res.json()).error, /Some of your files couldn't be removed/);   // CC1 10:57 LOW 6: never 'files were removed' here
+  const said = (await res.json()).error;
+  assert.match(said, /not all of your files could be confirmed as deleted/);   // CC1 11:15 LOW b
+  assert.doesNotMatch(said, /nothing else was changed/);                    // MUST-FAIL: r2 said so, after files and contacts were already removed
   assert.ok(!w.calls.some(c => c[0] === 'request'));                         // asked again, it retries
 });
 
@@ -82,6 +84,23 @@ test('a missing count from the erase step is a failure, never read as zero (CC1 
     assert.equal(res.status, 500, JSON.stringify(left));                     // MUST-FAIL: before r2 a missing count read as 0
     assert.ok(!w.calls.some(c => c[0] === 'request' || c[0] === 'block'));
   }
+});
+
+test('a login block that fails is a 500, and asking again is safe (CC1 11:15 LOW c)', async () => {
+  const quiet = console.error; console.error = () => {};
+  let fail = true;
+  const w = world({ has_credit_history: true, storage_paths: [`${ME}/p/film.mp4`] },
+                  { blockLogin: async owner => { w.calls.push(['block', owner]); if (fail) throw new Error('auth down'); } });
+  let res = await call(w.deps, { confirm_email: 'ryan@example.com' });
+  assert.equal(res.status, 500);                                            // pins r2's behaviour; planted 'swallow the block error' fails here
+  assert.match((await res.json()).error, /couldn't be finished/);
+  fail = false;
+  res = await call(w.deps, { confirm_email: 'ryan@example.com' });
+  console.error = quiet;
+  assert.equal(res.status, 202);                                            // the retry runs every step again (each is safe twice) and blocks
+  assert.equal(w.calls.filter(c => c[0] === 'request').length, 2);          // account_request_deletion: on conflict do nothing
+  assert.deepEqual(w.calls.at(-1), ['block', ME]);
+  assert.ok(!w.calls.some(c => c[0] === 'deleteUser'));
 });
 
 test('the email is removed from support and invite rows before the login goes; a failure there keeps the login (GEO 11-21 M5)', async () => {
