@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { extract, formEncode, verifySignature } from '../supabase/functions/_shared/stripe.ts';
 import { handle as webhook } from '../supabase/functions/stripe-webhook/webhook.ts';
-import { handle as checkout } from '../supabase/functions/stripe-checkout/checkout.ts';
+import { handle as checkout, errorLine } from '../supabase/functions/stripe-checkout/checkout.ts';
 
 const FX = JSON.parse(fs.readFileSync(new URL('./fixtures/stripe/fixtures.json', import.meta.url), 'utf8'));
 const GOLDEN = new URL('./fixtures/stripe/extracted.json', import.meta.url);
@@ -225,11 +225,56 @@ test('checkout: plans, the one-plan rule, the portal, and refusals', async () =>
   assert.equal(s.calls.length, 0);
 
   ({ deps } = checkoutDeps({}, { stripe: async () => { throw new Error('Invalid API Key provided: sk_test_****1234'); } }));
-  const orig = console.error; console.error = () => {};
+  const logged = [];
+  const orig = console.error; console.error = (...a) => logged.push(a.join(' '));
   res = await call(deps, { price_code: 'pack_starter' });
   console.error = orig;
   assert.equal(res.status, 502);
   assert.doesNotMatch(await res.text(), /sk_test/);
+  assert.doesNotMatch(logged.join(' '), /sk_test|Invalid API Key/);              // MUST-FAIL (GEO 11-21 L3): the message is never logged
+
+  // GEO 11-21 L3: a Stripe error that echoes an email and a customer id leaves only its type, code and status in the logs
+  const stripeErr = Object.assign(new Error('No such customer: cus_Secret1 (ryan@example.invalid)'),
+                                  { stripeType: 'invalid_request_error', code: 'resource_missing', status: 400 });
+  ({ deps } = checkoutDeps({}, { stripe: async () => { throw stripeErr; } }));
+  logged.length = 0; console.error = (...a) => logged.push(a.join(' '));
+  res = await call(deps, { price_code: 'pack_starter' });
+  console.error = orig;
+  assert.equal(res.status, 502);
+  assert.deepEqual(logged, ['stripe-checkout: failed type=invalid_request_error code=resource_missing status=400']);
+  assert.doesNotMatch(logged.join(' '), /example\.invalid|cus_Secret1|No such customer/);
+});
+
+test('GEO 11-21 L3: errorLine keeps only plain tokens, never a message or an odd value', () => {
+  assert.equal(errorLine(null), 'stripe-checkout: failed type=- code=- status=-');
+  assert.equal(errorLine(new Error('a@b.c')), 'stripe-checkout: failed type=- code=- status=-');
+  assert.equal(errorLine({ stripeType: 'card_error', code: 'a@b.c', status: '400 x' }), 'stripe-checkout: failed type=card_error code=- status=-');
+  assert.equal(errorLine({ code: '42501', status: 2.5 }), 'stripe-checkout: failed type=- code=42501 status=-');
+});
+
+test('GEO 11-21 M6: chargeback events are read and passed on (a dispute object, shaped as Stripe sends it)', async () => {
+  // Hand-written in the shape of Stripe's dispute object (id dp_..., charge, payment_intent, amount, currency, status, reason);
+  // tests/fixtures/stripe/fixtures.json is Stripe's own file, copied unchanged, so this one is not added there.
+  const dp = { id: 'dp_1', object: 'dispute', charge: 'ch_Pack1', payment_intent: 'pi_Pack1', amount: 1200, currency: 'usd',
+               status: 'lost', reason: 'fraudulent', livemode: false };
+  for (const type of ['charge.dispute.created', 'charge.dispute.closed']) {
+    const e = extract(event('evt_Dis1', type, dp));
+    assert.equal(e.type, type);
+    assert.deepEqual(e.data, { dispute: 'dp_1', charge: 'ch_Pack1', payment_intent: 'pi_Pack1', amount: 1200, currency: 'usd',
+                               status: 'lost', reason: 'fraudulent' });                // MUST-FAIL: before the fix data was {}
+  }
+  const exp = extract(event('evt_Dis2', 'charge.dispute.closed', { ...dp, charge: { id: 'ch_Exp' }, payment_intent: { id: 'pi_Exp' } }));
+  assert.equal(exp.data.charge, 'ch_Exp');                                             // an expanded object reads as its id
+  assert.equal(exp.data.payment_intent, 'pi_Exp');
+  const applied = [];
+  const deps = { signingSecret: SECRET, now: () => NOW * 1000,
+                 apply: async (id, type, created, livemode, data) => { applied.push({ type, data }); return 'applied'; } };
+  const body = JSON.stringify(event('evt_Dis3', 'charge.dispute.closed', dp));
+  const res = await webhook(new Request('https://x.supabase.co/functions/v1/stripe-webhook',
+                                        { method: 'POST', body, headers: { 'stripe-signature': sign(body) } }), deps);
+  assert.equal(res.status, 200);
+  assert.equal(applied[0].type, 'charge.dispute.closed');
+  assert.equal(applied[0].data.status, 'lost');
 });
 
 test('form encoding follows Stripe\'s bracket style', () => {

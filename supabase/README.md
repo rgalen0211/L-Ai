@@ -143,12 +143,15 @@ are refused by the database, until `stripe_settings.live_ok` is set (a later, se
    - URL: `https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/stripe-webhook`
    - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
      `invoice.paid`, `customer.subscription.created`, `customer.subscription.updated`,
-     `customer.subscription.deleted`, `charge.refunded`
+     `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`
+     (the last two since GEO 11-21: a lost chargeback takes the pack's credits back; an open one is held for review)
    - Copy the endpoint's **signing secret** (`whsec_...`).
 6. **Supabase → Edge Functions → Secrets**: add `STRIPE_SECRET_KEY` (step 4) and
    `STRIPE_WEBHOOK_SECRET` (step 5).
 7. **SQL Editor**, in order: `phase-2b/credits_ledger.sql` (if not run yet), then
-   `phase-2b/stripe_test_mode.sql`. Then tell the database which Stripe price sells which code,
+   `phase-2b/stripe_test_mode.sql`, then `phase-2b/stripe_refunds_disputes.sql` (chargebacks, and a refund that
+   completes an earlier partial one is held for review; if `stripe_test_mode.sql` already ran, run just this one).
+   Then tell the database which Stripe price sells which code,
    with your ids from step 2:
 
    ```sql

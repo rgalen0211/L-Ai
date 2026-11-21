@@ -31,6 +31,7 @@ ROOT = core.ROOT
 FIX = ROOT / "migrations" / "20261017000700_upload_policy_grants.sql"
 LEDGER = ROOT / "phase-2b" / "credits_ledger.sql"
 STRIPE = ROOT / "phase-2b" / "stripe_test_mode.sql"
+DISPUTES = ROOT / "phase-2b" / "stripe_refunds_disputes.sql"     # GEO 11-21: always right after STRIPE
 UPLOAD = ("upload_slot_ok", "worker_may_read_upload")
 POLICY_FUNCS = ("owner_may_read", "worker_may_write", "is_worker", *UPLOAD)   # what the policies call today
 # How the two phase-2b files ended before the fix: everything revoked, three re-granted.
@@ -111,7 +112,7 @@ class PolicyGrants(unittest.TestCase):
         self.assertEqual(too_wide(c), [])
 
     def test_harness_order(self):
-        c = build("g_harness", [*core.MIGRATIONS, LEDGER, STRIPE])
+        c = build("g_harness", [*core.MIGRATIONS, LEDGER, STRIPE, DISPUTES])
         try:
             self.check_clean(c)
         finally:
@@ -120,7 +121,7 @@ class PolicyGrants(unittest.TestCase):
     def test_live_order(self):
         before = [m for m in core.MIGRATIONS if m.name < FIX.name]
         later = [m for m in core.MIGRATIONS if m.name > FIX.name]
-        c = build("g_live", [*before, LEDGER, STRIPE], after=[OLD_TAIL])
+        c = build("g_live", [*before, LEDGER, STRIPE, DISPUTES], after=[OLD_TAIL])
         try:
             # As live was before the fix: exactly the two upload functions missing, for `authenticated`.
             self.assertEqual({(fn, role) for fn, role, _ in missing_grants(c)},
@@ -132,7 +133,7 @@ class PolicyGrants(unittest.TestCase):
             c.close()
 
     def test_must_fail_each_upload_function_losing_execute(self):
-        c = build("g_mustfail", [*core.MIGRATIONS, LEDGER, STRIPE])
+        c = build("g_mustfail", [*core.MIGRATIONS, LEDGER, STRIPE, DISPUTES])
         try:
             for fn in UPLOAD:
                 with self.subTest(fn=fn):
@@ -144,7 +145,7 @@ class PolicyGrants(unittest.TestCase):
             c.close()
 
     def test_must_fail_upload_function_granted_to_anon_or_public(self):
-        c = build("g_wide", [*core.MIGRATIONS, LEDGER, STRIPE])
+        c = build("g_wide", [*core.MIGRATIONS, LEDGER, STRIPE, DISPUTES])
         try:
             c.execute("grant execute on function ryagram_private.upload_slot_ok(text) to anon")
             c.execute("grant execute on function ryagram_private.worker_may_read_upload(text) to public")
@@ -179,7 +180,7 @@ def executable_by_authenticated(c):
 
 
 # The order Ryan applies on live: the phase-2b files (whose tail revokes every ryagram_private function) went in BEFORE the funnel migration, so they cannot mask a missing revoke in it.
-LIVE_ORDER = [*[m for m in core.MIGRATIONS if m.name < "20261017000900"], LEDGER, STRIPE, *[m for m in core.MIGRATIONS if m.name >= "20261017000900"]]
+LIVE_ORDER = [*[m for m in core.MIGRATIONS if m.name < "20261017000900"], LEDGER, STRIPE, DISPUTES, *[m for m in core.MIGRATIONS if m.name >= "20261017000900"]]
 
 
 class PrivateSchemaClosed(unittest.TestCase):

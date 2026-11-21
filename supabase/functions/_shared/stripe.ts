@@ -94,6 +94,11 @@ export function extract(event: any): Extracted | null {
       return { ...base, data: {
         charge: o.id ?? null, payment_intent: idOf(o.payment_intent), amount: o.amount ?? null,
         amount_refunded: o.amount_refunded ?? null, currency: o.currency ?? null } };
+    case "charge.dispute.created":      // GEO 11-21 (M6): a chargeback; phase-2b/stripe_refunds_disputes.sql decides
+    case "charge.dispute.closed":
+      return { ...base, data: {
+        dispute: o.id ?? null, charge: idOf(o.charge), payment_intent: idOf(o.payment_intent), amount: o.amount ?? null,
+        currency: o.currency ?? null, status: o.status ?? null, reason: o.reason ?? null } };
     default:
       return { ...base, data: {} };
   }
