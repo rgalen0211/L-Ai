@@ -57,7 +57,7 @@ class DeleteRevokesAi(core.Base):
 
     def tombstone_live(self):
         """True when 20261121000600's account_request_deletion (it clears prepared_data) is the live body, as on train 4."""
-        return self.db.as_(None).one("select prosrc like '%public.prepared_data%' from pg_proc where proname = 'account_request_deletion'")
+        return self.db.as_(None).one("select prosrc like '%%public.prepared_data%%' from pg_proc where proname = 'account_request_deletion'")
 
     def test_GEO_g1_after_check_true_then_the_rollback_puts_the_old_body_back(self):
         # In the launch paper's undo order (3a item 1): 000600 is undone FIRST when it is applied, then 000550 (CC1 13:20: on the
