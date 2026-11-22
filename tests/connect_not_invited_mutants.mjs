@@ -11,6 +11,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-notinv');
 const MIG = 'supabase/migrations/';
 const LE = MIG + '20261027000400_live_editor.sql', DEP = MIG + '20261027000100_departments.sql', CON = MIG + '20261018000100_connect_ai.sql';
+// 11-22: connect_person_ok is REDEFINED by the open-to-all migration (the later definition is the one in force), so the three "counts as invited" faults must break THAT text; breaking the first definition changes nothing the tests read
+const OPEN = MIG + '20261121000700_connect_ai_open_to_all.sql';
 const SUITES = ['connect-not-invited.test.mjs'];
 const mutants = [
   // the person's own editor must not need an AI invite
@@ -20,9 +22,9 @@ const mutants = [
   ['my_edit_ops_since needs the invite', LE, "  select * into d from public.edit_drafts where project_id = p_project and mode = p_mode and owner_id = me;\n  if not found then return jsonb_build_object('revision', 0,", "  if not ryagram_private.connect_person_ok(me) then raise exception 'x'; end if;\n  select * into d from public.edit_drafts where project_id = p_project and mode = p_mode and owner_id = me;\n  if not found then return jsonb_build_object('revision', 0,"],
   ['the app session accepts a token that carries a client id', CON, "nullif(auth.jwt() ->> 'client_id', '')", "nullif('', '')"],
   // what "invited" means
-  ['an administrator counts as invited', CON, "     and not exists (select 1 from public.app_admins ad where ad.user_id = p_owner)\n", ""],
-  ['a worker counts as invited', CON, "     and not exists (select 1 from public.workers w where w.user_id = p_owner)\n", ""],
-  ['a disabled list row counts as invited', CON, "where a.user_id = p_owner and a.enabled)", "where a.user_id = p_owner)"],
+  ['an administrator counts as invited', OPEN, "     and not exists (select 1 from public.app_admins ad where ad.user_id = p_owner)\n", ""],
+  ['a worker counts as invited', OPEN, "     and not exists (select 1 from public.workers w where w.user_id = p_owner)\n", ""],
+  ['a disabled list row counts as invited', OPEN, "where a.user_id = p_owner and a.enabled)", "where a.user_id = p_owner)"],
   ['the consent page stops saying invite-only', CON, "not enabled for AI assistants yet (invite-only for now).", "not enabled yet."],
   ['the departments helper is its own rule', DEP, "  return p_owner is not null and ryagram_private.connect_person_ok(p_owner);", "  return p_owner is not null;"],
   // "Tell me when it's ready"
