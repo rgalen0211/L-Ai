@@ -45,6 +45,19 @@ class BlindGuard(unittest.TestCase):
         mutants = [{"name": "m", "edits": [[EARLY, CLAUSE + "\n", ""]]}]
         self.assertEqual(b.blind_hits(mutants, {EARLY: CLAUSE + "\n", LATE: "create or replace function f() as $$\n" + CLAUSE + "\n$$;\n"}), [])
 
+    def test_the_guard_ignores_a_later_migration_s_own_code_that_merely_sits_near_a_replace(self):
+        # GEO 11-22 (CC1 14:16): 20261113000100_film_card_caps.sql ends with its OWN 'select ryagram_private.gate_apply();' four lines
+        # after an unrelated replace(def, ...); a mutant that drops an earlier migration's gate line is not blind (on train 4 every such
+        # mutant was caught on an assertion). Only text inside a quoted argument is what a replace() looks for.
+        gate = "select ryagram_private.gate_apply();                       -- the gate"
+        later = ("do $do$ declare def text; neu text; begin\n  neu := replace(def, 'octet_length(p_card::text) > 262144', 'octet_length(p_card::text) > 320000');\n"
+                 "  execute neu;\nend $do$;\n\n" + gate + "\n")
+        mutants = [{"name": "the gate is not applied after it", "edits": [[EARLY, gate + "\n", ""]]}]
+        self.assertEqual(b.blind_hits(mutants, {EARLY: gate + "\n", LATE: later}), [])
+        # MUST-FAIL: the same line as a QUOTED argument of that replace is still flagged
+        quoted = "do $do$ begin\n  neu := replace(def, '" + gate.replace("'", "''") + "', '');\nend $do$;\n"
+        self.assertEqual([h[2] for h in b.blind_hits(mutants, {EARLY: gate + "\n", LATE: quoted})], [LATE])
+
     def test_the_guard_only_looks_at_later_migrations(self):
         mutants = [{"name": "m", "edits": [[LATE, CLAUSE + "\n", ""]]}]
         self.assertEqual(b.blind_hits(mutants, {EARLY: LATE_TEXT, LATE: CLAUSE + "\n"}), [])
