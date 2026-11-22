@@ -28,8 +28,8 @@ const ROWS = [
   [8, 'no_commit', job({ attempt: 1, error_detail: 'the receipt records no engine commit' }), /You can try again\./],
   [9, 'no_output', job({ error_class: 'unknown', error_detail: 'exit 0 but no preview.mp4' }), /You can try again\./],
   [10, 'timeout', job({ error_class: 'timeout', error_detail: 'stopped after 120 s' }), /shorten the film or the preview window/],
-  [11, 'limit (memory or disk), no next step before', job({ error_class: 'limit', error_detail: '' }), /Try a shorter preview window, or ask us to help\./],
-  [12, 'limit (output too big)', job({ error_class: 'limit', error_detail: 'outputs are 61234567 bytes, limit 52428800' }), /Try a shorter preview window, or ask us to help\./],
+  [11, 'limit (memory or disk), no next step before', job({ job_type: 'preview', error_class: 'limit', error_detail: '' }), /Try a shorter preview window, or ask us to help\./],
+  [12, 'limit (output too big)', job({ job_type: 'preview', error_class: 'limit', error_detail: 'outputs are 61234567 bytes, limit 52428800' }), /Try a shorter preview window, or ask us to help\./],
   [13, 'gate_failed (checks failed)', job({ error_class: 'gate', error_detail: '2 preflight check(s) failed' }), /Change the story, then make a new preview\./],
   [14, 'gate_failed (checks did not run)', job({ error_class: 'gate', error_detail: 'the checks did not run: ValueError: bad palette' }), /Nothing is wrong with your story\. You can try again/],
   [15, 'engine_refused, plain', job({ error_class: 'invalid_input', error_detail: 'The dataset has no data before 2010.' }), /Fix the story and submit again\./],
@@ -55,7 +55,7 @@ test('JOB WORDS: row 1-9 still say it is the machine and not the story (the infr
 
 test('JOB WORDS row 11 and 12: a limit always has a next step in plain words', () => {
   for (const d of ['', 'outputs are 61234567 bytes, limit 52428800', 'out of memory']) {
-    assert.match(J.problem(job({ error_class: 'limit', error_detail: d })), /It went over a size or memory limit\..*Try a shorter preview window, or ask us to help\.$/);
+    assert.match(J.problem(job({ job_type: 'preview', error_class: 'limit', error_detail: d })), /It went over a size or memory limit\..*Try a shorter preview window, or ask us to help\.$/);
   }
 });
 

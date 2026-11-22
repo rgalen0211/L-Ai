@@ -147,7 +147,7 @@ test('queue positions count everyone ahead; submit refuses a second job of the s
   await assert.rejects(data.submitJob(version.id, 'preview', { window_s: [0, 10] }), /already in progress/);
   await assert.rejects(data.submitJob(version.id, 'preview', { cmd: 'x' }), /Unknown parameter/);
   assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 2), 'Number 2 in line.');
-  assert.match(J.progressNote({ state: 'queued', attempt: 2 }, 1), /Next in line\. Retrying .*attempt 2 of 3/);
+  assert.match(J.progressNote({ state: 'queued', attempt: 2 }, 1), /Next in line\. Retrying .*attempt 2 of 2/);
 });
 
 test('ROUGH SPOT: a job reserved for the person’s own computer says so, even with no account switch; no raw job type is ever shown', () => {

@@ -46,7 +46,7 @@ test('EMPTY LIBRARY AND CREDITS: the first screen says what a project is and wha
   assert.ok(lib.includes("'No films yet. Name your first film above, then pick a ready-made film to start from.'"));
   assert.ok(lib.includes("'Pick a ready-made film, or name your own. Ryagram draws it from public data, with its sources shown. The first picture is free.'"));
   assert.ok(lib.includes("'Welcome back. Pick up a film below, or start a new one.'"));
-  assert.ok(lib.includes("'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.'"));
+  assert.ok(lib.includes("'Credits pay for full films and for previews after the free ones. Contact sheets are free. ' + FREE_PREVIEW_RULE"));
   assert.doesNotMatch(lib, /it starts as r1/);
 });
 

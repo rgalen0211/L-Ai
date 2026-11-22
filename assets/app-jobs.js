@@ -76,30 +76,42 @@
   // One sentence for a finished job that did not complete, by error class.
   // DRAFT FOR RYAN (WEB 11-21, from WORKER's failure table): the words for a limit with no next step, for the machine's own setup (engine_unsupported), and for checks that did not run.
   const LIMIT_NEXT = 'Try a shorter preview window, or ask us to help.';
+  const LIMIT_NEXT_OTHER = 'Ask us to help.';                                                                           // only a preview has a window to shorten (a contact sheet and a final render have none)
+  const NOT_APPROVED = 'This render was not approved, so nothing was rendered and your credits came back.';                 // final_close() in pipe1_orders: error_code 'declined', the job 'cancelled', the hold released
+  const NOT_APPROVED_IN_TIME = 'This render was not approved in time, so it was cancelled and your credits came back.';    // error_code 'approval_expired'
+  const RENDER_HELP = 'Open “Get help with this”.';
   const UNSUPPORTED = 'The render machine cannot make this kind of film yet. Nothing is wrong with your story. Tell us and we will fix it.';
   const LADDER_MISSING = 'This render did not match the contact sheet and preview you approved. Make a new contact sheet and preview, then render again.';
   const CREDITS_RETURNED = ' The credits held for it were returned.';                                                       // credits_ledger.sql: failed/cancelled/editorial_action_required releases the hold in full; only a final render holds any
   const CHECKS_DID_NOT_RUN = 'Ryagram’s checks could not run on this render. Nothing is wrong with your story. You can try again, or open “Get help with this”.';
+  const UPLOAD_WORDS = /uploaded data|your data|your columns/i;                                                    // the worker's own lines for a job that ran on an upload (worker/uploads.py)
   function problem(job) {
     const plain = plainDetail(job.error_detail);
     const detail = plain ? ` ${plain}` : '';
     const asksToContact = /contact Ryagram/i.test(plain);                                                        // the sentence's own next step is for us to act: never add "Fix the story"
-    if (job.state === 'cancelled') return 'Cancelled.';
+    if (job.state === 'cancelled') {
+      if (job.error_code === 'declined') return NOT_APPROVED;
+      if (job.error_code === 'approval_expired') return NOT_APPROVED_IN_TIME;
+      return 'Cancelled.';
+    }
     if (job.error_code === 'ladder_missing') return LADDER_MISSING + (job.job_type === 'final_render' ? CREDITS_RETURNED : '');   // the approved sheet and preview, not the story; the engine's own text is never shown
     if (job.error_code === 'engine_unsupported' || job.error_class === 'engine_unsupported') return UNSUPPORTED;                   // the machine's setup, not the story: never "Fix the story"
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
       if (/checks did not run/i.test(String(job.error_detail || ''))) return CHECKS_DID_NOT_RUN;   // the machine's fault, not the story's: never "Change the story"
+      if (/render-anyway|override/i.test(rawDetail(job))) return `Ryagram’s checks stopped this render.${detail} No change to the story can fix this. ${RENDER_HELP}`;   // the local-only override: no web story can carry it
       return `Ryagram’s checks stopped this render.${detail}${asksToContact ? '' : ' Change the story, then make a new preview.'}`;
     }
     switch (job.error_class) {
       case 'infrastructure':
+        if (job.error_code === 'queue_timeout') return `The render machine had a problem, not your story.${detail} You can try again.`;     // it never ran: no "tried N times"
         return `The render machine had a problem, not your story. It tried ${job.attempt} time${job.attempt === 1 ? '' : 's'}.${detail} You can try again.`;
       case 'timeout':
         return `It ran too long and was stopped.${detail} It wasn’t retried, because it would stop again: shorten the film or the preview window first.`;
       case 'invalid_input':
+        if (job.error_code === 'dataset_not_allowed' || UPLOAD_WORDS.test(rawDetail(job))) return detail.trim() || 'The data this film uses was not accepted. Open Your data to check it.';   // the story is fine: the uploaded data is the thing to fix
         return `The story or its settings weren’t accepted.${detail}${asksToContact ? '' : ' Fix the story and submit again.'}`;
       case 'limit':
-        return `It went over a size or memory limit.${detail} ${LIMIT_NEXT}`;
+        return `It went over a size or memory limit.${detail} ${job.job_type === 'preview' ? LIMIT_NEXT : LIMIT_NEXT_OTHER}`;
       default:
         return `It failed for a reason Ryagram doesn’t recognise.${detail} You can try again.`;
     }
@@ -117,7 +129,7 @@
     if (job.state === 'queued' && ownComputer && !job.cancel_requested) return own && own.computers === 0 ? WAITING_FOR_COMPUTER : WAITING_FOR_COMPUTER_PICKUP;
     if (job.state === 'queued') {
       const place = queuePosition ? (queuePosition === 1 ? 'Next in line.' : `Number ${queuePosition} in line.`) : 'Waiting in line.';
-      return job.attempt > 1 ? `${place} Retrying after a render-machine problem (attempt ${job.attempt} of 3).` : place;
+      return job.attempt > 1 ? `${place} Retrying once after a render-machine problem (attempt ${job.attempt} of 2).` : place;
     }
     if (job.cancel_requested) return 'Stopping…';
     if (job.state === 'claimed') return 'The render machine picked it up.';
@@ -278,6 +290,16 @@
     if (!st) return '';
     const fin = (st.stages || []).find(s => s.stage === 'final_render') || {};
     const held = fin.credits_quoted > 0 ? ` ${fin.credits_quoted} credit${fin.credits_quoted === 1 ? '' : 's'} ${st.state === 'awaiting_approval' || st.state === 'running' ? 'are held' : 'were held'}.` : '';
+    const code = st.error_code;
+    if (code === 'delivery_expired') return 'Your film was kept for 30 days and has been deleted.';                          // a delivered film passing 30 days: state 'expired', but it was delivered
+    if (code === 'cancelled' && st.state === 'failed') return 'You cancelled the full render. Your credits were returned.';
+    if (st.state === 'failed') {
+      if (code === 'insufficient_credits') return 'The full render did not start because you do not have enough credits. Nothing was charged. Buy credits, then request it again.';   // stage_submit: no job, no hold
+      if (code === 'daily_cap') return 'The full render did not start because you reached today’s credit limit. Nothing was charged. You can request it again after 24 hours.';
+      if (code === 'ladder_missing') return 'This render did not match the contact sheet and preview you approved. Your credits were returned. Make a new contact sheet and preview, then request it again.';
+      if (code === 'engine_refused' || code === 'schema_rejected') return 'The render machine would not make a film from this story, so asking again would be refused the same way. Your credits were returned. Change the story, or make a new contact sheet and preview, then request it again.';
+      if (code === 'timeout' || code === 'limit_exceeded') return 'The full render ran over a time or size limit, so asking again would stop it the same way. Your credits were returned. Change the story to make a smaller film, or make a new contact sheet and preview, then request it again.';
+    }
     switch (st.state) {
       case 'awaiting_approval': return `Your full render is waiting for approval. We approve each one by hand for now.${held} They come back if it is not approved.`;
       case 'running': return `Your full render is on its way.${held}`;

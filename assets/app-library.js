@@ -93,7 +93,8 @@
   // checkout checks keep their meaning) unless the address has ?buyingclosed, which shows the closed page there.
   const buyingOn = () => paymentsOn() && (window.ryagramConfig?.buyingOpen === true || (!!window.ryagramMock && !/[?&]buyingclosed/.test(location.search || '')));
   // DRAFT FOR RYAN: the words shown wherever buying would be, while buyingOn() is false.
-  const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free, and so are your first previews.';      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
+  const FREE_PREVIEW_RULE = 'Each project gets 6 free previews, and you get 15 free previews in any 24 hours across all your projects. After that a preview costs 1 credit. A free preview that fails because of your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
+  const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE;      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
   const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
 
   // Every admin page that is switched on, in plain words and in groups (the Admin page #/admin, WEB 11-20: the admin tools live on ONE page, not in a menu and not scattered over the user pages).
@@ -268,7 +269,7 @@
           qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.')) },
         { id: 'account', label: 'Account and reports', el: answers(
           qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
-          qa('How do I report a film?', 'Every public film page has a \u201cReport this film\u201d link, or use the report form. For reports about child safety, private information, harassment or copyright we hide the film right away while we review it.'),
+          qa('How do I report a film?', 'Every public film page has a \u201cReport this film\u201d link, or use the report form. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.'),
           qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, Ryagram will read spreadsheets (CSV and similar files). If a file can\u2019t be read you\u2019ll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.')) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
@@ -385,7 +386,7 @@
       const filmsLink = myFilmsOn() && window.ryagramFilms ? h('a', { href: '#/films' }, 'All my films') : null;
       const looksLink = looksOn() ? h('a', { href: '#/looks' }, 'Your look') : null;
       const requestLink = requestsOn() ? h('a', { href: '#/request' }, 'Ask us to make a film') : null;
-      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
+      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews after the free ones. Contact sheets are free. ' + FREE_PREVIEW_RULE) : null;
       const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
       const aiInvited = startOn() ? await connectAllowed(data).catch(() => false) : false;               // the Ask your AI button only for an account the connector counts as invited (the Start strip's own rule); the page it opens does nothing for anyone else
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
@@ -1041,7 +1042,7 @@
         h('h1', { tabindex: '-1' }, 'Credits'),
         balance, thanks,
         // DRAFT FOR RYAN: what credits are for and what a full film costs (the cost is read from the ledger's price table, the same numbers the Render step quotes).
-        h('p', { class: 'form-note credit-about' }, 'Credits pay for full films. ', C.filmCostLine(filmRows), open ? ' Contact sheets are free, and so are your first previews.' : null),      // DRAFT FOR RYAN
+        h('p', { class: 'form-note credit-about' }, 'Credits pay for full films. ', C.filmCostLine(filmRows), open ? ' Contact sheets are free. ' + FREE_PREVIEW_RULE : null),      // DRAFT FOR RYAN
         open ? null : h('p', { class: 'form-note credit-closed' }, BUYING_CLOSED),
         testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
         testMode && !window.ryagramMock ? h('p', { class: 'form-note credit-test-label' }, 'Test mode — prices are placeholders, no real charge.') : null,
