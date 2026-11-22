@@ -77,6 +77,7 @@
   // DRAFT FOR RYAN (WEB 11-21, from WORKER's failure table): the words for a limit with no next step, for the machine's own setup (engine_unsupported), and for checks that did not run.
   const LIMIT_NEXT = 'Try a shorter preview window, or ask us to help.';
   const LIMIT_NEXT_OTHER = 'Ask us to help.';                                                                           // only a preview has a window to shorten (a contact sheet and a final render have none)
+  const TOO_LARGE = 'This film is too large for the render machine. Ask us to help.';
   const NOT_APPROVED = 'This render was not approved, so nothing was rendered and your credits came back.';                 // final_close() in pipe1_orders: error_code 'declined', the job 'cancelled', the hold released
   const NOT_APPROVED_IN_TIME = 'This render was not approved in time, so it was cancelled and your credits came back.';    // error_code 'approval_expired'
   const RENDER_HELP = 'Open “Get help with this”.';
@@ -110,8 +111,11 @@
       case 'invalid_input':
         if (job.error_code === 'dataset_not_allowed' || UPLOAD_WORDS.test(rawDetail(job))) return detail.trim() || 'The data this film uses was not accepted. Open Your data to check it.';   // the story is fine: the uploaded data is the thing to fix
         return `The story or its settings weren’t accepted.${detail}${asksToContact ? '' : ' Fix the story and submit again.'}`;
-      case 'limit':
-        return `It went over a size or memory limit.${detail} ${job.job_type === 'preview' ? LIMIT_NEXT : LIMIT_NEXT_OTHER}`;
+      case 'limit': {
+        if (job.job_type === 'preview') return `It went over a size or memory limit.${detail} ${LIMIT_NEXT}`;
+        if (/preview window|shorter preview/i.test(plain)) return TOO_LARGE;                                       // the worker's own line advises a preview window, which only a preview has
+        return `It went over a size or memory limit.${detail} ${LIMIT_NEXT_OTHER}`;
+      }
       default:
         return `It failed for a reason Ryagram doesn’t recognise.${detail} You can try again.`;
     }
@@ -285,6 +289,14 @@
   // Render orders (a full render is requested, then waits for approval, renders and is delivered).
   const ORDER_WORDS = { running: 'Rendering', awaiting_approval: 'Waiting for approval', delivered: 'Delivered', previewed: 'Previewed', failed: 'Failed', declined: 'Not approved',
                         cancelled: 'Cancelled', expired: 'Expired', editorial_action_required: 'Stopped by a check' };
+  // The Credits page's own switch (app-library.js buyingOn: credits + payments + buyingOpen, open in mock mode unless ?buyingclosed), read here from the same config so this file needs nothing from app-library.js.
+  const buyingOpen = () => {
+    const cfg = window.ryagramConfig, mock = !!window.ryagramMock;
+    const credits = cfg?.credits === true || mock, payments = credits && (cfg?.payments === true || mock);
+    return payments && (cfg?.buyingOpen === true || (mock && !/[?&]buyingclosed/.test((window.location && window.location.search) || '')));
+  };
+  // Failures whose credits the database really returns (a job failure releases its hold; an order that ended before any hold was taken). Any other code, advance_error above all (the order fails from an exception and refund_job is never called), makes no promise about credits.
+  const CREDITS_RETURNED_CODES = /^(?:worker_lost|queue_timeout|delivery_failed|invalid_story|gate|contact_sheet_\w+|preview_\w+)$/;
   // One sentence for the person, from render_order_status().
   function orderLine(st) {
     if (!st) return '';
@@ -294,7 +306,7 @@
     if (code === 'delivery_expired') return 'Your film was kept for 30 days and has been deleted.';                          // a delivered film passing 30 days: state 'expired', but it was delivered
     if (code === 'cancelled' && st.state === 'failed') return 'You cancelled the full render. Your credits were returned.';
     if (st.state === 'failed') {
-      if (code === 'insufficient_credits') return 'The full render did not start because you do not have enough credits. Nothing was charged. Buy credits, then request it again.';   // stage_submit: no job, no hold
+      if (code === 'insufficient_credits') return `The full render did not start because you do not have enough credits. Nothing was charged. ${buyingOpen() ? 'Buy credits, then request it again.' : 'Buying credits is not open yet.'}`;   // stage_submit: no job, no hold
       if (code === 'daily_cap') return 'The full render did not start because you reached today’s credit limit. Nothing was charged. You can request it again after 24 hours.';
       if (code === 'ladder_missing') return 'This render did not match the contact sheet and preview you approved. Your credits were returned. Make a new contact sheet and preview, then request it again.';
       if (code === 'engine_refused' || code === 'schema_rejected') return 'The render machine would not make a film from this story, so asking again would be refused the same way. Your credits were returned. Change the story, or make a new contact sheet and preview, then request it again.';
@@ -308,7 +320,7 @@
       case 'expired': return 'The full render was not approved in time, so it was cancelled and your credits were returned.';
       case 'cancelled': return 'You cancelled the full render. Your credits were returned.';
       case 'editorial_action_required': return 'Ryagram\u2019s checks stopped this render. Change the story, then make a new preview. Your credits were returned.';
-      case 'failed': return 'The full render failed. Your credits were returned. You can request it again.';
+      case 'failed': return !code || CREDITS_RETURNED_CODES.test(code) ? 'The full render failed. Your credits were returned. You can request it again.' : 'The full render failed. Ask us to help.';
       default: return ORDER_WORDS[st.state] || st.state;
     }
   }

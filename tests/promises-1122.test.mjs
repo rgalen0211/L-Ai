@@ -54,12 +54,12 @@ test('F3: a retry says "attempt 2 of 2": the database retries a job once (attemp
   assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 1), 'Next in line.');
 });
 
-test('GAMES help: the live editor answer does not say nothing is sent; it says no credits are used and the changes are a draft you can undo', () => {
+test('GAMES help: the live editor answer does not say nothing is sent; it says no credits are used and a change can be undone', () => {
   assert.match(read('assets/app-editor-draft.js'), /rpc\('editor_apply_ops'/, 'every edit is sent to the server first');
-  const check = t => { assert.match(t, /No credits are used while you try things; your changes are saved as a draft you can undo\./); assert.doesNotMatch(t, /Nothing is sent to the server/); };
+  const check = t => { assert.match(t, /No credits are used while you try things, and you can undo a change in the editor\./); assert.doesNotMatch(t, /Nothing is sent to the server/); };
   const help = read('help/index.html');
   check(help);
-  goesRed(check, help.replace('No credits are used while you try things; your changes are saved as a draft you can undo.', 'Nothing is sent to the server and no credits are used while you try things.'));
+  goesRed(check, help.replace('No credits are used while you try things, and you can undo a change in the editor.', 'Nothing is sent to the server and no credits are used while you try things.'));
 });
 
 // ---- GROUP B: the order line and the job line tell what really happened ---------------------------------------------------------------------------------
@@ -72,7 +72,7 @@ test('B1 orderLine: a short balance or the daily cap says nothing was charged (s
   assert.match(T, /state = 'failed', error_code = 'insufficient_credits'/);
   assert.match(T, /order_end\(p_order\.id, 'failed', 'daily_cap'\)/);
   assert.match(T, /Not enough credits \(2B raises 53400\): no job, no hold/);
-  const credits = s => { assert.match(s, /enough credits\. Nothing was charged\. Buy credits, then request it again\.$/); assert.doesNotMatch(s, /returned/); };
+  const credits = s => { assert.match(s, /enough credits\. Nothing was charged\. (?:Buy credits, then request it again|Buying credits is not open yet)\.$/); assert.doesNotMatch(s, /returned/); };
   const cap = s => { assert.match(s, /today’s credit limit\. Nothing was charged\. You can request it again after 24 hours\.$/); assert.doesNotMatch(s, /returned/); };
   credits(order('failed', 'insufficient_credits')); cap(order('failed', 'daily_cap'));
   goesRed(credits, ORDER_OLD); goesRed(cap, ORDER_OLD);
@@ -149,4 +149,50 @@ test('B6 the local-only override gate line points to "Get help with this", not t
   goesRed(check, 'Ryagram’s checks stopped this render. Change the story, then make a new preview.');
   assert.match(J.problem({ state: 'editorial_action_required', error_class: 'gate', error_detail: '2 preflight check(s) failed' }), /Change the story, then make a new preview\.$/, 'an ordinary check failure keeps its step');
   assert.match(J.problem({ state: 'editorial_action_required', error_class: 'gate', error_detail: 'the checks did not run: x' }), /Nothing is wrong with your story/, 'checks-did-not-run keeps its line');
+});
+
+// ---- WEB 11-22 12:4x: GAMES 12:35 + FACES 12:37 review findings ----
+const withCfg = (cfg, mock, f) => {
+  const w = {}; w.ryagramConfig = cfg; if (mock) w.ryagramMock = {};
+  vm.runInNewContext(read('assets/app-jobs.js'), { window: w, setTimeout, clearTimeout });
+  return f(w.ryagramJobs);
+};
+const noCredits = { state: 'failed', error_code: 'insufficient_credits', stages: [] };
+test('R1 insufficient_credits: "Buy credits" only while buying is open (the Credits page switch); closed says "Buying credits is not open yet."', () => {
+  const closed = s => { assert.match(s, /Nothing was charged\. Buying credits is not open yet\.$/); assert.doesNotMatch(s, /Buy credits/); };
+  const open = s => assert.match(s, /Nothing was charged\. Buy credits, then request it again\.$/);
+  closed(withCfg({ credits: true, payments: true, buyingOpen: false }, false, j => j.orderLine(noCredits)));
+  closed(withCfg({}, false, j => j.orderLine(noCredits)));
+  open(withCfg({ credits: true, payments: true, buyingOpen: true }, false, j => j.orderLine(noCredits)));
+  open(withCfg(undefined, true, j => j.orderLine(noCredits)));
+  goesRed(closed, 'The full render did not start because you do not have enough credits. Nothing was charged. Buy credits, then request it again.');
+  assert.match(read('assets/app-library.js'), /const buyingOn = \(\) => paymentsOn\(\) && \(window\.ryagramConfig\?\.buyingOpen === true/);
+});
+test('R2 failed order: only codes whose credits are really returned say so; advance_error (no refund_job in the exception handler) does not', () => {
+  assert.match(T, /exception when others then\s+update public\.render_orders set state = 'failed', error_code = 'advance_error'/);
+  const handler = T.slice(T.indexOf("error_code = 'advance_error'"), T.indexOf('return null;', T.indexOf("error_code = 'advance_error'")));
+  assert.ok(!/refund_job/.test(handler), 'the handler never calls refund_job');
+  const plain = s => { assert.equal(s, 'The full render failed. Ask us to help.'); assert.doesNotMatch(s, /credits/); };
+  plain(order('failed', 'advance_error')); plain(order('failed', 'something_new'));
+  assert.equal(order('failed', 'worker_lost'), ORDER_OLD);
+  assert.equal(order('failed', undefined), ORDER_OLD);
+  assert.equal(order('failed', 'delivery_failed'), ORDER_OLD);
+  goesRed(plain, ORDER_OLD);
+});
+test('R3 live-editor help line is true for the mock and own-PC editors too: it promises an undo, not a saved draft', () => {
+  const src = read('assets/app-editor-core.js');
+  assert.match(src, /undo/i);
+  const check = t => { assert.match(t, /No credits are used while you try things, and you can undo a change in the editor\./); assert.doesNotMatch(t, /saved as a draft/); };
+  const help = read('help/index.html');
+  check(help);
+  goesRed(check, help.replace('No credits are used while you try things, and you can undo a change in the editor.', 'No credits are used while you try things; your changes are saved as a draft you can undo.'));
+  for (const f of ['assets/app-library.js', 'assets/app-editor.js', 'app/index.html']) { try { assert.doesNotMatch(read(f), /saved as a draft you can undo/); } catch (e) { if (e.code === 'ENOENT') continue; throw e; } }
+});
+test('R4 limit on a final render or contact sheet: the worker\u2019s own "shorter preview window" advice is replaced; a preview keeps it', () => {
+  const W = 'The film is over the size the render machine allows. Try a shorter preview window.';
+  const tooLarge = s => { assert.equal(s, 'This film is too large for the render machine. Ask us to help.'); assert.doesNotMatch(s, /preview window/); };
+  tooLarge(job({ error_class: 'limit', job_type: 'final_render', error_detail: W }));
+  tooLarge(job({ error_class: 'limit', job_type: 'contact_sheet', error_detail: W }));
+  assert.match(job({ error_class: 'limit', job_type: 'preview', error_detail: W }), /Try a shorter preview window/);
+  goesRed(tooLarge, 'It went over a size or memory limit. ' + W + ' Ask us to help.');
 });
