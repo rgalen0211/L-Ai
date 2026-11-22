@@ -160,7 +160,9 @@ def rewrite_hits(mutants, texts):
     characters from a LATER migration that rewrites live function text (it calls pg_get_functiondef), when the fault's new text
     no longer contains it: that later migration cannot find its text and refuses, so the fault errors and never counts."""
     # comments stripped first: an apostrophe in a comment ("the function's") would pair the wrong quotes
-    rewriters = {n: [lit for lit in _literals(re.sub(r"--[^\n]*", "", tx)) if len(lit) >= MIN_LINE] for n, tx in texts.items() if "pg_get_functiondef" in tx}
+    # a rewriter reads live function text through pg_get_functiondef or pg_proc.prosrc (WORKER 18:37 LOW)
+    rewriters = {n: [lit for lit in _literals(re.sub(r"--[^\n]*", "", tx)) if len(lit) >= MIN_LINE] for n, tx in texts.items()
+                 if "pg_get_functiondef" in tx or "prosrc" in tx}
     hits = []
     for m in mutants:
         for path, old, new in m["edits"]:
