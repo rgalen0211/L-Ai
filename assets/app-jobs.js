@@ -68,11 +68,14 @@
   // DRAFT FOR RYAN (WEB 11-21, from WORKER's failure table): the words for a limit with no next step, for the machine's own setup (engine_unsupported), and for checks that did not run.
   const LIMIT_NEXT = 'Try a shorter preview window, or ask us to help.';
   const UNSUPPORTED = 'The render machine cannot make this kind of film yet. Nothing is wrong with your story. Tell us and we will fix it.';
+  const LADDER_MISSING = 'This render did not match the contact sheet and preview you approved. Make a new contact sheet and preview, then render again.';
+  const CREDITS_RETURNED = ' The credits held for it were returned.';                                                       // credits_ledger.sql: failed/cancelled/editorial_action_required releases the hold in full; only a final render holds any
   const CHECKS_DID_NOT_RUN = 'Ryagram’s checks could not run on this render. Nothing is wrong with your story. You can try again, or open “Get help with this”.';
   function problem(job) {
     const plain = plainDetail(job.error_detail);
     const detail = plain ? ` ${plain}` : '';
     if (job.state === 'cancelled') return 'Cancelled.';
+    if (job.error_code === 'ladder_missing') return LADDER_MISSING + (job.job_type === 'final_render' ? CREDITS_RETURNED : '');   // the approved sheet and preview, not the story; the engine's own text is never shown
     if (job.error_code === 'engine_unsupported' || job.error_class === 'engine_unsupported') return UNSUPPORTED;                   // the machine's setup, not the story: never "Fix the story"
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
       if (/checks did not run/i.test(String(job.error_detail || ''))) return CHECKS_DID_NOT_RUN;   // the machine's fault, not the story's: never "Change the story"
