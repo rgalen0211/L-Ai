@@ -75,4 +75,18 @@ def _literals(window):
     """The quoted SQL string literals in a window that starts at `replace(` (doubled quotes unescaped). Only text INSIDE a literal is what
     a later replace() looks for; the later migration's own code near a replace() (its gate_apply line, another function's header) is not
     (GEO 11-22: those were 30 false hits on train 4, and every one of the flagged mutants that ran was caught on an assertion)."""
-    return [m.group(1).replace("''", "'") for m in _LITERAL.finditer(window)]
+    out, end = [], 0
+    for m in _LITERAL.finditer(window):
+        out.append(m.group(1).replace("''", "'"))
+        end = m.end()
+    tail = window[end:]
+    if "'" in tail:                                   # a literal the window cuts off: its visible part still counts (WORKER 14:18 LOW)
+        out.append(tail[tail.index("'") + 1:].replace("''", "'"))
+    d = _DOLLAR_ARG.match(window)                     # a dollar-quoted searched argument, replace(def, $x$...$x$, ...): its body counts
+    if d:
+        close = window.find("$" + d.group(1) + "$", d.end())
+        out.append(window[d.end():close if close >= 0 else len(window)])
+    return out
+
+
+_DOLLAR_ARG = re.compile(r"replace\([^,']*,\s*\$(\w*)\$")    # only an ARGUMENT that opens with $tag$, never the do-block's own closing $do$

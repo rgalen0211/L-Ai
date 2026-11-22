@@ -58,6 +58,17 @@ class BlindGuard(unittest.TestCase):
         quoted = "do $do$ begin\n  neu := replace(def, '" + gate.replace("'", "''") + "', '');\nend $do$;\n"
         self.assertEqual([h[2] for h in b.blind_hits(mutants, {EARLY: gate + "\n", LATE: quoted})], [LATE])
 
+    def test_the_guard_still_sees_a_searched_text_cut_off_by_the_window_or_dollar_quoted(self):
+        # WORKER 14:18 LOW: a searched literal longer than the window, and a $x$...$x$ argument, must still be flagged
+        mutants = [{"name": "m", "edits": [[EARLY, CLAUSE + "\n", ""]]}]
+        long_lit = "do $$ begin\n  newdef := replace(def, '" + ("x" * (b.WINDOW - 120)) + "\n" + CLAUSE.strip() + " and more text that runs on past the window " * 20 + "', '');\nend $$;\n"
+        self.assertEqual([h[2] for h in b.blind_hits(mutants, {EARLY: CLAUSE + "\n", LATE: long_lit})], [LATE])
+        dollar = "do $do$ begin\n  newdef := replace(def, $q$" + CLAUSE.strip() + "$q$, $q$x$q$);\nend $do$;\n"
+        self.assertEqual([h[2] for h in b.blind_hits(mutants, {EARLY: CLAUSE + "\n", LATE: dollar})], [LATE])
+        # and a do-block's own closing $do$ after a replace is not an argument: code after it is still not flagged
+        after = "do $do$ begin\n  neu := replace(def, 'a', 'b');\nend $do$;\n" + CLAUSE + "\n"
+        self.assertEqual(b.blind_hits(mutants, {EARLY: CLAUSE + "\n", LATE: after}), [])
+
     def test_the_guard_only_looks_at_later_migrations(self):
         mutants = [{"name": "m", "edits": [[LATE, CLAUSE + "\n", ""]]}]
         self.assertEqual(b.blind_hits(mutants, {EARLY: LATE_TEXT, LATE: CLAUSE + "\n"}), [])
