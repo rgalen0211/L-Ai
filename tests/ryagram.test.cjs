@@ -506,7 +506,9 @@ test('the waitlist form keeps its fields: required email, optional "What do you 
 // The one deliberate exception (Ryan, 2026-10-14): the creator beta terms must say plainly that beta credits are free. That paragraph (class
 // rg-terms) is checked on its own below, so "credits" is allowed THERE and nowhere else.
 const termsParagraph = (pageHtml.match(/<p class="rg-terms">[\s\S]*?<\/p>/) || [''])[0];
-const publicText = visibleText.replace(termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), ' ');
+// SECOND exception, DRAFT: do not fold until Ryan answers Q679: the one free-account line (id wl-free, tests/free-account-line.test.mjs pins its words) says free previews and that full films need credits. Only that paragraph.
+const freeLine = (pageHtml.match(/<p id="wl-free"[^>]*>([\s\S]*?)<\/p>/) || ['', ''])[1];
+const publicText = visibleText.replace(termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), ' ').replace(freeLine.trim(), ' ');
 
 test('nothing on the page reveals how data is found or chosen, or how anything is priced', () => {
   assert.notEqual(termsParagraph, '');

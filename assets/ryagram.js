@@ -126,6 +126,8 @@
   let sending = false;
   const createLine = document.getElementById && document.getElementById('wl-create');           // Option B: shown only when the waitingAccounts switch is exactly true
   if (createLine && config.waitingAccounts === true) createLine.hidden = false;
+  const freeLine = document.getElementById && document.getElementById('wl-free');                  // the free-account line shows with the create line, not before accounts can be made
+  if (freeLine && config.waitingAccounts === true) freeLine.hidden = false;
 
   function say(message) {
     status.hidden = false;
