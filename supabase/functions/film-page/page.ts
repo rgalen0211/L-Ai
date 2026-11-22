@@ -20,6 +20,9 @@ export interface Deps {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SLUG = /^[A-Za-z0-9_-]{22}$/;
 const LINK_SECONDS = 3600;
+// the 42501 sentences our own SQL raises on purpose for the person (film_pages.sql, film_publish_confirmed.sql)
+const FILM_403_SAID = new Set(["Only a finished film can have a public page.",
+                               "This film's files are no longer stored, so it can't be published."]);
 
 const statusOf = (e: unknown) => {
   const code = (e as { code?: string })?.code ?? "";
@@ -80,6 +83,12 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     return reply(200, { slug, url: `${deps.siteUrl}/film/?s=${slug}` });
   } catch (e) {
     const status = statusOf(e);
+    // GEO 11-21 (review L11): a 42501 may be Postgres's own 'permission denied for function ...'; only our own sentences
+    // go back as they are, anything else gets a fixed one, and the code is still logged
+    if (status === 403 && !FILM_403_SAID.has((e as Error).message)) {
+      console.error(`film-page 42501: ${(e as Error).message}`);
+      return reply(403, { error: "This film can't be published from your account." });
+    }
     if (status) return reply(status, { error: (e as Error).message });
     console.error(`film-page: ${(e as Error).message}`);
     return reply(500, { error: "Couldn't publish just now. Try again in a minute." });

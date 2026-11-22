@@ -344,6 +344,29 @@ class Uploads(core.Base):
         self.admin("update datasets set status = 'rejected', last_activity_at = now() - interval '2 days' where id = %s returning 1", d)
         self.assertIn(str(d), svc())
 
+    def test_GEO_an_upload_never_finished_goes_a_day_after_its_slot_was_made(self):
+        # GEO 11-21 (review L6): the tab closed after the file was stored but before finish_upload
+        old, old_path = self.create()
+        self.put_file(old_path)
+        fresh, fresh_path = self.create()
+        self.put_file(fresh_path)
+        done, _ = self.uploaded()
+        empty, empty_path = self.create()                                           # the file never arrived at all
+        for ds in (old, done, empty):
+            self.admin("update datasets set created_at = now() - interval '25 hours', last_activity_at = now() where id = %s returning 1", ds)
+        svc = lambda: self.db.as_("service")                                     # as_ sets the role on one shared connection: ask each time
+        due = sorted(str(r[0]) for r in svc().all("select dataset_id from uploads_due_for_deletion()"))
+        self.assertEqual(due, sorted([str(old), str(empty)]))   # MUST-FAIL: before the fix an unfinished upload was never listed
+        # the sweep's order: the file first, then the row only once the file is gone
+        self.assertEqual(svc().one("select mark_uploads_removed(%s::uuid[])", [old]), 0)
+        self.admin("delete from storage.objects where bucket_id = 'ryagram-uploads' and name = %s returning 1", old_path)
+        self.assertEqual(svc().one("select mark_uploads_removed(%s::uuid[])", [old, empty]), 2)
+        self.assertEqual(self.admin("select storage_path is null and deleted_at is not null from datasets where id = %s", old), True)
+        with self.assertRaises(psycopg.Error):                                      # the slot is closed: a late file cannot land
+            self.put_file(empty_path)
+        self.assertEqual(svc().all("select dataset_id from uploads_due_for_deletion()"), [])
+        self.assertEqual(self.admin("select count(*) from storage.objects where name = %s", fresh_path), 1)   # under a day: kept
+
     def test_a_render_in_progress_blocks_deletion_and_only_the_service_role_sweeps(self):
         ds, _ = self.uploaded()
         _, vid = self.project_version()
@@ -376,6 +399,20 @@ class Uploads(core.Base):
         _, vid = self.project_version()
         self.job(vid, ds, "contact_sheet", "queued")
         self.assertGreater(self.admin("select last_activity_at from datasets where id = %s", ds), before)
+
+    # -- GEO 11-21 (CC1 12:36 G1): the live-steps after-checks and the rollbacks of GEO's migrations
+    def g1_check(self, name):
+        f = next((core.ROOT / "live-steps").glob("*_" + name + "_after_check.sql"))
+        return [bool(r[1]) for r in self.db.as_(None).c.execute(f.read_text(encoding="utf-8")).fetchall()]
+
+    def g1_rollback(self, name):
+        f = next((core.ROOT / "rollbacks").glob("*_" + name + "_rollback.sql"))
+        self.db.as_(None).c.execute(f.read_text(encoding="utf-8"))
+
+    def test_GEO_g1_after_check_true_then_the_rollback_puts_the_old_body_back(self):
+        self.assertEqual(self.g1_check("unfinished_uploads_purged"), [True] * 3)
+        self.g1_rollback("unfinished_uploads_purged")
+        self.assertEqual(self.g1_check("unfinished_uploads_purged"), [False, True, True])
 
 
 if __name__ == "__main__":

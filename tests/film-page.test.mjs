@@ -135,6 +135,17 @@ test('owners publish through the function; the summary is built server-side from
   res = await post(unfinished.deps, { version_id: V });
   assert.equal(res.status, 403);
   assert.match((await res.json()).error, /finished film/);
+  // GEO 11-21 (review L11): Postgres's own 42501 text never reaches the person; our own sentences still do
+  const quiet = console.error; console.error = () => {};
+  const raw = world({ publishContext: async () => { throw Object.assign(new Error('permission denied for function film_publish_context'), { code: '42501' }); } });
+  res = await post(raw.deps, { version_id: V });
+  console.error = quiet;
+  assert.equal(res.status, 403);
+  const said = (await res.json()).error;
+  assert.doesNotMatch(said, /permission denied|film_publish_context/);   // MUST-FAIL: before the fix the raw text went back
+  assert.equal(said, "This film can't be published from your account.");
+  const gone = world({ publishContext: async () => { throw Object.assign(new Error("This film's files are no longer stored, so it can't be published."), { code: '42501' }); } });
+  assert.match((await (await post(gone.deps, { version_id: V })).json()).error, /no longer stored/);
   const noReceipt = world({ readFile: async () => 'not json' });
   assert.equal((await post(noReceipt.deps, { version_id: V })).status, 409);
   assert.equal(noReceipt.published.length, 0);

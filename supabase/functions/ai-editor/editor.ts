@@ -54,6 +54,9 @@ function cors(origin: string | null, allowed: string[]): Record<string, string> 
 
 const textOf = (content: any[]) => content.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
 
+// the 42501 sentences our own SQL raises on purpose for the person (20260929000600_ai_editor.sql)
+const EDITOR_403_SAID = new Set(["The worker account can't use the editor."]);
+
 export async function handle(req: Request, deps: Deps): Promise<Response> {
   const origin = req.headers.get("origin");
   const headers = cors(origin, deps.allowedOrigins);
@@ -81,8 +84,16 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     turnId = await deps.store.reserveTurn(user.id, session.id);
     ctx = await deps.store.turnContext(turnId);
   } catch (e) {
-    const status = statusOf(e) ?? ((e as { code?: string })?.code === "42501" ? 403 : 500);
-    return reply(status, { error: status === 500 ? "The editor couldn't start." : (e as Error).message });
+    const code = (e as { code?: string })?.code ?? "";
+    const status = statusOf(e) ?? (code === "42501" ? 403 : 500);
+    if (status === 500) return reply(500, { error: "The editor couldn't start." });
+    // GEO 11-21 (review L11): a 42501 may be Postgres's own 'permission denied for function ...'; only our own sentence
+    // (ai_session_for) goes back as it is, anything else gets a fixed one, and the code is still logged
+    if (code === "42501" && !EDITOR_403_SAID.has((e as Error).message)) {
+      console.error(`ai-editor 42501: ${(e as Error).message}`);
+      return reply(403, { error: "You can't use the editor on this film." });
+    }
+    return reply(status, { error: (e as Error).message });
   }
 
   try {
