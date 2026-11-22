@@ -55,10 +55,31 @@ class DeleteRevokesAi(core.Base):
         f = next((core.ROOT / "rollbacks").glob("*_" + name + "_rollback.sql"))
         self.db.as_(None).c.execute(f.read_text(encoding="utf-8"))
 
+    def tombstone_live(self):
+        """True when 20261121000600's account_request_deletion (it clears prepared_data) is the live body, as on train 4."""
+        return self.db.as_(None).one("select prosrc like '%public.prepared_data%' from pg_proc where proname = 'account_request_deletion'")
+
     def test_GEO_g1_after_check_true_then_the_rollback_puts_the_old_body_back(self):
+        # In the launch paper's undo order (3a item 1): 000600 is undone FIRST when it is applied, then 000550 (CC1 13:20: on the
+        # combined train 4 tree the old test hit 000550's own guard)
         self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)
+        if self.tombstone_live():
+            self.g1_rollback("prepared_tombstone")
+            self.assertFalse(self.tombstone_live())
+            self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)      # undoing 000600 keeps the AI revoke (its body is 000550's)
         self.g1_rollback("delete_revokes_ai")
         self.assertEqual(self.g1_check("delete_revokes_ai"), [False, True, True])
+
+    def test_GEO_g1_the_rollback_refuses_while_000600_is_live_and_changes_nothing(self):
+        if not self.tombstone_live():
+            self.skipTest("20261121000600 is not in this tree; its guard is tested where it is")
+        c = self.db.as_(None).c
+        with self.assertRaises(Exception) as e:
+            self.g1_rollback("delete_revokes_ai")
+        c.execute("rollback")
+        self.assertIn("Undo 000600 first", str(e.exception))
+        self.assertTrue(self.tombstone_live())                                        # nothing changed: the whole file is one transaction
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)
 
 
 if __name__ == "__main__":
