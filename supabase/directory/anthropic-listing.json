@@ -23,7 +23,7 @@
     "Ask for a contact sheet or a 10-second preview of the saved story and get the link to watch it.",
     "Ask your AI to change colours and styles, or reorder clips, in the editor you have open, and undo it."
   ],
-  "before_you_connect": "A Ryagram account that has been invited to connect an AI (invite-only for now). You sign in on Ryagram's own page and choose the permissions.",
+  "before_you_connect": "A Ryagram account that is allowed to connect an AI (Account, then Connected AIs, shows when it is). You sign in on Ryagram's own page and choose the permissions.",
   "data_handling": {
     "what_the_assistant_can_read": "Project titles, film stories, job states, and only if the person ticks it, the names and times in an editor's clip list.",
     "what_it_cannot_see": "The person's videos, pictures, sound, file locations, credit history or payment details.",

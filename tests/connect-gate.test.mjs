@@ -55,9 +55,9 @@ test('WIRING: the section and the route both go through connectAllowed, which ne
   assert.match(read('assets/ryagram-config.js'), /connectAi: true,/);
 });
 
-test('PLAIN LINE (CC1 LOW-2): a not-invited account that follows a consent link sees "Connecting an AI is by invitation for now." under a Connect an AI heading, not a blank page', () => {
+test('PLAIN LINE (CC1 LOW-2): an account that may not connect and follows a consent link sees "Connecting an AI is not open to your account yet." under a Connect an AI heading, not a blank page', () => {
   const src = read('assets/app-connect.js');
-  assert.match(src, /const INVITE_ONLY = 'Connecting an AI is by invitation for now\.';/);
+  assert.match(src, /const INVITE_ONLY = 'Connecting an AI is not open to your account yet\. To ask for it, write to ryagram@uselai\.com\.';/);
   const view = src.slice(src.indexOf('function inviteOnlyView'), src.indexOf('return { consentView, connectedSection, inviteOnlyView }'));
   assert.match(view, /h\('h1', \{ tabindex: '-1' \}, 'Connect an AI'\)/);
   assert.match(view, /role: 'status' \}, INVITE_ONLY\)/);
