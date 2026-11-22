@@ -18,7 +18,7 @@ test('F4: the free-preview rule says what credits_ledger.sql does (6 a project, 
   assert.match(sql, /free_previews_per_24h int not null default 15,/);
   assert.match(sql, /'preview_extra', 1, null/);
   assert.match(sql, /and not \(state = 'failed' and error_class = 'infrastructure'\)/, 'only an infrastructure failure is not counted');
-  const RULE = 'Each project gets 6 free previews, and you get 15 free previews in any 24 hours across all your projects. After that a preview costs 1 credit. A free preview that fails because of your story still counts.';
+  const RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';
   const check = lib => {
     assert.ok(lib.includes(`const FREE_PREVIEW_RULE = '${RULE}';`));
     assert.ok(lib.includes("'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE"));
