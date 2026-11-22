@@ -50,7 +50,8 @@ W.MUTANTS[:] = [
     # 11-22 (GEO): keeps failed_age's top_old text (it refuses to run unless it finds it once); a later duplicate key wins in
     # jsonb_build_object, so the read carries retry = null whatever the answer is
     ("a failed picture's read does not carry the answer", "'fail_detail', r.fail_detail, 'retry', retry,", "'fail_detail', r.fail_detail, 'retry', retry, 'retry', null,"),
-    ("a failed refresh's read does not carry the answer", "'fail_code', r.fail_code, 'retry', retry) end,", "'fail_code', r.fail_code) end,"),
+    # 11-22 (GEO): keeps failed_age's ref_old exact (it refuses to run unless it finds it once); jsonb '- key' drops retry afterwards
+    ("a failed refresh's read does not carry the answer", "'fail_code', r.fail_code, 'retry', retry) end,", "'fail_code', r.fail_code, 'retry', retry) - 'retry' end,"),
     ("the oldest card is shown, not the newest", "order by (story_sha256 = cur) desc, finished_at desc limit 1;", "order by finished_at asc limit 1;"),
     ("a claim does not mark the request claimed", "  update public.film_card_requests set state = 'claimed', claimed_at = now() where id = g.id;\n  return query", "  return query"),
     ("an abandoned claim never comes back", " or (state = 'claimed' and claimed_at < now() - interval '10 minutes')", ""),

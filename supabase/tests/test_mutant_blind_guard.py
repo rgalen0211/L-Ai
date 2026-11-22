@@ -48,6 +48,9 @@ class BlindGuard(unittest.TestCase):
         # the re-aimed fault keeps it -> not flagged
         kept = "'refresh', case when true then null else jsonb_build_object('state', r.state, 'retry', retry) end,"
         self.assertEqual(b.rewrite_hits([{"name": "m", "edits": [[EARLY, old, kept]]}], {EARLY: old, LATE: later}), [])
+        # MUST-FAIL: a fault that only cuts ACROSS the end of the searched text (film_card's 'a failed refresh's read') is flagged too
+        cut = [{"name": "m", "edits": [[EARLY, "'retry', retry) end,", "'retry', null) end,"]]}]
+        self.assertEqual([h[2] for h in b.rewrite_hits(cut, {EARLY: old, LATE: later})], [LATE])
         # a later file that does not rewrite live function text is not read
         self.assertEqual(b.rewrite_hits([{"name": "m", "edits": [[EARLY, old, "'refresh', null,"]]}], {EARLY: old, LATE: later.replace("pg_get_functiondef", "now")}), [])
 
