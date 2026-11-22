@@ -63,6 +63,90 @@ def blind_hits(mutants, texts):
                     continue
                 for n in later:
                     tx = texts[n]
-                    if any(line in tx[r.start():r.start() + WINDOW] for r in re.finditer(r"replace\(", tx)):
+                    if any(line in lit for r in re.finditer(r"replace\(", tx) for lit in _literals(tx[r.start():r.start() + WINDOW])):
                         hits.append((m["name"], line, n))
     return hits
+
+
+_LITERAL = re.compile(r"[Ee]?'((?:[^']|'')*)'")
+
+
+def _literals(window):
+    """The quoted SQL string literals in a window that starts at `replace(` (doubled quotes unescaped). Only text INSIDE a literal is what
+    a later replace() looks for; the later migration's own code near a replace() (its gate_apply line, another function's header) is not
+    (GEO 11-22: those were 30 false hits on train 4, and every one of the flagged mutants that ran was caught on an assertion)."""
+    out, end = [], 0
+    for m in _LITERAL.finditer(window):
+        out.append(m.group(1).replace("''", "'"))
+        end = m.end()
+    tail = window[end:]
+    if "'" in tail:                                   # a literal the window cuts off: its visible part still counts (WORKER 14:18 LOW)
+        out.append(tail[tail.index("'") + 1:].replace("''", "'"))
+    d = _DOLLAR_ARG.match(window)                     # a dollar-quoted searched argument, replace(def, $x$...$x$, ...): its body counts
+    if d:
+        close = window.find("$" + d.group(1) + "$", d.end())
+        out.append(window[d.end():close if close >= 0 else len(window)])
+    return out
+
+
+_DOLLAR_ARG = re.compile(r"replace\([^,']*,\s*\$(\w*)\$")    # only an ARGUMENT that opens with $tag$, never the do-block's own closing $do$
+
+
+# -- the second dead-fault class (WORKER and CONNECT 11-22): a fault planted in a function that a LATER migration defines AGAIN
+# (create or replace) is overwritten before the tests run, so the planted body never runs and the fault reads MISSED (or a later
+# fix reads as proven when it is not). Plant it in the LAST file that defines the function.
+_FN = re.compile(r"create\s+(?:or\s+replace\s+)?function\s+([\w.\"]+)\s*\(", re.I)
+
+
+_DOLLAR = re.compile(r"\$(\w*)\$")
+
+
+def _function_at(text, pos):
+    """The name (schema dropped) of the function whose definition holds position pos (from its header to its closing $tag$), or None
+    (a top-level statement after a function, such as a migration's own gate_apply line, is in no function)."""
+    last = None
+    for m in _FN.finditer(text, 0, pos):
+        last = m
+    if last is None:
+        return None
+    opener = _DOLLAR.search(text, last.end())
+    if opener and opener.start() < pos:
+        close = text.find(opener.group(0), opener.end())
+        if 0 <= close < pos:
+            return None
+    return last.group(1).replace('"', "").split(".")[-1].lower()
+
+
+def overwritten_hits(mutants, texts):
+    """[(mutant name, function, later migration)] for every edited line that sits in a function a LATER migration defines again
+    (same function name) with that same line. A line copied into a DIFFERENT function (r9's node_hit copies connect_anon_hit's
+    caller check) is not a hit: the name must match. Known limits (CONNECT 14:59, none on train 4 today): the match is by NAME, not
+    signature, so a later OVERLOAD carrying the same line is also flagged (an over-flag to look at, never a hidden miss); and a
+    function whose body is single-quoted instead of $tag$-quoted has no closing tag here, so its lines may be read as a later one's."""
+    hits = []
+    for m in mutants:
+        for path, old, new in m["edits"]:
+            mname = Path(path).name
+            if mname not in texts:
+                continue
+            own = texts[mname]
+            old_n = old.replace("\r\n", "\n")
+            at_old = own.find(old_n)                  # where THIS fault plants (a common line, e.g. a security definer header, occurs many times)
+            if at_old < 0:
+                continue
+            new_lines = {l.strip() for l in new.replace("\r\n", "\n").split("\n")}
+            for line in (l.strip() for l in old_n.split("\n")):
+                if len(line) < MIN_LINE or line.startswith("--") or line in new_lines:
+                    continue
+                fn = _function_at(own, at_old + old_n.find(line))
+                if fn is None:
+                    continue
+                for n in (x for x in texts if x > mname):
+                    tx = texts[n]
+                    at = tx.find(line)
+                    while at >= 0:
+                        if _function_at(tx, at) == fn:
+                            hits.append((m["name"], fn, n))
+                            break
+                        at = tx.find(line, at + 1)
+    return sorted(set(hits))
