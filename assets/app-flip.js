@@ -26,6 +26,9 @@
     const track = h('div', { class: 'flip-track' }, panels);
     const dots = list.map((s, i) => h('span', { class: 'flip-dot', 'aria-hidden': 'true' }));
     const viewport = h('div', { class: 'flip-viewport' }, track);
+    // The viewport is overflow:hidden, but the browser still scrolls it sideways when something inside asks to be seen (scrollIntoView on a section, focus on a field): the track is then shown at the wrong place
+    // and a stranger lands on the Help panel instead of Connected AIs (WEB walk 11-22, /app/#/account?connect=claude at 390 wide). Only the track's own transform may move panels: put any scroll back at once.
+    viewport.addEventListener('scroll', () => { if (viewport.scrollLeft !== 0) viewport.scrollLeft = 0; });
     const root = h('section', { class: 'flip', 'data-flip': '', 'aria-label': label },
       h('div', { class: 'flip-bar' }, prev, h('div', { class: 'flip-tabs', role: 'tablist', 'aria-label': label }, tabEls), next),
       viewport, h('div', { class: 'flip-dots' }, dots), where);
