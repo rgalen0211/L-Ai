@@ -8,7 +8,7 @@ import { LIMITS, type CallLog, type Data, type Deps, type Policy, type Principal
 /** chatEditor: the chat editor's tools exist only when this is true (the connector's second switch); otherwise they are "no such tool". */
 export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean; homePanel?: boolean; preparedData?: boolean; probe?: boolean }
 
-const NO_GRANT = "This Ryagram account is not enabled for AI connections (it is invite-only for now), or the connection was revoked. The person can ask Ryan for an invite or reconnect.";
+const NO_GRANT = "This Ryagram account cannot use AI connections right now, or the connection was revoked. The person can open Account, then Connected AIs, in the Ryagram app to reconnect; if Connected AIs is not there, connecting is not open to this account yet and they can write to Ryagram from the Help page to ask for it.";
 
 export async function callTool(name: string, rawArgs: unknown, principal: Principal, env: Env): Promise<ToolResult> {
   const { policy, data, deps } = env;
