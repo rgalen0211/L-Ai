@@ -9,9 +9,12 @@ export interface Deps {
   allowedOrigins: string[];
   siteUrl: string;
   reserve(email: string, ipHash: string): Promise<{ ok: boolean; reason?: string }>;
-  // Supabase Auth's admin invite. Throws with .code "email_exists" when the address already has an account.
-  invite(email: string, redirectTo: string): Promise<void>;
+  // Supabase Auth's admin invite. Throws with .code "email_exists" when the address already has an account. `data` becomes the new account's user metadata (the 18+ confirmation, which a database
+  // trigger copies into public.account_adult_confirmation the moment the account is made).
+  invite(email: string, redirectTo: string, data: { adult_confirmed: true }): Promise<void>;
 }
+
+export const ADULT_WORDS = "Confirm that you are 18 or older to make an account.";
 
 export const SENT = "If that email can join, a link to finish making your account is on its way. It works once. If it has not come in a few minutes, try again later. Already have an account? Sign in instead.";
 
@@ -33,10 +36,12 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (req.method !== "POST") return reply(405, { error: "Use POST." });
   if (!allowed) return reply(403, { error: "Not allowed from this page." });
 
-  let body: { email?: unknown };
+  let body: { email?: unknown; adult_confirmed?: unknown };
   try { body = await req.json(); } catch { return reply(400, { error: "Bad request." }); }
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 320) : "";
   if (!email) return reply(400, { error: "Enter your email address." });
+  // Ryan 11-21: Age 18+. The page's box is sent as adult_confirmed: true; only the boolean true counts (not "true", 1 or a missing field). Asked BEFORE the limits are used and before any email is sent, and it says nothing about which addresses have accounts.
+  if (body.adult_confirmed !== true) return reply(400, { error: ADULT_WORDS });
 
   // The caller's address, hashed: only used to slow down abuse, kept two days. NEVER a value the client can write: the platform's own cf-connecting-ip, else the LAST hop of
   // X-Forwarded-For (the one the platform's proxy appended). The same rule as redeem-invite, creator-beta and node.
@@ -52,7 +57,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     return reply(500, { error: "Something went wrong. Try again in a minute." });
   }
   try {
-    await deps.invite(email, `${deps.siteUrl}/app/`);
+    await deps.invite(email, `${deps.siteUrl}/app/`, { adult_confirmed: true });
     return reply(200, { message: SENT });
   } catch (e) {
     if ((e as { code?: string }).code !== "email_exists") console.error(`join invite: ${(e as Error).message}`);       // logged, never shown

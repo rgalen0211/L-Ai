@@ -17,8 +17,8 @@ serve((req) => handle(req, {
     if (error) throw new Error(error.message);
     return data;
   },
-  async invite(email, redirectTo) {
-    const { error } = await service.auth.admin.inviteUserByEmail(email, { redirectTo });
+  async invite(email, redirectTo, data) {
+    const { error } = await service.auth.admin.inviteUserByEmail(email, { redirectTo, data });
     if (error) {
       const exists = error.code === "email_exists" || /already (been )?registered/i.test(error.message);
       throw Object.assign(new Error(error.message), { code: exists ? "email_exists" : error.code });
