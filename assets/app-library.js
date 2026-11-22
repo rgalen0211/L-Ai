@@ -93,7 +93,7 @@
   // checkout checks keep their meaning) unless the address has ?buyingclosed, which shows the closed page there.
   const buyingOn = () => paymentsOn() && (window.ryagramConfig?.buyingOpen === true || (!!window.ryagramMock && !/[?&]buyingclosed/.test(location.search || '')));
   // DRAFT FOR RYAN: the words shown wherever buying would be, while buyingOn() is false.
-  const FREE_PREVIEW_RULE = 'Each project gets 6 free previews, and you get 15 free previews in any 24 hours across all your projects. After that a preview costs 1 credit. A free preview that fails because of your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
+  const FREE_PREVIEW_RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
   const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE;      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
   const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
 
@@ -386,7 +386,7 @@
       const filmsLink = myFilmsOn() && window.ryagramFilms ? h('a', { href: '#/films' }, 'All my films') : null;
       const looksLink = looksOn() ? h('a', { href: '#/looks' }, 'Your look') : null;
       const requestLink = requestsOn() ? h('a', { href: '#/request' }, 'Ask us to make a film') : null;
-      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews after the free ones. Contact sheets are free. ' + FREE_PREVIEW_RULE) : null;
+      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Contact sheets are free. Each project gets some free previews, then 1 credit each. The rule is on ', h('a', { href: '#/credits' }, 'Credits'), '.') : null;
       const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
       const aiInvited = startOn() ? await connectAllowed(data).catch(() => false) : false;               // the Ask your AI button only for an account the connector counts as invited (the Start strip's own rule); the page it opens does nothing for anyone else
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure

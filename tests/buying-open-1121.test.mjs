@@ -57,7 +57,7 @@ const closedViolations = view => {
   if (elements(view).some(e => e.tag === 'button' && /^(Buy|Subscribe)$/.test(e.textContent))) bad.push('a Buy/Subscribe button');
   if (/4242/.test(text)) bad.push('the test card');
   if (/Test mode/i.test(text)) bad.push('Test mode text');
-  if (!/Buying credits is not open yet\. Contact sheets are free\. Each project gets 6 free previews, and you get 15 free previews in any 24 hours across all your projects\. After that a preview costs 1 credit\. A free preview that fails because of your story still counts\./.test(text)) bad.push('the closed line is missing');
+  if (!/Buying credits is not open yet\. Contact sheets are free\. Each project gets 6 free previews \(15 across all projects in any 24 hours\); then 1 credit each\. A failed free one caused by your story still counts\./.test(text)) bad.push('the closed line is missing');
   if (!/10 credits for \$12/.test(text) || !/30 credits a month, \$24 a month/.test(text) || !/100 credits a month, \$69 a month/.test(text)) bad.push('the packs and plans are not listed');
   if (!/22 credits available/.test(text)) bad.push('the balance is missing');
   return bad;
@@ -148,7 +148,7 @@ test('WHAT A FILM COSTS: the data layer reads the CURRENT price versions final_*
 test('M1: no page says previews are always free; both states say contact sheets are free and so are the FIRST previews', async () => {
   for (const config of [{ buyingOpen: false }, { buyingOpen: true }]) {
     const text = textOf(await credits({ config, prices: TABLE }));
-    assert.match(text, /Contact sheets are free\. Each project gets 6 free previews, and you get 15 free previews in any 24 hours across all your projects\. After that a preview costs 1 credit\. A free preview that fails because of your story still counts\./);
+    assert.match(text, /Contact sheets are free\. Each project gets 6 free previews \(15 across all projects in any 24 hours\); then 1 credit each\. A failed free one caused by your story still counts\./);
     assert.doesNotMatch(text, /always free|previews are free/i);
   }
   assert.doesNotMatch(lib, /always free|Contact sheets and previews are free/);
