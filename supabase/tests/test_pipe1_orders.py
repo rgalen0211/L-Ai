@@ -386,6 +386,9 @@ class Orders(unittest.TestCase):
 # ---------------------------------------------------------------- MUST-FAILs (contract 8)
 
 MIGRATION = core.ROOT / "migrations" / "20261017000600_pipe1_orders.sql"
+#: render_orders_tick's LIVE body since 11-21 (WORKER's M2): the approval expiry is planted here, not in the first definition,
+#: which this later migration replaces (CC1 11-22 14:40: planted in pipe1_orders.sql, the fault was overwritten and never ran)
+EXPIRED_GONE = core.ROOT / "migrations" / "20261121000200_expired_films_really_gone.sql"
 MUTANTS = {
     # name: (file, [(before, after), ...], the scenario that must catch it) -- each fault planted IN FULL, as the contract
     # names it, so the scenario's own assertion catches it (an SQL error during setup does not count; see below)
@@ -412,7 +415,7 @@ MUTANTS = {
     "direct_final_skips_the_queue": (MIGRATION, [
         ("  if p_job_type = 'final_render' and not (select auto_render from public.ops_settings where id) then",
          "  if false then")], "scenario_direct_final_refused_while_auto_off"),
-    "expiry_skipped": (MIGRATION, [
+    "expiry_skipped": (EXPIRED_GONE, [
         ("awaiting_since < now() - make_interval(days => n_days)", "awaiting_since < now() - make_interval(days => n_days) and false")],
         "scenario_expiry_releases"),
 }
@@ -420,6 +423,19 @@ MUTANTS = {
 
 class MustFail(unittest.TestCase):
     """Each planted fault is built into its own database; the scenario guarding it must FAIL there."""
+
+    def test_no_planted_fault_is_overwritten_by_a_later_file(self):
+        """DRIFT GUARD, no database (WORKER 11-22, CC1 14:40): a fault planted in a file whose text a LATER applied file
+        defines again (create or replace) is overwritten before the scenario runs, so the scenario passes and the runner
+        reports the fault as not caught, or worse, a later fix reads as proven. The text each fault edits must not appear
+        again in any file applied after its own (the apply order below: every migration, then the credits ledger)."""
+        order = [*core.MIGRATIONS, credits.LEDGER]
+        for name, (path, edits, _scenario) in MUTANTS.items():
+            with self.subTest(mutant=name):
+                later = order[order.index(path) + 1:]
+                for before, _after in edits:
+                    again = [p.name for p in later if before in p.read_text(encoding="utf-8")]
+                    self.assertEqual(again, [], f"{name}: plant it in the LAST file that defines it: {before[:60]}")
 
     def test_each_planted_fault_is_caught(self):
         for name, (path, edits, scenario) in MUTANTS.items():
