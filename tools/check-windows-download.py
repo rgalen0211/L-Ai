@@ -5,6 +5,7 @@ shows its plain sentence and follows nothing. Desktop and phone. Writes screensh
 
     python tools/check-windows-download.py [outdir]     (default D:/Ryagram-scratch/WEB/windows-download-shots)
 """
+import re
 import http.server
 import socketserver
 import sys
@@ -73,7 +74,7 @@ def main():
                         errs = []
                         p.on('pageerror', lambda e: errs.append(str(e)))
                         p.goto(f'http://127.0.0.1:{PORT}/app/{query}#/account', wait_until='load')
-                        card = p.locator('.windows-card')
+                        p.get_by_role('tab', name=re.compile('Windows')).click(); card = p.locator('.windows-card')
                         card.wait_for(timeout=20000)
                         t = card.inner_text()
                         label = 'download' if code is None else f'refusal {code}'

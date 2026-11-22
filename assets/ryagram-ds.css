@@ -3,7 +3,7 @@
    so it wins over the older sheets by specificity, not by !important. Behaviour: assets/ryagram-ds.js (contract in its header comment).
    MARKUP CONTRACT (PAGES-FLIP / EDITOR-PORT): .card, .btn (.primary .quiet .small), .badge (.ok .warn .soon), .field, .eyebrow, .lede, .display, .section, .grid .col-*, .cards-3;
    .flip > .flip-bar(.flip-arrow[data-flip-prev|next], .flip-tabs > .flip-tab[role=tab]) + .flip-viewport > .flip-track > .flip-panel[role=tabpanel][id] + .flip-dots > .flip-dot + .flip-hint;
-   .scroll-panel (a long list scrolls inside its own panel).
+   .scroll-panel (a long list scrolls inside its own panel); .wb (one-screen workbench: .wb-panel.left|.stage|.right|.timeline with header + .body, [data-collapse], .wb-resize[data-resize]).
    Scale: spacing 4 8 12 16 24 32 48 64 96 128 (--s1..--s10); type display 44-72, h1 32-48, h2 24-32, h3 20, body 16, small 14, caption 12; ONE content width 1120 + a 12-column grid. */
 
 body.ryagram-ds.ryagram-look{
@@ -199,6 +199,10 @@ body.ryagram-ds.ryagram-look .dept-card a:hover{text-decoration:underline}
 body.ryagram-ds.ryagram-look .dept-card p{grid-column:1/-1;margin:0;color:var(--ink-2);font-size:var(--t-small)}
 body.ryagram-ds.ryagram-look .dept-card .soon-tag{margin:0;justify-self:end}
 body.ryagram-ds.ryagram-look .dept-card-open{color:var(--ok)}
+body.ryagram-ds.ryagram-look .dept-card:first-child{grid-column:1/-1;align-content:center;min-height:260px;padding:var(--s7);background:linear-gradient(90deg,rgba(11,12,17,.96) 0,rgba(11,12,17,.82) 45%,rgba(11,12,17,.35) 100%),url(/assets/ryagram-hero-interstate.jpg) right center/cover no-repeat}
+body.ryagram-ds.ryagram-look .dept-card:first-child a{font:600 var(--t-h2)/1.2 var(--serif)}
+body.ryagram-ds.ryagram-look .dept-card:first-child p{max-width:34em;font-size:1rem}
+@media (max-width:700px){ body.ryagram-ds.ryagram-look .dept-card:first-child{padding:var(--s6);min-height:0} }
 body.ryagram-ds.ryagram-look .home-links{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s6);margin:var(--s6) 0 0;padding:0;list-style:none}
 body.ryagram-ds.ryagram-look .home-links a{display:inline-flex;align-items:center;min-height:44px;color:var(--ink-2);text-decoration:none;font-size:var(--t-small)}
 body.ryagram-ds.ryagram-look .home-links a:hover{color:var(--ink);text-decoration:underline}
@@ -226,4 +230,32 @@ body.ryagram-ds.ryagram-look .flip-dot::after{content:"";position:absolute;inset
 body.ryagram-ds.ryagram-look .flip-dot[aria-current=true]{background:var(--accent);transform:scale(1.25)}
 body.ryagram-ds.ryagram-look .flip-hint{font-size:var(--t-caption);color:var(--faint);text-align:center;margin:var(--s3) 0 0}
 body.ryagram-ds.ryagram-look .scroll-panel{max-height:min(52vh,420px);overflow:auto;padding-right:var(--s2);scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent;overscroll-behavior:contain}
+/* (b) workbench: ONE screen, no page scroll */
+body.ryagram-ds.ryagram-look.wb-page{height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
+body.ryagram-ds.ryagram-look.wb-page>header .container.nav{height:56px}
+body.ryagram-ds.ryagram-look .wb{flex:1 1 auto;min-height:0;display:grid;gap:var(--s2);padding:var(--s2);grid-template-columns:var(--wb-left,260px) minmax(0,1fr) var(--wb-right,300px);grid-template-rows:minmax(0,1fr) var(--wb-bottom,260px);grid-template-areas:"left stage right" "timeline timeline timeline"}
+body.ryagram-ds.ryagram-look .wb[data-left=collapsed]{--wb-left:44px}body.ryagram-ds.ryagram-look .wb[data-right=collapsed]{--wb-right:44px}body.ryagram-ds.ryagram-look .wb[data-bottom=collapsed]{--wb-bottom:44px}
+body.ryagram-ds.ryagram-look .wb-panel{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow-1);overflow:hidden}
+body.ryagram-ds.ryagram-look .wb-panel>header{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:var(--s2);padding:var(--s2) var(--s2) var(--s2) var(--s4);min-height:44px;border-bottom:1px solid var(--line)}
+body.ryagram-ds.ryagram-look .wb-panel>header h2,body.ryagram-ds.ryagram-look .wb-panel>header h3{font:650 var(--t-small)/1 var(--sans);letter-spacing:.02em;margin:0;color:var(--ink-2)}
+body.ryagram-ds.ryagram-look .wb-panel .body{flex:1 1 auto;min-height:0;overflow:auto;padding:var(--s4);overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+body.ryagram-ds.ryagram-look .wb-panel.left{grid-area:left}body.ryagram-ds.ryagram-look .wb-panel.stage{grid-area:stage}body.ryagram-ds.ryagram-look .wb-panel.right{grid-area:right}body.ryagram-ds.ryagram-look .wb-panel.timeline{grid-area:timeline}
+body.ryagram-ds.ryagram-look .wb-collapse{width:44px;height:44px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink-2);cursor:pointer;flex:0 0 auto}
+body.ryagram-ds.ryagram-look .wb[data-left=collapsed] .left .body,body.ryagram-ds.ryagram-look .wb[data-right=collapsed] .right .body,body.ryagram-ds.ryagram-look .wb[data-bottom=collapsed] .timeline .body{display:none}
+body.ryagram-ds.ryagram-look .wb[data-left=collapsed] .left>header,body.ryagram-ds.ryagram-look .wb[data-right=collapsed] .right>header{flex-direction:column;justify-content:flex-start;padding:var(--s2);gap:var(--s3);border-bottom:0}
+body.ryagram-ds.ryagram-look .wb[data-left=collapsed] .left>header h2,body.ryagram-ds.ryagram-look .wb[data-right=collapsed] .right>header h2,body.ryagram-ds.ryagram-look .wb[data-bottom=collapsed] .timeline>header h2{writing-mode:vertical-rl;transform:rotate(180deg)}
+body.ryagram-ds.ryagram-look .wb[data-bottom=collapsed] .timeline>header h2{writing-mode:horizontal-tb;transform:none}
+body.ryagram-ds.ryagram-look .wb-resize{position:absolute;z-index:3;background:transparent}
+body.ryagram-ds.ryagram-look .wb-resize.v{top:0;bottom:0;width:10px;cursor:col-resize}body.ryagram-ds.ryagram-look .wb-resize.h{left:0;right:0;height:10px;cursor:row-resize}
+body.ryagram-ds.ryagram-look .wb-resize.left{right:0}body.ryagram-ds.ryagram-look .wb-resize.right{left:0}body.ryagram-ds.ryagram-look .wb-resize.bottom{top:0}
+body.ryagram-ds.ryagram-look .wb-resize:hover,body.ryagram-ds.ryagram-look .wb-resize.drag,body.ryagram-ds.ryagram-look .wb-resize:focus-visible{background:rgba(255,138,61,.35)}
+body.ryagram-ds.ryagram-look .wb-stage-picture{position:relative;flex:1 1 0;min-height:0;overflow:hidden;background:var(--bg-2)}
+body.ryagram-ds.ryagram-look .wb-stage-picture>img,body.ryagram-ds.ryagram-look .wb-stage-picture>svg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+@media (max-width:900px){
+  body.ryagram-ds.ryagram-look.wb-page{height:auto;overflow:auto;display:block}
+  body.ryagram-ds.ryagram-look .wb{display:flex;flex-direction:column;padding:var(--s2)}
+  body.ryagram-ds.ryagram-look .wb-panel.stage{min-height:46vh}
+  body.ryagram-ds.ryagram-look .wb-panel .body{max-height:50vh}
+  body.ryagram-ds.ryagram-look .wb-resize{display:none}
+}
 @media (prefers-reduced-motion:reduce){ body.ryagram-ds.ryagram-look .hero .layer,body.ryagram-ds.ryagram-look .card,body.ryagram-ds.ryagram-look .film-card,body.ryagram-ds.ryagram-look .dept-card,body.ryagram-ds.ryagram-look .button,body.ryagram-ds.ryagram-look .btn,body.ryagram-ds.ryagram-look .flip-track,body.ryagram-ds.ryagram-look .film-thumb img{transition:none;transform:none!important} body.ryagram-ds.ryagram-look .button::after,body.ryagram-ds.ryagram-look .btn::after{display:none} }

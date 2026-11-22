@@ -4,6 +4,7 @@ ticked is refused in words; the browser goes ONLY to the address shown; the list
 
     python tools/check-connect.py [outdir]        (default D:/Ryagram-scratch/WEB/connect-shots)
 """
+import re
 import http.server
 import socketserver
 import sys
@@ -107,6 +108,7 @@ def main():
                 text = p.inner_text('.connected-list')
                 check('Claude' in text and 'See your projects' in text and 'last used never' in text, f'the list shows Claude with what it may do ({text[:60]!r})')
                 p.screenshot(path=str(OUT / f'connected-{name}.png'), full_page=True)
+                if p.get_by_role('tab', name=re.compile('Connected')).count(): p.get_by_role('tab', name=re.compile('Connected')).click()
                 # Disconnect asks IN the page since 11-20 (no window.confirm): No keeps the AI connected, Yes removes it.
                 p.get_by_role('button', name='Disconnect', exact=True).click()
                 p.wait_for_selector('[role=alertdialog]', timeout=10000)

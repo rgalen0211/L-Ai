@@ -26,9 +26,18 @@
     const track = h('div', { class: 'flip-track' }, panels);
     const dots = list.map((s, i) => h('span', { class: 'flip-dot', 'aria-hidden': 'true' }));
     const viewport = h('div', { class: 'flip-viewport' }, track);
+    // The viewport is overflow:hidden, but the browser still scrolls it sideways when something inside asks to be seen (scrollIntoView on a section, focus on a field): the track is then shown at the wrong place
+    // and a stranger lands on the Help panel instead of Connected AIs (WEB walk 11-22, /app/#/account?connect=claude at 390 wide). Only the track's own transform may move panels: put any scroll back at once.
+    viewport.addEventListener('scroll', () => { if (viewport.scrollLeft !== 0) viewport.scrollLeft = 0; });
     const root = h('section', { class: 'flip', 'data-flip': '', 'aria-label': label },
       h('div', { class: 'flip-bar' }, prev, h('div', { class: 'flip-tabs', role: 'tablist', 'aria-label': label }, tabEls), next),
       viewport, h('div', { class: 'flip-dots' }, dots), where);
+
+    // Put the chosen tab in the middle of the tab row. Measured only once the row is on the page (a row that opens on a later tab, e.g. ?connect=claude, was left showing tabs 1 to 3).
+    function centre() {
+      const tab = tabEls[at], row = tab.parentElement;
+      if (row && row.getBoundingClientRect) { const r = tab.getBoundingClientRect(), p = row.getBoundingClientRect(); row.scrollLeft += (r.left + r.width / 2) - (p.left + p.width / 2); }
+    }
 
     function go(n, { user = true } = {}) {
       const to = typeof n === 'string' ? ids.indexOf(n) : n;
@@ -41,8 +50,7 @@
       panels.forEach((p, k) => { p.setAttribute('aria-hidden', String(k !== at)); p.inert = k !== at; });
       prev.disabled = at === 0; next.disabled = at === list.length - 1;
       where.textContent = `${list[at].label}: ${at + 1} of ${list.length}`;
-      const tab = tabEls[at], row = tab.parentElement;
-      if (row && row.getBoundingClientRect) { const r = tab.getBoundingClientRect(), p = row.getBoundingClientRect(); row.scrollLeft += (r.left + r.width / 2) - (p.left + p.width / 2); }
+      centre();
       if (user && address) {
         try { const base = String(location.hash).replace(/[?&]section=[a-z0-9_-]*/i, ''); history.replaceState(null, '', `${base}${base.includes('?') ? '&' : '?'}section=${ids[at]}`); } catch { /* the address stays as it is */ }
       }
@@ -71,6 +79,7 @@
     }, { passive: true });
     root.dataset.flipBound = 'true';
     go(at, { user: false });
+    if (typeof setTimeout === 'function') for (const ms of [0, 120, 500]) setTimeout(() => { if (root.isConnected) centre(); }, ms);       // once the page has put the row on screen
     return { el: root, go, current: () => ids[at], destroy: () => document.removeEventListener('keydown', onKey) };
   }
 
