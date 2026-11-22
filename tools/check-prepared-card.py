@@ -100,7 +100,11 @@ def main():
                 p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 p.wait_for_selector('.uploads-panel', state='attached', timeout=15000)
-                adv = p.locator('details.advanced-panel')
+                # the card lives in the "Advanced" flip section (the version page is flip sections since 11-20): until its tab is chosen, the section is aria-hidden + inert and the flip viewport clips it, so
+                # no click can reach the card. A person flips to it the way they did to open the old collapsed Advanced block: the tab.
+                p.get_by_role('tab', name=re.compile(r'Advanced')).click()
+                p.wait_for_function('() => { const s = document.querySelector(".prepared-data"); const f = s && s.closest(".flip-panel"); return !!f && f.getAttribute("aria-hidden") === "false" && !f.inert; }', timeout=15000)
+                adv = p.locator('details.advanced-panel')                         # the pre-flip layout, kept so the check still reads on an older base
                 if adv.count() and adv.first.get_attribute('open') is None:
                     adv.first.locator('summary').first.click()
                 p.wait_for_selector('.prepared-data:not([hidden])', timeout=15000)
