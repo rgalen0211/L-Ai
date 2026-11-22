@@ -149,3 +149,27 @@ def overwritten_hits(mutants, texts):
                     if any(f.group(1).replace('"', "").split(".")[-1].lower() == fn for f in _FN.finditer(texts[n])):
                         hits.append((m["name"], fn, n))
     return sorted(set(hits))
+
+
+# -- the third dead-fault class (GEO 11-22, film_card 'the refresh request is never reported'): a later migration that REWRITES
+# live function text (pg_get_functiondef + replace) often keeps its search text in a constant (declare x constant text := '...')
+# and refuses to run unless it finds it; blind_hits only reads literals inside the replace() call and asks the opposite question
+# (is the removed line inside a literal). Here the searched literal is INSIDE the removed text.
+def rewrite_hits(mutants, texts):
+    """[(mutant name, searched text, later migration)] for every fault whose removed text CONTAINS a quoted string of MIN_LINE+
+    characters from a LATER migration that rewrites live function text (it calls pg_get_functiondef), when the fault's new text
+    no longer contains it: that later migration cannot find its text and refuses, so the fault errors and never counts."""
+    # comments stripped first: an apostrophe in a comment ("the function's") would pair the wrong quotes
+    rewriters = {n: [lit for lit in _literals(re.sub(r"--[^\n]*", "", tx)) if len(lit) >= MIN_LINE] for n, tx in texts.items() if "pg_get_functiondef" in tx}
+    hits = []
+    for m in mutants:
+        for path, old, new in m["edits"]:
+            mname = Path(path).name
+            old_n, new_n = old.replace("\r\n", "\n"), new.replace("\r\n", "\n")
+            for n, lits in rewriters.items():
+                if n <= mname:
+                    continue
+                for lit in lits:
+                    if lit in old_n and lit not in new_n:
+                        hits.append((m["name"], lit[:80], n))
+    return sorted(set(hits))

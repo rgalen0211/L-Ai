@@ -41,11 +41,15 @@ W.MUTANTS[:] = [
     ("an engine error is retried at once", "same.finished_at < now() - interval '10 minutes'", "same.finished_at < now() + interval '10 minutes'"),
     ("any failure is retried", "if same.state = 'failed' and same.fail_code = 'engine_error' and same.finished_at", "if same.state = 'failed' and same.finished_at"),
     ("a stale card is not called stale", "'stale', ok.story_sha256 <> cur,", "'stale', false,"),
-    ("the refresh request is never reported", "'refresh', case when ok.story_sha256 = cur or r.id is null then null else jsonb_build_object('state', r.state, 'fail_code', r.fail_code, 'retry', retry) end,", "'refresh', null,"),
+    # 11-22 (GEO): the fault keeps the text 20261119000100_film_card_failed_age.sql looks for (its ref_old, which it must find
+    # exactly once or it refuses to run), so the setup still applies and only the rule breaks: the refresh is always null
+    ("the refresh request is never reported", "'refresh', case when ok.story_sha256 = cur or r.id is null then null else jsonb_build_object('state', r.state, 'fail_code', r.fail_code, 'retry', retry) end,", "'refresh', case when true then null else jsonb_build_object('state', r.state, 'fail_code', r.fail_code, 'retry', retry) end,"),
     ("the read never says a failed picture may be asked for again", "  retry := r.id is not null and r.state = 'failed' and r.fail_code = 'engine_error' and r.finished_at < now() - interval '10 minutes';", "  retry := false;"),
     ("the read offers a new ask at once, not after ten minutes", "and r.fail_code = 'engine_error' and r.finished_at < now() - interval '10 minutes';", "and r.fail_code = 'engine_error' and r.finished_at < now() + interval '10 minutes';"),
     ("the read offers a new ask for any failure, not only an engine error", "r.state = 'failed' and r.fail_code = 'engine_error' and r.finished_at < now() - interval '10 minutes';", "r.state = 'failed' and r.finished_at < now() - interval '10 minutes';"),
-    ("a failed picture's read does not carry the answer", "'fail_detail', r.fail_detail, 'retry', retry,", "'fail_detail', r.fail_detail,"),
+    # 11-22 (GEO): keeps failed_age's top_old text (it refuses to run unless it finds it once); a later duplicate key wins in
+    # jsonb_build_object, so the read carries retry = null whatever the answer is
+    ("a failed picture's read does not carry the answer", "'fail_detail', r.fail_detail, 'retry', retry,", "'fail_detail', r.fail_detail, 'retry', retry, 'retry', null,"),
     ("a failed refresh's read does not carry the answer", "'fail_code', r.fail_code, 'retry', retry) end,", "'fail_code', r.fail_code) end,"),
     ("the oldest card is shown, not the newest", "order by (story_sha256 = cur) desc, finished_at desc limit 1;", "order by finished_at asc limit 1;"),
     ("a claim does not mark the request claimed", "  update public.film_card_requests set state = 'claimed', claimed_at = now() where id = g.id;\n  return query", "  return query"),

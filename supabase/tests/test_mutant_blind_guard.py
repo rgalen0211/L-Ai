@@ -29,6 +29,28 @@ class BlindGuard(unittest.TestCase):
         self.assertGreater(total, 150)
         self.assertEqual(hits, [], "these mutants remove text a later migration looks for with replace(), so their setup would refuse to run (an error, never a catch): comment the text out instead of deleting it, or keep it in the new text")
 
+    def test_no_mutant_removes_text_a_later_rewrite_looks_for_by_constant(self):
+        # GEO 11-22: film_card 'the refresh request is never reported' errored on train 4 because film_card_failed_age keeps its
+        # search text in a declared constant and refuses when it is gone
+        texts = b.migration_texts(ROOT)
+        hits = []
+        for name in b.runner_names(ROOT):
+            hits += [(name,) + h for h in b.rewrite_hits(b.runner_mutants(ROOT, name), texts)]
+        self.assertEqual(hits, [], "these faults remove text a later migration searches for (a declared constant) before rewriting a live function, so its setup refuses: keep that text in the fault's new text")
+
+    def test_the_rewrite_check_flags_a_searched_constant_the_fault_removes(self):
+        later = ("do $do$\ndeclare\n  def text;\n  ref_old constant text := 'jsonb_build_object(''state'', r.state, ''retry'', retry)';\nbegin\n"
+                 "  select pg_get_functiondef(f.oid) into def from pg_proc f where f.oid = to_regprocedure('public.f()');  -- the function's text\n"
+                 "  execute replace(def, ref_old, 'x');\nend $do$;\n")
+        old = "'refresh', case when ok then null else jsonb_build_object('state', r.state, 'retry', retry) end,"
+        # MUST-FAIL: the fault drops the searched text -> flagged, naming the later file (the apostrophe in the comment does not confuse it)
+        self.assertEqual([h[2] for h in b.rewrite_hits([{"name": "m", "edits": [[EARLY, old, "'refresh', null,"]]}], {EARLY: old, LATE: later})], [LATE])
+        # the re-aimed fault keeps it -> not flagged
+        kept = "'refresh', case when true then null else jsonb_build_object('state', r.state, 'retry', retry) end,"
+        self.assertEqual(b.rewrite_hits([{"name": "m", "edits": [[EARLY, old, kept]]}], {EARLY: old, LATE: later}), [])
+        # a later file that does not rewrite live function text is not read
+        self.assertEqual(b.rewrite_hits([{"name": "m", "edits": [[EARLY, old, "'refresh', null,"]]}], {EARLY: old, LATE: later.replace("pg_get_functiondef", "now")}), [])
+
     def test_no_mutant_plants_in_a_function_a_later_migration_defines_again(self):
         # GEO 11-22 (WORKER's and CONNECT's drift): a fault in a function that a later migration redefines never runs
         texts = b.migration_texts(ROOT)
