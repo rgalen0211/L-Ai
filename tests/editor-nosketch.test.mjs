@@ -180,7 +180,7 @@ test('WIRING: a person’s own film is a project in the address with no host and
   assert.match(SRC, /const realFilm = isData && !!routeProject && !window\.ryagramLiveHost && !bundleMode;/);
   assert.match(SRC, /\.\.\.\(realFilm \? extraLookRows\(\) : WAITING\.map\(/);
   assert.match(SRC, /if \(realFilm\) \{ drawNoSketch\(\); return; \}/);
-  assert.match(SRC, /if \(realFilm\) loadSheet\(\);/);
+  assert.match(SRC, /if \(realFilm\) \{ loadSheet\(\); loadTitle\(\); \}/);
   assert.match(SRC, /routeProject \? 'Edit your film' : isData \? 'Edit your film: obesity and fast food'/);
   assert.match(SRC, /\.\.\.\(realFilm \? \[view\] : \[view, cardOn \? cardBox : null, scrub, stripHolder, ticks,/, 'the made-up year slider, strip and ticks are not on the page for a real film');
   assert.match(SRC, /routeProject \? \(realFilm \? 'No drawing is made up for your film\. ' :/);

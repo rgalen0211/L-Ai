@@ -26,7 +26,7 @@ const mutants = [
   ["the light ramp shows the dark ends", AE, "light ? '#eef1f6' : '#232838'", "'#232838'"],
   ["a real film gets the waiting list", AE, 'realFilm ? extraLookRows() :', 'false ? extraLookRows() :'],
   ["a film in a host counts as the website's own", AE, '!window.ryagramLiveHost && !bundleMode;', '!bundleMode;'],
-  ["the film's own sheet is never looked for", AE, 'if (realFilm) loadSheet();', ''],
+  ["the film's own sheet is never looked for", AE, 'if (realFilm) { loadSheet(); loadTitle(); }', 'if (realFilm) { loadTitle(); }'],
   ["a real film is titled with the sample's name", AE, "routeProject ? 'Edit your film' : isData ?", "isData ?"],
   ["the link goes to a version, not the film", AE, '`#/p/${routeProject}`', '`#/v/${routeProject}`'],
   ["the sketch is drawn for a real film", AE, 'if (realFilm) { drawNoSketch(); return; }', ''],

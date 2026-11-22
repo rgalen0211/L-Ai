@@ -123,10 +123,10 @@ with sync_playwright() as pw:
         check(not errs, f'{name} phone: no page errors')
         ctx.close()
 
-    # ---- the other pages (Credits, My films, Tutorial; Account is not folded on this branch): measured to the bottom of the footer, the mock bar (a test artefact) hidden
+    # ---- the other pages (Account, Credits, My films, Tutorial): measured to the bottom of the footer, the mock bar (a test artefact) hidden
     cfg2 = re.sub(r":\s*'account'", ': true', cfg)
-    PAGE_LIMITS = {'Credits': (1.35, 1.5), 'My films': (1.4, 1.5), 'Tutorial': (1.4, 1.5), 'Help': (1.3, 1.5), 'Home': (1.4, 1.8)}
-    ROUTE = {'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build', 'Help': '#/help', 'Home': '#/'}
+    PAGE_LIMITS = {'Account': (1.5, 1.6), 'Credits': (1.35, 1.5), 'My films': (1.4, 1.5), 'Tutorial': (1.4, 1.5), 'Help': (1.3, 1.5), 'Home': (1.4, 1.8)}
+    ROUTE = {'Account': '#/account', 'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build', 'Help': '#/help', 'Home': '#/'}
 
     def foot(p):
         return p.evaluate("Math.round(document.querySelector('footer').getBoundingClientRect().bottom + scrollY)")
@@ -146,6 +146,12 @@ with sync_playwright() as pw:
             ctx, p, errs2 = open2(b, w, h_, ROUTE[name])
             if name == 'My films':
                 check(p.locator('.films-scroll').count() == 1 and p.evaluate("getComputedStyle(document.querySelector('.films-scroll')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: the film list scrolls in its own panel')
+            if name == 'Account':
+                check(p.locator('.flip-tab').count() >= 3, f'{name} {kind}: the account sections are tabs ({p.locator(".flip-tab").count()})')
+                if kind == 'desktop':
+                    p.locator('.flip-tab').first.click(); p.keyboard.press('ArrowRight'); p.wait_for_timeout(500)
+                    check(p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") >= 1, f'{name}: ArrowRight goes to the next section')
+                    check('section=' not in p.evaluate('location.hash'), f'{name}: the address keeps its own form (no section=)')
             if name == 'Credits':
                 check(p.locator('.flip-tab').count() in (0, 2), f'{name} {kind}: packs and plans are two tabs when both are on sale ({p.locator(".flip-tab").count()})')
                 for i in range(p.locator('.flip-tab').count()):

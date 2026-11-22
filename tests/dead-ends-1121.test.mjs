@@ -113,8 +113,8 @@ function commitPanel({ host = null, mock = false } = {}) {
   const started = [];
   const renderBox = { hidden: true, kids: [], replaceChildren(...k) { this.kids = k.flat(Infinity).map(x => (x == null || x === false || x === true ? String(x) : x)); } /* like the real DOM: null becomes the TEXT 'null' */, querySelector: () => ({ focus() {} }) };
   const btn = (label, cls, onclick) => h('button', { type: 'button', class: cls, onclick }, label);
-  const f = vm.runInNewContext(`(function (h, btn, host, window, renderBox, committedWords, startJob, startHostBuild, closeRender) { ${SHOW}; return { showCommit, renderPath }; })`, { Array, String });
-  const api = f(h, btn, host, { ryagramMock: mock ? {} : undefined }, renderBox, () => ['Line colour: blue'], () => started.push('fake'), () => started.push('host'), () => {});
+  const f = vm.runInNewContext(`(function (h, btn, host, window, renderBox, committedWords, startJob, startHostBuild, closeRender, formatFacts) { ${SHOW}; return { showCommit, renderPath }; })`, { Array, String });
+  const api = f(h, btn, host, { ryagramMock: mock ? {} : undefined }, renderBox, () => ['Line colour: blue'], () => started.push('fake'), () => started.push('host'), () => {}, () => []);   // formatFacts: the redesign's Format facts need a real film plan; none in this harness
   api.showCommit();
   return { box: wrap(renderBox.kids), started, api };
 }

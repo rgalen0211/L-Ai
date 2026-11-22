@@ -26,7 +26,8 @@
     const tracks = h('div', { class: 'le-film-tracks' });
     const keys = h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.');
     const colourBox = h('section', { class: 'le-film-colours', 'aria-labelledby': 'le-film-col-h' });
-    const el = h('div', { class: 'le-film' }, view, status, h('div', { class: 'le-scrub' }, playBtn, range, posText), tracks, keys, colourBox);
+    const scrub = h('div', { class: 'le-scrub le-scrub-bar' }, playBtn, range, posText);
+    const el = h('div', { class: 'le-film' }, view, status, scrub, tracks, keys, colourBox);
     let retry = null, store = null, plan = null, position = 0, timer = null, destroyed = false, lastSvg = false, rulerPaint = null, headBar = null;
     const fontsDone = new Set();
 
@@ -58,6 +59,7 @@
     function draw() {
       if (!store) return;
       posText.textContent = `${mmss(position)} / ${mmss(total())}`;
+      if (range.style.setProperty) range.style.setProperty('--p', `${Math.max(0, Math.min(100, (position / Math.max(0.001, total())) * 100)).toFixed(2)}%`);       // the played part of the scrub bar is filled
       range.setAttribute('aria-valuetext', `${mmss(position)} of ${mmss(total())}`);
       paintHead(); markTiles();
       if (!inRender(position)) { view.replaceChildren(h('p', { class: 'meta le-film-block' }, 'This part of your film is a title or a clip that is drawn when the film is made.')); lastSvg = false; say(''); return; }
@@ -135,8 +137,11 @@
       stripEl.replaceChildren(...kids); markTiles(); fillThumbs();
       if (!stripNote) { stripNote = h('p', { class: 'meta le-film-strip-note' }, 'Frames fill in as you play or move through the film.'); stripBar.parentElement.after(stripNote); }
     }
+    const mediaWatchers = [];
+    const media = () => tiles.filter(t => t.inR && thumbs.has(t.mid.toFixed(2))).map(t => ({ at: t.mid, label: mmss(t.mid), uri: thumbs.get(t.mid.toFixed(2)) }));
     function markTiles() { const n = tiles.length; if (!n) return; const at = Math.min(n - 1, Math.floor((position / Math.max(0.001, total())) * n)); for (const t of tiles) { const on = t.k === at; t.tile.classList.toggle('le-film-tile-on', on); t.tile.tabIndex = on ? 0 : -1; if (on) t.tile.setAttribute('aria-current', 'true'); else t.tile.removeAttribute('aria-current'); } }
     function setThumb(t, uri) {
+      for (const w of mediaWatchers) { try { w(); } catch { /* a watcher must never stop the strip */ } }
       let img = t.tile.querySelector('img');
       if (!img) { img = h('img', { alt: '', draggable: 'false' }); t.tile.replaceChildren(img); }
       img.src = uri;
@@ -183,7 +188,9 @@
         return false;
       }
     })();
-    return { el, ready, destroy() { destroyed = true; stop(); if (pumpTimer) clearInterval(pumpTimer); }, state: () => ({ position, plan, store }) };
+    return { el, ready, destroy() { destroyed = true; stop(); if (pumpTimer) clearInterval(pumpTimer); }, state: () => ({ position, plan, store }),
+      parts: { view, status, scrub, range, playBtn, posText, tracks, keys, colourBox },                     // the workbench (assets/app-editor-wb.js) places these in its own panels
+      media: { items: media, onChange: fn => { mediaWatchers.push(fn); }, seek: s => seekSeconds(s) } };
   }
 
   window.ryagramEditorFilm = { mount, mmss, progressLine };
