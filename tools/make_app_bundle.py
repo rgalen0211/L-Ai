@@ -271,8 +271,14 @@ def write_word_builder(out: Path, app_repo: Path) -> None:
 
 FORGE_BAT = "Open Ryagram (fill missing words).bat"
 FINDER_BAT = "Open phrase finder.bat"         # BUILDER 11-22: the phrase finder's first-run page, from the same folder and the same self-check
-FIRST_RUN_DOC = "README-FIRST-RUN.md"          # the kit's developer notes (Python, winget, INTERNAL): never in a customer's zip
 FORGE_EXTRA = "--song --song-forge"           # the second start file; the first one never passes --song-forge
+
+
+def recipes_only(folder, names) -> list:
+    """BUILDER 11-22: the kit's recipes travel without their developer notes (*.md: README-FIRST-RUN.md is Python, winget, INTERNAL;
+    TALKING-READING-HOWTO.md is the house AMV runbook) and without __pycache__. Anything else is copied, so a file that must never travel
+    still reaches the leak scan and refuses the build (check-app-bundle's recipes/x.log), never silently dropped."""
+    return [n for n in names if n == "__pycache__" or (n.lower().endswith(".md") and Path(folder, n).is_file())]
 
 
 def finder_bat_text(app_bat: str) -> str:
@@ -281,6 +287,8 @@ def finder_bat_text(app_bat: str) -> str:
     lines = app_bat.split("\r\n")
     end = next(i for i, ln in enumerate(lines) if ln == ")")                # the end of the self-check's 'if errorlevel 1 ( ... )'
     head = [ln.replace("title Ryagram", "title Ryagram phrase finder") for ln in lines[:end + 1]]
+    if not head[1].startswith("rem "):                                        # CONNECT 11-22 LOW: never overwrite a line that is not the remark
+        raise Refused("The app's start file changed shape (its second line is not the remark); the phrase finder's start file was not made.")
     head[1] = "rem Starts the phrase finder from THIS folder, with this folder's own Python. Nothing is installed; its index is kept in work\\library here."
     return "\r\n".join(head + ['set "RYAGRAM_LIBRARY_DIR=%~dp0work\\library"',
                                '"%~dp0python\\python.exe" -I "%~dp0tools\\open_phrase_finder.py" %*',
@@ -452,7 +460,7 @@ def build(a) -> dict:
         for rel in node_add:
             (out / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(node_kit / rel, out / rel)
-        shutil.copytree(kit / "recipes", out / "recipes", ignore=shutil.ignore_patterns("__pycache__", FIRST_RUN_DOC))
+        shutil.copytree(kit / "recipes", out / "recipes", ignore=recipes_only)
         if (kit / "docs").is_dir():
             shutil.copytree(kit / "docs", out / "docs")
         shutil.copy2(kit / "KIT-MANIFEST.json", out / "ENGINE-MANIFEST.json")

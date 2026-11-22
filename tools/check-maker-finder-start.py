@@ -78,17 +78,32 @@ with tempfile.TemporaryDirectory(prefix="mfs-") as td:
     check(r.returncode == 0 and "LIBRARY ARGS start --no-browser" in r.stdout,
           f"MUST-FAIL: under -I, from another folder, it runs ryagram.library start from the APP folder and passes its arguments on ({r.stdout.strip()[:80]!r})")
 
+try:
+    mb.finder_bat_text("@echo off\r\nsetlocal\r\nrem moved\r\nif errorlevel 1 (\r\n)\r\n")
+    refused = False
+except mb.Refused:
+    refused = True
+check(refused, "MUST-FAIL: CONNECT 11-22 LOW: an app start file whose second line is not the remark is refused, never overwritten")
+
 print("D. the kit's developer notes stay out")
 src = (ROOT / "tools" / "make_app_bundle.py").read_text(encoding="utf-8")
-check(mb.FIRST_RUN_DOC == "README-FIRST-RUN.md" and 'ignore=shutil.ignore_patterns("__pycache__", FIRST_RUN_DOC)' in src,
-      "MUST-FAIL: recipes/README-FIRST-RUN.md is left out when the kit's recipes are copied")
+check('shutil.copytree(kit / "recipes", out / "recipes", ignore=recipes_only)' in src,
+      "MUST-FAIL: the kit's recipes are copied through recipes_only (never the developer notes)")
 with tempfile.TemporaryDirectory(prefix="mfs-") as td:
     k = Path(td) / "recipes"
-    k.mkdir()
+    (k / "__pycache__").mkdir(parents=True)
     (k / "README-FIRST-RUN.md").write_text("INTERNAL", encoding="utf-8")
+    (k / "TALKING-READING-HOWTO.md").write_text("for whoever runs an AMV build", encoding="utf-8")
     (k / "every-time.json").write_text("{}", encoding="utf-8")
-    shutil.copytree(k, Path(td) / "out", ignore=shutil.ignore_patterns("__pycache__", mb.FIRST_RUN_DOC))
-    check(sorted(p.name for p in (Path(td) / "out").iterdir()) == ["every-time.json"], "the same copy rule keeps the recipes and drops only the notes")
+    (k / "Sam-First.JSON").write_text("{}", encoding="utf-8")
+    shutil.copytree(k, Path(td) / "out", ignore=mb.recipes_only)
+    check(sorted(p.name for p in (Path(td) / "out").iterdir()) == ["Sam-First.JSON", "every-time.json"],
+          "MUST-FAIL: the recipes travel; README-FIRST-RUN.md, TALKING-READING-HOWTO.md and __pycache__ do not")
+    check(mb.recipes_only(str(k), ["x.log", "NOTES.MD", "a.json"]) == ["NOTES.MD"] or mb.recipes_only(str(k), ["x.log", "NOTES.MD", "a.json"]) == [],
+          "CONTROL: the rule is called with names")
+    (k / "x.log").write_text("must reach the leak scan", encoding="utf-8")
+    check("x.log" not in mb.recipes_only(str(k), ["x.log"]),
+          "MUST-FAIL: any other file (recipes/x.log) is NOT dropped here, so the leak scan still sees it and refuses the build")
 
 if FAILED:
     print(f"FAILED: {len(FAILED)}")
