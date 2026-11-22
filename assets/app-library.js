@@ -1144,7 +1144,7 @@
       const facts = { data: h('p', { class: 'v' }, 'Loading…'), dataSub: h('p', { class: 's' }), credits: h('p', { class: 'v' }, creditsOn() ? '…' : 'Free'), creditsSub: h('p', { class: 's' }), job: h('p', { class: 'v' }, 'No jobs yet'), jobSub: h('p', { class: 's' }) };
       const onJobs = list => {
         const j = list[0];                                                   // newest first
-        facts.job.replaceChildren(j ? `${window.ryagramJobs.typeLabel(j.job_type)}: ${STATE_LABELS[j.state] || j.state}` : 'No jobs yet');
+        facts.job.replaceChildren(j ? `${window.ryagramJobs.typeLabel(j.job_type)}: ${window.ryagramJobs.STATE_LABELS[j.state] || STATE_LABELS[j.state] || j.state}` : 'No jobs yet');
         facts.jobSub.textContent = j ? (window.ryagramJobs.isActive(j) ? 'Working on it. This page updates itself.' : `Updated ${date(j.updated_at || j.created_at)}`) : 'Start with a contact sheet.';
       };
       const jobs = jobsPanel(v, {
