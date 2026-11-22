@@ -52,3 +52,21 @@ test('FLIP: a viewport already at zero is left alone (no scroll write that could
   viewport.fire('scroll');
   assert.equal(writes, 0);
 });
+
+test('FLIP: a row that opens on a later tab is centred on it once the page has put the row on screen (it was left showing tabs 1 to 3)', () => {
+  const timers = [];
+  const doc = new Node('document'); doc.addEventListener = () => {};
+  const ctx = { window: {}, document: doc, location: { hash: '#/account' }, history: { replaceState() {} }, matchMedia: () => ({ matches: false }), setTimeout: f => timers.push(f) };
+  vm.runInNewContext(read('assets/app-flip.js'), ctx);
+  const sections = ['a', 'b', 'c', 'd', 'e'].map(id => ({ id, label: id, el: h('div') }));
+  const flip = ctx.window.ryagramFlip.create({ h, sections, initial: 'e', address: false });
+  const row = flip.el.querySelector('.flip-tabs');
+  row.getBoundingClientRect = () => ({ left: 0, width: 300 });
+  row.kids.forEach((t, i) => { t.getBoundingClientRect = () => ({ left: i * 100 - row.scrollLeft, width: 90 }); });
+  assert.equal(row.scrollLeft, 0, 'nothing could be measured while the row was not on the page');
+  assert.ok(timers.length >= 1, 'a later try is queued');
+  for (const f of timers) f();
+  assert.ok(row.scrollLeft > 0, 'the last tab is brought into the row');
+  const r = row.kids[4].getBoundingClientRect();
+  assert.ok(r.left >= 0 && r.left + r.width <= 300, 'and it is wholly in view');
+});
