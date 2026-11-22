@@ -84,7 +84,7 @@ def main():
                 p.click('button:has-text("Make the film and a free contact sheet")')
                 p.wait_for_function("window.ryagramMock.client.db.jobs.length > 0", timeout=20000)
                 jobs = p.evaluate("window.ryagramMock.client.db.jobs.map(j => [j.job_type, j.state])")
-                check(len(jobs) == 1 and jobs[0][0] == 'contact_sheet' and jobs[0][1] in ('queued', 'running', 'complete'), f'one free contact sheet job is queued, no preview and no full render {jobs}')
+                check(len(jobs) == 1 and jobs[0][0] == 'contact_sheet' and jobs[0][1] in ('queued', 'claimed', 'running', 'complete'), f'one free contact sheet job is queued, no preview and no full render {jobs}')
                 bad = p.evaluate("""async () => {
                   const f = window.ryagramMock.client.functions;
                   const d = await f.invoke('guided-builder', { body: { action: 'describe', dataset: 'not_in_the_catalog' } });

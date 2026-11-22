@@ -3,6 +3,7 @@ JSON says what it leaves out), and the Help line after Delete. Writes screenshot
 
     python tools/check-account-basics.py [outdir]        (default D:/Ryagram-scratch/WEB/account-shots)
 """
+import re
 import http.server
 import json
 import socketserver
@@ -60,7 +61,10 @@ def main():
                 p.wait_for_selector('#acct-new-email', timeout=20000)
                 text = p.inner_text('#library')
                 check('null' not in text.split(), 'no stray "null" text')
-                check(text.index('Password') < text.index('Email address') < text.index('Download your data') < text.index('Delete your account') < text.index('Help'), 'order: Password, Email, Download, Delete, Help')
+                tabs = p.evaluate("[...document.querySelectorAll('.flip-tab')].map(t => t.textContent.replace(/^\d+/, ''))")
+                order = [next((i for i, t in enumerate(tabs) if k in t), -1) for k in ('Password', 'Email', 'Your data', 'Delete', 'Help')]
+                check(order == sorted(order) and -1 not in order, f'order (the section tabs): Password, Email, Download, Delete, Help {tabs}')
+                p.get_by_role('tab', name=re.compile('Email')).click()
                 p.fill('#acct-new-email', 'nope')
                 p.click('text=Send a confirmation link')
                 p.wait_for_selector('#library p.app-error:not([hidden])')
@@ -69,6 +73,7 @@ def main():
                 p.click('text=Send a confirmation link')
                 p.wait_for_selector('text=We sent a link to new@example.com')
                 check(p.input_value('#acct-new-email') == '', 'the field is cleared after sending')
+                p.get_by_role('tab', name=re.compile('Your data')).click()
                 with p.expect_download() as dl:
                     p.click('text=Download my account file')
                 d = dl.value

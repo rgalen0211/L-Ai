@@ -81,6 +81,9 @@ def run(pw, plant, shots):
         pg.wait_for_timeout(300)
         m = pg.evaluate(MEASURE)
         rows = m['rows']
+        # The design's first Departments card is a wide hero row (ryagram-ds.css .dept-card:first-child, WEB rollout 11-22): on desktop a first row of ONE card above rows of several is that card; the equal-width rule applies to every other card.
+        hero = len(rows) > 1 and len(rows[0]) == 1 and max(len(r) for r in rows[1:]) > 1
+        if hero: rows = rows[1:]
         same_row = all(max(c['w'] for c in r) - min(c['w'] for c in r) <= 1 and max(c['h'] for c in r) - min(c['h'] for c in r) <= 1 for r in rows)
         widths = [c['w'] for r in rows for c in r]
         same_col = max(widths) - min(widths) <= 1

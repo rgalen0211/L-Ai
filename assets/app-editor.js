@@ -211,6 +211,11 @@
         view.replaceChildren(...kids);
       }
       // The film's own latest contact sheet (else preview, else thumbnail), newest version first, from the same reads the film's own page uses. Nothing is asked of the engine and nothing is made.
+      // The page names THIS film (its own project title), never a sample's (Ryan 11-20): read once from the project; until then, and on a failed read, the plain 'Edit your film'.
+      async function loadTitle() {
+        if (!data || typeof data.getProject !== 'function') return;
+        try { const p = (await data.getProject(routeProject)).project; const t = p && String(p.title || '').slice(0, 120); if (t && !destroyedEditor) { title.textContent = t; title.dataset.film = '1'; document.title = `${t} | Edit | Ryagram`; } } catch { /* the plain title stays */ }
+      }
       async function loadSheet() {
         if (!data || typeof data.getProject !== 'function' || typeof data.getVersion !== 'function' || typeof data.fileUrl !== 'function') return;
         try {
@@ -391,6 +396,13 @@
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
       }
+      // Format (Ryan 11-20: Output leaves the stage): only what is TRUE of this film, read from its plan; the draft, the AI tools and the story carry no output change today, so no choice is offered here.
+      function formatFacts() {
+        const st = realFilm && filmEd && filmEd.state ? filmEd.state() : null, pl = st && st.plan;
+        if (!pl) return [];
+        return [h('h3', {}, 'Format'), h('ul', { class: 'le-format' }, h('li', {}, `Frame rate: ${pl.fps} frames a second.`), h('li', {}, `Length: ${mmss(pl.totalSeconds)} (${pl.totalFrames} frames).`)),
+          h('p', { class: 'meta' }, 'Shape and size (16:9 or 9:16, 1080p or 720p) are set when the film is made. Format changes are not available yet.')];
+      }
       const closeRender = () => { renderBox.hidden = true; renderBox.replaceChildren(); };
       // Which render path is real HERE: the person's own computer (host.render), or nothing yet. startJob() below is a MADE-UP job (2,820 invented frames, then 'Your film is ready'): it runs ONLY in mock mode
       // (the test mock, ?mock on localhost), never for a real account on the website (WEB dead-end sweep row 4, 11-21). With no real path the panel says so in plain words and offers no Start button.
@@ -403,6 +415,7 @@
         renderBox.hidden = false;
         renderBox.replaceChildren(h('h2', {}, path ? 'What will render' : NOT_IN_FILM_HEAD), h('p', { class: 'meta', id: 'le-render-draft-note' }, path ? 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.' : NOT_IN_FILM),
           h('ul', {}, committedWords().map(t => h('li', {}, t))),
+          ...formatFacts(),
           ...(path ? [] : [h('p', { class: 'form-note', id: 'le-render-soon', role: 'status' }, RENDER_SOON)]),
           h('div', { class: 'le-actions' }, ...(path === 'host' ? [btn('Start the render', 'primary', startHostBuild)] : path === 'mock' ? [btn('Start the render', 'primary', startJob)] : []), btn(path ? 'Not yet' : 'Close', 'secondary', closeRender)));
         renderBox.querySelector('button').focus();
@@ -895,7 +908,7 @@
       paint();
       paintForecast();
       if (cardOn) setTimeout(() => loadCard(true), 0);
-      if (realFilm) loadSheet();
+      if (realFilm) { loadSheet(); loadTitle(); }
       if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
         const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
         Promise.resolve().then(() => lookLoader(project)).then(b => {
@@ -936,6 +949,9 @@
         };
         window.ryagramEditorPro.mount({ h, root, ed, isData, project, transport: proTransport, lanes, rulerHolder, stopPlay, applyMany, draft, paint, selected: () => selected, locked: () => locked,
           markUnsaved: () => { saved = false; }, onPaint: f => { proPaint = f; }, onStop, filmEl: () => (filmEd ? filmEd.el : null) });
+      }
+      if (realFilm && filmEd && window.ryagramEditorWB && window.matchMedia) {   // the one-screen workbench (assets/app-editor-wb.js): only a person's own film with real frames; the other editors keep their page
+        window.ryagramEditorWB.mount({ h, root, filmEd, onStop, top: root.querySelector('.le-top'), title, pill, status, emptyNote, aiBox, banner, warns, lookPanel, renderBox, standin });
       }
       return root;
     }

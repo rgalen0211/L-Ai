@@ -975,7 +975,14 @@
         h('p', {}, 'This deletes your login, every project and version, every film and file, and any public film pages, at once. Renders must have finished first. If you’ve bought or used credits, those records are kept as financial records and your account is closed by hand within 30 days.'),
         delForm));
       if (helpSection) sections.push(helpSection);
-      return sections;
+      // the sections after the title and the 'signed in as' line are flip sections (Ryan 11-20: no long pages)
+      const SHORT = { 'Change password': 'Password', 'Email address': 'Email', 'Download your data': 'Your data', 'Delete your account': 'Delete account', 'Connected AIs': 'Connected AIs', 'Windows app': 'Windows app', 'Your computers': 'Computers' };
+      const rest = sections.slice(3).filter(Boolean);
+      const label = (el, i) => { const t = (el.querySelector && el.querySelector('h2, h3, summary') ? el.querySelector('h2, h3, summary').textContent : '').trim(); return SHORT[t] || t.slice(0, 22) || `Section ${i + 1}`; };
+      const parts = rest.map((el, i) => ({ id: `acct-${i}-${label(el, i).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, label: label(el, i), el }));
+      const wantOpen = connectApp ? parts.find(p => /connected/i.test(p.label)) : null;
+      const flip = parts.length > 1 ? window.ryagramFlip.create({ h, label: 'Your account', address: false, sections: parts, initial: wantOpen ? wantOpen.id : null }) : null;
+      return flip ? [...sections.slice(0, 3), flip.el] : sections;
     }
 
     // --- #/credits  packs and plans (Stripe Checkout; credits arrive through the webhook)
