@@ -15,7 +15,15 @@ test('the line shown to an account that may not connect says it is not open yet 
 });
 
 test('the consent page shows those words, not the server\'s invite-only reason, when the account is not allowed to connect', () => {
-  assert.match(code, /c && c\.invited === false \? INVITE_ONLY : c && c\.reason \? c\.reason : NOT_ALLOWED/);
+  assert.match(code, /c && c\.invited === false && !\/\^Administrator accounts cannot be connected\/\.test\(c\.reason \|\| ''\) \? INVITE_ONLY : c && c\.reason \? c\.reason : NOT_ALLOWED/);
+});
+
+test('an administrator who follows a consent link still reads the server\'s true sentence, not the not-open words (GAMES LOW)', () => {
+  const pick = (c) => (c && c.invited === false && !/^Administrator accounts cannot be connected/.test(c.reason || '') ? 'NOT_OPEN' : c && c.reason ? c.reason : 'NOT_ALLOWED');
+  assert.equal(pick({ allowed: false, invited: false, reason: 'Administrator accounts cannot be connected to an AI assistant.' }), 'Administrator accounts cannot be connected to an AI assistant.');
+  assert.equal(pick({ allowed: false, invited: false, reason: 'This Ryagram account is not enabled for AI assistants yet (invite-only for now).' }), 'NOT_OPEN');
+  assert.ok(code.includes("c && c.invited === false && !/^Administrator accounts cannot be connected/.test(c.reason || '')"), 'the page runs exactly that choice');
+  assert.match(read('supabase/migrations/20261018000100_connect_ai.sql'), /Administrator accounts cannot be connected to an AI assistant\./, 'the server still says it');
 });
 
 test('no customer-facing text in the connect screen says ask Ryan or invite-only (code comments aside)', () => {

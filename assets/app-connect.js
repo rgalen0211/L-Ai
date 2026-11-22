@@ -104,7 +104,7 @@
       let c;
       try { c = await data.connectConsentCheck(requestId); } catch (err) { return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), strip, h('p', { class: 'app-error', role: 'alert' }, err.message)]; }
       if (!c || c.allowed !== true) {
-        return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), strip, h('p', { class: 'app-error', role: 'alert' }, c && c.invited === false ? INVITE_ONLY : c && c.reason ? c.reason : NOT_ALLOWED),
+        return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), strip, h('p', { class: 'app-error', role: 'alert' }, c && c.invited === false && !/^Administrator accounts cannot be connected/.test(c.reason || '') ? INVITE_ONLY : c && c.reason ? c.reason : NOT_ALLOWED),
                 h('p', { class: 'form-note' }, 'Nothing was connected. You can close this page.')];
       }
       const error = errorLine();
