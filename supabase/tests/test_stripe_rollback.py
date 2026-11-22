@@ -1,6 +1,7 @@
 """The undo of phase-2b/stripe_refunds_disputes.sql (LAUNCH-LIVE-STEPS P3 / F6) on a local Postgres, GEO 2026-11-22.
 
-rollbacks/phase-2b_stripe_refunds_disputes_rollback.sql must put the database back EXACTLY as stripe_test_mode.sql left it:
+rollbacks/phase-2b_stripe_refunds_disputes_rollback.sql must put the database back EXACTLY as stripe_test_mode.sql left it
+(with gate_apply run after it, as on live):
 every function body and grant in public and ryagram_private, every column, every policy and every table grant. Run from the repo root:
     pgvenv/Scripts/python -m unittest supabase/tests/test_stripe_rollback.py -v
 """
@@ -47,6 +48,9 @@ def setUpModule():
         c.execute((ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8"))
         for path in [*core.MIGRATIONS, ledger.LEDGER, STRIPE]:
             c.execute(path.read_text(encoding="utf-8"))
+        # The 'before' is live's state: every migration applied after the 2B files re-runs gate_apply, so on live the ledger and
+        # Stripe tables already carry its account_gate policies and gated bodies (WORKER 13:57: without this the baseline was wrong)
+        c.execute("select ryagram_private.gate_apply()")
 
 
 def fresh(*texts):
@@ -85,19 +89,42 @@ class StripeRollback(unittest.TestCase):
     def test_GEO_after_the_undo_the_lock_can_be_applied_again(self):
         self.assertEqual(diff(fresh(text(DISPUTES)), fresh(text(DISPUTES), text(ROLLBACK), text(DISPUTES))), [])
 
-    def test_GEO_must_fail_an_undo_that_leaves_one_body_new_is_seen(self):
-        # MUST-FAIL: the rollback without its stripe_checkout_context statement leaves the new body (with buying_open), and
-        # without the column drop would also leave the column; this test's comparison must notice either
-        rb = text(ROLLBACK).replace("\r\n", "\n")
-        start = rb.index("create or replace function public.stripe_checkout_context(")
-        end = rb.index("$$;", rb.index("$$", start) + 2) + 3
-        partial = rb[:start] + rb[end:]
-        partial = partial.replace("alter table public.stripe_settings drop column buying_open;", "")
-        self.assertTrue(diff(fresh(), fresh(text(DISPUTES), partial)), "a partial undo went unnoticed")
+    def test_GEO_run_where_the_forward_file_never_ran_it_stops_and_changes_nothing(self):
+        # WORKER 13:57 LOW 3: the drops have no 'if exists', so the one-transaction file must stop and leave the database as it was
+        global _count
+        _count += 1
+        name = f"rb{_count}"
+        with psycopg.connect(_server.get_uri(), autocommit=True) as c:
+            c.execute(f"create database {name} template tmplrb")
+        with psycopg.connect(_server.get_uri(database=name), autocommit=True) as c:
+            before = [c.execute(q).fetchall() for q in SNAPSHOT]
+            with self.assertRaises(psycopg.Error):
+                c.execute(text(ROLLBACK))
+            c.execute("rollback")
+            self.assertEqual(diff(before, [c.execute(q).fetchall() for q in SNAPSHOT]), [])
 
-    def test_GEO_must_fail_an_undo_that_keeps_the_dispute_helper_is_seen(self):
-        rb = text(ROLLBACK).replace("drop function ryagram_private.stripe_dispute(text, text, jsonb);", "")
-        self.assertTrue(diff(fresh(), fresh(text(DISPUTES), rb)), "a left-over stripe_dispute went unnoticed")
+    def test_GEO_must_fail_an_undo_missing_any_one_of_its_six_parts_is_seen(self):
+        # MUST-FAIL, one part at a time (WORKER 13:57 LOW 1): each of the three restored bodies and each of the three drops,
+        # left out alone, must leave a difference this test's comparison sees
+        rb = text(ROLLBACK).replace("\r\n", "\n")
+
+        def body(head):
+            start = rb.index(head)
+            return rb[start:rb.index("$$;", rb.index("$$", start) + 2) + 3]
+
+        parts = {
+            "stripe_apply body": body("create or replace function public.stripe_apply("),
+            "stripe_refund body": body("create or replace function ryagram_private.stripe_refund("),
+            "stripe_checkout_context body": body("create or replace function public.stripe_checkout_context("),
+            "drop stripe_dispute": "drop function ryagram_private.stripe_dispute(text, text, jsonb);",
+            "drop stripe_partial_refunds": "drop table public.stripe_partial_refunds;",
+            "drop buying_open": "alter table public.stripe_settings drop column buying_open;",
+        }
+        before = fresh()
+        for name, part in parts.items():
+            with self.subTest(left_out=name):
+                self.assertEqual(rb.count(part), 1)
+                self.assertTrue(diff(before, fresh(text(DISPUTES), rb.replace(part, ""))), f"an undo without its {name} went unnoticed")
 
 
 if __name__ == "__main__":

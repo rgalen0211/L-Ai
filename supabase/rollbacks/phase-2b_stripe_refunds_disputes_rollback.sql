@@ -4,9 +4,14 @@
 -- (2) redeploy stripe-checkout and stripe-webhook from the commit before the buying lock (the new checkout reads buying_open,
 -- and reads a missing key as CLOSED, so with the new function deployed this undo would shut checkout for everyone).
 -- It puts public.stripe_apply, ryagram_private.stripe_refund and public.stripe_checkout_context back EXACTLY as
--- phase-2b/stripe_test_mode.sql defines them (copied from that file by script; create or replace keeps their grants),
--- then drops ryagram_private.stripe_dispute, the table public.stripe_partial_refunds and stripe_settings.buying_open.
--- LOST with them: the partial-refund records and the switch's value. Events already recorded in stripe_events stay as they are.
+-- phase-2b/stripe_test_mode.sql defines them (copied from that file; supabase/tests/test_stripe_rollback.py proves every
+-- function, grant, column and policy matches again; create or replace keeps their grants), then drops
+-- ryagram_private.stripe_dispute, the table public.stripe_partial_refunds and stripe_settings.buying_open.
+-- LOST with them: the partial-refund records and the switch's value. FIRST copy out what you want to keep:
+--   select * from public.stripe_partial_refunds;   (SQL Editor, then export the result). Events in stripe_events stay as they are.
+-- AFTER the undo buying is NO LONGER locked on the server: only the page's buyingOpen hides the buttons (LAUNCH-LIVE-STEPS 2a);
+-- for the free preview, delete the stripe-checkout function instead (2a b). Run only where the forward file ran: the drops
+-- have no 'if exists' on purpose, so on a database without it the whole file stops and changes nothing.
 -- Ends with gate_apply where it exists, like the file it undoes. The whole file is one transaction.
 begin;
 
