@@ -14,8 +14,9 @@ function world(reserveResult = { ok: true, redemption: 7 }, over = {}) {
     invite: async (email, redirectTo) => { calls.push(['invite', email, redirectTo]); return { userId: 'u-1' }; },
     ...over } };
 }
+const adult = (b) => (b && typeof b === 'object' && !Array.isArray(b) ? { adult_confirmed: true, ...b } : b);   // the page always sends the 18+ box (tests/connect-redeem-adult.test.mjs covers it missing)
 const post = (deps, body, headers = {}) => handle(new Request('https://x.supabase.co/functions/v1/redeem-invite', { method: 'POST',
-  headers: { origin: 'https://uselai.com', 'content-type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) }), deps);
+  headers: { origin: 'https://uselai.com', 'content-type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(adult(body)) }), deps);
 const hashOf = (w) => w.calls.find((c) => c[0] === 'reserve')[3];
 
 test('MUST FAIL (bug): a forged first X-Forwarded-For hop does not change who the caller is for the guess limit; the hop our proxy appended (the last) does', async () => {

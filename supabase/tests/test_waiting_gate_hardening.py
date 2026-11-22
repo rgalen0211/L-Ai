@@ -314,7 +314,7 @@ class Hardening(unittest.TestCase):
         with psycopg.connect(wa._server.get_uri(), autocommit=True) as c:
             c.execute(f"create database {self.name}old template tmplpre")
         with psycopg.connect(wa._server.get_uri(database=self.name + "old"), autocommit=True) as c:
-            for m in [wa.WAIT_MIG, *[p for p in wa.POST if p != HARDEN]]:
+            for m in [wa.WAIT_MIG, *[p for p in wa.POST if p != HARDEN and p.name < HARDEN.name]]:   # only the files BEFORE it: a later file (20261121000800_join_open.sql) redefines join_reserve, and "before" means before THIS file
                 c.execute(m.read_text(encoding="utf-8"))
             before = defs(c)
         self.assertEqual(len([1 for x, y in zip(before, after) if x != y]), 5, "the file really changed all five")

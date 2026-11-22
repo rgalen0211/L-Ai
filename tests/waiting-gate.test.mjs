@@ -187,7 +187,7 @@ test('approve-waiting: the email has a way out for someone whose address another
 
 // ---------------------------------------------------------------------------------------------------- join (Create an account, no code)
 const joinDeps = (over = {}) => ({ allowedOrigins: [ORIGIN], siteUrl: ORIGIN, reserve: async () => ({ ok: true }), invite: async () => {}, ...over });
-const anon = (body, extra = {}) => new Request('https://x.test/fn', { method: 'POST', headers: { origin: ORIGIN, 'content-type': 'application/json', ...extra }, body: JSON.stringify(body) });
+const anon = (body, extra = {}) => new Request('https://x.test/fn', { method: 'POST', headers: { origin: ORIGIN, 'content-type': 'application/json', ...extra }, body: JSON.stringify({ adult_confirmed: true, ...body }) });   // the page always sends the 18+ box (tests/connect-join-adult.test.mjs covers it missing)
 
 test('join: a mail failure (the Auth services own hourly email allowance run out) gives the SAME answer as a known and an unknown address, so it tells a stranger nothing', async () => {
   const bodies = [];
