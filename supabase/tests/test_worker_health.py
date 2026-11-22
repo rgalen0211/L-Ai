@@ -60,7 +60,12 @@ class WorkerHealth(core.Base):
         w = self.worker(d)
         self.assertEqual((w["state"], w["running"], w["last_claim_at"], w["last_engine_commit"]), ("unknown", None, None, None))
         self.assertIs(d["claims_enabled"], True)
-        self.assertEqual(d["disabled_job_types"], [])
+        # The health page reports exactly what control holds at start. That is NOT empty since 20261113000400_film_bundles.sql
+        # (live since 11-13): film_bundle and scene_bundle start OFF until the worker builds bundles (this test still wanted [],
+        # written 10-31, so it was red on live main too; CC1 11-22 15:33, WORKER).
+        held = self.db.as_(None).one("select array(select t::text from unnest(disabled_job_types) t order by 1) from public.control where id")
+        self.assertEqual(sorted(d["disabled_job_types"]), held)
+        self.assertEqual(held, ["film_bundle", "scene_bundle"], "only the two bundle types start off; every customer job type is on")
 
     def test_ok_delayed_and_off(self):
         self.ping()
