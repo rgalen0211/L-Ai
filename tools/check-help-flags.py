@@ -39,7 +39,8 @@ with sync_playwright() as pw:
     for _k in ('whyClip', 'lyricCards'):                                           # the switches the screens' entries need: flipped where the config has them, added where a branch does not yet
         if re.search(rf'\b{_k}:\s*false', song_cfg): song_cfg = re.sub(rf'\b{_k}:\s*false', f'{_k}: true', song_cfg)
         else: song_cfg = song_cfg.replace('window.ryagramConfig = Object.freeze({', f'window.ryagramConfig = Object.freeze({{ {_k}: true,', 1)
-    for label, cfg, shown in (('as shipped', base, ['How do I connect Claude']), ('all switches on', on_cfg, ['How do I connect Claude', 'change my film', 'get my data']), ('song film entries on', song_cfg, ['How do I connect Claude'] + SONG)):
+    UP = ['get my data'] if re.search(r'uploads:\s*true', base) else []                  # once uploads ships ON (the Q634 flip), the "get my data" answer is shown as shipped; while it ships off, it is hidden
+    for label, cfg, shown in (('as shipped', base, ['How do I connect Claude'] + UP), ('all switches on', on_cfg, ['How do I connect Claude', 'change my film', 'get my data']), ('song film entries on', song_cfg, ['How do I connect Claude'] + UP + SONG)):
         print(label)
         ctx = b.new_context(viewport={'width': 375, 'height': 800})
         ctx.route(re.compile(r'https://fonts\.(googleapis|gstatic)\.com/.*'), lambda r: r.abort())                  # no outside request: the page's web font is not needed here
