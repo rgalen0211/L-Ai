@@ -49,7 +49,8 @@ MUTANTS = [
     ("a connect function takes an owner id", "create function public.connect_final_enabled()",
      "create function public.connect_owner_peek(p_owner uuid) returns text language sql security definer set search_path = '' as $$ select email from auth.users where id = p_owner $$;\ngrant execute on function public.connect_owner_peek(uuid) to connect_runner;\ncreate function public.connect_final_enabled()"),
     ("the app-session guard against client_id tokens removed", "if nullif(auth.jwt() ->> 'client_id', '') is not null then", "if false then"),
-    ("an admin may consent", "and not exists (select 1 from public.app_admins ad where ad.user_id = p_owner)", ""),
+    # 11-22: the next five plant in the LATEST definition (a later migration redefines the function and overwrites the older text, so a fault planted in the first migration never ran and was reported MISSED)
+    ("an admin may consent", [("supabase/migrations/20261121000700_connect_ai_open_to_all.sql", "and not exists (select 1 from public.app_admins ad where ad.user_id = p_owner)", "")]),
     ("full render can be started from a connection", "raise exception 'Full renders cannot be started from an AI connection yet. Start it in the Ryagram app.' using errcode = '42501';",
      "select * into j from public.submit_job(p_version, 'final_render', '{}'::jsonb, p_sheet, p_preview); return jsonb_build_object('id', j.id, 'state', j.state);"),
     ("a locked version can be edited through a tool", "if v.state not in ('draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render') then\n    raise exception 'This version is locked",
@@ -67,18 +68,19 @@ MUTANTS = [
     ("free is not free: a costing job is submitted", "if coalesce((public.connect_quote(p_token_hash, p_version, p_job_type) ->> 'credits')::int, 0) > 0 then", "if false then"),
     # RE-AIMED (CONNECT 11-06): taking the clause OUT made the waiting-accounts migration refuse to run ('gate: connect_person_ok changed'), so the suite ERRORED and the runner (rightly) did not count a catch.
     # The clause is now commented out instead: its text is still there for that migration to find, but a worker is no longer refused, so the tests must FAIL on an assertion.
-    ("worker accounts can be connected", "     and not exists (select 1 from public.workers w where w.user_id = p_owner)\n", "     -- and not exists (select 1 from public.workers w where w.user_id = p_owner)\n"),
+    ("worker accounts can be connected", [("supabase/migrations/20261121000700_connect_ai_open_to_all.sql", "     and not exists (select 1 from public.workers w where w.user_id = p_owner)\n", "     -- and not exists (select 1 from public.workers w where w.user_id = p_owner)\n")]),
     ("unknown scopes default to everything offered", "if cardinality(want) = 0 then want := array['read']; end if;", "if cardinality(want) = 0 then want := ryagram_private.connect_offered_scopes(); end if;"),
     ("a deny redirects without the allowlist check", "if not ryagram_private.connect_uri_ok(r.redirect_uri) then\n    raise exception 'This assistant''s return address", "if false then\n    raise exception 'This assistant''s return address"),
     ("an admin function accepts a token with a client_id", "perform ryagram_private.connect_app_session();\n  if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;\n  select id into target",
      "if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;\n  select id into target"),
     ("client names may hold control or bidi characters", " or p_name ~ '[[:cntrl:]\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u2069\\ufeff]' then", " then"),
     ("no cap on open sign-in requests per client", "q.decided_at is null and q.expires_at > now()) >= 20 then", "q.decided_at is null and q.expires_at > now()) >= 2000000 then"),
-    ("the purge deletes rotated refresh rows early", "delete from public.connect_tokens where refresh_expires_at < now() - interval '1 day'",
-     "delete from public.connect_tokens where revoked_at < now() - interval '7 days' or refresh_expires_at < now() - interval '1 day'"),
-    ("unused clients are never purged", "delete from public.connect_clients c where c.created_at < now() - interval '7 days'", "delete from public.connect_clients c where false and c.created_at < now() - interval '7 days'"),
+    ("the purge deletes rotated refresh rows early", [("supabase/migrations/20261120000600_prepared_purge_daily.sql", "delete from public.connect_tokens where refresh_expires_at < now() - interval '1 day'",
+     "delete from public.connect_tokens where revoked_at < now() - interval '7 days' or refresh_expires_at < now() - interval '1 day'")]),
+    ("unused clients are never purged", [("supabase/migrations/20261120000600_prepared_purge_daily.sql", "delete from public.connect_clients c where c.created_at < now() - interval '7 days'", "delete from public.connect_clients c where false and c.created_at < now() - interval '7 days'")]),
     ("connect_log records any hash", "  if not found then return; end if;                    -- an unknown hash is not logged: anyone holding the runner credentials could flood the table\n", ""),
     ("consent shows the client's own name as the label", "'redirect_label', case when", "'redirect_label', c.name, 'unused', case when"),
+    # (GEO 11-22: connect_anon_hit is defined ONCE, in the connect migration; the r9 migration's copy of the line belongs to node_hit, a different function, so this fault stays aimed at the connect migration)
     ("connect_anon_hit accepts a caller that is not a hash", "p_caller is null or p_caller !~ '^[0-9a-f]{64}$' or ", ""),
     ("exchange does not re-check the person", "  if not ryagram_private.connect_person_ok(k.owner_id)\n     or not exists", "  if false\n     or not exists"),
     ("exchange does not re-check the grant", "g.owner_id = k.owner_id and g.client_id = k.client_id and g.revoked_at is null) then\n    return bad;", "g.owner_id = k.owner_id and g.client_id = k.client_id) then\n    return bad;"),
@@ -219,11 +221,14 @@ def one_run(label, mutate=None, env_override=None, failfast=False):
     (SCRATCH / "tests").mkdir(exist_ok=True)
     path = SCRATCH / MIG
     if mutate is not None:
-        old, new = mutate
-        text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
-        if old not in text:
-            return "broken", 0, 0
-        path.write_text(text.replace(old, new, 1), encoding="utf-8")
+        # 11-22: (old, new) in the connect migration, or a list of (migration path, old, new) for a rule whose LIVE definition is in a later migration (the older text is overwritten, so a fault planted there never runs)
+        edits = mutate if isinstance(mutate, list) else [(MIG, mutate[0], mutate[1])]
+        for rel, old, new in edits:
+            target = SCRATCH / rel
+            text = target.read_text(encoding="utf-8").replace("\r\n", "\n")
+            if old not in text:
+                return "broken", 0, 0
+            target.write_text(text.replace(old, new, 1), encoding="utf-8")
     mut_tmp = RUN_TMP / "t"
     mut_tmp.mkdir(exist_ok=True)
     trace = RUN_TMP / "pg-trace.txt"
@@ -259,11 +264,13 @@ def run(only=None, full=False):
             print("BASELINE FAILED: the unmutated tests must pass before any mutant means anything")
             return 2
         selected = [m for m in MUTANTS if not only or m[0] in only]
-        for name, old, new in selected:
-            verdict, f, e = one_run(name, (old, new), failfast=not full)
+        for m in selected:
+            name = m[0]
+            mut = m[1] if isinstance(m[1], list) else (m[1], m[2])
+            verdict, f, e = one_run(name, mut, failfast=not full)
             if verdict == "errored" and not full:
                 print(f"  ({name}: the fail-fast run ERRORED before any assertion failed; re-running it in full mode so the verdict does not depend on test order)", flush=True)
-                verdict, f, e = one_run(name, (old, new))
+                verdict, f, e = one_run(name, mut)
             if verdict == "caught":
                 print(f"caught  {name}  (assertion failures: {f})")
             elif verdict == "broken":
@@ -386,8 +393,18 @@ def selftest_failfast():
 
 def broken_targets():
     """Names of mutants whose target text is not in the migration EXACTLY ONCE (LF text), or whose replacement equals it. Fast: no database."""
-    text = (ROOT / MIG).read_text(encoding="utf-8").replace("\r\n", "\n")
-    return [name for name, old, new in MUTANTS if text.count(old) != 1 or old == new]        # exactly once: replace(old, new, 1) must hit the function meant
+    texts = {}
+
+    def txt(rel):
+        if rel not in texts:
+            texts[rel] = (ROOT / rel).read_text(encoding="utf-8").replace("\r\n", "\n")
+        return texts[rel]
+    bad = []
+    for m in MUTANTS:
+        edits = m[1] if isinstance(m[1], list) else [(MIG, m[1], m[2])]
+        if any(txt(rel).count(old) != 1 or old == new for rel, old, new in edits):        # exactly once: replace(old, new, 1) must hit the function meant
+            bad.append(m[0])
+    return bad
 
 
 def duplicate_names():
