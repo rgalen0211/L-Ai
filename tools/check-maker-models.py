@@ -218,7 +218,7 @@ def main():
             wait_for(lambda x: x['done'] > 0)
             gate.set()
             st = wait_for(lambda x: x['state'] != 'running')
-            check(st['state'] == 'failed' and 'secret' not in st['message'] and 'Users' not in st['message'] and 'tell Ryan' in st['message'], 'MUST-FAIL: an unexpected error shows a plain sentence and no internal text or path')
+            check(st['state'] == 'failed' and 'secret' not in st['message'] and 'Users' not in st['message'] and 'contact the person or company that gave you this app' in st['message'], 'MUST-FAIL: an unexpected error shows a plain sentence and no internal text or path')
             gate.clear()
             plan['end'] = 'ok'
             post(f'{base}/api/model-download', {'model': 'small'}, 'tok')

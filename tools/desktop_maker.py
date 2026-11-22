@@ -41,12 +41,22 @@ PLAIN_MODELS = (
 )
 SHOW_ORDER = ("base", "small", "medium", "tiny")          # the quickest test goes last
 DEFAULT_MODEL = "small"     # Balanced: Ryan chose it on 2026-10-20 17:18 ("almost not worth doing anything less")
+#: BUILDER 11-21 (Ryan 10:11: sell what exists): who a person contacts when something goes wrong. A build names it (--support, from
+#: make_app_bundle --support-contact); plain characters only, so it is safe in the page and in its script. Never a name from the page.
+SUPPORT_DEFAULT = "the person or company that gave you this app"
+SUPPORT_OK = re.compile(r"^[A-Za-z0-9 .,@:/_\-]{1,120}$")
+
+
+def support() -> str:
+    return STATE.get("support") or SUPPORT_DEFAULT
+
+
 EXIT_HELP = {
     0: ("Done.", "Nothing more to do."),
-    1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
+    1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, send the lines below to {support}; nothing was kept as a film."),
     2: ("Refused: the recipe or one of the files is not right, so nothing was run.", "Read the lines below: they name the file or slot. Fix it, then press Plan again."),
     3: ("Nobody says some of these words in your videos.", "Try different words, or add more videos."),
-    4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell Ryan exactly what you chose, and send him the lines below."),
+    4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell {support} exactly what you chose, and send the lines below."),
     5: ("Cancelled.", "Anything half-made is in the work folder; no film was kept. Press Plan to start again."),
 }
 STATE = {"engine": None, "recipes": None, "work": None, "out": None, "token": "", "port": 0, "job": None, "planned": None, "R": None, "E": None}
@@ -251,7 +261,7 @@ def _model_dl_run(model: str, root: str, cancel) -> None:
     except md.ModelRefused as e:
         end, msg, ev = "failed", str(e), "model_download_failed"
     except Exception:  # noqa: BLE001
-        end, msg, ev = "failed", "Something unexpected went wrong with the download. Nothing was kept. Try again; if it happens again, tell Ryan.", "model_download_failed"
+        end, msg, ev = "failed", "Something unexpected went wrong with the download. Nothing was kept. Try again; if it happens again, contact " + support() + ".", "model_download_failed"
     with DL_LOCK:
         DL.update(state=end, message=msg, cancel=None)
     act(ev, model=model)
@@ -509,6 +519,7 @@ def _job_status() -> dict:
         what, nxt = EXIT_HELP[5]
         return {**base, "state": "cancelled", "words": what, "next": nxt}
     what, nxt = EXIT_HELP.get(code, EXIT_HELP[1])
+    nxt = nxt.replace("{support}", support())
     if code != 0:
         _discard_outputs(job)
     out = {**base, "state": "stopped", "code": code, "words": what, "next": nxt}
@@ -912,7 +923,12 @@ def _song_mod():
 
 def page_html() -> str:
     page = PAGE.replace('<section class="logbox" id="airq"', (LIVE_CARD if STATE.get("live_on") else "") + (SHARE_CARD if STATE.get("edit_on") else "") + (DOWNLOAD_CARD if STATE.get("data_on") else "") + '<section class="logbox" id="airq"', 1)     # the card sits with the other account cards, below the recipe, not above it
-    return page.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else "") + (LIVE_LINK if STATE.get("live_on") else ""))
+    return page.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else "") + (LIVE_LINK if STATE.get("live_on") else "")).replace("__SUPPORT__", support())
+
+
+def maker_js() -> str:
+    """the page script as served: its support line filled in (BUILDER 11-21)"""
+    return JS.replace("__SUPPORT__", support())
 
 
 def pick_recipe_file() -> str:
@@ -1144,11 +1160,11 @@ PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Desktop maker</title><link rel="stylesheet" href="/maker.css"></head>
 <body><main>
-<p class="banner" role="note"><strong>INTERNAL PROTOTYPE.</strong> Runs on this computer only. Nothing is uploaded; there is no account.</p>
+<p class="banner" role="note">Runs on this computer only. Nothing is uploaded; there is no account.</p>
 <h1>Desktop maker</h1>
 <!--SONG-->
 <section class="logbox" aria-labelledby="h-log"><h2 id="h-log">A note about a small log</h2>
-<p id="log-notice">This kit keeps a short activity log on this computer, in <code id="log-path">(loading)</code>, to help Ryan make it better. It records which buttons you press and when, how long things took, and counts. It never records file names, the words you type, your answers, or anything from your videos. Nothing is sent anywhere. You can delete the file at any time, or untick the box below to stop it.</p>
+<p id="log-notice">This kit keeps a short activity log on this computer, in <code id="log-path">(loading)</code>, to help make it better. It records which buttons you press and when, how long things took, and counts. It never records file names, the words you type, your answers, or anything from your videos. Nothing is sent anywhere. You can delete the file at any time, or untick the box below to stop it.</p>
 <label class="logswitch" for="log-on"><input id="log-on" type="checkbox" checked> Keep this log</label><p id="log-state" class="note" role="status"></p></section>
 <section class="logbox" id="signin" aria-labelledby="h-signin" hidden><h2 id="h-signin">Your Ryagram account</h2><div id="signin-body"></div><p id="signin-msg" class="note" role="status"></p></section>
 <section class="logbox" id="node" aria-labelledby="h-node" hidden><h2 id="h-node">This computer renders my site films</h2>
@@ -1224,7 +1240,7 @@ JS = r"""(function () {
   if ($('song-link')) $('song-link').href = '/song?t=' + encodeURIComponent(T);
   if ($('edit-link')) $('edit-link').href = '/edit?t=' + encodeURIComponent(T);
   if ($('live-link')) $('live-link').href = '/live?t=' + encodeURIComponent(T) + '&mode=compilation&project=local';
-  if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // Ryan's box; Sam never needs it
+  if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // the advanced paste box; a first-time person never needs it
   const el = (tag, attrs, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c != null) n.append(c); return n; };
   async function api(path, body) {
     const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'X-Maker-Token': T, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -1252,7 +1268,7 @@ JS = r"""(function () {
     clearTimeout(siTimer);
     if (!st || !st.enabled) { box.hidden = true; return; }
     box.hidden = false;
-    document.querySelector('.banner').replaceChildren(el('strong', {}, 'INTERNAL PROTOTYPE.'), ' Runs on this computer only. Your videos are never uploaded. Signing in only tells the Ryagram website that this computer is yours.');
+    document.querySelector('.banner').replaceChildren('Runs on this computer only. Your videos are never uploaded. Signing in only tells the Ryagram website that this computer is yours.');
     siMsg('');
     if (st.state !== 'signed_in') drawNode(null); else refreshNode();
     if (st.state === 'unavailable') { body.replaceChildren(el('p', { class: 'problems', role: 'alert' }, st.message)); return; }
@@ -1648,7 +1664,7 @@ JS = r"""(function () {
     if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current && current.op !== 'every') parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the recipe).`));
     if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s. Nothing went online (${j.receipt.network_attempts} connections). A list of where each word came from is saved beside the film.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
-    if (j.state === 'stopped') parts.push(el('p', { class: 'note' }, 'Something stopped it. Press Plan again. If it stops again, copy the text above and send it to Ryan.'));
+    if (j.state === 'stopped') parts.push(el('p', { class: 'note' }, 'Something stopped it. Press Plan again. If it stops again, copy the text above and send it to __SUPPORT__.'));
     if (j.lines && j.lines.length && (running || j.state === 'stopped')) parts.push(el('div', { class: 'log', role: 'log', 'aria-label': 'What it printed' }, j.lines.join('\n')));
     $('job-out').replaceChildren(...parts);
     planned = j.state === 'planned' || (j.state === 'built' && planned);
@@ -1804,7 +1820,7 @@ class Handler(BaseHTTPRequestHandler):
                 a = STATE["activity"]
                 self._json(200, {"on": a.enabled, "path": str(a.path)})
         elif path == "/maker.js":
-            self._send(200, JS.encode("utf-8"), "text/javascript; charset=utf-8") if self._host_ok() else self._json(403, {"error": "no"})
+            self._send(200, maker_js().encode("utf-8"), "text/javascript; charset=utf-8") if self._host_ok() else self._json(403, {"error": "no"})
         elif path == "/maker.css":
             self._send(200, CSS.encode("utf-8"), "text/css; charset=utf-8") if self._host_ok() else self._json(403, {"error": "no"})
         elif path == "/favicon.ico":
@@ -2554,12 +2570,16 @@ def main(argv=None) -> int:
     ap.add_argument("--song-forge", action="store_true", help="TEST, with --song: build a word nobody says from the sounds of words your videos do say, when the alignment model is on this PC (it is never downloaded by the maker)")
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
+    ap.add_argument("--support", default="", help="who a person contacts when something goes wrong (plain characters; default: the person or company that gave you this app)")
     ap.add_argument("--site", default=os.environ.get("RYAGRAM_SITE", ""), help="r9, off unless given: the Ryagram site's node address (https://...), to show the Sign in card")
     ap.add_argument("--node-config", default=os.environ.get("RYAGRAM_NODE_CONFIG", ""), help="r9, off unless given, needs --site: a worker-shaped settings file (see tools/ryagram_node_render.py) that lets THIS computer make the signed-in person's own site films; every film goes through the GPU lock; with anything missing the maker says what and takes no jobs")
     ap.add_argument("--node-auto", action="store_true", help="tester builds, needs --site: write the settings for making this person's own site films into the app's own folder at start (tools/node_settings.py) and use them as --node-config would; make() still decides, in words, whether this computer is ready")
     ap.add_argument("--node-allow-c", action="store_true", help="with --node-auto: let the app's OWN folder be on C: (a tester who has only C:); OFF unless a build made with Ryan's word passes it. Anything else on C: is still refused")
     ap.add_argument("--approval-host", action="append", default=[], help="a host the site may send you to, to approve this computer (repeat for more), for example uselai.com")
     a = ap.parse_args(argv)
+    if a.support and not SUPPORT_OK.match(a.support):
+        sys.exit("--support: use letters, digits, spaces and . , @ : / _ - only (it is shown on the page).")
+    STATE["support"] = a.support or SUPPORT_DEFAULT
     engine = Path(a.engine) if a.engine else find_engine()
     if not engine:
         raise SystemExit("I cannot find the Ryagram folder (it has a folder named ryagram, with a folder named local inside it). Keep this tool inside it, or start with --engine <that folder>.")

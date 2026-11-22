@@ -39,7 +39,7 @@ def command_text(maker_extra: str = "", signin: str = "") -> str:
         "export PYTHONDONTWRITEBYTECODE=1",
         'if ! "$HERE/' + PY + '" -I "$HERE/tools/verify_bundle.py" "$HERE"; then',
         "  echo",
-        '  echo "Do not go on. Close this window and tell Ryan what is written above."',
+        '  echo "Do not go on. Close this window and send what is written above to the person or company that gave you this app."',
         '  read -r -p "Press Return to close. " _',
         "  exit 1",
         "fi",

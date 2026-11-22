@@ -99,7 +99,7 @@ def main(argv) -> int:
     if not problems:
         print("All files are as they were when this folder was built.")
         return 0
-    print("This folder is not exactly as it was built. Do not go on; tell Ryan, and say what is listed here:")
+    print("This folder is not exactly as it was built. Do not go on; contact the person or company that gave you this app, and say what is listed here:")
     for p in problems[:12]:
         print("  - " + p)
     if len(problems) > 12:
