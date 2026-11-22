@@ -40,6 +40,7 @@ RUNTIME_TOOLS = RUNTIME_TOOLS + ("maker_checklist.py",)                    # NEX
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_platform.py",)                   # NEXT-CONNECT 166: the few Windows / macOS / Linux differences; desktop_maker and the site-film renderer import it
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_node_render.py", "ryagram_node_job.py", "gpu_lock.py")      # NEXT-RENDERER 44: the site-film renderer, its child step and the GPU lock tool a tester PC needs
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("gpu_room.py",)                            # NEXT-WORKER 76: the renderer and the maker import it (room on the graphics card for both films)
+RUNTIME_TOOLS = RUNTIME_TOOLS + ("open_phrase_finder.py",)                    # BUILDER 11-22: Open phrase finder.bat runs it (FACES' first-run page)
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("node_settings.py",)                         # NEXT-CONNECT 171: the app writes its own site-film settings at first start
 RUNTIME_PAGE_DIRS = ("maker-edit", "maker-live", "maker-song")          # the edit and song pages (html, js, css); a test fixture beside them is left out
 FORBIDDEN_NAMES ={"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}
@@ -154,7 +155,7 @@ def leak_scan(root: Path) -> list:
         if parts & FORBIDDEN_DIRS:
             found.append(f"{rel}: a folder that must never travel ({sorted(parts & FORBIDDEN_DIRS)[0]})")
             continue
-        ours = Path(rel).parts[0] in APP_DIRS or rel in ("START-HERE.txt", "Open Ryagram.bat", FORGE_BAT)
+        ours = Path(rel).parts[0] in APP_DIRS or rel in ("START-HERE.txt", "Open Ryagram.bat", FORGE_BAT, FINDER_BAT)
         # the file-type rule is for OUR folders; a library may legitimately ship a .pem (certifi's public CA list) or a .db, so libraries are held to the NAME rule only
         if p.name in FORBIDDEN_NAMES or (ours and p.suffix.lower() in FORBIDDEN_SUFFIX):
             found.append(f"{rel}: a file that must never travel")
@@ -269,7 +270,21 @@ def write_word_builder(out: Path, app_repo: Path) -> None:
 
 
 FORGE_BAT = "Open Ryagram (fill missing words).bat"
+FINDER_BAT = "Open phrase finder.bat"         # BUILDER 11-22: the phrase finder's first-run page, from the same folder and the same self-check
+FIRST_RUN_DOC = "README-FIRST-RUN.md"          # the kit's developer notes (Python, winget, INTERNAL): never in a customer's zip
 FORGE_EXTRA = "--song --song-forge"           # the second start file; the first one never passes --song-forge
+
+
+def finder_bat_text(app_bat: str) -> str:
+    """the phrase finder's start file, made from the app's own GENERATED start file: every line up to and including the self-check, then
+    the library folder inside the app's work folder and tools\\open_phrase_finder.py (BUILDER 11-22)"""
+    lines = app_bat.split("\r\n")
+    end = next(i for i, ln in enumerate(lines) if ln == ")")                # the end of the self-check's 'if errorlevel 1 ( ... )'
+    head = [ln.replace("title Ryagram", "title Ryagram phrase finder") for ln in lines[:end + 1]]
+    head[1] = "rem Starts the phrase finder from THIS folder, with this folder's own Python. Nothing is installed; its index is kept in work\\library here."
+    return "\r\n".join(head + ['set "RYAGRAM_LIBRARY_DIR=%~dp0work\\library"',
+                               '"%~dp0python\\python.exe" -I "%~dp0tools\\open_phrase_finder.py" %*',
+                               "if errorlevel 1 pause", ""])
 
 
 def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False, word_builder: bool = False, face_model: bool = False, signin: str = "") -> None:
@@ -305,6 +320,7 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
     (out / "Open Ryagram.bat").write_bytes(bat_text(maker_extra).encode("ascii"))
     if forge_bat:
         (out / FORGE_BAT).write_bytes(bat_text(FORGE_EXTRA).encode("ascii"))
+    (out / FINDER_BAT).write_bytes(finder_bat_text(bat_text("")).encode("ascii"))
     txt = ("RYAGRAM\r\n\r\n1. Double-click  Open Ryagram.bat  in this folder. It checks that every file is as it was built, then opens the app in your browser.\r\n"
            "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one you were given with this app. If anyone else ever asks you to press Run anyway, say no.\r\n"
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
@@ -312,6 +328,8 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
            + ("" if has_model else "4. The first time, press  Download the listening model  on the page (Balanced, about 464 MB, once). It is the only step that uses the internet, and every file is checked before it is kept.\r\n")
            + ("" if not face_model else "   Blur faces I haven't named  (a switch on the main page, off until you switch it on) uses one small file, models\\yunet.onnx, that only finds where faces are. It never says who anyone is. The Start check makes sure it is the exact file this folder was built with.\r\n")
            + ("" if not word_builder else "   Optional, to let Ryagram build a word nobody said from your own sounds: open  Get word builder.bat  once. It says the size (about 378 MB), and downloads only after you type YES; every file is checked before it is kept. Then use  " + FORGE_BAT + "  (if this folder has it).\r\n"))
+    txt += ("To find a phrase in your own videos: double-click  Open phrase finder.bat  in this folder. It checks the folder the same way, then "
+            "opens the phrase finder in your browser. It uses the same listening model as the app.\r\n")
     (out / "START-HERE.txt").write_bytes(txt.encode("ascii"))
 
 
@@ -434,7 +452,7 @@ def build(a) -> dict:
         for rel in node_add:
             (out / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(node_kit / rel, out / rel)
-        shutil.copytree(kit / "recipes", out / "recipes", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(kit / "recipes", out / "recipes", ignore=shutil.ignore_patterns("__pycache__", FIRST_RUN_DOC))
         if (kit / "docs").is_dir():
             shutil.copytree(kit / "docs", out / "docs")
         shutil.copy2(kit / "KIT-MANIFEST.json", out / "ENGINE-MANIFEST.json")
