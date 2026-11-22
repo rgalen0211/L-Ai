@@ -5,6 +5,7 @@
 export interface Context {
   stripe_price_id: string | null; mode: "payment" | "subscription" | null; customer_id: string | null;
   email: string | null; has_plan: boolean; live_ok: boolean;
+  buying_open?: boolean; is_admin?: boolean;   // GEO 11-21: the server's buying switch (stripe_settings.buying_open); an app admin may test while it is off
 }
 export interface Deps {
   allowedOrigins: string[];
@@ -48,6 +49,9 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     const ctx = await deps.context(user.id, action === "checkout" ? code : "");
     // Test mode until Ryan says otherwise: a live key is refused unless stripe_settings.live_ok.
     if (!deps.keyIsTest && !ctx.live_ok) return reply(503, { error: "Payments aren't open yet." });
+    // GEO 11-21: buying is a server switch, not only the page's hidden buttons. While it is off no checkout opens for an ordinary
+    // account (the billing portal for an existing plan stays open). A missing key reads as closed.
+    if (action === "checkout" && ctx.buying_open !== true && ctx.is_admin !== true) return reply(503, { error: "Buying is not open yet." });
     const back = `${deps.siteUrl}/app/#/credits`;
 
     if (action === "portal") {
@@ -82,7 +86,16 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     }, `checkout-${user.id}-${code}-${Math.floor(Date.now() / 60000)}`);   // one session per minute per choice
     return reply(200, { url: session.url });
   } catch (err) {
-    console.error(`stripe-checkout: ${(err as Error).message}`);      // Stripe's message can name the key; logs only
+    console.error(errorLine(err));      // never the message: Stripe's can name the key, an email or a customer id (GEO 11-21 L3)
     return reply(502, { error: "Stripe didn't answer. Try again in a minute." });
   }
+}
+
+// What a failed checkout leaves in the logs: Stripe's error type and code and the HTTP status (or the database's error code),
+// each held to a plain token, and nothing else. The message itself is never logged.
+export function errorLine(err: unknown): string {
+  const e = (err ?? {}) as { stripeType?: unknown; code?: unknown; status?: unknown };
+  const token = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(v)) ? v
+    : (typeof v === "number" && Number.isInteger(v)) ? String(v) : "-";
+  return `stripe-checkout: failed type=${token(e.stripeType)} code=${token(e.code)} status=${token(e.status)}`;
 }

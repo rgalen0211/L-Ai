@@ -27,8 +27,16 @@ serve((req) => handle(req, {
     const { error } = await service.storage.from(bucket === "uploads" ? "ryagram-uploads" : "ryagram-artifacts").remove(paths);
     if (error) throw new Error(error.message);
   },
+  eraseContent: (owner) => rpc("account_erase_paid_content", { p_owner: owner }),                 // GEO 11-21 M1
+  redactContact: async (owner, email) => {                                                          // GEO 11-21 M5
+    await rpc("account_redact_contact", { p_owner: owner, p_email: email });
+  },
   requestDeletion: async (owner, email, reason) => {
     await rpc("account_request_deletion", { p_owner: owner, p_email: email, p_reason: reason });
+  },
+  async blockLogin(owner) {                                                                        // CC1 10:57 LOW 7
+    const { error } = await service.auth.admin.updateUserById(owner, { ban_duration: "876000h" });   // about 100 years: until Ryan's hand close deletes it
+    if (error) throw new Error(error.message);
   },
   async deleteUser(owner) {
     const { error } = await service.auth.admin.deleteUser(owner);

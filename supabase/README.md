@@ -143,12 +143,20 @@ are refused by the database, until `stripe_settings.live_ok` is set (a later, se
    - URL: `https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/stripe-webhook`
    - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
      `invoice.paid`, `customer.subscription.created`, `customer.subscription.updated`,
-     `customer.subscription.deleted`, `charge.refunded`
+     `customer.subscription.deleted`, `charge.refunded`. Add `charge.dispute.created` and `charge.dispute.closed` ONLY AFTER
+     step 7 has run `phase-2b/stripe_refunds_disputes.sql` (GEO 11-21): a dispute event that arrives before is recorded as
+     'not used', and Stripe's later deliveries of it replay as that, so a lost chargeback would be missed for good.
    - Copy the endpoint's **signing secret** (`whsec_...`).
 6. **Supabase → Edge Functions → Secrets**: add `STRIPE_SECRET_KEY` (step 4) and
    `STRIPE_WEBHOOK_SECRET` (step 5).
 7. **SQL Editor**, in order: `phase-2b/credits_ledger.sql` (if not run yet), then
-   `phase-2b/stripe_test_mode.sql`. Then tell the database which Stripe price sells which code,
+   `phase-2b/stripe_test_mode.sql`, then `phase-2b/stripe_refunds_disputes.sql` (chargebacks, and a refund that
+   completes an earlier partial one is held for review; if `stripe_test_mode.sql` already ran, run just this one;
+   then add the two dispute events of step 5). Before running it, look at past partial refunds by hand:
+   `select event_id, detail, received_at from stripe_events where type = 'charge.refunded' and outcome = 'needs_review'`.
+   The file cannot list them as partial (their rows do not name the payment), so a later full refund of one of those
+   payments would still reverse all its credits.
+   Then tell the database which Stripe price sells which code,
    with your ids from step 2:
 
    ```sql

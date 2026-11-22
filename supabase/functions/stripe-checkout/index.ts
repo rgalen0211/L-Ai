@@ -17,7 +17,7 @@ const service = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient,
 
 async function rpc(name: string, args: Record<string, unknown>) {
   const { data, error } = await service.rpc(name, args);
-  if (error) throw new Error(error.message);
+  if (error) throw Object.assign(new Error(error.message), { code: error.code ?? null });   // checkout.ts logs the code only
   return data;
 }
 
@@ -36,7 +36,10 @@ serve((req) => handle(req, {
       body: formEncode(params),
     });
     const json = await res.json();
-    if (!res.ok) throw new Error(json?.error?.message ?? `Stripe ${res.status}`);
+    if (!res.ok) {                      // checkout.ts logs only the type, code and status (GEO 11-21 L3)
+      throw Object.assign(new Error(json?.error?.message ?? `Stripe ${res.status}`),
+                          { stripeType: json?.error?.type ?? null, code: json?.error?.code ?? null, status: res.status });
+    }
     return json;
   },
 }));

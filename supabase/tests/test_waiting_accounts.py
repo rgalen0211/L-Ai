@@ -22,6 +22,7 @@ import test_2a_core as core  # noqa: E402
 ROOT = core.ROOT
 LEDGER = ROOT / "phase-2b" / "credits_ledger.sql"
 STRIPE = ROOT / "phase-2b" / "stripe_test_mode.sql"
+DISPUTES = ROOT / "phase-2b" / "stripe_refunds_disputes.sql"     # GEO 11-21: always right after STRIPE
 ALICE, WAIT, WAIT2, ADMIN, WORKERU, OTHER = (str(uuid.UUID(int=i)) for i in (201, 202, 203, 204, 205, 206))
 WORDS = "waiting list"
 # the same list as ryagram_private.gate_apply(): functions a WAITING person may still run (kept apart on purpose: a change to one without the other fails a test)
@@ -31,7 +32,7 @@ OPEN_TABLES = {"account_settings", "account_deletion_requests", "ryagram_waitlis
 WAIT_MIG = next(m for m in core.MIGRATIONS if m.name.startswith("20261104000100_waiting_accounts"))
 # THE ORDER LIVE USES (as in test_policy_grants.LIVE_ORDER): the ledger and the Stripe file went in before the funnel migration; the waiting-accounts file and everything after it come last, and NOTHING is run
 # after them: if a later migration leaves a function ungated, this database is exactly as open as live would be, and the coverage test below sees it.
-PRE = [*[m for m in core.MIGRATIONS if m.name < "20261017000900"], LEDGER, STRIPE, *[m for m in core.MIGRATIONS if "20261017000900" <= m.name < WAIT_MIG.name]]
+PRE = [*[m for m in core.MIGRATIONS if m.name < "20261017000900"], LEDGER, STRIPE, DISPUTES, *[m for m in core.MIGRATIONS if "20261017000900" <= m.name < WAIT_MIG.name]]
 POST = [m for m in core.MIGRATIONS if m.name > WAIT_MIG.name]              # the files after it (the join table)
 _server = None
 _count = 0

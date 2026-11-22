@@ -22,6 +22,7 @@ import test_2b_credits as ledger  # noqa: E402
 
 ROOT = core.ROOT
 STRIPE = ROOT / "phase-2b" / "stripe_test_mode.sql"
+DISPUTES = ROOT / "phase-2b" / "stripe_refunds_disputes.sql"     # GEO 11-21: chargebacks and second refunds (runs after STRIPE)
 RYAN, OTHER = core.RYAN, core.OTHER
 _server = None
 _count = 0
@@ -35,7 +36,7 @@ def setUpModule():
         c.execute("create database tmplst")
     with psycopg.connect(_server.get_uri(database="tmplst"), autocommit=True) as c:
         c.execute((ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8"))
-        for path in [*core.MIGRATIONS, ledger.LEDGER, STRIPE]:
+        for path in [*core.MIGRATIONS, ledger.LEDGER, STRIPE, DISPUTES]:
             c.execute(path.read_text(encoding="utf-8"))
         c.execute("insert into auth.users (id, email) values (%s,'ryan@x'),(%s,'other@x')", (RYAN, OTHER))
         c.execute("insert into public.stripe_prices (price_code, stripe_price_id, mode) values "
@@ -43,6 +44,7 @@ def setUpModule():
                   "('sub_creator', 'price_Creator1', 'subscription'), ('sub_pro', 'price_Pro1', 'subscription')")
         c.execute("insert into public.stripe_customers (owner_id, customer_id) values (%s, 'cus_Ryan'), (%s, 'cus_Other')",
                   (RYAN, OTHER))
+        c.execute("update public.stripe_settings set buying_open = true where id")   # the tests below are buying OPEN; GEO 11-21's tests close it
 
 
 class Stripe(unittest.TestCase):
@@ -140,17 +142,166 @@ class Stripe(unittest.TestCase):
         self.assertEqual(self.balance(RYAN) + self.balance(OTHER), 0)
 
     def test_a_full_refund_removes_the_pack_and_may_leave_a_negative_balance(self):
+        # GEO 11-21 (Ryan 11:30 refund rule): this pin USED to reverse a spent pack into -20. A pack whose credits were
+        # used is now held for Ryan; the replay and second-event guards below are unchanged.
         self.apply("checkout.session.completed", self.pack(code="pack_maker", cents=3000, pi="pi_M"), event="evt_Maker")
         self.admin("select adjust_credits(%s, 'purchased', -20, 'spent in a test', 'admin:test')", RYAN)
         refund = {"charge": "ch_1", "payment_intent": "pi_M", "amount": 3000, "amount_refunded": 3000, "currency": "usd"}
-        self.assertEqual(self.apply("charge.refunded", refund, event="evt_Refund"), "applied")
-        self.assertEqual(self.balance(), -20)                     # 28 - 20 spent - 28 reversed
+        self.assertEqual(self.apply("charge.refunded", refund, event="evt_Refund"), "needs_review")
+        self.assertEqual(self.balance(), 8)                       # 28 - 20 spent; nothing taken back
         self.assertEqual(self.apply("charge.refunded", refund, event="evt_Refund"), "replay")
-        self.assertEqual(self.apply("charge.refunded", refund), "ignored")      # a second refund event: already reversed
-        self.assertEqual(self.balance(), -20)
-        # A negative balance blocks new holds (the ledger's rule) until credits are added.
-        quote = self.db.as_(RYAN).one("select available from credit_balances")
-        self.assertEqual(quote, -20)
+        self.assertEqual(self.balance(), 8)
+        # A negative balance still blocks new holds (the ledger's rule): Ryan's own correction can make one.
+        self.admin("select adjust_credits(%s, 'purchased', -28, 'Ryan took the pack back by hand', 'admin:test')", RYAN)
+        self.assertEqual(self.db.as_(RYAN).one("select available from credit_balances"), -20)
+
+    # -- GEO 11-21: Ryan 11:30's refund rule, 'unused credits refundable within 14 days'
+    # -- GEO 11-21: buying is a server switch; while it is off a purchase grants nothing (the second lock)
+    def test_GEO_while_buying_is_closed_a_pack_or_a_plan_month_is_held_and_grants_nothing(self):
+        self.admin("update stripe_settings set buying_open = false where id returning 1")
+        # MUST-FAIL: before the switch this granted the pack's 10 credits
+        self.assertEqual(self.apply("checkout.session.completed", self.pack(pi="pi_Closed"), event="evt_Closed"), "needs_review")
+        self.assertIn("Buying is not open yet", self.detail("evt_Closed")[1])
+        self.assertEqual(self.balance(), 0)
+        self.assertEqual(self.apply("invoice.paid", self.invoice(), event="evt_ClosedInv"), "needs_review")   # a plan month too
+        self.assertEqual(self.balance(), 0)
+        self.assertEqual(str(self.admin("select owner_id from stripe_events where event_id = 'evt_Closed'")), RYAN)
+
+    def test_GEO_while_buying_is_closed_an_admin_s_own_test_purchase_still_goes_through(self):
+        self.admin("update stripe_settings set buying_open = false where id returning 1")
+        self.admin("insert into app_admins (user_id) values (%s) returning 1", RYAN)
+        self.assertEqual(self.apply("checkout.session.completed", self.pack(pi="pi_Admin")), "applied")
+        self.assertEqual(self.balance(), 10)
+
+    def test_GEO_the_checkout_context_names_the_switch_and_the_admin(self):
+        ctx = self.db.as_("service").one("select stripe_checkout_context(%s, 'pack_starter')", RYAN)
+        self.assertEqual((ctx["buying_open"], ctx["is_admin"]), (True, False))
+        self.admin("update stripe_settings set buying_open = false where id returning 1")
+        self.assertFalse(self.db.as_("service").one("select stripe_checkout_context(%s, 'pack_starter')", RYAN)["buying_open"])
+
+    def test_GEO_a_pack_refunded_after_some_credits_were_used_is_held_not_taken_negative(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_U"))
+        self.admin("select adjust_credits(%s, 'purchased', -1, 'one preview', 'admin:test')", RYAN)
+        # MUST-FAIL: before the rule this reversed all 10 credits (balance -1)
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_U", 1200, 1200), event="evt_Used"), "needs_review")
+        self.assertEqual(self.balance(), 9)
+        self.assertIn("9 of its 10 credits are unused", self.detail("evt_Used")[1])
+
+    def test_GEO_a_pack_refunded_more_than_14_days_after_purchase_is_held(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_Old"))
+        self.admin("update stripe_payments set created_at = now() - interval '15 days' where payment_intent = 'pi_Old' returning 1")
+        # MUST-FAIL: before the rule an unspent pack was reversed whenever it was refunded
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_Old", 1200, 1200), event="evt_Late14"), "needs_review")
+        self.assertEqual(self.balance(), 10)
+        self.assertIn("more than 14 days", self.detail("evt_Late14")[1])
+
+    def test_GEO_an_unused_pack_refunded_inside_14_days_is_reversed_even_with_other_credits_spent(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_A", session="cs_A"))
+        self.apply("checkout.session.completed", self.pack(pi="pi_B", session="cs_B"))
+        self.admin("update stripe_payments set created_at = now() - interval '13 days' where payment_intent = 'pi_A' returning 1")
+        self.admin("select adjust_credits(%s, 'purchased', -10, 'one pack worth used', 'admin:test')", RYAN)
+        # 20 bought, 10 used: 10 unused still cover one whole pack, so one refund is reversed and the next is held
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_A", 1200, 1200)), "applied")
+        self.assertEqual(self.balance(), 0)
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_B", 1200, 1200), event="evt_B"), "needs_review")
+        self.assertEqual(self.balance(), 0)                       # never below zero by a refund
+
+    # -- GEO 11-21 (GEO-SECURITY-PRIVACY-REVIEW-1121): a second refund (L1) and chargebacks (M6)
+    @staticmethod
+    def refund(pi, amount, refunded, charge="ch_X"):
+        return {"charge": charge, "payment_intent": pi, "amount": amount, "amount_refunded": refunded, "currency": "usd"}
+
+    @staticmethod
+    def dispute(pi, status, amount=1200, reason="fraudulent", dp="dp_1"):
+        return {"dispute": dp, "charge": "ch_D", "payment_intent": pi, "amount": amount, "currency": "usd",
+                "status": status, "reason": reason}
+
+    def test_GEO_a_second_refund_that_completes_a_partial_one_is_held_not_reversed_again(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_Q"))
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_Q", 1200, 600), event="evt_Part"), "needs_review")
+        self.admin("select adjust_credits(%s, 'purchased', -5, 'Ryan took back half by hand', 'admin:test')", RYAN)
+        self.assertEqual(self.balance(), 5)
+        # MUST-FAIL: before the fix this reversed ALL 10 credits again (balance -5): a double debit
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_Q", 1200, 1200), event="evt_Rest"), "needs_review")
+        self.assertIn("earlier partial refund", self.detail("evt_Rest")[1])
+        self.assertEqual(self.balance(), 5)
+
+    def test_GEO_a_refund_in_full_with_no_earlier_partial_still_reverses_the_pack(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_F"))
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_F", 1200, 1200)), "applied")
+        self.assertEqual(self.balance(), 0)
+
+    def test_GEO_a_dispute_is_held_then_a_lost_dispute_reverses_the_pack_once(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_D"))
+        self.admin("select adjust_credits(%s, 'purchased', -4, 'spent in a test', 'admin:test')", RYAN)
+        self.assertEqual(self.apply("charge.dispute.created", self.dispute("pi_D", "needs_response"), event="evt_DisOpen"),
+                         "needs_review")
+        self.assertIn("Dispute opened", self.detail("evt_DisOpen")[1])
+        self.assertEqual(self.balance(), 6)                       # nothing taken while the dispute is open
+        # MUST-FAIL: before the fix a lost chargeback was 'Event type not used' and the credits stayed
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_D", "lost"), event="evt_DisLost"), "applied")
+        self.assertEqual(self.balance(), -4)                      # 10 bought - 4 spent - 10 reversed
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_D", "lost"), event="evt_DisLost"), "replay")
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_D", "lost")), "ignored")    # never twice
+        self.assertEqual(self.balance(), -4)
+
+    def test_GEO_a_won_dispute_or_a_closed_inquiry_changes_nothing(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_W"))
+        self.assertEqual(self.apply("charge.dispute.created", self.dispute("pi_W", "needs_response")), "needs_review")
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_W", "won")), "ignored")
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_W", "warning_closed")), "ignored")
+        self.assertEqual(self.balance(), 10)
+
+    def test_GEO_odd_disputes_are_held_for_review(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_O"))
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_Plan", "lost")), "needs_review")   # not a pack
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_O", 1200, 300)), "needs_review")         # a partial first
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_O", "lost"), event="evt_LostAfter"),
+                         "needs_review")                                                                       # then lost
+        self.assertIn("partial refund", self.detail("evt_LostAfter")[1])
+        self.assertEqual(self.balance(), 10)
+
+    def test_GEO_a_refund_after_a_lost_dispute_is_not_taken_twice(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_T"))
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_T", "lost")), "applied")
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_T", 1200, 1200)), "ignored")
+        self.assertEqual(self.balance(), 0)
+
+    def test_GEO_a_live_dispute_is_still_refused_in_test_mode(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_L"))
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_L", "lost"), livemode=True), "refused_live")
+        self.assertEqual(self.balance(), 10)
+
+    # -- CC1 10:57 r2: amounts and order
+    def test_GEO_a_partial_chargeback_is_held_not_reversed_in_full(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_PC"))
+        # MUST-FAIL (CC1 M1): before r2 a lost dispute for HALF the amount took back the WHOLE pack
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_PC", "lost", amount=600), event="evt_PC"), "needs_review")
+        self.assertIn("Partial chargeback", self.detail("evt_PC")[1])
+        self.assertEqual(self.balance(), 10)
+
+    def test_GEO_a_partial_refund_after_the_credits_were_taken_back_asks_for_nothing(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_AR"))
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_AR", 1200, 1200)), "applied")
+        # MUST-FAIL (CC1 M2): before r2 this said 'adjust by hand if needed', inviting a second debit by hand
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_AR", 1200, 300), event="evt_Late"), "ignored")
+        self.assertIn("no hand change", self.detail("evt_Late")[1])
+        self.assertNotIn("adjust by hand", self.detail("evt_Late")[1])
+        self.assertEqual(self.balance(), 0)
+
+    def test_GEO_a_dispute_opened_after_the_credits_were_taken_back_says_so(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_CA"))
+        self.assertEqual(self.apply("charge.dispute.closed", self.dispute("pi_CA", "lost")), "applied")
+        # MUST-FAIL (CC1 M2): before r2 this said 'if it is lost they are removed' for a pack already taken back
+        self.assertEqual(self.apply("charge.dispute.created", self.dispute("pi_CA", "needs_response"), event="evt_LateOpen"), "ignored")
+        self.assertIn("already taken back", self.detail("evt_LateOpen")[1])
+        self.assertEqual(self.balance(), 0)
+
+    def test_GEO_people_cannot_read_the_partial_refunds_table(self):
+        # permission denied (42501) exactly: a MISSING table would raise too, and must not pass this test
+        self.assertEqual(self.admin("select count(*) from stripe_partial_refunds"), 0)
+        with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+            self.db.as_(RYAN).one("select count(*) from stripe_partial_refunds")
 
     def test_a_partial_refund_or_an_unknown_payment_changes_nothing(self):
         self.apply("checkout.session.completed", self.pack(pi="pi_P"))

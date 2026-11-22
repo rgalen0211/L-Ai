@@ -5,15 +5,21 @@
 // is safe: both steps can be repeated.
 //
 // Refused while a render is in flight (the worker would upload into a deleted account). An account
-// with credit history is not hard-deleted: the ledger is an append-only financial record, so the
-// request is recorded and Ryan closes the account by hand (QUESTIONS.md, Q6).
+// with credit history is not hard-deleted: the ledger is an append-only financial record, so Ryan
+// closes the account by hand (QUESTIONS.md, Q6). But its files and uploads go NOW, like anyone's
+// (GEO 11-21, review M1): both buckets are emptied, the upload rows become tombstones, and only then
+// is the request recorded. For everyone, the person's email is removed from support requests and
+// invite redemptions before the login goes (review M5).
 
 export interface Deps {
   allowedOrigins: string[];
   verifyUser(jwt: string): Promise<{ id: string; email: string } | null>;
   check(owner: string): Promise<{ active_jobs: number; has_credit_history: boolean; storage_paths: string[]; upload_paths?: string[] }>;
   removeFiles(paths: string[], bucket?: "uploads"): Promise<void>;
+  eraseContent(owner: string): Promise<{ uploads_left?: number; films_left?: number } | null>;
+  redactContact(owner: string, email: string): Promise<void>;
   requestDeletion(owner: string, email: string, reason: string): Promise<void>;
+  blockLogin(owner: string): Promise<void>;          // a paying customer's login is blocked until Ryan closes the account (CC1 10:57 LOW 7)
   deleteUser(owner: string): Promise<void>;
 }
 
@@ -49,25 +55,38 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     if (c.active_jobs > 0) {
       return reply(409, { error: "A render is still running. Cancel it or let it finish, then try again." });
     }
-    if (c.has_credit_history) {
-      step = "request";
-      await deps.requestDeletion(user.id, user.email, "credit history");
-      return reply(202, { status: "requested",
-        message: "Your account has credit history, which is kept as a financial record. Your request is recorded, and your account and files will be deleted by hand within 30 days." });
-    }
     step = "files";
     const paths = (c.storage_paths ?? []).filter((p) => typeof p === "string" && p.startsWith(`${user.id}/`));
     for (let i = 0; i < paths.length; i += BATCH) await deps.removeFiles(paths.slice(i, i + BATCH));
     // Spreadsheets the person uploaded live in their own private bucket.
     const uploads = (c.upload_paths ?? []).filter((p) => typeof p === "string" && p.startsWith(`${user.id}/`));
     for (let i = 0; i < uploads.length; i += BATCH) await deps.removeFiles(uploads.slice(i, i + BATCH), "uploads");
+    step = "contact";
+    await deps.redactContact(user.id, user.email);
+    if (c.has_credit_history) {
+      step = "erase";
+      const left = await deps.eraseContent(user.id);
+      // a missing count is a failure, never zero (CC1 10:57 LOW 6)
+      if (typeof left?.uploads_left !== "number" || typeof left?.films_left !== "number" || left.uploads_left > 0 || left.films_left > 0) {
+        throw new Error("some files are still in storage, or the count is missing");
+      }
+      step = "request";
+      await deps.requestDeletion(user.id, user.email, "credit history");
+      step = "block";
+      await deps.blockLogin(user.id);
+      return reply(202, { status: "requested", files_removed: paths.length + uploads.length,
+        message: "Your films and uploaded files are deleted, and you can no longer sign in. Your payment history is kept as a financial record, so your account itself is closed by hand within 30 days." });
+    }
     step = "login";
     await deps.deleteUser(user.id);
     return reply(200, { status: "deleted", files_removed: paths.length + uploads.length });
   } catch (err) {
     console.error(`delete-account ${step}: ${(err as Error).message}`);
-    return reply(500, { error: step === "login"
-      ? "Your files were removed, but the account couldn't be deleted just now. Try again in a minute."
-      : "Nothing was deleted. Try again in a minute." });
+    return reply(500, { error: step === "check" || step === "files"
+      ? "Nothing was deleted. Try again in a minute."
+      : step === "erase"
+        // by now the files were removed from storage and the contact details redacted: say only what is still open (CC1 11:15 LOW b)
+        ? "Your files and contact details were removed, but not all of your files could be confirmed as deleted just now. Try again in a minute; your account is not closed yet."
+        : "Your files were removed, but the account couldn't be finished just now. Try again in a minute." });
   }
 }
