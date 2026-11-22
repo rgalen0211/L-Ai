@@ -13,6 +13,12 @@ export interface Deps {
   due(limit: number): Promise<{ dataset_id: string; storage_path: string }[]>;
   remove(paths: string[]): Promise<void>;
   markRemoved(ids: string[]): Promise<number>;
+  // WORKER 2026-11-21 (GEO's privacy review M3): the films made FROM a removed upload (the rule is in migration
+  // 20261121000300: everything when the person deleted it; the drafts only under Don't keep). Same pattern: list,
+  // remove from ryagram-artifacts, then mark only what Storage no longer has.
+  dueFilms?(limit: number): Promise<{ artifact_id: string; storage_path: string }[]>;
+  removeFilms?(paths: string[]): Promise<void>;
+  markFilmsRemoved?(ids: string[]): Promise<number>;
 }
 
 const BATCH = 100;
@@ -34,7 +40,29 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       step = "mark";
       removed += await deps.markRemoved(batch.map((r) => r.dataset_id));
     }
-    return reply(caller, 200, { due: due.length, removed });
+    // then the films made from removed uploads (after the spreadsheets, so a just-removed upload's films go this run)
+    // ON ITS OWN: a failure here (the functions rolled back, a database error) is logged and reported, and never turns the
+    // spreadsheets' sweep above into a failed run (CC1 11-21 G2: the M3 rollback must not break the hourly sweep).
+    let films: { films_due: number; films_removed: number } | { films_error: true } | undefined;
+    if (deps.dueFilms && deps.removeFilms && deps.markFilmsRemoved) {
+      try {
+        const fdue = (await deps.dueFilms(500)).filter((r) => r && typeof r.storage_path === "string" && r.storage_path.includes("/"));
+        let fremoved = 0;
+        for (let i = 0; i < fdue.length; i += BATCH) {
+          const batch = fdue.slice(i, i + BATCH);
+          try { await deps.removeFilms(batch.map((r) => r.storage_path)); } catch (err) {
+            console.error(`purge-uploads films remove: ${(err as Error).message}`);   // marked nothing; retried next run
+            continue;
+          }
+          fremoved += await deps.markFilmsRemoved(batch.map((r) => r.artifact_id));
+        }
+        films = { films_due: fdue.length, films_removed: fremoved };
+      } catch (err) {
+        console.error(`purge-uploads films: ${(err as Error).message}`);           // retried next run; the spreadsheets went
+        films = { films_error: true };
+      }
+    }
+    return reply(caller, 200, { due: due.length, removed, ...(films ?? {}) });
   } catch (err) {
     console.error(`purge-uploads ${step}: ${(err as Error).message}`);
     return reply(caller, 500, { error: "The sweep failed; it will run again." });

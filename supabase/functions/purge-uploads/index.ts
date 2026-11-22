@@ -28,4 +28,19 @@ serve((req) => handle(req, {
     if (error) throw new Error(error.message);
     return data ?? 0;
   },
+  // WORKER 2026-11-21 (GEO M3): the films made from removed uploads, the same list / remove / mark-only-what-is-gone way
+  async dueFilms(limit) {
+    const { data, error } = await db.rpc("upload_films_due_for_deletion", { p_limit: limit });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+  async removeFilms(paths) {
+    const { error } = await db.storage.from("ryagram-artifacts").remove(paths);
+    if (error) throw new Error(error.message);
+  },
+  async markFilmsRemoved(ids) {
+    const { data, error } = await db.rpc("mark_upload_films_removed", { p_artifact_ids: ids });
+    if (error) throw new Error(error.message);
+    return data ?? 0;
+  },
 }));

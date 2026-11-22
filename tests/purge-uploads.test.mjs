@@ -84,3 +84,43 @@ test('a failed sweep is "failed" to the scheduler with no error text, and the wo
   assert.equal(hand.status, 500);
   assert.match((await hand.json()).error, /sweep failed/);
 });
+
+// WORKER 2026-11-21 (GEO's privacy review M3): the films made from removed uploads go in the same sweep, the same way.
+const films = n => Array.from({ length: n }, (_, i) => ({ artifact_id: `a${i}`, storage_path: `u/p/v/j${i}/preview.mp4` }));
+function filmWorld(nUploads, nFilms, over = {}) {
+  const w = world(nUploads);
+  Object.assign(w.deps, {
+    dueFilms: async () => films(nFilms),
+    removeFilms: async paths => { w.calls.push(['removeFilms', paths.length]); },
+    markFilmsRemoved: async ids => { w.calls.push(['markFilms', ids.length]); return ids.length; }, ...over });
+  return w;
+}
+
+test('the films made from removed uploads are removed after the uploads, in batches, then marked', async () => {
+  const w = filmWorld(2, 130);
+  const res = await call(w.deps);
+  assert.deepEqual(await res.json(), { due: 2, removed: 2, films_due: 130, films_removed: 130 });
+  assert.deepEqual(w.calls, [['remove', 2], ['mark', 2], ['removeFilms', 100], ['markFilms', 100], ['removeFilms', 30], ['markFilms', 30]]);
+});
+
+test('a film whose remove failed is NOT marked and is retried next run; the other batches still go', async () => {
+  let n = 0;
+  const w = filmWorld(0, 150, { removeFilms: async paths => { n += 1; w.calls.push(['removeFilms', paths.length]); if (n === 1) throw new Error('storage 503'); } });
+  const res = await call(w.deps);
+  assert.deepEqual(await res.json(), { due: 0, removed: 0, films_due: 150, films_removed: 50 });
+  assert.deepEqual(w.calls, [['removeFilms', 100], ['removeFilms', 50], ['markFilms', 50]]);
+});
+
+test('a film path that is not a storage path is never sent to Storage', async () => {
+  const w = filmWorld(0, 0, { dueFilms: async () => [{ artifact_id: 'a1', storage_path: '' }, { artifact_id: 'a2', storage_path: 'noslash' }, null] });
+  assert.deepEqual(await (await call(w.deps)).json(), { due: 0, removed: 0, films_due: 0, films_removed: 0 });
+  assert.deepEqual(w.calls, []);
+});
+
+test('a failing films phase (e.g. after the M3 rollback) never fails the spreadsheets sweep', async () => {
+  const w = filmWorld(3, 0, { dueFilms: async () => { throw new Error('function upload_films_due_for_deletion() does not exist'); } });
+  const res = await call(w.deps);
+  assert.equal(res.status, 200, 'the hourly run still succeeds');
+  assert.deepEqual(await res.json(), { due: 3, removed: 3, films_error: true });
+  assert.deepEqual(w.calls, [['remove', 3], ['mark', 3]], 'and every due spreadsheet was removed and marked');
+});
