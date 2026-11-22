@@ -43,6 +43,11 @@ serve((req) => handle(req, {
     const { error } = await db.storage.from("ryagram-artifacts").remove(paths);
     if (error) throw new Error(error.message);
   },
+  async markDeliveriesRemoved(ids) {          // WORKER 2026-11-21 (GEO M2): marks deleted only what is really gone
+    const { data, error } = await db.rpc("mark_deliveries_removed", { p_delivery_ids: ids });
+    if (error) throw new Error(error.message);
+    return data ?? 0;
+  },
   async markNotified(keys) {
     const { data, error } = await db.rpc("ops_mark_notified", { p_keys: keys });
     if (error) throw new Error(error.message);
