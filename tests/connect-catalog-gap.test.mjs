@@ -41,7 +41,7 @@ test('the free text the AI passes is still never echoed: the answer holds fixed 
 });
 
 test('the catalog sentence names every family of dataset the connector can draw, so it cannot go stale unnoticed', () => {
-  const families = { state_obesity_fastfood: /obesity and fast food/, bps_county_permits: /building permits/, bls_state_unemployment: /unemployment/, cbp_: /share of jobs in each industry/ };
+  const families = { state_obesity_fastfood: /obesity and fast food/, bps_county_permits: /building permits/, bls_state_unemployment: /unemployment/, cbp_: /share of private-sector jobs in each industry/ };
   const ids = Object.keys(DATASETS);
   assert.ok(ids.length >= 21);
   for (const id of ids) {
