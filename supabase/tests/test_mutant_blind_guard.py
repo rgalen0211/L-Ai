@@ -44,6 +44,9 @@ class BlindGuard(unittest.TestCase):
         fault = [{"name": "f takes a null", "edits": [[EARLY, "  if a is null then raise exception 'a must be set'; end if;\n", ""]]}]
         # MUST-FAIL: the same function defined again with the line -> a hit naming it and the later file
         self.assertEqual(b.overwritten_hits(fault, {EARLY: f1, LATE: f_again}), [("f takes a null", "f", LATE)])
+        # MUST-FAIL (WORKER 15:01): a later definition that CHANGED the very line (a fix to what the fault breaks) still overwrites it
+        f_fixed = f_again.replace("'a must be set'", "'a must be set, and positive'")
+        self.assertEqual(b.overwritten_hits(fault, {EARLY: f1, LATE: f_fixed}), [("f takes a null", "f", LATE)])
         # a later COPY of the line in a different function (r9's node_hit copies connect_anon_hit's check) is not a hit
         self.assertEqual(b.overwritten_hits(fault, {EARLY: f1, LATE: g_copy}), [])
         # a top-level statement after a function's closing $$ is in no function (a migration's own gate_apply line)
