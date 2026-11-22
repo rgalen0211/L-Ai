@@ -151,25 +151,44 @@ def overwritten_hits(mutants, texts):
     return sorted(set(hits))
 
 
+def _value_literals(text):
+    """Quoted strings of MIN_LINE+ characters that stand as VALUES (right after ':=', '(' or ','): what a rewrite searches for.
+    A pair of quotes that only LOOKS like a string (the closing quote of one literal and the opening quote of the next, with code
+    between) starts after a letter or a quote, so it is left out (film_bundles.sql gave ' in def) > 0 then raise notice ')."""
+    out = []
+    for m in _LITERAL.finditer(text):
+        before = text[:m.start()].rstrip()[-2:]
+        if (before.endswith(":=") or before.endswith("(") or before.endswith(",")) and len(m.group(1)) >= MIN_LINE:
+            out.append(m.group(1).replace("''", "'"))
+    return out
+
+
 # -- the third dead-fault class (GEO 11-22, film_card 'the refresh request is never reported'): a later migration that REWRITES
 # live function text (pg_get_functiondef + replace) often keeps its search text in a constant (declare x constant text := '...')
 # and refuses to run unless it finds it; blind_hits only reads literals inside the replace() call and asks the opposite question
 # (is the removed line inside a literal). Here the searched literal is INSIDE the removed text.
 def rewrite_hits(mutants, texts):
-    """[(mutant name, searched text, later migration)] for every fault whose removed text CONTAINS a quoted string of MIN_LINE+
-    characters from a LATER migration that rewrites live function text (it calls pg_get_functiondef), when the fault's new text
-    no longer contains it: that later migration cannot find its text and refuses, so the fault errors and never counts."""
+    """[(mutant name, searched text, later migration)] for every fault that, PLANTED in its own migration, leaves FEWER copies of
+    a quoted string of MIN_LINE+ characters from a LATER migration that rewrites live function text (pg_get_functiondef or
+    prosrc): that later migration cannot find its text and refuses, so the fault errors and never counts. Simulated, so every
+    shape counts: the fault removes the searched text, sits inside it, or cuts across its end (film_card's 'a failed refresh's
+    read', 11-22)."""
     # comments stripped first: an apostrophe in a comment ("the function's") would pair the wrong quotes
-    rewriters = {n: [lit for lit in _literals(re.sub(r"--[^\n]*", "", tx)) if len(lit) >= MIN_LINE] for n, tx in texts.items() if "pg_get_functiondef" in tx}
+    # a rewriter reads live function text through pg_get_functiondef or pg_proc.prosrc (WORKER 18:37 LOW)
+    rewriters = {n: _value_literals(re.sub(r"--[^\n]*", "", tx)) for n, tx in texts.items() if "pg_get_functiondef" in tx or "prosrc" in tx}
     hits = []
     for m in mutants:
         for path, old, new in m["edits"]:
             mname = Path(path).name
             old_n, new_n = old.replace("\r\n", "\n"), new.replace("\r\n", "\n")
+            own = texts.get(mname, "")
+            if old_n not in own:
+                continue
+            planted = own.replace(old_n, new_n, 1)
             for n, lits in rewriters.items():
                 if n <= mname:
                     continue
                 for lit in lits:
-                    if lit in old_n and lit not in new_n:
+                    if planted.count(lit) < own.count(lit):
                         hits.append((m["name"], lit[:80], n))
     return sorted(set(hits))
