@@ -23,6 +23,8 @@ const mutants = [
   ['a port is accepted', C + 'tools.ts', 'if (p.port) return', 'if (false) return'],
   // 11-22: the old fault here removed ONLY the bare-number clause, which the later last-label rule (a public name ends in a label that starts with a letter) makes redundant, so no test could ever catch it. This one skips every host rule, so a bare IP number really is accepted.
   ['the host rules are skipped (a bare IP number is accepted)', C + 'tools.ts', 'if (p.port) return "An address with a port number is not accepted.";', 'if (p.port) return "An address with a port number is not accepted."; return null;'],
+  ['a name whose last label starts with a digit (example.1com) is accepted', C + 'tools.ts', '!/\\.[A-Za-z][A-Za-z0-9-]*$/.test(p.hostname) || /\\.(localhost|local|internal|lan)$/i.test(p.hostname)', '/\\.(localhost|local|internal|lan)$/i.test(p.hostname)'],
+  ['a name that only works inside a network (.local, .internal) is accepted', C + 'tools.ts', '!/\\.[A-Za-z][A-Za-z0-9-]*$/.test(p.hostname) || /\\.(localhost|local|internal|lan)$/i.test(p.hostname)', '!/\\.[A-Za-z][A-Za-z0-9-]*$/.test(p.hostname)'],
   ['non-visible characters are accepted in the address', C + 'tools.ts', '|| /[^\\x21-\\x7e]/.test(u)', ''],
   ['the host is shown without the untrusted wrapper', C + 'tools.ts', 'untrusted("download-host", r.host)', 'r.host'],
   ['the reason is not cleaned', C + 'tools.ts', 'const why = cleanText(a.why, 300);', 'const why = String(a.why);'],
