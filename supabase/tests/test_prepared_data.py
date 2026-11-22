@@ -273,5 +273,74 @@ class PreparedData(core.Base):
         self.assertEqual([r[0] for r in rows if r[1] is not True], [], "every row of live step 34 must be true")
 
 
+    # ---------------------------------------------------------------------------------------------- GEO 11-21 (20261121000600, train 3 review MEDIUM 2 and LOW 3)
+    def test_GEO_a_deleted_ai_prepared_upload_keeps_none_of_what_the_ai_declared(self):
+        ds = self.upload_of(ALICE)
+        self.exec_sql("update public.datasets set storage_path = %s, deleted_at = null, prepared_from = gen_random_uuid(), "
+                      "prep_log = %s::jsonb where id = %s", f"{ALICE}/{ds}/source.csv",
+                      json.dumps({"declared_by": "Claude", "sources": SOURCES, "change_log": LOG}), ds)
+        self.assertEqual(self.db.as_("service").one("select mark_uploads_removed(%s::uuid[])", [ds]), 1)   # no file in Storage: marked
+        row = self.admin("select name, prep_log is null, prepared_from is null from public.datasets where id = %s", ds)
+        self.assertEqual(row, ("Deleted data", True, True))   # MUST-FAIL: before 000600 the tombstone kept prep_log and prepared_from
+
+    def test_GEO_a_paying_customer_s_delete_request_clears_their_waiting_tables_and_ends_their_ai_connection(self):
+        a = self.alice()
+        self.hand(a)
+        _, b, _ = self.connect(BOB, scopes=SCOPES)
+        self.hand(b)
+        self.db.as_("service").one("select account_request_deletion(%s, %s, 'credit history') is null", ALICE, "alice@x")
+        mine = self.admin("select csv_text, state from public.prepared_data where owner_id = %s", ALICE)
+        self.assertEqual(mine, ("", "discarded"))             # MUST-FAIL: before 000600 the text waited until Ryan's hand close
+        self.assertEqual(self.admin("select label, sources::text, change_log::text, measured::text, ai_name from public.prepared_data where owner_id = %s", ALICE),
+                         ("Deleted", "{}", "[]", "{}", None))   # GAMES 12:12 LOW: none of the AI's declarations stay either
+        self.assertEqual(self.admin("select state from public.prepared_data where owner_id = %s", BOB), "waiting")   # never another person's
+        with self.assertRaises(psycopg.Error) as cm:          # MUST-FAIL: before 000600 the AI kept acting on a deleted account
+            self.runner().one("select connect_list_my_data(%s)", h(a))
+        self.assertIn(cm.exception.sqlstate, ("PT401", "PT403"))
+        self.assertIsNotNone(self.runner().one("select connect_list_my_data(%s)", h(b)))                        # Bob's AI still works
+        self.db.as_("service").one("select account_request_deletion(%s, %s, 'credit history') is null", ALICE, "alice@x")   # safe twice
+
+
+    def test_GEO_000600_carries_every_line_of_000550_s_account_request_deletion_in_order(self):
+        # CC1 12:1x: Ryan applies in version order, 000550 then 000600; 000600 redefines the function, so it must carry
+        # every line of 000550's body (the AI revoke) or applying it would quietly undo the revoke. Edit one, edit both.
+        def fn(name):
+            t = (core.ROOT / "migrations" / name).read_text(encoding="utf-8").replace("\r\n", "\n")
+            a = t.index("function public.account_request_deletion(")
+            return [x.rstrip() for x in t[a:t.index("end $$;", a)].split("\n") if x.strip()]
+        older, newer = fn("20261121000550_delete_revokes_ai.sql"), fn("20261121000600_prepared_tombstone.sql")
+        it = iter(newer)
+        missing = [x for x in older if not any(x == y for y in it)]        # every line of 000550, in the same order
+        self.assertEqual(missing, [], "000600's account_request_deletion lost lines of 000550's")
+
+    # -- GEO 11-21 (CC1 12:36 G1): the live-steps after-checks and the rollbacks of GEO's migrations
+    def g1_check(self, name):
+        f = next((core.ROOT / "live-steps").glob("*_" + name + "_after_check.sql"))
+        return [bool(r[1]) for r in self.db.as_(None).c.execute(f.read_text(encoding="utf-8")).fetchall()]
+
+    def g1_rollback(self, name):
+        f = next((core.ROOT / "rollbacks").glob("*_" + name + "_rollback.sql"))
+        self.db.as_(None).c.execute(f.read_text(encoding="utf-8"))
+
+    def test_GEO_g1_after_checks_true_then_the_rollbacks_in_order_put_the_old_bodies_back(self):
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)
+        self.assertEqual(self.g1_check("prepared_tombstone"), [True] * 4)
+        self.g1_rollback("prepared_tombstone")                       # 000600's undo FIRST
+        self.assertEqual(self.g1_check("prepared_tombstone"), [False, True, False, True])
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)     # the AI revoke (000550) is still in place
+        self.g1_rollback("delete_revokes_ai")
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [False, True, True])
+
+    def test_GEO_g1_undoing_000550_before_000600_stops_in_words_and_changes_nothing(self):
+        f = next((core.ROOT / "rollbacks").glob("*_delete_revokes_ai_rollback.sql"))
+        c = self.db.as_(None).c
+        with self.assertRaises(psycopg.Error) as cm:           # MUST-FAIL: without the guard it stripped 000600's prepared lines
+            c.execute(f.read_text(encoding="utf-8"))
+        c.execute("rollback")
+        self.assertIn("Undo 000600 first", str(cm.exception))
+        self.assertEqual(self.g1_check("prepared_tombstone"), [True] * 4)
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
