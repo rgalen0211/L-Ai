@@ -44,7 +44,7 @@ const NOT_DRAWN_SCALE = "Ryagram draws state and county pictures today. A city p
 const GLOBE = "The 3D interactive globe is coming soon. It is not available yet, so do not promise it.";
 // Ryan walked a real ChatGPT chat on 11-20 (median age by state) and met the CATALOG-ONLY GAP: the subject was not one of the datasets Ryagram draws, and nothing told the AI what to say. These words are that answer.
 // They are true whether or not the connector offers submit_prepared_data (Q634): they name it only as "if it is among your tools". tests/connect-catalog-gap.test.mjs pins them to the real catalog.
-export const CATALOG_SAYS = "Ryagram draws only the datasets in the catalog that get_story_schema lists: today obesity and fast food by state, residential building permits by county, state unemployment, and the share of jobs in each industry by state.";
+export const CATALOG_SAYS = "Ryagram draws only the datasets in the catalog that get_story_schema lists: today obesity and fast food by state, residential building permits by county, state unemployment, and the share of private-sector jobs in each industry by state.";
 export const NO_MATCH = "If none of them fits the subject the person named, or the years they asked for, tell them so plainly and name the closest catalog subjects; never swap in a different dataset without saying so, never invent a dataset id, and do not build a film that is not the one they asked for. "
   + "If submit_prepared_data is among your tools, a table of their own subject can be handed over with it for them to look at and accept in the Ryagram app; if it is not, say that this subject cannot be made through this connection yet.";
 
