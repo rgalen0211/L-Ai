@@ -68,6 +68,7 @@ test('MUST-FAIL: addresses and texts that are not allowed are refused and nothin
     http: 'http://www.census.gov/a.csv', user: 'https://user:pw@www.census.gov/a.csv', at: 'https://www.census.gov@evil.example/a.csv', ip: 'https://93.184.216.34/a.csv', port: 'https://www.census.gov:8443/a.csv',
     nodot: 'https://localhost/a.csv', file: 'file:///C:/x.csv', space: 'https://www.census.gov/a b.csv', ctl: 'https://www.census.gov/a\u0001.csv', nonascii: 'https://www.census.gov/\u00e9.csv',
     long: 'https://x.example.org/' + 'a'.repeat(2100), ftp: 'ftp://x.example.org/a', data: 'data:text/csv,a,b',
+    hex: 'https://0x7f.0.0.1/a.csv', digitlabel: 'https://example.1com/a.csv', local: 'https://printer.local/a.csv', internal: 'https://wiki.internal/a.csv', lan: 'https://nas.lan/a.csv', localhostname: 'https://app.localhost/a.csv',        // a number written another way, and names that only work inside a computer or network (11-22: no fault could remove those two rules and be caught)
   };
   for (const [k, u] of Object.entries(bad)) {
     const r = await call(A, 'request_download', { url: u, why: 'x' });
