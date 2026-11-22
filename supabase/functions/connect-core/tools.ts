@@ -1363,6 +1363,8 @@ const openRyagramHome: ToolDef = {
 
 // ---------------------------------------------------------------------------------------------- AI-prepared data (Q634)
 const PREP_URL = "^https://[A-Za-z0-9][A-Za-z0-9.-]*\\.[A-Za-z][A-Za-z0-9-]*(/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]*)?$";
+// Where the person finds a table their AI handed over, in the app's own words (WEB 11-22: the card sits on the Advanced tab of a film, under "Advanced: your own data and the story file"; no screen is named "Your data"). The AI says this to the person.
+export const PREPARED_WHERE = "in the Ryagram app, on the Advanced tab of one of their films (a film has to exist: create_project makes one), in the card called \"Prepared by your AI\", which has an \"Accept and continue\" button";
 const submitPrepared: ToolDef = {
   name: "submit_prepared_data", title: "Hand Ryagram a table of data you prepared", scope: "submit_data", readOnly: false, idempotent: false, preparedData: true,
   description: "Use this when the person wants a film about data that is NOT in Ryagram's catalog and you have found it (for example an official statistics table). Send the cleaned table as CSV text (at most 200 KB, 5,000 rows, 40 columns), "
@@ -1393,8 +1395,8 @@ const submitPrepared: ToolDef = {
     const log = Array.isArray(a.change_log) ? a.change_log.map((x) => cleanText(x, PREPARED_LIMITS.maxLogStep)).filter((x): x is string => !!x) : [];
     try {
       const r = await ctx.data.submitPrepared({ label, csv: String(a.csv_text), sources: a.sources as Record<string, unknown>, changeLog: log, measured: m as unknown as Record<string, unknown>, aiName: null });
-      return ok(`Handed over. Ryagram measured: ${describeMeasured(m)} It waits under "${r.where}" in the Ryagram app for the PERSON to look at it and press Accept (until ${r.expires_at.slice(0, 10)}). `
-        + "It is labelled 'Unverified, user-supplied' whatever the source, your sources and change log are shown as declared by you, and you cannot accept it. Tell the person where to find it. After they accept it, call list_my_data for its name."
+      return ok(`Handed over. Ryagram measured: ${describeMeasured(m)} It waits ${PREPARED_WHERE} for the PERSON to look at it and press Accept (until ${r.expires_at.slice(0, 10)}). `
+        + "It is labelled 'Unverified, user-supplied' whatever the source, your sources and change log are shown as declared by you, and you cannot accept it. Tell the person where to find it, in those words. After they accept it, call list_my_data for its name."
         + (m.periods_missing.length ? ` NOTE: no rows for ${m.periods_missing.join(", ")}: say so to the person and do not fill them.` : ""),
         { prepared_id: r.prepared_id, state: r.state, where: r.where, expires_at: r.expires_at, measured: m });
     } catch (e) { const r = editRefusal(e); if (r) return r; throw e; }
@@ -1409,7 +1411,7 @@ const listMyData: ToolDef = {
   async run(_a, ctx) {
     const r = await ctx.data.listMyData();
     const lines = r.datasets.map((d) => `${d.name}  ${untrusted("dataset-label", String(d.label ?? "").slice(0, 120))}  ${d.status}${d.geography ? ", " + d.geography : ""}${d.cadence ? ", " + d.cadence : ""}${d.prepared_by_ai ? ", prepared by an AI" : ""}  (${d.trust_label})`);
-    return ok((lines.length ? `Your uploaded data:\n${lines.join("\n")}` : "No uploaded data yet.") + (r.waiting_for_you ? `\n${r.waiting_for_you} table${r.waiting_for_you === 1 ? "" : "s"} you handed over wait${r.waiting_for_you === 1 ? "s" : ""} for the person to accept in the Ryagram app.` : ""), { datasets: r.datasets, waiting_for_you: r.waiting_for_you });
+    return ok((lines.length ? `Your uploaded data:\n${lines.join("\n")}` : "No uploaded data yet.") + (r.waiting_for_you ? `\n${r.waiting_for_you} table${r.waiting_for_you === 1 ? "" : "s"} you handed over wait${r.waiting_for_you === 1 ? "s" : ""} for the person to accept ${PREPARED_WHERE}.` : ""), { datasets: r.datasets, waiting_for_you: r.waiting_for_you });
   },
 };
 
