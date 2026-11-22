@@ -29,6 +29,35 @@ class BlindGuard(unittest.TestCase):
         self.assertGreater(total, 150)
         self.assertEqual(hits, [], "these mutants remove text a later migration looks for with replace(), so their setup would refuse to run (an error, never a catch): comment the text out instead of deleting it, or keep it in the new text")
 
+    def test_no_mutant_plants_in_a_function_a_later_migration_defines_again(self):
+        # GEO 11-22 (WORKER's and CONNECT's drift): a fault in a function that a later migration redefines never runs
+        texts = b.migration_texts(ROOT)
+        hits = []
+        for name in b.runner_names(ROOT):
+            hits += [(name,) + h for h in b.overwritten_hits(b.runner_mutants(ROOT, name), texts)]
+        self.assertEqual(hits, [], "these faults plant in a function a later migration defines again, so the planted body never runs: plant each in the LAST file that defines its function")
+
+    def test_the_overwrite_check_flags_only_the_same_function_defined_again(self):
+        f1 = "create function public.f(a int) returns int language plpgsql as $$\nbegin\n  if a is null then raise exception 'a must be set'; end if;\n  return a;\nend $$;\n"
+        g_copy = "create function public.g(a int) returns int language plpgsql as $$\nbegin\n  if a is null then raise exception 'a must be set'; end if;\n  return a;\nend $$;\n"
+        f_again = f1.replace("create function", "create or replace function")
+        fault = [{"name": "f takes a null", "edits": [[EARLY, "  if a is null then raise exception 'a must be set'; end if;\n", ""]]}]
+        # MUST-FAIL: the same function defined again with the line -> a hit naming it and the later file
+        self.assertEqual(b.overwritten_hits(fault, {EARLY: f1, LATE: f_again}), [("f takes a null", "f", LATE)])
+        # a later COPY of the line in a different function (r9's node_hit copies connect_anon_hit's check) is not a hit
+        self.assertEqual(b.overwritten_hits(fault, {EARLY: f1, LATE: g_copy}), [])
+        # a top-level statement after a function's closing $$ is in no function (a migration's own gate_apply line)
+        gate = "select ryagram_private.gate_apply();                       -- the gate"
+        self.assertEqual(b.overwritten_hits([{"name": "no gate", "edits": [[EARLY, gate + "\n", ""]]}], {EARLY: f1 + gate + "\n", LATE: f_again + gate + "\n"}), [])
+        # a common line is placed where THIS fault plants it, not at its first occurrence in the file
+        f2 = f1.replace("return a;", "return a + 1;")
+        two = g_copy + f2
+        fault_in_f = [{"name": "f takes a null", "edits": [[EARLY, "  if a is null then raise exception 'a must be set'; end if;\n  return a + 1;\n", "  return a + 1;\n"]]}]
+        g_again = g_copy.replace("create function", "create or replace function")
+        self.assertEqual(b.overwritten_hits(fault_in_f, {EARLY: two, LATE: g_again}), [])        # g's first copy of the line is not where this fault plants
+        self.assertEqual(b.overwritten_hits(fault_in_f, {EARLY: two, LATE: f2.replace("create function", "create or replace function")}),
+                         [("f takes a null", "f", LATE)])
+
     def test_the_guard_flags_a_mutant_that_deletes_the_text_a_later_migration_rewrites(self):
         # the real 'worker accounts can be connected' mutant before its re-aim
         blind = [{"name": "worker accounts can be connected", "edits": [[EARLY, CLAUSE + "\n", ""]]}]

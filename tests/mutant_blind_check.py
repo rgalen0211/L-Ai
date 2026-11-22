@@ -90,3 +90,61 @@ def _literals(window):
 
 
 _DOLLAR_ARG = re.compile(r"replace\([^,']*,\s*\$(\w*)\$")    # only an ARGUMENT that opens with $tag$, never the do-block's own closing $do$
+
+
+# -- the second dead-fault class (WORKER and CONNECT 11-22): a fault planted in a function that a LATER migration defines AGAIN
+# (create or replace) is overwritten before the tests run, so the planted body never runs and the fault reads MISSED (or a later
+# fix reads as proven when it is not). Plant it in the LAST file that defines the function.
+_FN = re.compile(r"create\s+(?:or\s+replace\s+)?function\s+([\w.\"]+)\s*\(", re.I)
+
+
+_DOLLAR = re.compile(r"\$(\w*)\$")
+
+
+def _function_at(text, pos):
+    """The name (schema dropped) of the function whose definition holds position pos (from its header to its closing $tag$), or None
+    (a top-level statement after a function, such as a migration's own gate_apply line, is in no function)."""
+    last = None
+    for m in _FN.finditer(text, 0, pos):
+        last = m
+    if last is None:
+        return None
+    opener = _DOLLAR.search(text, last.end())
+    if opener and opener.start() < pos:
+        close = text.find(opener.group(0), opener.end())
+        if 0 <= close < pos:
+            return None
+    return last.group(1).replace('"', "").split(".")[-1].lower()
+
+
+def overwritten_hits(mutants, texts):
+    """[(mutant name, function, later migration)] for every edited line that sits in a function a LATER migration defines again
+    (same function name) with that same line. A line copied into a DIFFERENT function (r9's node_hit copies connect_anon_hit's
+    caller check) is not a hit: the name must match."""
+    hits = []
+    for m in mutants:
+        for path, old, new in m["edits"]:
+            mname = Path(path).name
+            if mname not in texts:
+                continue
+            own = texts[mname]
+            old_n = old.replace("\r\n", "\n")
+            at_old = own.find(old_n)                  # where THIS fault plants (a common line, e.g. a security definer header, occurs many times)
+            if at_old < 0:
+                continue
+            new_lines = {l.strip() for l in new.replace("\r\n", "\n").split("\n")}
+            for line in (l.strip() for l in old_n.split("\n")):
+                if len(line) < MIN_LINE or line.startswith("--") or line in new_lines:
+                    continue
+                fn = _function_at(own, at_old + old_n.find(line))
+                if fn is None:
+                    continue
+                for n in (x for x in texts if x > mname):
+                    tx = texts[n]
+                    at = tx.find(line)
+                    while at >= 0:
+                        if _function_at(tx, at) == fn:
+                            hits.append((m["name"], fn, n))
+                            break
+                        at = tx.find(line, at + 1)
+    return sorted(set(hits))
