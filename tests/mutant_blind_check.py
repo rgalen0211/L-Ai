@@ -120,7 +120,9 @@ def _function_at(text, pos):
 def overwritten_hits(mutants, texts):
     """[(mutant name, function, later migration)] for every edited line that sits in a function a LATER migration defines again
     (same function name) with that same line. A line copied into a DIFFERENT function (r9's node_hit copies connect_anon_hit's
-    caller check) is not a hit: the name must match."""
+    caller check) is not a hit: the name must match. Known limits (CONNECT 14:59, none on train 4 today): the match is by NAME, not
+    signature, so a later OVERLOAD carrying the same line is also flagged (an over-flag to look at, never a hidden miss); and a
+    function whose body is single-quoted instead of $tag$-quoted has no closing tag here, so its lines may be read as a later one's."""
     hits = []
     for m in mutants:
         for path, old, new in m["edits"]:
