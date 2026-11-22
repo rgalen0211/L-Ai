@@ -61,3 +61,92 @@ test('GAMES help: the live editor answer does not say nothing is sent; it says n
   check(help);
   goesRed(check, help.replace('No credits are used while you try things; your changes are saved as a draft you can undo.', 'Nothing is sent to the server and no credits are used while you try things.'));
 });
+
+// ---- GROUP B: the order line and the job line tell what really happened ---------------------------------------------------------------------------------
+// The "old" behaviour is planted by running the check on the old function's answer (what a page without the branch says).
+const ORDER_OLD = 'The full render failed. Your credits were returned. You can request it again.';
+const order = (state, error_code) => J.orderLine({ state, error_code, stages: [] });
+const T = read('supabase/pipe1/pipe1_orders.template.sql');
+
+test('B1 orderLine: a short balance or the daily cap says nothing was charged (stage_submit holds nothing) and does not say credits were returned', () => {
+  assert.match(T, /state = 'failed', error_code = 'insufficient_credits'/);
+  assert.match(T, /order_end\(p_order\.id, 'failed', 'daily_cap'\)/);
+  assert.match(T, /Not enough credits \(2B raises 53400\): no job, no hold/);
+  const credits = s => { assert.match(s, /enough credits\. Nothing was charged\. Buy credits, then request it again\.$/); assert.doesNotMatch(s, /returned/); };
+  const cap = s => { assert.match(s, /today’s credit limit\. Nothing was charged\. You can request it again after 24 hours\.$/); assert.doesNotMatch(s, /returned/); };
+  credits(order('failed', 'insufficient_credits')); cap(order('failed', 'daily_cap'));
+  goesRed(credits, ORDER_OLD); goesRed(cap, ORDER_OLD);
+});
+
+test('B1 orderLine: a final refused for its story does not say "request it again" alone; it says change the story or make a new sheet and preview', () => {
+  const refused = s => { assert.match(s, /Change the story[^.]*, or make a new contact sheet and preview, then request it again\./); assert.match(s, /refused the same way|stop it the same way/); };
+  for (const c of ['engine_refused', 'schema_rejected', 'timeout', 'limit_exceeded']) refused(order('failed', c));
+  assert.match(order('failed', 'ladder_missing'), /did not match the contact sheet and preview you approved\. Your credits were returned\. Make a new contact sheet and preview/);
+  goesRed(refused, ORDER_OLD);
+  assert.equal(order('failed', 'worker_lost'), ORDER_OLD, 'a failure with no story fault keeps the plain line');
+  assert.equal(order('failed', undefined), ORDER_OLD);
+});
+
+test('B1 orderLine: a cancel while it ran says "You cancelled"; a film past its 30 days says it was kept and deleted, not "not approved in time"', () => {
+  assert.match(T, /order_end\(o\.id, 'cancelled', 'cancelled'\)/);
+  assert.match(T, /set state = 'expired', error_code = 'delivery_expired'/);
+  assert.match(T, /final_close\(s\.id, 'expired', 'approval_expired'/);
+  const cancelled = s => assert.match(s, /^You cancelled the full render\. Your credits were returned\.$/);
+  cancelled(order('failed', 'cancelled')); cancelled(order('cancelled', 'cancelled'));
+  goesRed(cancelled, ORDER_OLD);
+  const gone = s => assert.equal(s, 'Your film was kept for 30 days and has been deleted.');
+  gone(order('expired', 'delivery_expired'));
+  goesRed(gone, order('expired', 'approval_expired'));
+  assert.match(order('expired', 'approval_expired'), /not approved in time/, 'an approval that ran out keeps its own line');
+  assert.match(order('expired', undefined), /not approved in time/);
+});
+
+const job = o => J.problem({ state: 'failed', attempt: 1, ...o });
+
+test('B2 invalid_input: an upload that was not confirmed (or a generic upload refusal) does not say "Fix the story"', () => {
+  const fine = s => assert.doesNotMatch(s, /Fix the story/);
+  const NC = 'This uploaded data has not been confirmed for use, so no film was made from it. Open it in Your data and confirm it to try again.';
+  fine(job({ error_class: 'invalid_input', error_code: 'dataset_not_allowed', error_detail: NC }));
+  fine(job({ error_class: 'invalid_input', error_code: 'engine_refused', error_detail: 'The film could not be made from your data. Check that your columns and places are right.' }));
+  assert.match(job({ error_class: 'invalid_input', error_code: 'dataset_not_allowed', error_detail: NC }), /confirm it to try again\.$/);
+  assert.match(job({ error_class: 'invalid_input', error_code: 'dataset_not_allowed' }), /Open Your data to check it\.$/);
+  goesRed(fine, 'The story or its settings weren’t accepted. Fix the story and submit again.');
+  assert.match(job({ error_class: 'invalid_input', error_code: 'schema_rejected', error_detail: '$.title: unknown key' }), /Fix the story|Remove the setting/, 'a real story fault keeps its next step');
+});
+
+test('B3 queue_timeout: the job never ran, so it does not say "It tried N times"', () => {
+  assert.match(read('supabase/migrations/20261010000100_ops_readiness.sql'), /error_code = 'queue_timeout', error_class = 'infrastructure'/);
+  const s = job({ error_class: 'infrastructure', error_code: 'queue_timeout', attempt: 1, error_detail: 'Rendering was delayed, so this film could not start. Your credits were returned.' });
+  const check = t => { assert.doesNotMatch(t, /tried/); assert.match(t, /Rendering was delayed, so this film could not start\. Your credits were returned\. You can try again\.$/); };
+  check(s);
+  goesRed(check, 'The render machine had a problem, not your story. It tried 1 time. Rendering was delayed, so this film could not start.');
+  assert.match(job({ error_class: 'infrastructure', error_code: 'worker_lost', attempt: 2 }), /It tried 2 times\./, 'a job that did run keeps the count');
+});
+
+test('B4 limit: only a preview is told to try a shorter preview window', () => {
+  const noWindow = s => { assert.doesNotMatch(s, /preview window/); assert.match(s, /Ask us to help\.$/); };
+  noWindow(job({ error_class: 'limit', job_type: 'final_render' }));
+  noWindow(job({ error_class: 'limit', job_type: 'contact_sheet' }));
+  assert.match(job({ error_class: 'limit', job_type: 'preview' }), /Try a shorter preview window, or ask us to help\.$/);
+  goesRed(noWindow, job({ error_class: 'limit', job_type: 'preview' }));
+});
+
+test('B5 a final render Ryagram declined, or whose approval ran out, says it was not approved and the credits came back (final_close sets the job code)', () => {
+  assert.match(T, /error_class = 'cancelled', error_code = p_error/);
+  assert.match(T, /final_close\(s\.id, 'declined', 'declined', me, p_note\)/);
+  const declined = s => assert.equal(s, 'This render was not approved, so nothing was rendered and your credits came back.');
+  const late = s => assert.equal(s, 'This render was not approved in time, so it was cancelled and your credits came back.');
+  declined(J.problem({ state: 'cancelled', job_type: 'final_render', error_class: 'cancelled', error_code: 'declined' }));
+  late(J.problem({ state: 'cancelled', job_type: 'final_render', error_class: 'cancelled', error_code: 'approval_expired' }));
+  assert.equal(J.problem({ state: 'cancelled', error_class: 'cancelled', error_code: 'cancelled' }), 'Cancelled.', 'a cancel the person chose is still just Cancelled.');
+  goesRed(declined, 'Cancelled.');
+});
+
+test('B6 the local-only override gate line points to "Get help with this", not to changing the story', () => {
+  const gate = job({ state: 'editorial_action_required', error_class: 'gate', error_code: 'gate', error_detail: 'the receipt carries a --render-anyway override, which the web worker never accepts' });
+  const check = s => { assert.match(s, /Open “Get help with this”\.$/); assert.doesNotMatch(s, /Change the story/); };
+  check(gate);
+  goesRed(check, 'Ryagram’s checks stopped this render. Change the story, then make a new preview.');
+  assert.match(J.problem({ state: 'editorial_action_required', error_class: 'gate', error_detail: '2 preflight check(s) failed' }), /Change the story, then make a new preview\.$/, 'an ordinary check failure keeps its step');
+  assert.match(J.problem({ state: 'editorial_action_required', error_class: 'gate', error_detail: 'the checks did not run: x' }), /Nothing is wrong with your story/, 'checks-did-not-run keeps its line');
+});
