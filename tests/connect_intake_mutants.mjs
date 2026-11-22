@@ -29,7 +29,7 @@ const mutants = [
   ['the globe is offered for a county film', I, 'county: ["county_map", "prism_map", "line", "bars"],', 'county: ["county_map", "prism_map", "line", "bars", "globe"],'],
   ['a city or world picture is accepted', I, '  if (k.scale !== "county" && k.scale !== "state") {', '  if (false) {'],
   ['a picture that does not fit the scale is accepted', I, '  if (!allowed.includes(k.picture)) {', '  if (false) {'],
-  ['the final step tells the AI to ask again', I, 'then: "Do NOT ask the person anything else they already told you. Call get_story_schema', 'then: "Ask the person to confirm each detail again. Call get_story_schema'],
+  ['the final step tells the AI to ask again', I, 'then: `Do NOT ask the person anything else they already told you. Call get_story_schema', 'then: `Ask the person to confirm each detail again. Call get_story_schema'],
   ['a department that is not built is started', I, 'say: "That part of Ryagram is coming soon. It is not available yet, and nothing can be started in it today."', 'say: "That part of Ryagram is ready."'],
   ['the compilation is not pointed at the desktop app', I, 'by the Ryagram desktop app for Windows. Do you have the app?', 'by Ryagram. Do you have it?'],
   ['free text from the AI is echoed back', C + 'tools.ts', 'already_known: step.known });', 'already_known: step.known, echo: (a as { place?: string }).place });'],

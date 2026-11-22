@@ -38,9 +38,9 @@ const mutants = [
   ['the cache never expires', CI, 'hit.until > now &&', 'true &&'],
   // ---- the metadata and the switch
   ['the metadata advertises the support even when it is off', OA, '...(cimd ? { client_id_metadata_document_supported: true } : {}),', '...({ client_id_metadata_document_supported: true }),'],
-  ['the support is advertised in only one of the two documents', OA, '...authorizationServerMetadata(base, cimd),', '...authorizationServerMetadata(base, false),'],
-  ['the metadata documents are built without the switch', OA, 'authorizationServerMetadata(d.baseUrl, !!d.cimd))', 'authorizationServerMetadata(d.baseUrl, true))'],
-  ['CIMD is on by default', IX, '.trim().toLowerCase() === "on";', '.trim().toLowerCase() !== "off";'],
+  ['the support is advertised in only one of the two documents', OA, '...authorizationServerMetadata(base, cimd, preparedData),', '...authorizationServerMetadata(base, false, preparedData),'],
+  ['the metadata documents are built without the switch', OA, 'authorizationServerMetadata(d.baseUrl, !!d.cimd, !!d.preparedData))', 'authorizationServerMetadata(d.baseUrl, true, !!d.preparedData))'],
+  ['CIMD is on by default', IX, 'const cimdOn = (Deno.env.get("CONNECT_CIMD") ?? "").trim().toLowerCase() === "on";', 'const cimdOn = (Deno.env.get("CONNECT_CIMD") ?? "").trim().toLowerCase() !== "off";'],
   ['the allowlist handed to the server holds more than Claude', CI, 'new Set(["https://claude.ai/oauth/mcp-oauth-client-metadata"])', 'new Set(["https://claude.ai/oauth/mcp-oauth-client-metadata", "https://evil.example/doc"])'],
   ['the database adapter calls another function', DB, '"connect_cimd_client"', '"connect_register_client"'],
 ];

@@ -60,7 +60,7 @@ function run(cwd) {
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(scratch, { recursive: true });
-  for (const d of ['supabase/functions', 'tests']) fs.cpSync(path.join(root, d), path.join(scratch, d), { recursive: true });
+  for (const d of ['supabase/functions', 'tests', 'assets']) fs.cpSync(path.join(root, d), path.join(scratch, d), { recursive: true });
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();

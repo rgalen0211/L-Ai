@@ -62,7 +62,7 @@ const mutants = [
   ['asking again piles up examples', H, `var old=box.querySelector('.example');if(old)old.remove();`, ``, 'browser'],
   ['the example is built from markup', H, ` q.appendChild(document.createTextNode(Q1));q.appendChild(w);`, ` q.innerHTML=text;q.appendChild(w);`, 'source'],
   ['an address that is not https is put in the page', H, `const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";`, `const link = appUrl ?? "";`],
-  ['the tool is listed with its switch off', MC, `&& (!t.homePanel || homePanel)).map(`, `).map(`],
+  ['the tool is listed with its switch off', MC, `&& (!t.homePanel || homePanel) && (!t.preparedData || preparedData)).map(`, `&& (!t.preparedData || preparedData)).map(`],
   ['the tool runs with its switch off', DI, `(found.homePanel && !env.homePanel)`, `false`],
   ['the page is served with its switch off', MA, `!(home && cfg.homePanel)`, `!(home)`],
   ['the tool carries no page', MC, `: t.homePanel ? toolUiMeta(HOME_URI) :`, `:`],
