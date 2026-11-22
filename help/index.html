@@ -35,9 +35,9 @@
     <!-- source: credit ledger: failure releases the hold; cancelled while queued releases it -->
     <details><summary>Do I get my credits back?</summary>
       <p>Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.</p></details>
-    <!-- source: uploadreader, merged to Ryagram main (b49efa3, 10-08): an uploader's files are always deleted, none of their data kept -->
+    <!-- source: the upload form (assets/app-library.js, "Should Ryagram keep this file?"): Store my data is the default and keeps the file privately until the person deletes it; Don't keep my data deletes it once the final film is made, or after 7 days without activity; a file that cannot be read is deleted automatically. WEB 11-22: the old claim that uploaded data is always deleted was false for the default. tests/help-upload-retention.test.mjs pins this. -->
     <details><summary>My own data (spreadsheet) won't read.</summary>
-      <p>Ryagram reads spreadsheets (CSV and similar files). If a file can't be read you'll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.</p></details>
+      <p>Ryagram reads spreadsheets (CSV and similar files). If a file can't be read you'll see why, and the file is deleted automatically. You choose whether Ryagram keeps your file: Store my data keeps it privately until you delete it; Don't keep my data deletes it once your final film is made, or after 7 days without activity.</p></details>
     <!-- source: app-auth: sign-in, password reset (once switched on) -->
     <details><summary>I can't sign in, or I forgot my password.</summary>
       <p>Use "Forgot your password?" on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us at the address below.</p></details>

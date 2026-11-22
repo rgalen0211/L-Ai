@@ -269,7 +269,7 @@
         { id: 'account', label: 'Account and reports', el: answers(
           qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
           qa('How do I report a film?', 'Every public film page has a \u201cReport this film\u201d link, or use the report form. For reports about child safety, private information, harassment or copyright we hide the film right away while we review it.'),
-          qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, Ryagram will read spreadsheets (CSV and similar files). If a file can\u2019t be read you\u2019ll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.')) }
+          qa('My own data (spreadsheet) won\u2019t read.', 'Ryagram reads spreadsheets (CSV and similar files). If a file can\u2019t be read you\u2019ll see why, and the file is deleted automatically. You choose whether Ryagram keeps your file: Store my data keeps it privately until you delete it; Don\u2019t keep my data deletes it once your final film is made, or after 7 days without activity.')) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
               h('p', { class: 'form-intro' }, 'Common questions are answered below and in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
