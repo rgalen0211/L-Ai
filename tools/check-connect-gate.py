@@ -63,7 +63,7 @@ def main():
                     check(shown == invited, f'the consent address {"opens" if invited else "does NOT open"} the consent page')
                     if not invited:
                         check('Approve' not in text, 'no Approve button anywhere on the page')
-                        check('Connecting an AI is by invitation for now.' in text, 'and it says why in one plain line, not a blank page')
+                        check('Connecting an AI is not open to your account yet.' in text and 'write to ryagram@uselai.com' in text, 'and it says why in one plain line, not a blank page')
                     check(not errors, 'no page errors')
                     p.context.close()
             finally:
