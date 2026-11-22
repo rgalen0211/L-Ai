@@ -80,7 +80,8 @@ MUTANTS = [
     ("unused clients are never purged", [("supabase/migrations/20261120000600_prepared_purge_daily.sql", "delete from public.connect_clients c where c.created_at < now() - interval '7 days'", "delete from public.connect_clients c where false and c.created_at < now() - interval '7 days'")]),
     ("connect_log records any hash", "  if not found then return; end if;                    -- an unknown hash is not logged: anyone holding the runner credentials could flood the table\n", ""),
     ("consent shows the client's own name as the label", "'redirect_label', case when", "'redirect_label', c.name, 'unused', case when"),
-    ("connect_anon_hit accepts a caller that is not a hash", [("supabase/migrations/20261021000100_r9_render_node.sql", "p_caller is null or p_caller !~ '^[0-9a-f]{64}$' or ", "")]),
+    # (GEO 11-22: connect_anon_hit is defined ONCE, in the connect migration; the r9 migration's copy of the line belongs to node_hit, a different function, so this fault stays aimed at the connect migration)
+    ("connect_anon_hit accepts a caller that is not a hash", "p_caller is null or p_caller !~ '^[0-9a-f]{64}$' or ", ""),
     ("exchange does not re-check the person", "  if not ryagram_private.connect_person_ok(k.owner_id)\n     or not exists", "  if false\n     or not exists"),
     ("exchange does not re-check the grant", "g.owner_id = k.owner_id and g.client_id = k.client_id and g.revoked_at is null) then\n    return bad;", "g.owner_id = k.owner_id and g.client_id = k.client_id) then\n    return bad;"),
     ("refresh does not check expiry", "if t.refresh_expires_at < now() or not ryagram_private.connect_person_ok(t.owner_id)", "if false or not ryagram_private.connect_person_ok(t.owner_id)"),
