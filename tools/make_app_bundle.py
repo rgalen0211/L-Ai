@@ -40,6 +40,7 @@ RUNTIME_TOOLS = RUNTIME_TOOLS + ("maker_checklist.py",)                    # NEX
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_platform.py",)                   # NEXT-CONNECT 166: the few Windows / macOS / Linux differences; desktop_maker and the site-film renderer import it
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_node_render.py", "ryagram_node_job.py", "gpu_lock.py")      # NEXT-RENDERER 44: the site-film renderer, its child step and the GPU lock tool a tester PC needs
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("gpu_room.py",)                            # NEXT-WORKER 76: the renderer and the maker import it (room on the graphics card for both films)
+RUNTIME_TOOLS = RUNTIME_TOOLS + ("open_phrase_finder.py",)                    # BUILDER 11-22: Open phrase finder.bat runs it (FACES' first-run page)
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("node_settings.py",)                         # NEXT-CONNECT 171: the app writes its own site-film settings at first start
 RUNTIME_PAGE_DIRS = ("maker-edit", "maker-live", "maker-song")          # the edit and song pages (html, js, css); a test fixture beside them is left out
 FORBIDDEN_NAMES ={"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}
@@ -154,7 +155,7 @@ def leak_scan(root: Path) -> list:
         if parts & FORBIDDEN_DIRS:
             found.append(f"{rel}: a folder that must never travel ({sorted(parts & FORBIDDEN_DIRS)[0]})")
             continue
-        ours = Path(rel).parts[0] in APP_DIRS or rel in ("START-HERE.txt", "Open Ryagram.bat", FORGE_BAT)
+        ours = Path(rel).parts[0] in APP_DIRS or rel in ("START-HERE.txt", "Open Ryagram.bat", FORGE_BAT, FINDER_BAT)
         # the file-type rule is for OUR folders; a library may legitimately ship a .pem (certifi's public CA list) or a .db, so libraries are held to the NAME rule only
         if p.name in FORBIDDEN_NAMES or (ours and p.suffix.lower() in FORBIDDEN_SUFFIX):
             found.append(f"{rel}: a file that must never travel")
@@ -269,7 +270,29 @@ def write_word_builder(out: Path, app_repo: Path) -> None:
 
 
 FORGE_BAT = "Open Ryagram (fill missing words).bat"
+FINDER_BAT = "Open phrase finder.bat"         # BUILDER 11-22: the phrase finder's first-run page, from the same folder and the same self-check
 FORGE_EXTRA = "--song --song-forge"           # the second start file; the first one never passes --song-forge
+
+
+def recipes_only(folder, names) -> list:
+    """BUILDER 11-22: the kit's recipes travel without their developer notes (*.md: README-FIRST-RUN.md is Python, winget, INTERNAL;
+    TALKING-READING-HOWTO.md is the house AMV runbook) and without __pycache__. Anything else is copied, so a file that must never travel
+    still reaches the leak scan and refuses the build (check-app-bundle's recipes/x.log), never silently dropped."""
+    return [n for n in names if n == "__pycache__" or (n.lower().endswith(".md") and Path(folder, n).is_file())]
+
+
+def finder_bat_text(app_bat: str) -> str:
+    """the phrase finder's start file, made from the app's own GENERATED start file: every line up to and including the self-check, then
+    the library folder inside the app's work folder and tools\\open_phrase_finder.py (BUILDER 11-22)"""
+    lines = app_bat.split("\r\n")
+    end = next(i for i, ln in enumerate(lines) if ln == ")")                # the end of the self-check's 'if errorlevel 1 ( ... )'
+    head = [ln.replace("title Ryagram", "title Ryagram phrase finder") for ln in lines[:end + 1]]
+    if not head[1].startswith("rem "):                                        # CONNECT 11-22 LOW: never overwrite a line that is not the remark
+        raise Refused("The app's start file changed shape (its second line is not the remark); the phrase finder's start file was not made.")
+    head[1] = "rem Starts the phrase finder from THIS folder, with this folder's own Python. Nothing is installed; its index is kept in work\\library here."
+    return "\r\n".join(head + ['set "RYAGRAM_LIBRARY_DIR=%~dp0work\\library"',
+                               '"%~dp0python\\python.exe" -I "%~dp0tools\\open_phrase_finder.py" %*',
+                               "if errorlevel 1 pause", ""])
 
 
 def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False, word_builder: bool = False, face_model: bool = False, signin: str = "") -> None:
@@ -290,7 +313,7 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
         '"%~dp0python\\python.exe" -I "%~dp0tools\\verify_bundle.py" "%~dp0."',
         "if errorlevel 1 (",
         "  echo.",
-        "  echo Do not go on. Close this window and tell Ryan what is written above.",
+        "  echo Do not go on. Close this window and send what is written above to the person or company that gave you this app.",
         "  pause",
         "  exit /b 1",
         ")",
@@ -305,13 +328,16 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
     (out / "Open Ryagram.bat").write_bytes(bat_text(maker_extra).encode("ascii"))
     if forge_bat:
         (out / FORGE_BAT).write_bytes(bat_text(FORGE_EXTRA).encode("ascii"))
+    (out / FINDER_BAT).write_bytes(finder_bat_text(bat_text("")).encode("ascii"))
     txt = ("RYAGRAM\r\n\r\n1. Double-click  Open Ryagram.bat  in this folder. It checks that every file is as it was built, then opens the app in your browser.\r\n"
-           "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one Ryan read to you. If anyone else ever asks you to press Run anyway, say no.\r\n"
+           "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one you were given with this app. If anyone else ever asks you to press Run anyway, say no.\r\n"
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
            "   The licences of the software written by others that this folder contains are in docs\\THIRD-PARTY-NOTICES.txt.\r\n"
            + ("" if has_model else "4. The first time, press  Download the listening model  on the page (Balanced, about 464 MB, once). It is the only step that uses the internet, and every file is checked before it is kept.\r\n")
            + ("" if not face_model else "   Blur faces I haven't named  (a switch on the main page, off until you switch it on) uses one small file, models\\yunet.onnx, that only finds where faces are. It never says who anyone is. The Start check makes sure it is the exact file this folder was built with.\r\n")
            + ("" if not word_builder else "   Optional, to let Ryagram build a word nobody said from your own sounds: open  Get word builder.bat  once. It says the size (about 378 MB), and downloads only after you type YES; every file is checked before it is kept. Then use  " + FORGE_BAT + "  (if this folder has it).\r\n"))
+    txt += ("To find a phrase in your own videos: double-click  Open phrase finder.bat  in this folder. It checks the folder the same way, then "
+            "opens the phrase finder in your browser. It uses the same listening model as the app.\r\n")
     (out / "START-HERE.txt").write_bytes(txt.encode("ascii"))
 
 
@@ -366,6 +392,18 @@ def write_notices(a, out: Path, ffd: Path) -> dict:
     return {"libraries": len(libs), "public": bool(getattr(a, "public", False)), "problems": problems}
 
 
+SUPPORT_OK = re.compile(r"^[A-Za-z0-9 .,@:/_\-]{1,120}$")      # the maker's own rule (desktop_maker.SUPPORT_OK): nothing a .bat or a page reads specially
+
+
+def check_support(text: str) -> str:
+    """BUILDER 11-21: who a customer contacts when something goes wrong, baked into the start file as --support; '' leaves the maker's default"""
+    if not text:
+        return ""
+    if not SUPPORT_OK.match(text):
+        raise Refused("--support-contact may use letters, digits, spaces and . , @ : / _ - only (it is written into the start file and shown on the page).")
+    return f'--support "{text}"'
+
+
 def build(a) -> dict:
     out, kit, ffd = Path(a.out), Path(a.kit), Path(a.ffmpeg_dir)
     app_repo = Path(a.app_repo)
@@ -375,6 +413,7 @@ def build(a) -> dict:
     if face_model:
         check_face_model(face_model)
     maker_extra = check_maker_extra(getattr(a, "maker_extra", "") or "")
+    support = check_support(getattr(a, "support_contact", "") or "")
     signin = check_signin(getattr(a, "signin_site", "") or "", getattr(a, "signin_approval_host", None) or [], bool(getattr(a, "node_auto", False)), bool(getattr(a, "node_allow_c", False)))
     node_kit = Path(a.node_job_kit) if getattr(a, "node_job_kit", "") else None
     node_add = check_node_job_kit(node_kit, kit) if node_kit else []
@@ -421,7 +460,7 @@ def build(a) -> dict:
         for rel in node_add:
             (out / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(node_kit / rel, out / rel)
-        shutil.copytree(kit / "recipes", out / "recipes", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(kit / "recipes", out / "recipes", ignore=recipes_only)
         if (kit / "docs").is_dir():
             shutil.copytree(kit / "docs", out / "docs")
         shutil.copy2(kit / "KIT-MANIFEST.json", out / "ENGINE-MANIFEST.json")
@@ -438,6 +477,7 @@ def build(a) -> dict:
         (out / "work").mkdir()
         (out / "films").mkdir()
         word_builder = bool(getattr(a, "word_builder", False))
+        signin = " ".join(x for x in (signin, support) if x)        # the support words ride in the same slot of the start file
         write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)), word_builder=word_builder, face_model=bool(face_model), signin=signin)
         if word_builder:
             write_word_builder(out, app_repo)
@@ -502,6 +542,8 @@ def main(argv=None) -> int:
     ap.add_argument("--ffmpeg-readme", default="", help="the ffmpeg build's README (default: README.txt next to its bin folder)")
     ap.add_argument("--forge-bat", action="store_true", help="also write the second start file, which starts the song page WITH --song-forge (words built from the person's own sounds); the normal start file never passes it")
     ap.add_argument("--word-builder", action="store_true", help="put the word-builder add-on INSIDE the folder (one zip): Get word builder.bat at the root, tools\\get_word_builder.py; the 378 MB model is still fetched later, on a YES, by that file")
+    ap.add_argument("--support-contact", default="", help="who a customer contacts when something goes wrong, shown by the app (plain characters; "
+                                                       "default: the person or company that gave you this app)")
     ap.add_argument("--maker-extra", default="", help="page switches the start file turns on unless the tester sets MAKER_EXTRA himself; only --song --song-forge --edit are allowed (for example \"--song --song-forge\")")
     ap.add_argument("--signin-site", default="", help="tester builds: the Ryagram node address (https://<project>.supabase.co/functions/v1/node) the start file passes as --site, so the app shows its Sign in card; off unless given")
     ap.add_argument("--signin-approval-host", action="append", default=[], help="with --signin-site: the host the site sends the person to for approving this computer (repeat for more), for example uselai.com")
