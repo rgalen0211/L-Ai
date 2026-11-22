@@ -23,7 +23,7 @@ const mutants = [
   ['the rule lets the AI build a film that is not the one asked for', IN, ', and do not build a film that is not the one they asked for. "', '. "'],
   ['the rule promises an upload the site may not have switched on', IN, 'say that this subject cannot be made through this connection yet.', 'say that they can upload it in the Ryagram app.'],
   ['the rule names submit_prepared_data as if it were always there', IN, 'If submit_prepared_data is among your tools, a table of their own subject', 'Use submit_prepared_data: a table of their own subject'],
-  ['the catalog sentence forgets the industry shares', IN, 'state unemployment, and the share of jobs in each industry by state.";', 'state unemployment.";'],
+  ['the catalog sentence forgets the industry shares', IN, 'state unemployment, and the share of private-sector jobs in each industry by state.";', 'state unemployment.";'],
   ['the standing instructions forget the no-swap rule', MC, "never swap in another dataset without saying so, and never invent a dataset id; if submit", 'never invent a dataset id; if submit'],
   ['the story rules say again that nothing can be added', TL, "you cannot add data yourself, and if the person's subject is not in the catalog you say so plainly instead of swapping in another dataset.", 'you cannot upload data.'],
   ['the refusal for an unknown dataset forgets the plain-words rule', SC, ' If the person asked for a subject that is not in this list, tell them so plainly; do not swap in another dataset without saying so.`);', '`);'],
