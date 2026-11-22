@@ -24,6 +24,8 @@ test('the AI is told where the person finds the table, in the app\'s own words, 
   assert.ok(r.text.includes(PREPARED_WHERE), 'the answer carries the where-words');
   for (const part of ['Advanced tab', 'one of their films', 'create_project makes one', '"Prepared by your AI"', '"Accept and continue"']) assert.ok(PREPARED_WHERE.includes(part), part);
   assert.ok(!/under "Your data"/.test(r.text), 'no screen in the app is named Your data');
+  assert.equal(r.data.where, PREPARED_WHERE, 'the structured answer carries the same words (RENDERER LOW 11-22: it used to repeat the old database words)');
+  assert.ok(!/Your data/.test(JSON.stringify(r.data)), 'and nothing in the structured answer names Your data');
   assert.match(r.text, /Tell the person where to find it, in those words/);
 });
 

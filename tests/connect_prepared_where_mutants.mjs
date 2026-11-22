@@ -16,6 +16,7 @@ const mutants = [
   ['the answer forgets to tell the AI to say it in those words', TL, 'Tell the person where to find it, in those words.', 'Tell the person where to find it.'],
   ['list_my_data stops saying where a waiting table is', TL, 'for the person to accept ${PREPARED_WHERE}.`', 'for the person to accept in the Ryagram app.`'],
   ['the words forget the Advanced tab', TL, 'on the Advanced tab of one of their films', 'on one of their films'],
+  ['the structured answer goes back to the database words (Your data)', TL, 'where: PREPARED_WHERE, expires_at: r.expires_at, measured: m }', 'where: r.where, expires_at: r.expires_at, measured: m }'],
   ['the words forget a film must exist', TL, ' (a film has to exist: create_project makes one)', ''],
   ['the words forget the card title', TL, 'in the card called \\"Prepared by your AI\\", which has', 'in the card which has'],
   ['the words name a button the app does not have', TL, 'an \\"Accept and continue\\" button', 'an \\"Approve\\" button'],

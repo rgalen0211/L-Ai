@@ -8,7 +8,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
-import { TOOLS, TOOL_BY_NAME } from '../supabase/functions/connect-core/tools.ts';
+import { TOOLS, TOOL_BY_NAME, PREPARED_WHERE } from '../supabase/functions/connect-core/tools.ts';
 import { toolList, preparedDataOn, handleMcp } from '../supabase/functions/connect-core/mcp.ts';
 import { authorizationServerMetadata, openIdShapedMetadata, protectedResourceDoc } from '../supabase/functions/connect-core/oauth.ts';
 import { openApi } from '../supabase/functions/connect-core/rest.ts';
@@ -82,7 +82,7 @@ test('the AI hands over the Census table: it is measured, it WAITS, the label is
   const { w, A, call } = world();
   const r = await call(A, 'submit_prepared_data', args());
   assert.ok(!r.isError, r.text);
-  assert.equal(r.data.state, 'waiting'); assert.equal(r.data.where, 'Your data');
+  assert.equal(r.data.state, 'waiting'); assert.equal(r.data.where, PREPARED_WHERE);          // 11-22 (RENDERER LOW): the structured answer carries the app's own words too, never the database's 'Your data'
   assert.match(r.text, /39 rows and 3 columns; 3 places; years 2010 to 2023 \(13 found; NO rows for 2020\)/);
   assert.match(r.text, /Unverified, user-supplied/); assert.match(r.text, /you cannot accept it/); assert.match(r.text, /NOTE: no rows for 2020: say so to the person and do not fill them/);
   assert.deepEqual(r.data.measured.periods_missing, [2020]);

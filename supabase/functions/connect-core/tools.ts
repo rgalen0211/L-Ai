@@ -1398,7 +1398,7 @@ const submitPrepared: ToolDef = {
       return ok(`Handed over. Ryagram measured: ${describeMeasured(m)} It waits ${PREPARED_WHERE} for the PERSON to look at it and press Accept (until ${r.expires_at.slice(0, 10)}). `
         + "It is labelled 'Unverified, user-supplied' whatever the source, your sources and change log are shown as declared by you, and you cannot accept it. Tell the person where to find it, in those words. After they accept it, call list_my_data for its name."
         + (m.periods_missing.length ? ` NOTE: no rows for ${m.periods_missing.join(", ")}: say so to the person and do not fill them.` : ""),
-        { prepared_id: r.prepared_id, state: r.state, where: r.where, expires_at: r.expires_at, measured: m });
+        { prepared_id: r.prepared_id, state: r.state, where: PREPARED_WHERE, expires_at: r.expires_at, measured: m });
     } catch (e) { const r = editRefusal(e); if (r) return r; throw e; }
   },
 };
