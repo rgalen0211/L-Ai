@@ -20,19 +20,26 @@ W.RUN_TMP = W.base.BASE_TEMP / f"gatehard-mut-{os.getpid()}"
 _TEXT = (W.ROOT / W.MIG).read_text(encoding="utf-8").replace("\r\n", "\n")
 
 
-def line_containing(fragment, after=None):
+def line_containing(fragment, after=None, text=None):
     """the whole line (with its newline) holding `fragment`, searched after the text `after` when given; each must exist exactly once in that stretch"""
-    start = _TEXT.index(after) if after else 0
-    i = _TEXT.index(fragment, start)
-    a = _TEXT.rfind("\n", 0, i) + 1
-    b = _TEXT.index("\n", i) + 1
-    return _TEXT[a:b]
+    t = _TEXT if text is None else text
+    start = t.index(after) if after else 0
+    i = t.index(fragment, start)
+    a = t.rfind("\n", 0, i) + 1
+    b = t.index("\n", i) + 1
+    return t[a:b]
+
+
+# 11-22: join_reserve is REDEFINED by the join-open migration (train 4), and that later definition is the one in force: its own copy of the lock line is the one a planted fault must remove.
+# (The old runner removed the line in 20261106000100, which the later definition overwrites, so the fault never ran and was reported MISSED.)
+JOIN_OPEN = "supabase/migrations/20261121000800_join_open.sql"
+_JOIN_OPEN_TEXT = (W.ROOT / JOIN_OPEN).read_text(encoding="utf-8").replace("\r\n", "\n")
 
 
 HOLD_LOCK = line_containing("takes turns with activate_account for this account")
 HOLD_CHECK = "  if ryagram_private.account_active(p_owner) then return false; end if;\n"
 ACT_LOCK = line_containing("takes turns with hold_grant for this account")
-JOIN_LOCK = line_containing("count-then-write takes turns, so callers at the same moment")
+JOIN_LOCK = line_containing("count-then-write takes turns, so callers at the same moment", text=_JOIN_OPEN_TEXT)
 CLAIM_ACCOUNT_LOCK = line_containing("the SAME order as activate_account and hold_grant")
 CLAIM_GUESS_LOCK = line_containing("the guess count and the guess record take turns", after="create or replace function public.invite_claim(")
 RESERVE_GUESS_LOCK = line_containing("the same lock as invite_claim; this one takes no account lock", after="create or replace function public.invite_reserve(")
@@ -42,7 +49,7 @@ W.MUTANTS[:] = [
     ("an approval does not take the account's lock", ACT_LOCK, ""),
     ("a grant that waited does not look again", HOLD_CHECK + "  insert into public.held_grants", "  insert into public.held_grants"),
     ("a grant looks BEFORE it takes the lock, not after", HOLD_LOCK + HOLD_CHECK, HOLD_CHECK + HOLD_LOCK),
-    ("the join does not take its turn", JOIN_LOCK, ""),
+    ("the join does not take its turn", [(JOIN_OPEN, JOIN_LOCK, "")]),
     ("an invite claim does not take the guess lock", CLAIM_GUESS_LOCK, ""),
     ("an invite reservation does not take the guess lock", RESERVE_GUESS_LOCK, ""),
     ("an invite claim takes its row lock before the account lock (the account lock is not taken first)", CLAIM_ACCOUNT_LOCK, ""),
