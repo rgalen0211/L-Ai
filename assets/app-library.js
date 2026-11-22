@@ -386,7 +386,7 @@
       const filmsLink = myFilmsOn() && window.ryagramFilms ? h('a', { href: '#/films' }, 'All my films') : null;
       const looksLink = looksOn() ? h('a', { href: '#/looks' }, 'Your look') : null;
       const requestLink = requestsOn() ? h('a', { href: '#/request' }, 'Ask us to make a film') : null;
-      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews after the free ones. Contact sheets are free. ' + FREE_PREVIEW_RULE) : null;
+      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Contact sheets are free. Each project gets some free previews, then 1 credit each. The rule is on ', h('a', { href: '#/credits' }, 'Credits'), '.') : null;
       const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
       const aiInvited = startOn() ? await connectAllowed(data).catch(() => false) : false;               // the Ask your AI button only for an account the connector counts as invited (the Start strip's own rule); the page it opens does nothing for anyone else
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure

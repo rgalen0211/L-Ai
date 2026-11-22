@@ -22,13 +22,14 @@ test('F4: the free-preview rule says what credits_ledger.sql does (6 a project, 
   const check = lib => {
     assert.ok(lib.includes(`const FREE_PREVIEW_RULE = '${RULE}';`));
     assert.ok(lib.includes("'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE"));
-    assert.ok(lib.includes("'Credits pay for full films and for previews after the free ones. Contact sheets are free. ' + FREE_PREVIEW_RULE"));
+    assert.ok(lib.includes("'Contact sheets are free. Each project gets some free previews, then 1 credit each. The rule is on ', h('a', { href: '#/credits' }, 'Credits'), '.'"));
     assert.ok(lib.includes("open ? ' Contact sheets are free. ' + FREE_PREVIEW_RULE : null"));
     assert.ok(!/so are your first previews/.test(lib), 'the old "first previews" promise is gone');
   };
   const lib = read('assets/app-library.js');
   check(lib);
   goesRed(check, lib.replace(/const FREE_PREVIEW_RULE = '[^']*';/, "const FREE_PREVIEW_RULE = 'Contact sheets are free, and so are your first previews.';"));
+  goesRed(check, lib.replace(/'Contact sheets are free\. Each project gets some free previews, then 1 credit each\. The rule is on '/, "'Credits pay for full films, and previews are always free. "));
   goesRed(check, lib.replace(/open \? ' Contact sheets are free\. ' \+ FREE_PREVIEW_RULE : null/, "open ? ' Contact sheets are free, and so are your first previews.' : null"));
 });
 
