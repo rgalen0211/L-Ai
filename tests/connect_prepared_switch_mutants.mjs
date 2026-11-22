@@ -29,8 +29,8 @@ const mutants = [
   ['the function leaves the switch out of the OAuth deps', IX, '      preparedData: preparedDataOn,\n', ''],
   ['the function leaves the switch out of the MCP config', IX, 'probe: Deno.env.get("CONNECT_MAP_PROBE") === "on", preparedData: preparedDataOn,', 'probe: Deno.env.get("CONNECT_MAP_PROBE") === "on",'],
   // the three that flip together
-  ['uploads goes on and the guide says nothing', GC, '  uploads: false,', '  uploads: true,'],
-  ['the manifest offers the data tools while uploads is off', MAN, '"tool_count": 20,', '"tool_count": 22,'],
+  ['uploads goes off while the guide still promises the hand-over', GC, '  uploads: true,', '  uploads: false,'],
+  ['the manifest loses the data tool while uploads is on', MAN, '"name": "submit_prepared_data",', '"name": "submit_prepared_dat",'],
 ];
 
 function run(cwd) {

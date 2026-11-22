@@ -85,6 +85,6 @@ test('the words are true with the Q634 tool on AND off: they name submit_prepare
 
 test('the public guide says the same, in the list of what the AI can and cannot do', () => {
   const g = read('connect-ai/index.html');
-  assert.match(g, /<li>It can draw only the subjects in Ryagram's own catalog of data\. If you ask for a subject that is not there, it should tell you so plainly and offer the closest one, not swap in another without saying\.<\/li>/);
+  assert.match(g, /<li>It can draw only the subjects in Ryagram's own catalog of data and the tables you have accepted\. If you ask for a subject that is in neither, it should tell you so plainly and offer the closest one, not swap in another without saying\.<\/li>/);
   assert.ok(g.indexOf('only the subjects in Ryagram') < g.indexOf('It cannot start a full render'), 'it sits in the what-it-can-do list');
 });

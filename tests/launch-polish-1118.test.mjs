@@ -37,10 +37,12 @@ test('Q649 2: "I cannot sign in" ends at the address below, not a form that is n
   assert.doesNotMatch(html, /from the form below/);
 });
 
-test('Q649 3: the uploads question starts "Coming soon: when uploading your own data opens, ..." while the upload switch is off', () => {
+test('Q649 3: the uploads question says "Coming soon" while the upload switch is off, and reads as a plain fact once it is on', () => {
   const help = read('help/index.html');
-  assert.match(help, /<summary>My own data \(spreadsheet\) won't read\.<\/summary>\s*<p>Coming soon: when uploading your own data opens, /);
-  assert.match(read('assets/ryagram-config.js'), /uploads:\s*false/, 'this words fix is only true while uploads is off: revisit it when the switch goes on');
+  const on = /uploads:\s*true/.test(read('assets/ryagram-config.js'));
+  if (on) assert.match(help, /<summary>My own data \(spreadsheet\) won't read\.<\/summary>\s*<p>Ryagram reads spreadsheets \(CSV and similar files\)\. /);
+  else assert.match(help, /<summary>My own data \(spreadsheet\) won't read\.<\/summary>\s*<p>Coming soon: when uploading your own data opens, /);
+  assert.ok(on !== /My own data \(spreadsheet\) won't read\.<\/summary>\s*<p>Coming soon/.test(help), 'the Coming soon words are there exactly while uploads is off');
 });
 
 test('Q649 4: 2 working days for questions and 7 days for reports stay, and the report page says why a report takes longer', () => {

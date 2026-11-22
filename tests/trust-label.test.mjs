@@ -70,7 +70,7 @@ test('WIRING: the stamps moved so a returning visitor gets the new scripts; noth
   assert.match(html, /app-library\.js\?v=20261121z/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
   assert.match(html, /app\.css\?v=20261121bk/);
   assert.match(read('film/index.html'), /film\.js\?v=20261104c/);
-  assert.match(read('assets/ryagram-config.js'), /uploads: false,/);
+  assert.match(read('assets/ryagram-config.js'), /uploads: true,/);        // ON with the Q634 flip (the approved trust words above are in place); the guide and the directory listing follow it (tests/connect-prepared-guide.test.mjs)
 });
 
 test('APPROVED WORDS (Ryan, Q234, 2026-10-26 13:16): the database id "unverified_user" becomes the words in ONE place; no placeholder note is left on the trust words, and the Q5 placeholders elsewhere are untouched', () => {

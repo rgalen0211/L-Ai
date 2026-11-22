@@ -50,8 +50,8 @@ window.ryagramConfig = Object.freeze({
   inviteSignup: true,
   // Show "Your own data" (spreadsheet upload) on a version in /app/. Turn on only once SQL 20261004000200 and
   // 20261004000300 are applied, purge-uploads is deployed and scheduled, and the worker reads uploads
-  // (supabase/README.md, "Uploads").
-  uploads: false,
+  // (supabase/README.md, "Uploads"). ON together with the connector's secret CONNECT_PREPARED_DATA=on (Q634: the AI's table waits in the card this flag builds); tests/connect-prepared-guide.test.mjs ties the flag to the guide and the directory listing.
+  uploads: true,
   // The guide for people bringing their own spreadsheet (BYOD audit 2026-10-18): a starter film made from the upload when the story is blank, a pointer to it from the top of the
   // version page, an example of a good file, and plain words for a file with its years across the columns. Needs uploads: true. Off until Ryan has seen it.
   byodGuide: false,
