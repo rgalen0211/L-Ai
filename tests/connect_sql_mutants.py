@@ -4,6 +4,11 @@ the connect SQL tests must then FAIL. Run from the repo root with the pgserver v
 Exit 0 only when every mutant is caught: CAUGHT means the tests FAILED ON AN ASSERTION (an error, a broken migration or a full disk does not count).
 Each mutant's pgserver folder (about 1 GB) is deleted before the next one starts. `--selftest` proves the harness itself; names after the script
 run only those mutants.
+
+FAIL-FAST (CONNECT 2026-11-22, CC1's order): by default a MUTANT run stops at its FIRST failing test (unittest -f), because one assertion failure is already "caught"; the BASELINE always runs the whole suite
+(it must be all green), and a mutant that merely ERRORS first (not an assertion) is re-run in FULL mode before it is called not caught, so the verdict never depends on which test happens to run first.
+`--full` keeps the old behaviour (every mutant runs the whole suite). `--selftest-failfast` proves the fail-fast path (a harmless change still reports MISSED, a real rule break is caught and stops early,
+an erroring migration is still NOT caught).
 """
 import os
 import re
@@ -200,8 +205,8 @@ def free_gb(path):
     return shutil.disk_usage(path).free / 1e9
 
 
-def one_run(label, mutate=None, env_override=None):
-    """Run test_connect once on a scratch copy (optionally mutated). Returns (verdict, failures, errors)."""
+def one_run(label, mutate=None, env_override=None, failfast=False):
+    """Run test_connect once on a scratch copy (optionally mutated). Returns (verdict, failures, errors). failfast: stop at the first failing test (mutant runs only; never the baseline)."""
     if free_gb(BASE_TEMP) < MIN_FREE_GB:
         raise HarnessError(f"only {free_gb(BASE_TEMP):.1f} GB free on the temp drive (need {MIN_FREE_GB}); stopping")
     RUN_TMP.mkdir(parents=True, exist_ok=True)
@@ -225,7 +230,7 @@ def one_run(label, mutate=None, env_override=None):
     trace.unlink(missing_ok=True)
     env = dict(os.environ, TEMP=str(mut_tmp), TMP=str(mut_tmp), TMPDIR=str(mut_tmp), PYTHONDONTWRITEBYTECODE="1", **{TRACE_ENV: str(trace)})
     env.update(env_override or {})
-    proc = subprocess.Popen([sys.executable, "-u", "-m", "unittest", "supabase/tests/test_connect.py"], cwd=SCRATCH, env=env,
+    proc = subprocess.Popen([sys.executable, "-u", "-m", "unittest"] + (["-f"] if failfast else []) + ["supabase/tests/test_connect.py"], cwd=SCRATCH, env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
         out, _ = proc.communicate(timeout=1800)
@@ -245,7 +250,7 @@ def one_run(label, mutate=None, env_override=None):
     return verdict
 
 
-def run(only=None):
+def run(only=None, full=False):
     bad = 0
     try:
         verdict, f, e = one_run("baseline")
@@ -255,7 +260,10 @@ def run(only=None):
             return 2
         selected = [m for m in MUTANTS if not only or m[0] in only]
         for name, old, new in selected:
-            verdict, f, e = one_run(name, (old, new))
+            verdict, f, e = one_run(name, (old, new), failfast=not full)
+            if verdict == "errored" and not full:
+                print(f"  ({name}: the fail-fast run ERRORED before any assertion failed; re-running it in full mode so the verdict does not depend on test order)", flush=True)
+                verdict, f, e = one_run(name, (old, new))
             if verdict == "caught":
                 print(f"caught  {name}  (assertion failures: {f})")
             elif verdict == "broken":
@@ -345,6 +353,37 @@ def selftest():
     return 0 if ok else 1
 
 
+def selftest_failfast():
+    """Must-fail for the FAIL-FAST path: (1) a harmless change (a SQL comment) SURVIVES, so a missed mutant is still reported MISSED; (2) a real rule break is CAUGHT and the run is shorter than the whole suite;
+    (3) a migration that does not load is still NOT caught (errored), and the fall-back to full mode does not turn it into a catch."""
+    ok = True
+    try:
+        t0 = time.time()
+        v, f, e = one_run("selftest-ff: harmless change", ("create table public.connect_access", "-- a harmless comment\ncreate table public.connect_access"), failfast=True)
+        t_survive = time.time() - t0
+        print(f"  a harmless change (fail-fast) -> {v} in {t_survive:.0f}s  expected: survived"); ok &= (v == "survived")
+        m = [x for x in MUTANTS if x[0] == "a sign-in request lives only 10 minutes again"][0]
+        t0 = time.time()
+        v, f, e = one_run("selftest-ff: real rule break", (m[1], m[2]), failfast=True)
+        t_caught = time.time() - t0
+        print(f"  a real rule break (fail-fast) -> {v} (failures={f}) in {t_caught:.0f}s, the whole suite takes about {t_survive:.0f}s  expected: caught")
+        ok &= (v == "caught" and f == 1)
+        v, f, e = one_run("selftest-ff: broken SQL", ("create table public.connect_access", "create tabel public.connect_access"), failfast=True)
+        print(f"  a migration that does not load (fail-fast) -> {v} (errors={e}, failures={f})  expected: errored"); ok &= (v == "errored")
+        v2, f2, e2 = one_run("selftest-ff: broken SQL, full", ("create table public.connect_access", "create tabel public.connect_access"))
+        print(f"  the same in full mode -> {v2}  expected: errored (so the fall-back cannot invent a catch)"); ok &= (v2 == "errored")
+        left = pg_dirs(RUN_TMP / "t") if (RUN_TMP / "t").exists() else []
+        print(f"  pgserver folders left in the run temp: {len(left)}  expected: 0"); ok &= (not left)
+    except HarnessError as err:
+        print(f"HARNESS STOPPED: {err}")
+        return 3
+    finally:
+        shutil.rmtree(RUN_TMP, ignore_errors=True)
+        shutil.rmtree(SCRATCH, ignore_errors=True)
+    print("SELFTEST-FAILFAST " + ("PASS" if ok else "FAIL"))
+    return 0 if ok else 1
+
+
 def broken_targets():
     """Names of mutants whose target text is not in the migration EXACTLY ONCE (LF text), or whose replacement equals it. Fast: no database."""
     text = (ROOT / MIG).read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -363,5 +402,7 @@ if __name__ == "__main__":
         sys.exit(1 if (b or d) else 0)
     if "--selftest" in sys.argv:
         sys.exit(selftest())
+    if "--selftest-failfast" in sys.argv:
+        sys.exit(selftest_failfast())
     only = [a for a in sys.argv[1:] if not a.startswith("--")]
-    sys.exit(run(only or None))
+    sys.exit(run(only or None, full="--full" in sys.argv))
