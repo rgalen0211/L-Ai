@@ -34,7 +34,7 @@
   const AFTER_ALLOW = 'After you press Allow, your AI appears in the list above.';
   const ADDRESS_TIP = 'Use the whole address. The /mcp at the end is the part people miss.';
   const NOT_ALLOWED = 'This AI can’t be connected.';
-  const INVITE_ONLY = 'Connecting an AI is by invitation for now.';
+  const INVITE_ONLY = 'Connecting an AI is not open to your account yet. To ask for it, write to ryagram@uselai.com.';
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
   const requestFromHash = hash => { const m = /^#\/connect\/consent\?request=([^&]+)$/.exec(hash || ''); return m && REQUEST.test(m[1]) ? m[1] : null; };
@@ -104,7 +104,7 @@
       let c;
       try { c = await data.connectConsentCheck(requestId); } catch (err) { return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), strip, h('p', { class: 'app-error', role: 'alert' }, err.message)]; }
       if (!c || c.allowed !== true) {
-        return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), strip, h('p', { class: 'app-error', role: 'alert' }, c && c.reason ? c.reason : NOT_ALLOWED),
+        return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), strip, h('p', { class: 'app-error', role: 'alert' }, c && c.invited === false && !/^Administrator accounts cannot be connected/.test(c.reason || '') ? INVITE_ONLY : c && c.reason ? c.reason : NOT_ALLOWED),
                 h('p', { class: 'form-note' }, 'Nothing was connected. You can close this page.')];
       }
       const error = errorLine();
@@ -214,7 +214,7 @@
           h('p', {}, h('code', { 'data-key': 'connector-address' }, address), ' ', h('button', { class: 'button secondary small', type: 'button', 'data-key': 'copy-address', onclick: async () => {
             try { await navigator.clipboard.writeText(address); copyNote.textContent = 'Copied. Paste it where the steps say “the address”.'; } catch { copyNote.textContent = 'Could not copy. Select the address and copy it by hand.'; }
           } }, 'Copy')), h('p', { class: 'form-note' }, ADDRESS_TIP), copyNote)
-          : h('p', { class: 'form-note' }, 'The connector address is not available on this page. Ask Ryan for it.'),
+          : h('p', { class: 'form-note' }, 'The connector address is not available on this page. Write to ryagram@uselai.com and we will send it.'),
         group('claude'), group('chatgpt'),
         h('p', { class: 'form-note' }, AFTER_ALLOW));
       const again = () => {

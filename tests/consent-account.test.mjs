@@ -18,7 +18,7 @@ test('the strip names the signed-in account as text, states the administrator ru
 
 test('the strip is on the allowed page, on a refusal and on an error, and the email never goes in as HTML', () => {
   assert.match(code, /'Connect an AI'\), strip, h\('p', \{ class: 'app-error', role: 'alert' \}, err\.message\)\]/);                    // an error
-  assert.match(code, /'Connect an AI'\), strip, h\('p', \{ class: 'app-error', role: 'alert' \}, c && c\.reason/);                      // a refusal
+  assert.match(code, /'Connect an AI'\), strip, h\('p', \{ class: 'app-error', role: 'alert' \}, c && c\.invited === false && !\/\^Administrator accounts cannot be connected\/\.test\(c\.reason \|\| ''\) \? INVITE_ONLY : c && c\.reason/);                      // a refusal
   assert.match(code, /is asking to work with your Ryagram account\.`\), strip,/);                                                      // the consent page itself
   assert.match(code, /const strip = await accountStrip\(\);/);
   assert.doesNotMatch(code, /innerHTML|insertAdjacentHTML/);
