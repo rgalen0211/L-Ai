@@ -400,6 +400,11 @@ class Ops(core.Base):
                            "connect_consent_check(uuid)", "connect_consent_decide(uuid,boolean,text[])", "my_connected_ais()", "disconnect_ai(text)",
                            "admin_set_connect_access(text,boolean)", "admin_connect_allowlist_set(text,text,text,boolean)",
                            "admin_connect_set_enabled(boolean)", "admin_connect_revoke_all()",
+                           # connect open to all (20261121000700): Ryan's switch (starts with connect_app_session() and refuses everyone but is_app_admin() inside, 'Admins only.')
+                           "admin_connect_set_open(boolean)",
+                           # AI-prepared data (Q634, 20261120000500): the signed-in person's own staged tables, each resolved from require_signed_in() and filtered by owner_id = me inside
+                           # (mark_prepared_accepted also requires the dataset to be the caller's own fresh upload); the connector has its own token-checked twins
+                           "my_prepared_data()", "my_prepared_data_csv(uuid)", "discard_prepared_data(uuid)", "mark_prepared_accepted(uuid,uuid)",
                            # r9 render node: the person's own device sign-in page and computers (app session, own rows only, checked
                            # inside); Ryan's tester switch, its history and the storage view (each refuses everyone but an admin inside).
                            # The node_* functions are NOT here: they stay closed to anon and authenticated (node_runner only).
