@@ -35,9 +35,18 @@
       .map(p => { const m = /^([A-Za-z_]+)\[(\d+)\]$/.exec(p); return m ? `${m[1] === 'clips' ? 'clip' : m[1]} ${Number(m[2]) + 1}` : p; });
     return parts.length ? ` (in ${parts.join(' > ')})` : '';
   }
+  // The worker keeps at most 500 characters of a refusal (ryagram/worker/engine.py sanitise limit=500; tools/ryagram_node.py _report [:500]), and the engine's own sentences end with
+  // the next step ("show 8 lines or fewer", "Please contact Ryagram"). So a sentence is kept whole up to 500; past that it is cut at the last full stop, never mid-sentence ('' if there is none).
+  const DETAIL_MAX = 500;
+  function wholeSentences(text) {
+    if (text.length <= DETAIL_MAX) return text;
+    const head = text.slice(0, DETAIL_MAX + 1);
+    const stop = Math.max(head.lastIndexOf('. '), head.lastIndexOf('.\n'));
+    return stop > 0 ? head.slice(0, stop + 1) : '';
+  }
   function plainFault(fault) {
     const f = /^(\$[^:]*):\s*(.*)$/s.exec(fault.trim());
-    if (!f) return fault.trim() && !LOOKS_LIKE_CODE.test(fault) ? fault.trim().slice(0, 200) : '';
+    if (!f) return fault.trim() && !LOOKS_LIKE_CODE.test(fault) ? wholeSentences(fault.trim()) : '';
     const at = where(f[1]), msg = f[2].trim();
     let m;
     if ((m = /^unknown key '([^']+)'/i.exec(msg))) return `The story has a setting Ryagram doesn’t recognise: “${m[1]}”${at}.`;
@@ -57,7 +66,7 @@
     const faults = text.split(/;\s+(?=\$)/).filter(x => x.trim());
     const out = [];
     for (const f of faults) { const s = plainFault(f); if (s && !out.includes(s)) out.push(s); }
-    if (!out.length) return text.startsWith('$') || LOOKS_LIKE_CODE.test(text) ? UNREADABLE : text.slice(0, 200);
+    if (!out.length) return text.startsWith('$') || LOOKS_LIKE_CODE.test(text) || text.length > DETAIL_MAX ? UNREADABLE : text;
     const advice = faults.some(f => /unknown key/i.test(f)) ? ' Remove the setting(s) above, or pick a ready-made film and start again.' : '';       // said once, not after every fault
     const shown = out.slice(0, 5).join(' ') + advice;
     return out.length > 5 ? `${shown} And ${out.length - 5} more: open “Get help with this”.` : shown;
@@ -74,12 +83,13 @@
   function problem(job) {
     const plain = plainDetail(job.error_detail);
     const detail = plain ? ` ${plain}` : '';
+    const asksToContact = /contact Ryagram/i.test(plain);                                                        // the sentence's own next step is for us to act: never add "Fix the story"
     if (job.state === 'cancelled') return 'Cancelled.';
     if (job.error_code === 'ladder_missing') return LADDER_MISSING + (job.job_type === 'final_render' ? CREDITS_RETURNED : '');   // the approved sheet and preview, not the story; the engine's own text is never shown
     if (job.error_code === 'engine_unsupported' || job.error_class === 'engine_unsupported') return UNSUPPORTED;                   // the machine's setup, not the story: never "Fix the story"
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
       if (/checks did not run/i.test(String(job.error_detail || ''))) return CHECKS_DID_NOT_RUN;   // the machine's fault, not the story's: never "Change the story"
-      return `Ryagram’s checks stopped this render.${detail} Change the story, then make a new preview.`;
+      return `Ryagram’s checks stopped this render.${detail}${asksToContact ? '' : ' Change the story, then make a new preview.'}`;
     }
     switch (job.error_class) {
       case 'infrastructure':
@@ -87,7 +97,7 @@
       case 'timeout':
         return `It ran too long and was stopped.${detail} It wasn’t retried, because it would stop again: shorten the film or the preview window first.`;
       case 'invalid_input':
-        return `The story or its settings weren’t accepted.${detail} Fix the story and submit again.`;
+        return `The story or its settings weren’t accepted.${detail}${asksToContact ? '' : ' Fix the story and submit again.'}`;
       case 'limit':
         return `It went over a size or memory limit.${detail} ${LIMIT_NEXT}`;
       default:
