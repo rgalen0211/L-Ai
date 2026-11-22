@@ -117,7 +117,7 @@
     if (job.state === 'queued' && ownComputer && !job.cancel_requested) return own && own.computers === 0 ? WAITING_FOR_COMPUTER : WAITING_FOR_COMPUTER_PICKUP;
     if (job.state === 'queued') {
       const place = queuePosition ? (queuePosition === 1 ? 'Next in line.' : `Number ${queuePosition} in line.`) : 'Waiting in line.';
-      return job.attempt > 1 ? `${place} Retrying after a render-machine problem (attempt ${job.attempt} of 3).` : place;
+      return job.attempt > 1 ? `${place} Retrying once after a render-machine problem (attempt ${job.attempt} of 2).` : place;
     }
     if (job.cancel_requested) return 'Stopping…';
     if (job.state === 'claimed') return 'The render machine picked it up.';
