@@ -57,7 +57,8 @@ PINS = {
 }
 
 
-PROXY_NOTE = "If this network needs a proxy, that is the reason: Ryagram does not use a proxy."
+PROXY_NOTE = "If this network needs a proxy, check Windows' proxy settings: Ryagram uses the proxy set there."
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
 
 
 class ModelRefused(Exception):
@@ -122,11 +123,19 @@ class _Redirects(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+def _proxies(net: Net) -> dict:
+    """the proxy for http/https from the computer's settings, or none for a loopback server; any other scheme is ignored"""
+    if net.host in LOOPBACK:
+        return {}
+    return {k: v for k, v in urllib.request.getproxies().items() if k in ("http", "https")}
+
+
 def _opener(net: Net):
     if net.opener is not None:
         return net.opener
-    # No proxy variables, no cookies, no stored logins: a plain opener with the default certificate checks.
-    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _Redirects(net), urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+    # CC1 11-22: the computer's proxy (environment, else Windows' setting; NO_PROXY honoured), never for a loopback test server. No cookies, no
+    # stored logins, the default certificate checks: through a proxy TLS is still end to end with the host, and every file is still pinned.
+    return urllib.request.build_opener(urllib.request.ProxyHandler(_proxies(net)), _Redirects(net), urllib.request.HTTPSHandler(context=ssl.create_default_context()))
 
 
 def file_url(model: str, name: str, net: Net) -> str:

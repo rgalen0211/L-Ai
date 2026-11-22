@@ -192,7 +192,7 @@ def main():
         root = fresh(tmp, "b4")
         dead = md.Net(scheme="http", host="127.0.0.1", port=1, domains=())
         msg = refused("fake", root, "unreachable", net=dead)
-        check(msg is not None and "proxy" in msg and "does not use a proxy" in msg and left_over(root) == [], f"MUST-FAIL: an unreachable server is refused with a sentence that names the proxy case, and keeps nothing ({(msg or '')[:90]!r})")
+        check(msg is not None and "proxy" in msg and "Windows' proxy settings" in msg and left_over(root) == [], f"MUST-FAIL: an unreachable server is refused with a sentence that names the proxy case, and keeps nothing ({(msg or '')[:90]!r})")
 
         # unknown model, unsafe name, no room
         root = fresh(tmp, "c")
@@ -238,7 +238,7 @@ def main():
         check("urllib.request" not in dm_src and "urlopen" not in dm_src and "http.client" not in dm_src and "import socket" not in dm_src, "the maker app itself has no network code (it only calls model_download)")
         check(re.findall(r"md\.download\(([^)]*)\)", dm_src) == ["model, root, progress=progress, cancel=cancel"], "the app calls the download with the model, folder, progress and cancel only: no host, address or other setting can be passed in")
         check("Request(" in body and body.count("Request(") == 1 and "headers={\"User-Agent\": \"Ryagram-maker\", \"Accept-Encoding\": \"identity\"}" in body, "the only headers sent are a fixed User-Agent and Accept-Encoding: identity (no cookie, no login, nothing of the person)")
-        check("ProxyHandler({})" in body and "create_default_context()" in body, "no proxy variable is read and the normal certificate checks are on")
+        check("ProxyHandler(_proxies(net))" in body and "create_default_context()" in body, "the computer's proxy is used (CC1 11-22) and the normal certificate checks are on")
         print()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
