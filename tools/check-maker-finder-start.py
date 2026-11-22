@@ -99,9 +99,11 @@ with tempfile.TemporaryDirectory(prefix="mfs-") as td:
     shutil.copytree(k, Path(td) / "out", ignore=mb.recipes_only)
     check(sorted(p.name for p in (Path(td) / "out").iterdir()) == ["Sam-First.JSON", "every-time.json"],
           "MUST-FAIL: the recipes travel; README-FIRST-RUN.md, TALKING-READING-HOWTO.md and __pycache__ do not")
-    check(mb.recipes_only(str(k), ["x.log", "NOTES.MD", "a.json"]) == ["NOTES.MD"] or mb.recipes_only(str(k), ["x.log", "NOTES.MD", "a.json"]) == [],
-          "CONTROL: the rule is called with names")
+    (k / "NOTES.MD").write_text("a note", encoding="utf-8")
     (k / "x.log").write_text("must reach the leak scan", encoding="utf-8")
+    (k / "a.json").write_text("{}", encoding="utf-8")
+    check(mb.recipes_only(str(k), ["x.log", "NOTES.MD", "a.json"]) == ["NOTES.MD"],
+          "MUST-FAIL: of a note (any case), a stray file and a recipe, ONLY the note is left out (CONNECT 11-22 LOW: an exact result, no 'or')")
     check("x.log" not in mb.recipes_only(str(k), ["x.log"]),
           "MUST-FAIL: any other file (recipes/x.log) is NOT dropped here, so the leak scan still sees it and refuses the build")
 
