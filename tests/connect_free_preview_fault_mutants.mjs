@@ -15,7 +15,12 @@ const FILES = [MG, RB, LG, CK, JS];
 const LIST = "error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)";
 const NEWLINE = "        and not (state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)))";
 const OLDLINE = "        and not (state = 'failed' and error_class = 'infrastructure')";
+const CANC = "        and not (state = 'cancelled' and claimed_at is null)\n";
 const mutants = [
+  ['a preview cancelled before a machine picked it up counts again', MG, CANC, ''],
+  ['a preview cancelled after a machine picked it up stops counting', MG, "(state = 'cancelled' and claimed_at is null)", "(state = 'cancelled')"],
+  ['the ledger file forgets the cancelled-before-claim rule', LG, "    and not (state = 'cancelled' and claimed_at is null)\n", ''],
+  ['the check no longer asks about the cancelled-before-claim rule', CK, "like '%state = ''cancelled'' and claimed_at is null%'", "like '%cancelled%'"],
   ['engine_unsupported counts against the free previews again', MG, LIST, "(error_code = 'limit_exceeded' and p_since is null)"],
   ['limit_exceeded counts against a project again', MG, LIST, "error_code = 'engine_unsupported'"],
   ['limit_exceeded stops counting in the 15 a day too (one story could queue machine time without end)', MG, LIST, "error_code = 'engine_unsupported' or error_code = 'limit_exceeded'"],

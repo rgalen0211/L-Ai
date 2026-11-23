@@ -13,7 +13,7 @@ const MIG = flat(read('supabase/migrations/20261123000100_free_preview_machine_f
 const RB = flat(read('supabase/rollbacks/20261123000100_free_preview_machine_faults_rollback.sql'));
 const LEDGER = flat(read('supabase/phase-2b/credits_ledger.sql'));
 const CHK = flat(read('supabase/live-steps/51_free_preview_machine_faults_check.sql'));
-const NEWRULE = "and not (state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)))";
+const NEWRULE = "and not (state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null))) and not (state = 'cancelled' and claimed_at is null)";
 const OLDRULE = "and not (state = 'failed' and error_class = 'infrastructure')";
 const COUNTING = "select count(*)::int from public.jobs where owner_id = p_owner and job_type = 'preview' and free_preview and (p_project is null or project_id = p_project) and (p_since is null or created_at >= p_since)";
 
@@ -41,8 +41,8 @@ test('the migration does nothing without the credits ledger, ends with the gate 
 });
 
 test('live step 51 asks about the ledger, both codes, the infrastructure rule and who may run the function; one SELECT with every column named', () => {
-  assert.equal((CHK.match(/union all select/g) || []).length, 4, 'five rows');
-  for (const part of ["to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)') is not null as ok", "like '%engine_unsupported%'", "like '%limit_exceeded%'", "like '%p_since is null%'", "like '%state = ''failed''%'", "like '%error_class = ''infrastructure''%'", "not has_function_privilege('anon'", "not has_function_privilege('authenticated'"]) assert.ok(CHK.includes(part), part);
+  assert.equal((CHK.match(/union all select/g) || []).length, 5, 'six rows');
+  for (const part of ["to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)') is not null as ok", "like '%engine_unsupported%'", "like '%limit_exceeded%'", "like '%p_since is null%'", "like '%state = ''cancelled'' and claimed_at is null%'", "like '%state = ''failed''%'", "like '%error_class = ''infrastructure''%'", "not has_function_privilege('anon'", "not has_function_privilege('authenticated'"]) assert.ok(CHK.includes(part), part);
   assert.ok(!/\b(update|insert|delete|drop|alter|create)\b/i.test(CHK), 'read-only');
 });
 

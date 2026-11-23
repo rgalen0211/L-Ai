@@ -8,7 +8,9 @@
 -- WHAT THIS CHANGES: one extra condition in free_previews_used: a FAILED preview whose error_code is engine_unsupported is not counted at all, and one whose error_code is limit_exceeded is not counted against the 6 free previews of a
 -- PROJECT, like an infrastructure failure. A limit_exceeded preview STILL counts in the 15 free previews in any 24 hours (GAMES' review 11-23: with one render machine, a story that reliably runs it out of memory could otherwise be
 -- queued all day across many projects, free, while everyone behind it waits; engine_unsupported fails in seconds at the worker's setup check, so it needs no cap). Everything else counts as before
--- (a story the engine refused, a timeout, a failed check, a cancelled or finished preview).
+-- (a story the engine refused, a timeout, a failed check, a finished preview, one cancelled AFTER a machine picked it up).
+-- AND (BUILDER's MEDIUM 3, CC1 09:21): a preview cancelled BEFORE a machine picked it up (state cancelled, claimed_at null) is not counted in either count: it never used the machine, and a stranger who changes their mind while waiting
+-- in the queue must not lose one of the 6.
 -- WHAT IT DOES NOT CHANGE: the error class of any code (so the worker's contract.py / tests/worker_contract.py stay as they are, and the page's words for a limit and for an unsupported setup stay as they are:
 -- assets/app-jobs.js keys them on the code and the class), the price quote's shape, grants, or any table. The same body is in phase-2b/credits_ledger.sql, so an apply of the ledger from scratch is right too.
 -- ORDER: if the ledger is not applied yet there is no free_previews_used to change: this file then does nothing (a notice says so) and the ledger file, which already carries the rule, is what to apply.
@@ -30,6 +32,7 @@ begin
         and (p_project is null or project_id = p_project)
         and (p_since is null or created_at >= p_since)
         and not (state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)))
+        and not (state = 'cancelled' and claimed_at is null)
     $body$
   $f$;
 end $mig$;

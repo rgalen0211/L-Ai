@@ -1,5 +1,5 @@
 -- BEFORE and AFTER 20261123000100_free_preview_machine_faults.sql (a free preview is not used up by the render machine's own fault): ONE read-only SELECT, changes nothing. Every column is named.
--- BEFORE the migration: row 1 is true (the credits ledger is live), rows 2 and 3 are FALSE and the others true. AFTER it every row must be true. If row 1 is false the credits ledger (phase-2b/credits_ledger.sql) is not applied: apply it first
+-- BEFORE the migration: row 1 is true (the credits ledger is live), rows 2, 3 and 5 are FALSE and the others true. AFTER it every row must be true. If row 1 is false the credits ledger (phase-2b/credits_ledger.sql) is not applied: apply it first
 -- (the file already carries this rule). The statement never errors, whichever state the database is in.
 select 'the credits ledger is applied: ryagram_private.free_previews_used exists' as check_name,
        to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)') is not null as ok
@@ -12,6 +12,8 @@ union all select 'an infrastructure failure is still not counted, and only FAILE
          and pg_get_functiondef(to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)')) like '%error_class = ''infrastructure''%'
          and pg_get_functiondef(to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)')) like '%job_type = ''preview''%'
          and pg_get_functiondef(to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)')) like '%free_preview%', false)
+union all select 'a preview cancelled before a machine picked it up (cancelled, never claimed) is not counted either',
+       coalesce(pg_get_functiondef(to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)')) like '%state = ''cancelled'' and claimed_at is null%', false)
 union all select 'nobody signed in, anonymous or the connector login can run it (it is the ledger''s own helper)',
        coalesce(to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)') is not null
          and not has_function_privilege('anon', to_regprocedure('ryagram_private.free_previews_used(uuid,uuid,timestamptz)'), 'execute')

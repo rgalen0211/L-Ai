@@ -95,13 +95,27 @@ class FreePreviewMachineFaults(unittest.TestCase):
         vid = self.version()
         a, b, c = self.previews(vid, 3)
         self.done(a)
-        self.admin("update jobs set state = 'cancelled', error_class = 'cancelled', error_code = 'cancelled', ended_at = now() where id = %s returning 1", b)
+        self.admin("update jobs set state = 'cancelled', error_class = 'cancelled', error_code = 'cancelled', claimed_at = now(), ended_at = now() where id = %s returning 1", b)       # cancelled AFTER a machine picked it up
         self.assertEqual(self.used(), 3)
         # a failure code that is the machine's but on a job that did not FAIL (cancelled with a stray code) is still counted: only a failed preview is skipped
         self.admin("update jobs set error_code = 'limit_exceeded' where id = %s returning 1", b)
         self.assertEqual(self.used(), 3)
         self.fail(c, "limit_exceeded")
         self.assertEqual(self.used(), 2)
+
+    def test_a_preview_cancelled_before_a_machine_picked_it_up_does_not_count_and_one_cancelled_after_does(self):
+        """BUILDER's MEDIUM 3 (CC1 09:21): a stranger who changes their mind while waiting in the queue keeps the free preview; once a machine has claimed it, it counts."""
+        vid = self.version()
+        a = self.submit(vid, "preview")
+        self.assertEqual(self.used(), 1)
+        self.admin("update jobs set state = 'cancelled', error_class = 'cancelled', error_code = 'cancelled', ended_at = now() where id = %s returning 1", a)
+        self.assertEqual(self.used(), 0, "cancelled while waiting: not counted")
+        self.assertEqual(self.admin("select ryagram_private.free_previews_used(%s, null, now() - interval '24 hours')", RYAN), 0, "and not in the 15 a day either")
+        b = self.submit(vid, "preview")
+        self.admin("update jobs set state = 'cancelled', error_class = 'cancelled', error_code = 'cancelled', claimed_at = now(), ended_at = now() where id = %s returning 1", b)
+        self.assertEqual(self.used(), 1, "cancelled after a machine picked it up: counted")
+        c = self.submit(vid, "preview")
+        self.assertTrue(self.admin("select free_preview from jobs where id = %s", c))
 
     def test_the_15_in_24_hours_rule_skips_the_machines_faults_too(self):
         self.grant(100)
@@ -158,17 +172,17 @@ class FreePreviewMachineFaults(unittest.TestCase):
     def test_the_check_step_answers_as_its_header_says_before_and_after(self):
         text = CHK.read_text(encoding="utf-8")
         rows = self.db.as_(None).c.execute(text).fetchall()
-        self.assertEqual(len(rows), 5)
+        self.assertEqual(len(rows), 6)
         self.assertTrue(all(r[1] is True for r in rows), rows)                  # the ledger file already carries the rule: a fresh database is "after"
         self.apply(RB)
         rows = self.db.as_(None).c.execute(text).fetchall()
-        self.assertEqual([r[1] for r in rows], [True, False, False, True, rows[4][1]], rows)
+        self.assertEqual([r[1] for r in rows], [True, False, False, True, False, rows[5][1]], rows)
         self.apply(MIG)
         rows = self.db.as_(None).c.execute(text).fetchall()
         self.assertTrue(all(r[1] is True for r in rows), rows)
         self.db.as_(None).c.execute("drop function ryagram_private.free_previews_used(uuid, uuid, timestamptz)")
         rows = self.db.as_(None).c.execute(text).fetchall()
-        self.assertEqual([r[1] for r in rows], [False] * 5, "no ledger: every row false, never an error")
+        self.assertEqual([r[1] for r in rows], [False] * 6, "no ledger: every row false, never an error")
 
 
 if __name__ == "__main__":
