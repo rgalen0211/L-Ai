@@ -23,8 +23,10 @@ MUTANTS = [
     ("54 no longer checks the length", S + F53, "bool_and(length(s.decrypted_secret) >= 32) from vault.decrypted_secrets s where s.name = 'cron_purge_uploads'", "true from vault.decrypted_secrets s where s.name = 'cron_purge_uploads'"),
     ("56 accepts a job that reads the service key", S + F55, "and j.command not like '%service_role_key%'\n", "\n"),
     ("56 does not look at the last run's status", S + F55, "= 'succeeded'), false)", "is not null), false)"),
-    ("56 ignores a refused call", S + F55, "count(*) filter (where r.status_code is distinct from 200) = 0 and ", ""),
-    ("56 looks at every function's calls, not only the purge ones", S + F55, "where q.url like '%/functions/v1/purge-%' and ", "where "),
+    ("56 accepts a generic ok:true reply as purge-uploads' own", S + F55, "r.content like '%\"fn\":\"purge-uploads\"%'", "r.content like '%ok%'"),
+    ("56 accepts a generic ok:true reply as purge-partial-uploads' own", S + F55, "r.content like '%\"fn\":\"purge-partial-uploads\"%'", "r.content like '%ok%'"),
+    ("56 counts a reply older than 2 hours for purge-uploads", S + F55, "r.created > now() - interval '2 hours' and r.content like '%\"fn\":\"purge-uploads\"%'", "r.content like '%\"fn\":\"purge-uploads\"%'"),
+    ("56 counts a 500 as an answer of purge-uploads", S + F55, "r.status_code = 200 and r.created > now() - interval '2 hours' and r.content like '%\"fn\":\"purge-uploads\"%'", "r.created > now() - interval '2 hours' and r.content like '%\"fn\":\"purge-uploads\"%'"),
     ("57 unschedules every job", S + F56, "if exists (select 1 from cron.job where jobname = 'purge-uploads') then perform cron.unschedule('purge-uploads'); end if;", "perform cron.unschedule(jobname) from cron.job;"),
     ("57 fails when a job is not there", S + F56, "if exists (select 1 from cron.job where jobname = 'purge-partial-uploads') then perform cron.unschedule('purge-partial-uploads'); end if;", "perform cron.unschedule('purge-partial-uploads');"),
 ]

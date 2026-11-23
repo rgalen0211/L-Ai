@@ -54,11 +54,11 @@ const JOB = 'purge-job-secret-0123456789abcdef0123456789abcdef';
 const OTHER_JOB = 'ops-tick-job-secret-0123456789abcdef0123456789abc';
 const jobWorld = (n, over = {}) => { const w = world(n, over); w.deps.jobSecret = JOB; return w; };
 
-test('the scheduler own job secret runs it and the reply is ok and nothing else (pg_net keeps replies where logins can read them)', async () => {
+test('the scheduler own job secret runs it and the reply is ok and the function name, nothing else (pg_net keeps replies where logins can read them; the name lets live step 56 tell this job from the others: tests/connect-purge-job-reply.test.mjs)', async () => {
   const w = jobWorld(250);
   const res = await call(w.deps, 'Bearer ' + JOB);
   assert.equal(res.status, 200);
-  assert.equal(JSON.stringify(await res.json()), '{"ok":true}');
+  assert.equal(JSON.stringify(await res.json()), '{"ok":true,"fn":"purge-uploads"}');
   assert.equal(w.calls.length, 6);                                                     // it really swept: 3 batches, remove then mark
 });
 
