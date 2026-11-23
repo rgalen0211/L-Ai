@@ -1,5 +1,5 @@
 -- BEFORE and AFTER 20261121000700_connect_ai_open_to_all.sql (Connect-an-AI opens to every signed-up account): ONE read-only SELECT, changes nothing. Every column is named.
--- Right after the migration (flag still OFF): every ok must be true. After step 36 (flag ON) the row "the flag is ..." says on and the rest stay true. BEFORE the migration the first four rows answer false and the last says OFF, and it never errors (the flag is read through to_jsonb, so a missing column is a false, not a failed statement; 11-23, a subagent's audit found the old form errored before the migration).
+-- Right after the migration (flag still OFF): every ok must be true. After step 36 (flag ON) the row "the flag is ..." says on and the rest stay true. BEFORE the migration the first four rows answer false and the last says NOT THERE YET with false, and it never errors (the flag is read through to_jsonb, so a missing column is a false, not a failed statement; 11-23, a subagent's audit found the old form errored before the migration).
 select 'the flag exists' as check_name,
        coalesce((select count(*) = 1 from information_schema.columns where table_schema = 'public' and table_name = 'connect_flags' and column_name = 'open_to_all'), false) as ok
 union all select 'the helper and the admin function exist',
@@ -18,5 +18,6 @@ union all select 'the person rule still names an enabled list row, an administra
          and pg_get_functiondef(to_regprocedure('ryagram_private.connect_person_ok(uuid)')) like '%app_admins%'
          and pg_get_functiondef(to_regprocedure('ryagram_private.connect_person_ok(uuid)')) like '%workers%'
          and pg_get_functiondef(to_regprocedure('ryagram_private.connect_person_ok(uuid)')) like '%connect_open()%', false)
-union all select 'the flag is ' || case when coalesce((select (to_jsonb(f) ->> 'open_to_all')::boolean from public.connect_flags f where f.id), false) then 'ON: every signed-up account may connect an AI' else 'OFF: only the invited list (the state right after the migration)' end,
-       (select count(*) = 1 from public.connect_flags where id);
+union all select 'the flag is ' || case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'connect_flags' and column_name = 'open_to_all') then 'NOT THERE YET: the migration has not run'
+                                       when coalesce((select (to_jsonb(f) ->> 'open_to_all')::boolean from public.connect_flags f where f.id), false) then 'ON: every signed-up account may connect an AI' else 'OFF: only the invited list (the state right after the migration)' end,
+       exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'connect_flags' and column_name = 'open_to_all') and (select count(*) = 1 from public.connect_flags where id);

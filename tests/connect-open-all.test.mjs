@@ -62,5 +62,5 @@ test('ONLY live step 36 and the admin function turn it on, and step 37 turns it 
   }
   const check = flat(read('supabase/live-steps/35_connect_open_check.sql'));
   assert.equal((check.match(/union all select/g) || []).length, 4, 'five rows, every column named');
-  for (const part of ["like '%connect_access%'", "like '%app_admins%'", "like '%workers%'", "like '%connect_open()%'", "has_function_privilege('anon'", "has_function_privilege('connect_runner'"]) assert.ok(check.includes(part), 'the check looks at ' + part);
+  for (const part of ["NOT THERE YET: the migration has not run", "(to_jsonb(f) ->> 'open_to_all')::boolean", "like '%connect_access%'", "like '%app_admins%'", "like '%workers%'", "like '%connect_open()%'", "has_function_privilege('anon'", "has_function_privilege('connect_runner'"]) assert.ok(check.includes(part), 'the check looks at ' + part);
 });
