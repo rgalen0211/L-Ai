@@ -71,6 +71,6 @@ select 12, 'verified sign-ups in the last 24 hours that got NO welcome credits',
            and not exists (select 1 from ryagram_private.welcome_credit_grants g
                             where g.email_hash = encode(sha256(convert_to('ryagram-welcome:' || lower(btrim(u.email)), 'UTF8')), 'hex')))::text
          || ' (welcome setting now ' || coalesce((select (to_jsonb(o) ->> 'welcome_credits') from public.ops_settings o limit 1), 'missing') || ')',
-       'it is 1 or more while the setting is above 0: a welcome grant failed (Supabase, Logs, Postgres: a welcome warning); repair it with public.grant_credits and tell CC1 (CONNECT 17:06)'
+       'it is 1 or more while the setting is above 0: a welcome grant failed (Supabase, Logs, Postgres: a welcome warning); tell CC1, who names the repair step (never a hand grant: it would not record the address). Your own test sign-ups verified on Tuesday before A19 count here until 24 hours pass'
 ) watch
 order by n, what;
