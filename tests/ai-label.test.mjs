@@ -15,6 +15,8 @@ test('BOTH PAGES: the delivery page text and the public film page both say AI-as
   assert.doesNotMatch(lib, /got\.label \|\| 'AI-assisted'/, 'no second spelling on the delivery page');
 });
 
-test('NO NEW MAIL ADDRESS: the AI-content shell names no mail address (the preview Terms carry the ryagram@ address Ryan confirmed, Q251; tests/preview-terms-1122.test.mjs)', () => {
-  for (const p of ['ai-content/index.html']) assert.doesNotMatch(read(p), /ryagram@uselai|mailto:/, p);
+test('NO NEW MAIL ADDRESS: neither preview page (Terms, AI content) names a mail address other than the ryagram@ one Ryan confirmed (Q251; tests/preview-terms-1122.test.mjs, tests/preview-ai-content-1123.test.mjs)', () => {
+  for (const p of ['terms/index.html', 'ai-content/index.html']) {
+    for (const m of read(p).matchAll(/[A-Za-z0-9._-]+@[A-Za-z0-9.-]+/g)) assert.equal(m[0], 'ryagram@uselai.com', p);
+  }
 });
