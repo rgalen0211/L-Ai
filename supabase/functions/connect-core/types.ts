@@ -94,7 +94,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
   listMyData(): Promise<MyDataList>;
   /** A final render also names the contact sheet and preview it stands on (the database re-checks the ladder). */
   submitJob(versionId: string, jobType: string, params: Record<string, unknown>, sheetId?: string, previewId?: string): Promise<{ id: string; state: string; run_on?: string }>;
-  whoami(): Promise<{ label: string; available: number; held: number }>;
+  /** desktop_app: whether this account may have the Ryagram desktop app (an invited tester or an administrator, the rule of request_app_download). Absent = an older server that does not say: treated as allowed, so nothing changes until the migration 20261123000500 is applied. */
+  whoami(): Promise<{ label: string; available: number; held: number; desktop_app?: boolean }>;
   listProjects(): Promise<ProjectRow[]>;
   createProject(title: string): Promise<{ id: string; title: string; version_id: string; number: number }>;
   /** The version a project's tools work on (newest). null when the project is not the person's. */

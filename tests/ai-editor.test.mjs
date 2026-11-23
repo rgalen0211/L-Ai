@@ -363,7 +363,7 @@ async function oneTool(name, input, world) {
 }
 test('AI editor: draft_story with the paired template is refused in words and saves nothing', async () => {
   const { w, result } = await oneTool('draft_story', { template: 'paired', dataset_id: 'state_obesity_fastfood', headline: 'Invented headline' });
-  assert.equal(result.is_error, true); assert.match(result.content, /keyframes_per_year/); assert.match(result.content, /map, bars or line/);
+  assert.equal(result.is_error, true); assert.match(result.content, /keyframes_per_year/); assert.match(result.content, /line view/);
   assert.equal(w.saved.length, 0);
 });
 test('AI editor: set_mapping to paired or panel is refused in words and saves nothing', async () => {

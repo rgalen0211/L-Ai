@@ -12,7 +12,7 @@ interface FCard { id: string; project_id: string; version_id: string; sha: strin
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { switches?: string[]; departments?: { id: string; label: string; status: "working" | "soon" }[]; cards: Map<string, FCard>; geo: Map<string, GeoRow>; prepared: { id: string; label: string; csv: string; sources: Record<string, unknown>; changeLog: string[]; measured: Record<string, unknown>; aiName: string | null; state: string; created_at: string }[]; uploads: { id: string; label: string; status: string; geography: string; cadence: string; prepared: boolean }[]; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
+interface FUser { desktopApp?: boolean; switches?: string[]; departments?: { id: string; label: string; status: "working" | "soon" }[]; cards: Map<string, FCard>; geo: Map<string, GeoRow>; prepared: { id: string; label: string; csv: string; sources: Record<string, unknown>; changeLog: string[]; measured: Record<string, unknown>; aiName: string | null; state: string; created_at: string }[]; uploads: { id: string; label: string; status: string; geography: string; cadence: string; prepared: boolean }[]; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -39,6 +39,8 @@ export class FakeWorld {
     { id: "games", label: "Games", status: "soon" }, { id: "animation_studio", label: "Animation Studio", status: "soon" }, { id: "studio", label: "Studio", status: "soon" }];
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
+  /** Tests: a stranger has no desktop app (the default is that the account has it, as the invited testers do). */
+  setDesktopApp(userId: string, on: boolean): void { this.users.get(userId)!.desktopApp = on; }
   addUser(userId: string, label: string, credits = 100): FUser {
     const u: FUser = { cards: new Map(), geo: new Map(), plans: [], prepared: [], uploads: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
     this.users.set(userId, u);
@@ -145,7 +147,7 @@ export class FakeWorld {
       return { credits, free, available: user.credits - user.held };
     };
     return {
-      whoami: async () => ({ label: u().label, available: u().credits - u().held, held: u().held }),
+      whoami: async () => ({ label: u().label, available: u().credits - u().held, held: u().held, desktop_app: u().desktopApp !== false }),
       listProjects: async () => [...u().projects].reverse(),
       createProject: async (title) => {
         const user = u(); const p: ProjectRow = { id: id(), title, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };

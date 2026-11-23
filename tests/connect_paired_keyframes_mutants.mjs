@@ -20,7 +20,7 @@ const mutants = [
   ['any settings object counts as measured', SC, '!(isObj(c.settings) && Number.isInteger(c.settings.keyframes_per_year))', '!isObj(c.settings)'],
   ['a map view is refused too', SC, '(c.view === "paired" || c.view === "panel") && !(isObj', '(c.view === "paired" || c.view === "panel" || c.view === "map") && !(isObj'],
   ['the refusal is not given its field path', SC, 'return mk(`${clip}/settings/keyframes_per_year`, "missing_field",', 'return mk(`${clip}`, "missing_field",'],
-  ['the refusal does not say what to do instead', SC, 'A connection cannot measure it, so use a map, bars or line view, or make this film in the Ryagram app.', 'A connection cannot measure it.'],
+  ['the refusal does not say what to do instead', SC, 'A connection cannot measure it, so use a line view (it works for every dataset; a map or bars only where dataset_info says the engine draws them).', 'A connection cannot measure it.'],
   ['the AI is not told the rule before it writes the story', C + 'tools.ts', 'which is measured for each film and cannot be measured here', 'which is any number you like'],
 ];
 

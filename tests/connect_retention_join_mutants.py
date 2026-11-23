@@ -19,6 +19,7 @@ MUTANTS = [
     ("the invite guesses are not deleted", M, "  delete from public.invite_attempts where at < now() - interval '1 day';\n", ""),
     ("the answer no longer says how many join attempts went", M, "'join_attempts', join_tries,", "'join_attempts', 0,"),
     ("the purge no longer runs only once a day", M, "  if (select last_run_on from public.retention_runs) = today then\n    return jsonb_build_object('skipped', true);\n  end if;\n", ""),
+    ("the older retention undo no longer refuses while the newer purge is applied", "supabase/rollbacks/20261121000400_retention_outbox_support_rollback.sql", "like '%join_attempts%' then", "like '%no_such_text%' then"),
     ("the rollback keeps the new deletes", R, "  update public.retention_runs set last_run_on = today;", "  delete from public.join_attempts where at < now() - interval '2 days';\n  update public.retention_runs set last_run_on = today;"),
 ]
 

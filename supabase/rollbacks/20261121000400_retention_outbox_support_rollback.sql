@@ -1,8 +1,15 @@
 -- THE EXACT UNDO OF migrations/20261121000400_retention_outbox_support.sql (GEO 2026-11-21; CC1 12:36 G1). NOT APPLIED, and NOT a migration: it lives outside
 -- migrations/ so nothing applies it by itself. Every function body below is COPIED by script from the file named beside it.
 -- ORDER: run this BEFORE 20261121000100's rollback.
+-- ORDER 2 (CONNECT 11-23, GEO's undo audit): if 20261123000400 (join and invite-guess records purged) has been applied, undo IT first (rollbacks/20261123000400_retention_join_attempts_rollback.sql): this file would otherwise quietly put back a purge that no longer deletes them, so it refuses by itself.
 -- Nothing is restored: rows the purge already deleted are gone. Grants are kept (create or replace keeps them; a dropped function takes its own).
 begin;
+do $guard$
+begin
+  if pg_get_functiondef('public.retention_purge()'::regprocedure) like '%join_attempts%' then
+    raise exception 'Undo 20261123000400 first (rollbacks/20261123000400_retention_join_attempts_rollback.sql): this undo would quietly put back a purge that no longer deletes join and invite-guess records.';
+  end if;
+end $guard$;
 create or replace function public.retention_purge() returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare today date := (now() at time zone 'EST5EDT')::date; apps int := 0; codes int := 0; people int := 0; helps int := 0; reps int := 0; funnel int := 0; ids bigint[];

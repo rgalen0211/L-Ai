@@ -70,7 +70,7 @@ export async function handleRest(req: Request, route: string, deps: McpDeps, bas
   const raw = new TextDecoder().decode(buf);
   let args: unknown = {};
   if (raw.trim()) { try { args = JSON.parse(raw); } catch { return json(400, { error: "The body must be JSON." }); } }
-  const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps };
+  const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps, listedOnly: true };
   const r = await callTool(m[1], args, principal, env);
   return json(200, { text: r.text, isError: !!r.isError, ...(r.data ? { data: r.data } : {}) });
 }

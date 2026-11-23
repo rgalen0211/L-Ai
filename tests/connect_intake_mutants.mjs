@@ -32,7 +32,7 @@ const mutants = [
   ['the final step tells the AI to ask again', I, 'then: `Do NOT ask the person anything else they already told you. Call get_story_schema', 'then: `Ask the person to confirm each detail again. Call get_story_schema'],
   ['a department that is not built is started', I, 'say: "That part of Ryagram is coming soon. It is not available yet, and nothing can be started in it today."', 'say: "That part of Ryagram is ready."'],
   ['the compilation is not pointed at the desktop app', I, 'by the Ryagram desktop app for Windows. Do you have the app?', 'by Ryagram. Do you have it?'],
-  ['free text from the AI is echoed back', C + 'tools.ts', 'already_known: step.known });', 'already_known: step.known, echo: (a as { place?: string }).place });'],
+  ['free text from the AI is echoed back', C + 'tools.ts', 'kind: step.kind, already_known: step.known });\n  },', 'kind: step.kind, already_known: step.known, echo: (a as { place?: string }).place });\n  },'],
   ['the tool is not read-only', C + 'tools.ts', 'title: "What to ask the person next", scope: "read", readOnly: true,', 'title: "What to ask the person next", scope: "read", readOnly: false,'],
   ['the instructions lose the never-ask-again rule', C + 'mcp.ts', 'never ask for something they already told you, even in their first message: pass what they said to suggest_next_step and put only the one question it returns. ', ''],
   ['the instructions lose the coming-soon rule', C + 'mcp.ts', 'Offer only what Ryagram draws today and say plainly what is coming soon (the 3D interactive globe is). ', ''],

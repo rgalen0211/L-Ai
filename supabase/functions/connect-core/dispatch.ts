@@ -6,14 +6,15 @@ import { probeTool } from "./probe.ts";
 import { LIMITS, type CallLog, type Data, type Deps, type Policy, type Principal, type ToolResult } from "./types.ts";
 
 /** chatEditor: the chat editor's tools exist only when this is true (the connector's second switch); otherwise they are "no such tool". */
-export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean; homePanel?: boolean; preparedData?: boolean; probe?: boolean }
+/** listedOnly: set by the two FACES (MCP tools/call and REST): a tool that tools/list does not offer is "no such tool" there even when an AI guesses its name (defence in depth, CC1 11-23). request_full_render is the one unlisted tool that stays callable, for its polite refusal. Direct callers (the tools' own tests) leave it unset. */
+export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean; homePanel?: boolean; preparedData?: boolean; probe?: boolean; listedOnly?: boolean }
 
 const NO_GRANT = "This Ryagram account cannot use AI connections right now, or the connection was revoked. The person can open Account, then Connected AIs, in the Ryagram app to reconnect; if Connected AIs is not there, connecting is not open to this account yet and they can write to Ryagram from the Help page to ask for it.";
 
 export async function callTool(name: string, rawArgs: unknown, principal: Principal, env: Env): Promise<ToolResult> {
   const { policy, data, deps } = env;
   const found = TOOL_BY_NAME.get(name) ?? probeTool(name, env.probe);   // the probe's tools (probe.ts) exist only when its own switch is on
-  const tool = found && ((found.chatEditor && !env.chatEditor) || (found.homePanel && !env.homePanel) || (found.preparedData && !env.preparedData)) ? undefined : found;
+  const tool = found && ((found.chatEditor && !env.chatEditor) || (found.homePanel && !env.homePanel) || (found.preparedData && !env.preparedData) || (env.listedOnly && found.listed === false && name !== "request_full_render")) ? undefined : found;
   const finish = async (r: ToolResult, result: CallLog["result"], code: string): Promise<ToolResult> => {
     try {
       await policy.log(principal, { tool: tool ? name : "unknown",

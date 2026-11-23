@@ -102,6 +102,39 @@ class Connect(core.Base):
         # ... and the forged claim gets it nothing at the one door it has:
         self.fails("select connect_whoami(%s)", "0" * 64, code="PT401")
 
+    # ------------------------------------------------------------------------------------------ desktop_app (20261123000500)
+    def test_whoami_says_whether_the_account_may_have_the_desktop_app_by_the_download_rule(self):
+        """CC1 12:03: a stranger's AI must not be sent to a desktop app only invited testers can get. desktop_app = request_app_download's rule: an invited tester (local_compute) or an administrator, never a worker."""
+        class _D:                                            # always the owner: the connector role set by who() must not leak into the setup statements
+            execute = staticmethod(lambda sql, args=None: self.db.as_(None).c.execute(sql, args))
+        d = _D
+        who = lambda token: self.runner().one("select connect_whoami(%s)", h(token))
+        _, alice, _ = self.connect(ALICE)
+        self.assertIs(who(alice)["desktop_app"], False, "an ordinary account (a stranger once Connect-an-AI is open) has no app")
+        d.execute("insert into public.account_settings (owner_id, local_compute) values (%s, true) on conflict (owner_id) do update set local_compute = true", (BOB,))
+        _, bob, _ = self.connect(BOB)
+        self.assertIs(who(bob)["desktop_app"], True, "an invited tester")
+        # (an administrator account cannot be connected to an AI at all, so the administrator branch of the rule is not reachable through this door: it stays in the SQL to match request_app_download exactly)
+        d.execute("update public.account_settings set local_compute = false where owner_id = %s", (BOB,))
+        self.assertIs(who(bob)["desktop_app"], False, "the flag turned off: no app, at once")
+        d.execute("update public.account_settings set local_compute = true where owner_id = %s", (BOB,))
+        d.execute("insert into public.workers (user_id, name) values (%s, 'w')", (BOB,))
+        with self.assertRaises(psycopg.Error):                # a worker account is not a person: the connector refuses it before whoami answers (the worker clause of the rule is belt and braces)
+            who(bob)
+        r = who(alice)
+        self.assertEqual(sorted(r), ["available", "desktop_app", "held", "label"], "the old answers are all still there")
+
+    def test_the_desktop_app_check_step_and_its_rollback(self):
+        d = self.db.as_(None).c
+        chk = (core.ROOT / "live-steps" / "61_connect_whoami_desktop_app_check.sql").read_text(encoding="utf-8")
+        rows = d.execute(chk).fetchall()
+        self.assertEqual([r[1] for r in rows], [True, True], rows)
+        d.execute((core.ROOT / "rollbacks" / "20261123000500_connect_whoami_desktop_app_rollback.sql").read_text(encoding="utf-8"))
+        rows = d.execute(chk).fetchall()
+        self.assertEqual([r[1] for r in rows], [False, True], "after the undo: no desktop_app answer, the grants are as they were")
+        _, alice, _ = self.connect(ALICE)
+        self.assertNotIn("desktop_app", self.runner().one("select connect_whoami(%s)", h(alice)), "the old function: no such key (the connector then treats the account as allowed)")
+
     def test_claims_set_by_a_tool_call_do_not_survive_the_call(self):             # (3), here on one connection; also run on the real pooler
         _, access, _ = self.connect(ALICE)
         r = self.runner()
