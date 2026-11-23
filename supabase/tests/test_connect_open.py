@@ -1,6 +1,6 @@
 """CONNECT-AN-AI OPENS TO EVERYONE (migrations/20261121000700_connect_ai_open_to_all.sql, NOT APPLIED) on a local Postgres. CONNECT, 2026-11-21 (Ryan 11:30).
 
-STATE: RUN 2026-11-21 12:32 on a local Postgres (WEB's pgvenv2, own TEMP on D:): 5 of 5. Also run on this branch the same day: test_connect.py 67 of 67 (after the full rollback script learned the new admin function) and test_connect_departments.py 7 of 7. To run it again, from the repo root with TEMP/TMP on D: and RYAGRAM_LAI_REPO set:
+STATE: RUN 2026-11-21 12:32 on a local Postgres (WEB's pgvenv2, own TEMP on D:): 5 of 5; now 7 tests (11-23: the check before the migration, and the check's own last row), run alone 11-23. Also run on this branch the same day: test_connect.py 67 of 67 (after the full rollback script learned the new admin function) and test_connect_departments.py 7 of 7. To run it again, from the repo root with TEMP/TMP on D: and RYAGRAM_LAI_REPO set:
     pgvenv/Scripts/python -m unittest supabase/tests/test_connect_open.py -v
 and kill any pgserver it leaves by PID (about 1 GB a run).
 
@@ -87,6 +87,21 @@ class ConnectOpen(core.Base):
             self.assertEqual(len(rows), 5)
             self.assertTrue(all(r[1] is True for r in rows), rows)
             self.assertIn("ON" if on else "OFF", rows[-1][0])
+
+    def test_the_check_step_runs_BEFORE_the_migration_without_an_error(self):
+        """11-23 (a subagent's audit of the launch paper): the check's first run is BEFORE the migration, where the column open_to_all does not exist. Postgres resolves a column when it parses a statement,
+        so a plain read of the column failed the whole statement ('column does not exist'). Put the database back to its state before the migration with the rollback, run the check, and it must answer, not fail."""
+        self.db.as_(None).c.execute(RB.read_text(encoding="utf-8"))
+        text = (core.ROOT / "live-steps" / "35_connect_open_check.sql").read_text(encoding="utf-8")
+        rows = self.db.as_(None).c.execute(text).fetchall()
+        self.assertEqual(len(rows), 5)
+        self.assertEqual([r[1] for r in rows[:4]], [False, False, False, False], rows)
+        self.assertIn("NOT THERE YET", rows[-1][0], "read alone, the last row must not look as if the migration ran (GEO's second review, 11-23)")
+        self.assertIs(rows[-1][1], False)
+        self.assertNotIn("OFF", rows[-1][0])
+        undo = (core.ROOT / "live-steps" / "37_connect_open_OFF.sql").read_text(encoding="utf-8")
+        self.assertIn("update public.connect_tokens set revoked_at = now() where revoked_at is null;", undo, "the undo says how to end the connections from the SQL Editor")
+        self.assertIn("update public.connect_grants set revoked_at = now() where revoked_at is null;", undo)
 
     def test_the_rollback_puts_the_old_rule_back_and_removes_what_was_added(self):
         self.flag(True)
