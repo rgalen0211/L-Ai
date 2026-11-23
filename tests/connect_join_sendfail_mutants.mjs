@@ -1,4 +1,4 @@
-// Must-fail proof for tests/connect-join-sendfail.test.mjs (what the join function says when sign-up is not open): each mutant breaks ONE thing in a scratch copy and the suite must then FAIL.
+// Must-fail proof for tests/connect-join-sendfail.test.mjs (what the join function does when the sign-up email cannot be sent, and the wiring of join_release in index.ts): each mutant breaks ONE thing in a scratch copy and the suite must then FAIL.
 // A baseline run on the unbroken copy must PASS first, and every mutant's text must occur EXACTLY once. Run:  node tests/connect_join_sendfail_mutants.mjs   (one runner at a time, alone)
 import fs from 'node:fs';
 import path from 'node:path';

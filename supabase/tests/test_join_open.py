@@ -184,6 +184,28 @@ class JoinOpen(core.Base):
             with self.assertRaises(psycopg.Error, msg=str(who)):
                 self.db.as_(who).one("select public.join_release('a@example.com', 'ip1')")
 
+    def test_the_stuck_redemption_check_lists_a_redemption_whose_mail_went_out_but_was_never_recorded_and_its_repair_works(self):
+        """GAMES' review 11-23 of redeem-invite: if the mail went out but invite_sent kept failing, the redemption stays 'pending' while the person has an account. Live step 52 lists those (read-only) with the repair statement."""
+        chk = (core.ROOT / "live-steps" / "52_stuck_invite_redemptions_check.sql").read_text(encoding="utf-8")
+        self.d().execute("insert into public.invite_codes (code_hash, label, max_uses, expires_at) values (repeat('a', 64), 'test', 5, now() + interval '1 day')")
+        self.waiting(False)
+        self.signs_up(STRANGER, "stuck@example.com", {"adult_confirmed": "true", "adult_source": "invite"})
+        self.d().execute("insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), 'stuck@example.com', 'pending', now() - interval '20 minutes')")
+        self.d().execute("insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), 'young@example.com', 'pending', now() - interval '1 minute')")
+        self.d().execute("insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), 'noaccount@example.com', 'pending', now() - interval '30 minutes')")
+        rows = self.d().execute(chk).fetchall()
+        self.assertEqual(len(rows), 2, rows)
+        self.assertEqual(rows[0][1], "1", "one stuck: old enough and the email has an account (the young one and the one without an account are not listed)")
+        self.assertEqual(rows[1][2], "stuck@example.com")
+        repair = rows[1][5]
+        self.assertIn("select public.invite_sent(", repair)
+        self.d().execute(repair)
+        self.assertEqual(self.d().execute("select status from public.invite_redemptions where email = 'stuck@example.com'").fetchone()[0], "sent", "the repair statement records it")
+        self.d().execute(repair)                                                                  # twice is harmless
+        rows = self.d().execute(chk).fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][1], "0", "nothing stuck after the repair")
+
     def test_the_rollback_puts_the_old_function_back_and_drops_the_flag(self):
         self.flag(True)
         self.d().execute(RB.read_text(encoding="utf-8"))

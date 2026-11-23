@@ -61,7 +61,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   }
 
   const redemption = r.redemption!;
-  let userId: string;
+  let userId: string | null;
   try {
     ({ userId } = await deps.invite(email, `${deps.siteUrl}/app/`, { adult_confirmed: true, adult_source: "invite" }));
   } catch (e) {
@@ -75,7 +75,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   try { await deps.sent(redemption, userId); }
   catch (e1) {
     try { await deps.sent(redemption, userId); }
-    catch (e2) { console.error(`redeem-invite sent (the email went out; the redemption ${redemption} is not marked sent): ${(e2 as Error).message}`); }
+    catch (e2) { console.error(`redeem-invite sent (the email went out; the redemption ${redemption} is not marked sent; user ${userId}; repair: select public.invite_sent(${redemption}, '<that user id>')): ${(e2 as Error).message}`); }
   }
   return reply(200, { message: SENT });
 }
