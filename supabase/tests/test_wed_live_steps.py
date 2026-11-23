@@ -105,6 +105,7 @@ class WedLiveSteps(core.Base):
         self.assertTrue(w["scheduled job cost-sync"][0].endswith("(NOT ACTIVE)"))
         self.assertEqual(w["full films waiting for YOUR approval (#/admin/renders)"][0], "0 waiting; oldest made 0 min ago")
         self.assertEqual(w["account deletions waiting for YOU to close by hand"][0], "0 waiting; oldest asked 0 h ago")
+        self.assertTrue(w["verified sign-ups in the last 24 hours that got NO welcome credits"][0].startswith("0 (welcome setting now "))
         # plant one case per row
         pid = self.d().execute("insert into public.projects (owner_id, title) values (%s, 'w') returning id", (core.RYAN,)).fetchone()[0]
         vid = self.d().execute("insert into public.versions (project_id, owner_id, number) values (%s, %s, 1) returning id", (pid, core.RYAN)).fetchone()[0]
@@ -146,11 +147,19 @@ class WedLiveSteps(core.Base):
         self.assertEqual(w["scheduled calls answered with an error in the last hour"][0], "2 of 3", "a 403 and a call with no answer, in the hour")
         self.assertEqual(w["full films waiting for YOUR approval (#/admin/renders)"][0], "1 waiting; oldest made 25 min ago", "the waiting full film counts; a complete one and the queued previews do not")
         self.assertEqual(w["account deletions waiting for YOU to close by hand"][0], "1 waiting; oldest asked 3 h ago", "one open request")
+        # row 12: this test database has no credit ledger, so no verification gets a welcome record: plant one record to prove both sides
+        self.d().execute("update auth.users set email_confirmed_at = now() - interval '10 minutes' where email in ('n1@x', 'n3@x')")
+        self.d().execute("update auth.users set email_confirmed_at = now() - interval '30 hours' where email = 'old@x'")
+        self.d().execute("update auth.users set raw_user_meta_data = '{\"adult_source\": \"invite\"}'::jsonb where email = 'n2@x'")
+        self.d().execute("insert into ryagram_private.welcome_credit_grants (email_hash) values (encode(sha256(convert_to('ryagram-welcome:n1@x', 'UTF8')), 'hex'))")
+        w = self.watch()
+        self.assertTrue(w["verified sign-ups in the last 24 hours that got NO welcome credits"][0].startswith("1 ("), w["verified sign-ups in the last 24 hours that got NO welcome credits"][0])   # n3 only: n1 has its record, n2 is an invite account, old@x is past 24 h
         self.assertEqual(self.d().execute("select (select count(*) from public.jobs), (select count(*) from auth.users), (select count(*) from public.join_attempts)").fetchone(),
                          (before[0] + 12, before[1] + 4, before[2] + 4), "the watch itself wrote nothing")
-        text = STEP58.read_text(encoding="utf-8").lower()
+        code = "\n".join(line for line in STEP58.read_text(encoding="utf-8").lower().splitlines() if not line.lstrip().startswith("--"))
+        code = re.sub(r"'(?:[^']|'')*'", "''", code)                       # the SQL itself: no comments, no quoted words (advice text says 'grant')
         for verb in ("insert ", "update ", "delete ", "alter ", "drop ", "truncate ", "grant "):
-            self.assertNotIn(verb, text.split("select", 1)[1], "read-only: " + verb)
+            self.assertNotIn(verb, code, "read-only: " + verb)
         self.d().execute("alter table public.ops_settings drop column join_daily_max")   # before Tuesday's migration the column is not there yet
         self.assertEqual(self.watch()["sign-up size used (different addresses, last 24 hours)"][0], "2 of 200 (no setting)", "no error before the column exists")
 

@@ -1,5 +1,5 @@
 -- WEDNESDAY WATCH (Ryan's look, read-only, any time; Wednesday from 10:00 once an hour until 22:30; CC1 10:05): one SELECT, one labelled row each, changes nothing.
--- Run it in the SQL Editor (paste all, Run; if it says permission denied for schema cron or net, tell CC1). Read each row's 'value' against its 'tell_cc1_if'. Nothing here changes a setting; every fix is a numbered live step CC1 names.
+-- Run it in the SQL Editor (paste all, Run; if it says permission denied for schema cron or net, or that welcome_credit_grants does not exist (A19 not applied), tell CC1). Read each row's 'value' against its 'tell_cc1_if'. Nothing here changes a setting; every fix is a numbered live step CC1 names.
 -- Also keep the site's #/admin/ops page open all day, and look at Supabase, Edge Functions, ops-tick, Invocations now and then: it should show a 200 every minute
 -- (a scheduled job's 'succeeded' below only means its call was QUEUED; the 'calls answered with an error' row and the Invocations page are what prove a function answered).
 -- Rows: render-PC jobs waiting now and the oldest; jobs claimed but not started after 10 minutes; the render PC's last check-in; sign-ups in the last hour; sign-ups
@@ -60,5 +60,17 @@ select 11, 'account deletions waiting for YOU to close by hand',
        (select count(*) from public.account_deletion_requests)::text || ' waiting; oldest asked '
          || coalesce((select round(extract(epoch from now() - min(requested_at)) / 3600)::text from public.account_deletion_requests), '0') || ' h ago',
        'any is waiting: their login is already blocked and their files gone; close the account by hand (CONNECT 15:59: with 8 welcome credits every verified stranger has credit history, so closing such an account is a request, not automatic)'
+union all
+select 12, 'verified sign-ups in the last 24 hours that got NO welcome credits',
+       (select count(*) from auth.users u
+         where u.email_confirmed_at > now() - interval '24 hours'
+           and not exists (select 1 from public.workers x where x.user_id = u.id)
+           and not exists (select 1 from public.app_admins a where a.user_id = u.id)
+           and not exists (select 1 from public.invite_redemptions r where r.email = lower(btrim(u.email)))
+           and coalesce(u.raw_user_meta_data ->> 'adult_source', '') <> 'invite'
+           and not exists (select 1 from ryagram_private.welcome_credit_grants g
+                            where g.email_hash = encode(sha256(convert_to('ryagram-welcome:' || lower(btrim(u.email)), 'UTF8')), 'hex')))::text
+         || ' (welcome setting now ' || coalesce((select (to_jsonb(o) ->> 'welcome_credits') from public.ops_settings o limit 1), 'missing') || ')',
+       'it is 1 or more while the setting is above 0: a welcome grant failed (Supabase, Logs, Postgres: a welcome warning); tell CC1, who names the repair step (never a hand grant: it would not record the address). Your own test sign-ups verified on Tuesday before A19 count here until 24 hours pass'
 ) watch
 order by n, what;
