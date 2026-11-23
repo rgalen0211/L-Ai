@@ -32,7 +32,7 @@ MIG = core.ROOT / "migrations" / "20261123000700_account_close_by_hand.sql"
 RB = core.ROOT / "rollbacks" / "20261123000700_account_close_by_hand_rollback.sql"
 STANDINS = """
 alter table auth.users add column if not exists phone text, add column if not exists encrypted_password text,
-  add column if not exists recovery_token text, add column if not exists deleted_at timestamptz;
+  add column if not exists recovery_token text, add column if not exists deleted_at timestamptz, add column if not exists banned_until timestamptz;
 create table if not exists auth.identities (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users (id),
   provider_id text not null, provider text not null, identity_data jsonb not null, unique (provider_id, provider));
 create table if not exists auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users (id));
@@ -66,7 +66,7 @@ class CloseByHand(unittest.TestCase):
         return self.db.as_(None).one(sql, *args)
 
     def person(self, who, mail):
-        self.d().execute("update auth.users set phone = '+15550100', encrypted_password = 'hash', recovery_token = 'tok', "
+        self.d().execute("update auth.users set phone = '+15550100', encrypted_password = 'hash', recovery_token = 'tok', banned_until = now() + interval '876000 hours', "
                          "raw_user_meta_data = %s::jsonb where id = %s", ('{"adult_confirmed": true, "name": "x"}', who))
         self.d().execute("insert into auth.identities (user_id, provider_id, provider, identity_data) values (%s, %s, 'email', %s::jsonb)",
                          (who, who, '{"email": "%s", "sub": "%s"}' % (mail, who)))
@@ -99,7 +99,7 @@ class CloseByHand(unittest.TestCase):
         self.assertEqual([r[0] for r in self.d().execute(p1).fetchall()], [__import__("uuid").UUID(RYAN)], "part 1 lists the open request")
         out = self.d().execute(p2.replace("<owner_id>", RYAN)).fetchone()[0]
         self.assertTrue(out["closed"])
-        self.assertEqual(self.d().execute(p3.replace("<owner_id>", RYAN)).fetchall(), [(True, True, True)], "part 3 after the close")
+        self.assertEqual(self.d().execute(p3.replace("<owner_id>", RYAN)).fetchall(), [(True,) * 8], "part 3 after the close: every cell true")
         self.assertEqual(self.one("select email, phone, encrypted_password, recovery_token, raw_user_meta_data, deleted_at is not null from auth.users where id = %s", RYAN),
                          (None, None, None, "", {}, True))
         self.assertEqual(self.one("select identity_data, provider_id from auth.identities where user_id = %s", RYAN), ({}, f"closed:{RYAN}:email"))

@@ -11,7 +11,13 @@ select owner_id, requested_at, reason from public.account_deletion_requests wher
 -- PART 2, the close, for ONE owner_id from part 1 (replace <owner_id> with it, keep the quotes). It refuses, changing nothing, if that account has no open request.
 select public.account_close_by_hand('<owner_id>');
 
--- PART 3, read-only check for that owner_id: closed_at is set, the request has no email, and the login has no email.
+-- PART 3, read-only check for that owner_id (GAMES 17:39: prove the WHOLE close, so a hosted surprise shows as a false, not as silence). EVERY cell must be true.
+-- If any is false, or part 2 errored (for example 'permission denied for schema auth'), STOP and tell CC1. Never edit auth.users by hand.
 select r.closed_at is not null as request_closed, r.email is null as request_has_no_email,
-       (select u.email is null from auth.users u where u.id = r.owner_id) as login_has_no_email
+       (select u.email is null from auth.users u where u.id = r.owner_id) as login_has_no_email,
+       (select u.encrypted_password is null from auth.users u where u.id = r.owner_id) as login_has_no_password,
+       (select u.deleted_at is not null from auth.users u where u.id = r.owner_id) as login_marked_deleted,
+       (select coalesce(u.banned_until > now(), false) from auth.users u where u.id = r.owner_id) as login_still_banned,
+       not exists (select 1 from auth.sessions s where s.user_id = r.owner_id) as no_sessions_left,
+       not exists (select 1 from auth.identities i where i.user_id = r.owner_id and i.identity_data ? 'email') as identities_have_no_email
   from public.account_deletion_requests r where r.owner_id = '<owner_id>';
