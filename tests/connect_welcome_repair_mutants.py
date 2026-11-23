@@ -22,6 +22,8 @@ MUTANTS = [
     ("the address is not recorded (a second run pays again)", S, "    insert into ryagram_private.welcome_credit_grants (email_hash) values (eh) on conflict (email_hash) do nothing;\n    if found then", "    if true then"),
     ("an address that already has its record is paid again", S, "values (eh) on conflict (email_hash) do nothing;\n    if found then", "values (eh) on conflict (email_hash) do update set granted_at = now();\n    if true then"),
     ("the repair records the address without lower-casing it", S, "select u.id, lower(btrim(u.email)) as mail", "select u.id, btrim(u.email) as mail"),
+    ("part 2 pays an account with an open deletion request", S, "       and not exists (select 1 from public.account_deletion_requests d where d.owner_id = u.id)\n", ""),
+    ("part 1 counts an account with an open deletion request", S, "\n   and not exists (select 1 from public.account_deletion_requests d where d.owner_id = u.id)", ""),
     ("the credits are given with another created_by", S, "'Welcome credits (email verified)', 'welcome-repair'", "'Welcome credits (email verified)', 'welcome'"),
     ("part 1 counts everyone in the window, recorded or not", S, "   and not exists (select 1 from ryagram_private.welcome_credit_grants g\n                    where g.email_hash = encode(sha256(convert_to('ryagram-welcome:' || lower(btrim(u.email)), 'UTF8')), 'hex'));", "   and true;"),
 ]

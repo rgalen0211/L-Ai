@@ -10,6 +10,7 @@
 -- UNDO: none needed for the grant itself (credits are credits); to stop everything first set the lever to 0 again. It never touches an account that already has a record.
 
 -- PART 1 (read-only)
+-- THE WINDOW BELOW (48) IS A PLACEHOLDER: before running, set it (here AND in PART 2) to the hours since the lever went to 0, or it also reaches accounts verified earlier, such as Ryan's own test sign-ups made before the lever was set. An account with an open deletion request is never paid.
 select count(*) as accounts_that_would_be_paid,
        (select o.welcome_credits from public.ops_settings o limit 1) as lever_now
   from auth.users u
@@ -20,6 +21,7 @@ select count(*) as accounts_that_would_be_paid,
    and not exists (select 1 from public.app_admins a where a.user_id = u.id)
    and not exists (select 1 from public.invite_redemptions r where r.email = lower(btrim(u.email)))
    and coalesce(u.raw_user_meta_data ->> 'adult_source', '') <> 'invite'
+   and not exists (select 1 from public.account_deletion_requests d where d.owner_id = u.id)
    and not exists (select 1 from ryagram_private.welcome_credit_grants g
                     where g.email_hash = encode(sha256(convert_to('ryagram-welcome:' || lower(btrim(u.email)), 'UTF8')), 'hex'));
 
@@ -41,6 +43,7 @@ begin
        and not exists (select 1 from public.app_admins a where a.user_id = u.id)
        and not exists (select 1 from public.invite_redemptions q where q.email = lower(btrim(u.email)))
        and coalesce(u.raw_user_meta_data ->> 'adult_source', '') <> 'invite'
+       and not exists (select 1 from public.account_deletion_requests d where d.owner_id = u.id)
      order by coalesce(u.email_confirmed_at, u.last_sign_in_at), u.id
   loop
     eh := encode(sha256(convert_to('ryagram-welcome:' || r.mail, 'UTF8')), 'hex');

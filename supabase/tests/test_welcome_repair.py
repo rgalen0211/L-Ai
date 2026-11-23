@@ -98,6 +98,17 @@ class WelcomeRepair(wc.WelcomeCredits):
         self.assertEqual(self.got(b), 0, "the same address in other case/spacing was recorded by the repair under the trigger's key, so the trigger pays nothing")
         self.assertEqual(self.d().execute("select count(*) from ryagram_private.welcome_credit_grants").fetchone()[0], 1)
 
+    def test_an_account_with_an_open_deletion_request_is_not_paid(self):
+        self.lever(0)
+        gone = self.user(60, "leaving@example.com")
+        stay = self.user(61, "staying@example.com")
+        self.d().execute("insert into public.account_deletion_requests (owner_id, email, reason) values (%s, 'leaving@example.com', 'test')", (gone,))
+        self.lever(8)
+        self.assertEqual(self.run_part(1)[0][0], 1, "part 1 counts only the one who stays")
+        self.run_part(2)
+        self.assertEqual((self.got(gone), self.got(stay)), (0, 8))
+        self.assertEqual(self.d().execute("select count(*) from ryagram_private.welcome_credit_grants").fetchone()[0], 1, "and the address of the one who left is not recorded")
+
     def test_someone_who_already_had_their_credits_is_not_paid_again(self):
         a = self.user(30, "fine@example.com")
         self.assertEqual(self.got(a), 8)
