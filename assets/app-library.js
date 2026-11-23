@@ -165,7 +165,7 @@
         let m;
         if (await waitingGate()) {                                                // a WAITING account sees one page whatever the address says (the server is the real gate)
           const email = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
-          view = await waitingUi().waitingView(email, () => { activeSeen = true; document.body.classList.remove('is-waiting'); if (location.hash === '#/' || location.hash === '') route(); else location.hash = '#/'; });
+          view = gateUnknown ? waitingUi().unknownView() : await waitingUi().waitingView(email, () => { activeSeen = true; document.body.classList.remove('is-waiting'); if (location.hash === '#/' || location.hash === '') route(); else location.hash = '#/'; });
         } else if (hash === '#/waiting') { location.replace('#/'); return; }
         // The plain library address goes to the door only for an invited account with no AI connected and no 'Not now' in the last 7 days; any failure shows the library.
         else if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
@@ -282,7 +282,7 @@
         { id: 'account', label: 'Account and reports', el: answers(
           qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
           qa('How do I report a film?', 'Public film pages are not open yet. To report a film, use the report form. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.'),
-          qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, Ryagram will read spreadsheets (CSV and similar files). If a file can\u2019t be read you\u2019ll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.')) }
+          qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, this answer will say how your files are read and deleted. Until then nothing can be uploaded.')) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
               h('p', { class: 'form-intro' }, 'Common questions are answered below and in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
@@ -333,11 +333,12 @@
     let waitingCache = null;
     const waitingUi = () => waitingCache || (waitingCache = window.ryagramWaiting.create({ h, data, busy, showError, errorLine }));
     let activeSeen = false;                                                      // 'active' is remembered for this sign-in; anything else is asked again on the next page
+    let gateUnknown = false;                                                     // my_access failed twice: the page says it could not check (no list claim), still closed
     async function waitingGate() {
       if (!waitingOn() || !window.ryagramWaiting) return false;
       if (activeSeen) return false;
-      let access = 'waiting';
-      try { access = window.ryagramWaiting.accessOf(await data.myAccess()); } catch { /* fail closed: the waiting page */ }
+      const access = await window.ryagramWaiting.checkAccess(() => data.myAccess());     // one retry after a short pause; 'unknown' if it fails twice (fail closed, but not 'waiting')
+      gateUnknown = access === 'unknown';
       document.body.classList.toggle('is-waiting', access !== 'active');
       if (access === 'active') activeSeen = true;
       return window.ryagramWaiting.pageFor(access, location.hash) === 'waiting';
@@ -983,7 +984,7 @@
         event.preventDefault();
         delError.hidden = true;
         if (!delForm.reportValidity()) return;
-        if (!confirm('Delete your account? Your films and uploaded files are removed for good. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.')) return;
+        if (!confirm('Delete your account? Your films, previews and files are removed for good. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.')) return;
         await busy(del, 'Deleting…', async () => {
           try {
             const result = await data.deleteAccount(typed.value);
@@ -995,7 +996,7 @@
         h('label', { for: 'acct-delete-email' }, 'Type your email to confirm'), typed, del, delNote, delError);
       sections.push(h('section', { class: 'account-section account-danger', 'aria-labelledby': 'acct-delete' },
         h('h2', { id: 'acct-delete' }, 'Delete your account'),
-        h('p', {}, 'We remove your films and uploaded files, replace your email in support requests and invite records, and then delete your login. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand. A render that is still running has to finish or be cancelled first.'),
+        h('p', {}, 'We remove your films, previews and files, replace your email in support requests and invite records, and then delete your login. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand. A render that is still running has to finish or be cancelled first.'),
         delForm));
       if (helpSection) sections.push(helpSection);
       return sections;

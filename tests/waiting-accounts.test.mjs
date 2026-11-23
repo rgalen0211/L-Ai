@@ -73,7 +73,7 @@ test('router belt: the waiting gate runs BEFORE every route test, and the admin 
   const afterGate = routeBody.slice(routeBody.indexOf('if (await waitingGate())'));
   assert.equal((afterGate.match(/\n        if /g) || []).length, 0, 'one chain: no second "if" that could overwrite the waiting page');
   assert.match(lib, /waitingOn\(\) && hash === '#\/admin\/waiting' && await data\.isAppAdmin\(\)/);
-  assert.match(lib, /catch \{ \/\* fail closed: the waiting page \*\/ \}/);
+  assert.match(lib, /checkAccess\(\(\) => data\.myAccess\(\)\)/);          // fail closed: a failed check never opens the app (wed-v3-1123 tests the words)
 });
 
 test('the waiting page offers only: an invite code, change password, delete account, sign out; delete-account stays open to it (the router test of CC1\'s exception)', () => {

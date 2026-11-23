@@ -19,14 +19,14 @@ test('NO FALSE "can\'t be undone": neither delete dialog nor its section says it
 
 test('the confirm says, before the person confirms, that films and files go for good and what credit history means (library and waiting page)', () => {
   const lib = files.library.match(/confirm\('(Delete your account\?[^']*)'\)/)[1];
-  assert.ok(lib.includes('Your films and uploaded files are removed for good.'));
+  assert.ok(lib.includes('Your films, previews and files are removed for good.'));
   assert.ok(lib.includes(CREDIT));
   const wt = files.waiting.match(/confirm\('(Delete your account\?[^']*)'\)/)[1];
   assert.ok(wt.includes(CREDIT));
 });
 
 test('the section says the same as Terms 9: files removed, email replaced in support requests and invite records, then the login; credit history kept, login blocked, request recorded, closed by hand with no date promised', () => {
-  assert.ok(files.library.includes('We remove your films and uploaded files, replace your email in support requests and invite records, and then delete your login. ' + CREDIT));
+  assert.ok(files.library.includes('We remove your films, previews and files, replace your email in support requests and invite records, and then delete your login. ' + CREDIT));
   assert.ok(files.waiting.includes('replace your email in support requests and invite records, and then delete your login. ' + CREDIT));
   assert.ok(files.library.includes('A render that is still running has to finish or be cancelled first.'), 'the running-render refusal is said up front');
   assert.doesNotMatch(files.library, /at once\. Renders must have finished|bought or used credits|any public film pages/, 'the old words are gone');

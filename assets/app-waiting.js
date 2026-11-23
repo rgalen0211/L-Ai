@@ -17,6 +17,14 @@
   function pageFor(access, hash) {
     return access === 'active' ? 'normal' : 'waiting';
   }
+  // Ask the server who this is. ONE failed call is tried once more after a short pause (no loop, no storm); a second failure is 'unknown', which is NOT the same as
+  // 'waiting': the page then says it could not check and asks for a reload, and makes no claim about a list. The server's own answer still decides active or waiting.
+  async function checkAccess(call, pause = ms => new Promise(resolve => setTimeout(resolve, ms)), ms = 1500) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { return accessOf(await call()); } catch { if (attempt === 0) await pause(ms); }
+    }
+    return 'unknown';
+  }
   function signUpProblem(email) {
     const e = String(email || '').trim();
     if (!e || e.length > 254 || !EMAIL.test(e)) return 'Type your email address.';
@@ -54,9 +62,20 @@
     detail: 'Ryagram is opening to a few people at a time. Until then your account is held here: you can change your password or delete your account, and nothing else is open.',
     noCredits: 'No credits are held or charged on a waiting account.'
   };
+  // Shown when my_access failed twice: the app stays closed (fail closed) but says what happened, not that the person is on a list.
+  const UNKNOWN_WORDS = { title: 'We could not check your account just now.', line: 'Reload the page.' };
 
   // ---------------------------------------------------------------- pages
   function create({ h, data, busy, showError, errorLine }) {
+    // The page for 'unknown' (the check failed twice): no list, no waiting claim, a reload, and a way to sign out.
+    function unknownView() {
+      return [
+        h('h1', { tabindex: '-1' }, UNKNOWN_WORDS.title),
+        h('p', { class: 'form-intro', role: 'status' }, UNKNOWN_WORDS.line),
+        h('p', {}, h('button', { class: 'button primary', type: 'button', id: 'wt-reload', onclick: () => location.reload() }, 'Reload the page')),
+        h('p', {}, h('button', { class: 'button secondary', type: 'button', id: 'wt-sign-out', onclick: () => data.signOut() }, 'Sign out'))
+      ];
+    }
     // #/waiting: the only page a WAITING account can reach.
     async function waitingView(email, onOpened) {
       const claimError = errorLine(), claimNote = h('p', { class: 'form-note', role: 'status' });
@@ -159,8 +178,8 @@
         note, error
       ];
     }
-    return { waitingView, adminView };
+    return { waitingView, adminView, unknownView };
   }
 
-  window.ryagramWaiting = Object.freeze({ on, accessOf, pageFor, signUpProblem, ageProblem, signUp, sentWords, waitingSummary, create, WORDS });
+  window.ryagramWaiting = Object.freeze({ on, accessOf, checkAccess, pageFor, signUpProblem, ageProblem, signUp, sentWords, waitingSummary, create, WORDS, UNKNOWN_WORDS });
 })();
