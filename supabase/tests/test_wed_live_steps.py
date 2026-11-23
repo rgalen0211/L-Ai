@@ -104,6 +104,7 @@ class WedLiveSteps(core.Base):
         self.assertEqual(w["scheduled job purge-partial-uploads"][0], "never ran")
         self.assertTrue(w["scheduled job cost-sync"][0].endswith("(NOT ACTIVE)"))
         self.assertEqual(w["full films waiting for YOUR approval (#/admin/renders)"][0], "0 waiting; oldest made 0 min ago")
+        self.assertEqual(w["account deletions waiting for YOU to close by hand"][0], "0 waiting; oldest asked 0 h ago")
         # plant one case per row
         pid = self.d().execute("insert into public.projects (owner_id, title) values (%s, 'w') returning id", (core.RYAN,)).fetchone()[0]
         vid = self.d().execute("insert into public.versions (project_id, owner_id, number) values (%s, %s, 1) returning id", (pid, core.RYAN)).fetchone()[0]
@@ -132,6 +133,7 @@ class WedLiveSteps(core.Base):
         self.d().execute("insert into public.join_attempts (ip_hash, email_hash) values ('i1', repeat('1', 64)), ('i2', repeat('1', 64)), ('i3', repeat('2', 64))")
         self.d().execute("insert into public.join_attempts (ip_hash, email_hash, at) values ('i4', repeat('3', 64), now() - interval '25 hours')")
         self.d().execute("update public.ops_settings set join_daily_max = 10")
+        self.d().execute("insert into public.account_deletion_requests (owner_id, email, reason, requested_at) values (%s, 'n1@x', 'credit history', now() - interval '3 hours')", (self.d().execute("select id from auth.users where email = 'n1@x'").fetchone()[0],))
         self.d().execute("insert into net._http_response (id, status_code, created) values (3, 403, now() - interval '10 minutes'), (4, null, now() - interval '20 minutes')")
         w = self.watch()
         self.assertEqual(w["jobs waiting now for the render PC"][0], "2 waiting; oldest made 45 min ago", "from creation, not the requeue; the tester's laptop job left out")
@@ -143,6 +145,7 @@ class WedLiveSteps(core.Base):
         self.assertEqual(w["sign-up size used (different addresses, last 24 hours)"][0], "2 of 10", "one address twice counts once; 25 hours ago does not count")
         self.assertEqual(w["scheduled calls answered with an error in the last hour"][0], "2 of 3", "a 403 and a call with no answer, in the hour")
         self.assertEqual(w["full films waiting for YOUR approval (#/admin/renders)"][0], "1 waiting; oldest made 25 min ago", "the waiting full film counts; a complete one and the queued previews do not")
+        self.assertEqual(w["account deletions waiting for YOU to close by hand"][0], "1 waiting; oldest asked 3 h ago", "one open request")
         self.assertEqual(self.d().execute("select (select count(*) from public.jobs), (select count(*) from auth.users), (select count(*) from public.join_attempts)").fetchone(),
                          (before[0] + 12, before[1] + 4, before[2] + 4), "the watch itself wrote nothing")
         text = STEP58.read_text(encoding="utf-8").lower()
