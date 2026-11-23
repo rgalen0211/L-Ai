@@ -16,7 +16,12 @@ const mutants = [
   ['PTVEW (a film not available) is replaced again', TL, '|PTCAP|PTQUE|PTVEW|', '|PTCAP|PTQUE|'],
   ['every PT code of five letters passes (a pattern instead of names)', TL, 'PTCAP|PTQUE|PTVEW', 'PT[A-Z]{3}'],
   ['the three-digit PT codes stop passing', TL, String.raw`/^(PT\d{3}|PTCAP`, '/^(PTCAP'],
-  ['a long message is passed', TL, 'msg.length > 300', 'msg.length > 3000'],
+  ['a long message is passed', TL, 'if (!own || msg.length > 300)', 'if (!own || msg.length > 3000)'],
+  ['a long message gets a special code', TL, 'if (msg.length > 300) return "error";', ''],
+  ['a full queue gets the generic code again', TL, 'code === "PTQUE" ? "queue_full"', 'code === "PTQUE" ? "error"'],
+  ['the daily cap gets the generic code again', TL, 'code === "PTCAP" ? "daily_credit_cap"', 'code === "PTCAP" ? "error"'],
+  ['a blocked film gets the generic code again', TL, 'code === "PTVEW" ? "not_available"', 'code === "PTVEW" ? "error"'],
+  ['the dispatcher ignores the distinct code', 'supabase/functions/connect-core/dispatch.ts', 'code: errorCodeOf(e) }', 'code: "error" }'],
   ['a key of the rgc kind is no longer removed', TL, '(sk|ryg|rga|rgr|rgc)', '(sk|ryg|rga|rgr)'],
 ];
 

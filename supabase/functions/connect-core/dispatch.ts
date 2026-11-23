@@ -1,7 +1,7 @@
 // The one gate every tool call passes, from either face. Order matters and is tested:
 //   unknown tool -> invited + consented? -> scope -> rate limits -> argument check -> run -> log.
 // Nothing here knows which assistant is calling.
-import { friendlyError, TOOL_BY_NAME } from "./tools.ts";
+import { errorCodeOf, friendlyError, TOOL_BY_NAME } from "./tools.ts";
 import { probeTool } from "./probe.ts";
 import { LIMITS, type CallLog, type Data, type Deps, type Policy, type Principal, type ToolResult } from "./types.ts";
 
@@ -63,6 +63,6 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
     const r = await tool.run(args as Record<string, unknown>, { principal, data, policy, deps });
     return finish(r, r.isError || r.refused ? "refused" : "ok", r.code ?? "ok");
   } catch (e) {
-    return finish({ text: friendlyError(e), isError: true, code: "error" }, "error", "tool_error");
+    return finish({ text: friendlyError(e), isError: true, code: errorCodeOf(e) }, "error", "tool_error");
   }
 }
