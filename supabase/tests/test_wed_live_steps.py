@@ -14,6 +14,8 @@ Run from the repo root:
 import re
 import sys
 import unittest
+
+import psycopg
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -22,6 +24,8 @@ import test_2a_core as core  # noqa: E402
 setUpModule = core.setUpModule
 STEP52 = core.ROOT / "live-steps" / "52_join_daily_max_set.sql"
 STEP58 = core.ROOT / "live-steps" / "58_wednesday_watch.sql"
+STEP65 = core.ROOT / "live-steps" / "65_welcome_grant_watch.sql"
+ROW12 = "verified sign-ups in the last 24 hours that got NO welcome credits"
 CRON_STANDIN = """
 create schema if not exists cron;
 create table if not exists cron.job (jobid serial primary key, jobname text unique, schedule text, command text, active boolean not null default true);
@@ -70,6 +74,12 @@ class WedLiveSteps(core.Base):
     def watch(self):
         return {r[0]: (r[1], r[2]) for r in self.d().execute(STEP58.read_text(encoding="utf-8")).fetchall()}
 
+    def watch65(self):
+        rows = self.d().execute(STEP65.read_text(encoding="utf-8")).fetchall()
+        self.assertEqual(len(rows), 1, "step 65 is one row")
+        self.assertEqual(rows[0][0], ROW12)
+        return rows[0][1]
+
     def job(self, pid, vid, state, minutes_ago, code=None, run_on="house", claimed_minutes_ago=None):
         return self.d().execute(
             "insert into public.jobs (owner_id, project_id, version_id, job_type, story, story_sha256, state, created_at, queued_at, ended_at, error_code, run_on, claimed_at)"
@@ -105,7 +115,8 @@ class WedLiveSteps(core.Base):
         self.assertTrue(w["scheduled job cost-sync"][0].endswith("(NOT ACTIVE)"))
         self.assertEqual(w["full films waiting for YOUR approval (#/admin/renders)"][0], "0 waiting; oldest made 0 min ago")
         self.assertEqual(w["account deletions waiting for YOU to close by hand"][0], "0 waiting; oldest asked 0 h ago")
-        self.assertTrue(w["verified sign-ups in the last 24 hours that got NO welcome credits"][0].startswith("0 (welcome setting now "))
+        self.assertNotIn(ROW12, w, "row 12 lives in step 65 now (CC1 17:48)")
+        self.assertTrue(self.watch65().startswith("0 (welcome setting now "))
         # plant one case per row
         pid = self.d().execute("insert into public.projects (owner_id, title) values (%s, 'w') returning id", (core.RYAN,)).fetchone()[0]
         vid = self.d().execute("insert into public.versions (project_id, owner_id, number) values (%s, %s, 1) returning id", (pid, core.RYAN)).fetchone()[0]
@@ -153,13 +164,22 @@ class WedLiveSteps(core.Base):
         self.d().execute("update auth.users set raw_user_meta_data = '{\"adult_source\": \"invite\"}'::jsonb where email = 'n2@x'")
         self.d().execute("insert into ryagram_private.welcome_credit_grants (email_hash) values (encode(sha256(convert_to('ryagram-welcome:n1@x', 'UTF8')), 'hex'))")
         w = self.watch()
-        self.assertTrue(w["verified sign-ups in the last 24 hours that got NO welcome credits"][0].startswith("1 ("), w["verified sign-ups in the last 24 hours that got NO welcome credits"][0])   # n3 only: n1 has its record, n2 is an invite account, old@x is past 24 h
+        self.assertTrue(self.watch65().startswith("1 ("), self.watch65())   # n3 only: n1 has its record, n2 is an invite account, old@x is past 24 h
         self.assertEqual(self.d().execute("select (select count(*) from public.jobs), (select count(*) from auth.users), (select count(*) from public.join_attempts)").fetchone(),
                          (before[0] + 12, before[1] + 4, before[2] + 4), "the watch itself wrote nothing")
-        code = "\n".join(line for line in STEP58.read_text(encoding="utf-8").lower().splitlines() if not line.lstrip().startswith("--"))
-        code = re.sub(r"'(?:[^']|'')*'", "''", code)                       # the SQL itself: no comments, no quoted words (advice text says 'grant')
-        for verb in ("insert ", "update ", "delete ", "alter ", "drop ", "truncate ", "grant "):
-            self.assertNotIn(verb, code, "read-only: " + verb)
+        for step in (STEP58, STEP65):
+            code = "\n".join(line for line in step.read_text(encoding="utf-8").lower().splitlines() if not line.lstrip().startswith("--"))
+            code = re.sub(r"'(?:[^']|'')*'", "''", code)                   # the SQL itself: no comments, no quoted words (advice text says 'grant')
+            for verb in ("insert ", "update ", "delete ", "alter ", "drop ", "truncate ", "grant "):
+                self.assertNotIn(verb, code, step.name + " read-only: " + verb)
+        self.assertNotIn("welcome_credit_grants", STEP58.read_text(encoding="utf-8"), "step 58 never names the table the welcome undo drops")
+        # the welcome-credits undo drops the grants table: step 58 still answers every row, step 65 errors (the paper says skip it then)
+        self.d().execute("drop table ryagram_private.welcome_credit_grants")
+        w = self.watch()
+        self.assertEqual(w["account deletions waiting for YOU to close by hand"][0], "1 waiting; oldest asked 3 h ago", "step 58 still runs with the grants table ABSENT")
+        self.assertEqual(w["jobs waiting now for the render PC"][0], "2 waiting; oldest made 45 min ago")
+        with self.assertRaises(psycopg.errors.UndefinedTable):
+            self.watch65()
         self.d().execute("alter table public.ops_settings drop column join_daily_max")   # before Tuesday's migration the column is not there yet
         self.assertEqual(self.watch()["sign-up size used (different addresses, last 24 hours)"][0], "2 of 200 (no setting)", "no error before the column exists")
 
