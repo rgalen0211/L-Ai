@@ -129,7 +129,11 @@ test('joinWaiting for real: the trimmed address goes in {email}; 200 is ok with 
   assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('  a@b.co ', true))), { ok: true, off: false, message: 'If that email can join, a link is on its way.' });
   assert.equal(calls[0][0], 'join'); assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), { body: { email: 'a@b.co', adult_confirmed: true } });
   D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet.' }));
-  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))), { ok: false, off: true, message: 'Making an account is not open yet.' });
+  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))), { ok: false, off: true, message: 'Making an account is not open yet. Please try again later.' });
+  D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet. Join the waitlist instead.' }));
+  const wl = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.equal(wl.off, true); assert.equal(wl.message, 'Making an account is not open yet. Please try again later.'); assert.doesNotMatch(wl.message, /waitlist/i);
+  D = dataWith(async () => httpError(503, { error: 'We cannot send the email. Try later.' }));
+  const sf = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.deepEqual(sf, { ok: false, off: false, message: 'We could not send the email just now. Please try again in a few minutes.' });
   D = dataWith(async () => httpError(429, { error: 'Too many tries. Wait a while, then try again.' }));
   const t = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.equal(t.off, false); assert.equal(t.message, 'Too many tries. Wait a while, then try again.');
   D = dataWith(async () => ({ data: null, error: { message: 'network', context: { status: 0, json: async () => { throw new Error('not json'); } } } }));

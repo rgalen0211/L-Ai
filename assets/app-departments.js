@@ -71,7 +71,7 @@
   const WORDS = {
     soonGroup: 'Coming soon', soonMark: 'soon', tag: 'Coming soon', button: 'Tell me when it’s ready', noted: 'Noted. We’ll let you know here when it is ready.', takeBack: 'Take it back',
     saveError: 'Couldn’t save that just now. Try again in a minute.', fewLines: 'Start one in your AI', yourFilms: 'Your data films', noAi: 'No AI? Build it step by step',
-    unavailable: 'This page isn’t available on this account', invitedOnly: 'Sign-up for this is for invited accounts for now.'
+    unavailable: 'This page isn’t available on this account', invitedOnly: 'Sign-up for this is not open to your account yet.'
   };
 
   // ---------------------------------------------------------------- pure helpers (tested in node)

@@ -9,7 +9,7 @@ const start = read('assets/app-start.js'), lib = read('assets/app-library.js'), 
 
 test('W2: the door links to the Account steps for each assistant, in the same tab, and not to the public guide', () => {
   assert.match(start, /href: '#\/account\?connect=claude', 'data-key': 'door-claude' \}, 'Connect Claude'/);
-  assert.match(start, /href: '#\/account\?connect=chatgpt', 'data-key': 'door-chatgpt' \}, 'Connect ChatGPT \(beta\)'/);
+  assert.match(start, /href: '#\/account\?connect=chatgpt', 'data-key': 'door-chatgpt' \}, 'Connect ChatGPT'/);
   assert.doesNotMatch(start.replace(/\/\/.*$/gm, ''), /connect-ai/);
   assert.match(lib, /hash\.match\(\/\^#\\\/account\(\?:\\\?connect=\(claude\|chatgpt\)\)\?\$\/\)/);
   assert.match(lib, /accountView\(m\[1\] \|\| ''\)/);
