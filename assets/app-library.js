@@ -1016,7 +1016,7 @@
     // --- #/credits  packs and plans (Stripe Checkout; credits arrive through the webhook)
     async function creditsView(paidCode, onStop) {
       const C = window.ryagramCredits;
-      const [offers, plan, filmRows, haveRows] = await Promise.all([data.shopOffers(), data.myPlan(), Promise.resolve().then(() => data.filmPrices()).catch(() => []), Promise.resolve().then(() => creditsOn() ? data.creditBalances() : null).catch(() => null)]);   // (the film price is a nicety: no answer, no sentence)
+      const [offers, plan, filmRows, haveRows] = await Promise.all([buyingOn() ? data.shopOffers() : [], data.myPlan(), Promise.resolve().then(() => data.filmPrices()).catch(() => []), Promise.resolve().then(() => creditsOn() ? data.creditBalances() : null).catch(() => null)]);   // (the film price is a nicety: no answer, no sentence)      // closed: no shop-offers request at all, so no pack or plan price travels in the page's network answer (CC1 17:48)
       const error = errorLine();
       const balance = h('p', { class: 'credit-balance' }, 'Loading credits…');
       let before = null;

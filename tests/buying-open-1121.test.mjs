@@ -36,7 +36,7 @@ async function credits({ config = {}, mock = false, search = '', source = lib, p
   const Cmod = {}; vm.runInNewContext(read('assets/app-credits.js'), { window: Cmod });
   win.ryagramCredits = Cmod.ryagramCredits;
   win.ryagramFlip = { create: ({ sections }) => ({ el: sections.map(s => s.el) }) };
-  const data = { shopOffers: async () => OFFERS, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], startCheckout: async () => '#', openBillingPortal: async () => '#',
+  const data = { shopOffers: async () => { credits.shopCalls++; return OFFERS; }, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], startCheckout: async () => '#', openBillingPortal: async () => '#',
                  filmPrices: async () => prices || [] };
   const a = source.indexOf('  const creditsOn ='), b = source.indexOf('  const BUYING_CLOSED_SHORT'), helpers = source.slice(a, source.indexOf('\n', b));
   const body = source.slice(source.indexOf('    async function creditsView('), source.indexOf('    // --- #/p/<id>'));
@@ -52,6 +52,7 @@ async function credits({ config = {}, mock = false, search = '', source = lib, p
   await new Promise(r => setTimeout(r, 5));
   return view;
 }
+credits.shopCalls = 0;
 // What must be true of the closed state; the planted-fault test runs the closed state with open markup and expects violations.
 const closedViolations = view => {
   const text = textOf(view), bad = [];
@@ -90,6 +91,23 @@ test('MOCK mode is open (so the checkout checks keep their meaning) and ?buyingc
   assert.match(textOf(open), /Mock mode: nothing goes to Stripe/);
   assert.ok(elements(open).some(e => e.tag === 'button' && e.textContent === 'Buy'));
   assert.deepEqual(closedViolations(await credits({ mock: true, search: '?mock&buyingclosed' })), []);
+});
+
+test('NO PRICES ON THE WIRE (CC1 17:48): the closed Credits page makes no shop-offers request, so no pack or plan price travels in its network answer; open and mock still ask once', async () => {
+  for (const args of [{ config: { buyingOpen: false } }, {}, { mock: true, search: '?buyingclosed' }]) {
+    credits.shopCalls = 0;
+    await credits(args);
+    assert.equal(credits.shopCalls, 0, 'closed: no shop-offers request ' + JSON.stringify(args));
+  }
+  for (const args of [{ config: { buyingOpen: true } }, { mock: true }]) {
+    credits.shopCalls = 0;
+    await credits(args);
+    assert.equal(credits.shopCalls, 1, 'open: one shop-offers request ' + JSON.stringify(args));
+  }
+  // planted fault: the old unconditional call is caught
+  credits.shopCalls = 0;
+  await credits({ config: { buyingOpen: false }, source: lib.replace('buyingOn() ? data.shopOffers() : []', 'data.shopOffers()') });
+  assert.equal(credits.shopCalls, 1, 'the planted fault (always ask) is seen by the counter');
 });
 
 test('PLANTED FAULT: the open-state markup in the closed state is caught', async () => {
