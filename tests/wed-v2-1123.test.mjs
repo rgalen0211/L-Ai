@@ -23,6 +23,6 @@ test('Connect sentence agrees on all four pages: connecting your own AI assistan
 
 test('the sign-in link-expired word says email link, not invite link', () => {
   assert.doesNotMatch(read('assets/app-auth.js'), /That invite link has expired/);
-  assert.match(read('assets/app-auth.js'), /That email link has expired or was already used\./);
+  assert.match(read('assets/app-auth.js'), /That email link has expired\. Write to ryagram@uselai\.com and tell us the address you signed up with\./);
 });
 

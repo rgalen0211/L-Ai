@@ -36,12 +36,13 @@
   function ageProblem(over18) { return over18 === true ? null : AGE_PROBLEM; }
   // The one place a new account is asked for. Q378 = A (Ryan 11-04 15:47): CONNECT's join function, email only. It sends the invite-style email; the person confirms the address and
   // chooses a password from that link, as testers do. Supabase's own sign-up stays OFF. {ok, off, message}: off = the switch is not on yet (the page sends people to the waitlist).
-  // The line shown after a good send. The server's own sentence ends 'Already have an account? Sign in instead.'; someone who has an account but never chose a password gets no mail, so the last sentence also names Forgot your password.
-  const FORGOT = 'or use Forgot your password';
+  // The line shown after a good send. The server's own sentence ends 'Already have an account? Sign in instead.'; someone who has an account but never chose a password gets no second mail, so the ending is replaced by the
+  // two true ways on: sign in if you already have an account, and write to the contact address if no email comes. It does not name Forgot your password (never proven for an account that never opened its first email).
+  const WAYS = 'If you already have an account, sign in. If no email comes, write to ryagram@uselai.com.';
   function sentWords(message) {
     const m = String(message || 'If that email can join, a link to finish making your account is on its way. It works once. Already have an account? Sign in instead.');
-    if (/forgot your password/i.test(m)) return m;
-    return /Sign in instead\.\s*$/.test(m) ? m.replace(/Sign in instead\.\s*$/, `Sign in instead, ${FORGOT}.`) : `${m} Already have an account? Sign in instead, ${FORGOT}.`;
+    if (m.includes(WAYS)) return m;
+    return /Already have an account\? Sign in instead\.\s*$/.test(m) ? m.replace(/Already have an account\? Sign in instead\.\s*$/, WAYS) : `${m} ${WAYS}`;
   }
   async function signUp(data, email, over18) {
     if (ageProblem(over18)) return { ok: false, off: false, message: AGE_PROBLEM };        // unticked: nothing is sent

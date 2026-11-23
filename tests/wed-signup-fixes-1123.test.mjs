@@ -54,18 +54,24 @@ test('503 from join: a plain "We could not send the email just now" line is in t
   assert.equal((src.match(/status === 503/g) || []).length, 1);
 });
 
-test('SENT line: the last sentence also says "or use Forgot your password"; the server\'s current text is rewritten, an unknown text gets the sentence added, and it is never doubled', () => {
+// 5b FALLBACK (web-wed-5b-fallback-1123): for use only if GEO's Wednesday step 5b FAILS (a never-confirmed account gets no reset email). The lines never send a stranger to Forgot your password.
+const WAYS = 'If you already have an account, sign in. If no email comes, write to ryagram@uselai.com.';
+test('SENT line: ends with the two true ways on (sign in, or write to ryagram@uselai.com), never Forgot your password; the server\'s current text is rewritten, an unknown text gets the sentence added, and it is never doubled', () => {
   const W = loadWaiting();
   const SERVER = 'If that email can join, a link to finish making your account is on its way. It works once. If it has not come in a few minutes, try again later. Already have an account? Sign in instead.';
-  assert.equal(W.sentWords(SERVER), SERVER.replace('Sign in instead.', 'Sign in instead, or use Forgot your password.'));
+  assert.equal(W.sentWords(SERVER), SERVER.replace('Already have an account? Sign in instead.', WAYS));
+  assert.ok(W.sentWords(SERVER).endsWith('It works once. If it has not come in a few minutes, try again later. ' + WAYS));
   assert.equal(W.sentWords(W.sentWords(SERVER)), W.sentWords(SERVER));
-  assert.equal(W.sentWords('A link is on its way.'), 'A link is on its way. Already have an account? Sign in instead, or use Forgot your password.');
-  assert.match(W.sentWords(undefined), /Sign in instead, or use Forgot your password\.$/);
+  assert.equal(W.sentWords('A link is on its way.'), 'A link is on its way. ' + WAYS);
+  assert.ok(W.sentWords(undefined).endsWith(' ' + WAYS));
+  for (const m of [SERVER, 'A link is on its way.', undefined]) assert.doesNotMatch(W.sentWords(m), /forgot|Sign in instead/i);
   assert.match(read('assets/app-auth.js'), /caNote\.textContent = window\.ryagramWaiting\.sentWords\(r\.message\)/);
 });
 
 test('LOW: expired invite-type link, departments sign-up line and the Connect ChatGPT button carry no invite or beta words', () => {
-  assert.match(read('assets/app-auth.js'), /if not, ask for a new email link\.'/);
+  assert.match(read('assets/app-auth.js'), /invite: 'That email link has expired\. Write to ryagram@uselai\.com and tell us the address you signed up with\.',/);
+  assert.doesNotMatch(read('assets/app-auth.js'), /ask for a new email link/);
+  assert.match(read('help/index.html'), /mailto:ryagram@uselai\.com/);
   assert.doesNotMatch(read('assets/app-auth.js'), /ask for a new invite/);
   assert.match(read('assets/app-departments.js'), /invitedOnly: 'Sign-up for this is not open to your account yet\.'/);
   assert.doesNotMatch(read('assets/app-departments.js').match(/invitedOnly: '([^']*)'/)[1], /invit/);
