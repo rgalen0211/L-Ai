@@ -5,8 +5,10 @@ the way any grant is (grant_credits, the only way to give credits), so this hold
   * account_deletion_check says has_credit_history = true for that stranger (an unverified one, with no grant, says false), so the
     delete function takes the 'requested' path, not the hard delete;
   * the login CANNOT simply be deleted: credit_ledger.owner_id is ON DELETE RESTRICT, so 'close by hand' must not mean 'delete the user';
-  * the request path's database calls do what remove.ts says: uploads become tombstones once their files are gone, the email leaves
-    support rows, the request is recorded ONCE, and live step 58's row 11 then counts it;
+  * the request path's database calls, in remove.ts's own order (the contact is redacted first, then the content erased, then the
+    request recorded): the email leaves support rows; a planted upload whose file is already gone becomes a tombstone and the erase
+    answers uploads_left 0 and films_left 0 (remove.ts refuses with a 500 otherwise); the request is recorded ONCE; live step 58's
+    row 11 then counts it;
   * the 8-credit ledger row stays, with the stranger's id, as the financial record (what WEB's Privacy f3f5cf55 says).
 Run from the repo root with TEMP/TMP/TMPDIR on D: (the storage rule):
     pgvenv/Scripts/python -m unittest supabase/tests/test_geo_welcome_delete.py -v
@@ -58,8 +60,12 @@ class WelcomeDelete(unittest.TestCase):
             self.admin("delete from auth.users where id = %s returning 1", RYAN)
         # the requested path's database calls, as remove.ts makes them (files first, then the contact, then the request)
         self.admin("insert into support_requests (owner_id, email, topic, message) values (%s, 'ryan@x', 'other', 'Please delete me.') returning 1", RYAN)
-        self.db.as_("service").one("select account_erase_paid_content(%s)", RYAN)
-        self.db.as_("service").one("select account_redact_contact(%s, 'ryan@x')", RYAN)
+        up = self.admin("insert into datasets (owner_id, name, source, storage_path, bytes, status, retention, filename_label, ext, trust_ack_at) "
+                        "values (%s, 'Sales by street.csv', 'upload', %s, 10, 'approved', 'keep', 'Sales by street.csv', 'csv', now()) returning id", RYAN, f"{RYAN}/d1/source.csv")
+        self.db.as_("service").one("select account_redact_contact(%s, 'ryan@x')", RYAN)          # remove.ts: the contact first
+        out = self.db.as_("service").one("select account_erase_paid_content(%s)", RYAN)           # then the content (its files are already gone)
+        self.assertEqual((out["uploads_left"], out["films_left"]), (0, 0), "remove.ts answers 202 only on (0, 0)")
+        self.assertEqual(self.admin("select name, storage_path, deleted_at is not null from datasets where id = %s", up), ("Deleted data", None, True))
         for _ in range(2):
             self.db.as_("service").one("select account_request_deletion(%s, 'ryan@x', 'credit history') is null", RYAN)
         self.assertEqual(self.admin("select count(*) from account_deletion_requests where owner_id = %s", RYAN), 1, "recorded once")
