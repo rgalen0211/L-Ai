@@ -233,7 +233,7 @@
 
     if (linkToken || implicitSession) {
       const FAILED = {
-        invite: 'That email link has expired. Write to ryagram@uselai.com and tell us the address you signed up with.',
+        invite: 'That email link has expired or was already used. If you set a password, sign in; if not, write to ryagram@uselai.com and tell us the address you signed up with.',
         recovery: 'That reset link has expired or was already used. Ask for a new one below.',
         signup: 'That confirmation link has expired or was already used. Try signing in; if that fails, ask for a new one.',
         magiclink: 'That sign-in link has expired or was already used. Ask for a new one from the sign-in page.',

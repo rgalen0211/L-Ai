@@ -69,7 +69,7 @@ test('SENT line: ends with the two true ways on (sign in, or write to ryagram@us
 });
 
 test('LOW: expired invite-type link, departments sign-up line and the Connect ChatGPT button carry no invite or beta words', () => {
-  assert.match(read('assets/app-auth.js'), /invite: 'That email link has expired\. Write to ryagram@uselai\.com and tell us the address you signed up with\.',/);
+  assert.match(read('assets/app-auth.js'), /invite: 'That email link has expired or was already used\. If you set a password, sign in; if not, write to ryagram@uselai\.com and tell us the address you signed up with\.',/);
   assert.doesNotMatch(read('assets/app-auth.js'), /ask for a new email link/);
   assert.match(read('help/index.html'), /mailto:ryagram@uselai\.com/);
   assert.doesNotMatch(read('assets/app-auth.js'), /ask for a new invite/);
