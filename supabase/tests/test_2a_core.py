@@ -84,6 +84,7 @@ def setUpModule():
         # the auto_render ON behaviour. test_pipe1_orders.py sets it OFF (the live default) and covers Ryan's queue.
         c.execute("update public.ops_settings set auto_render = true, default_credits_per_day = 100000")   # and no daily cap
         raise_queue_cap(c)
+        silence_welcome_credits(c)
 
 
 def raise_queue_cap(c):
@@ -92,6 +93,13 @@ def raise_queue_cap(c):
     tests (test_queue_cap_blocked_views.py) set it back to 2 where they test it."""
     c.execute("do $$ begin if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ops_settings' "
               "and column_name = 'queue_cap_per_owner') then update public.ops_settings set queue_cap_per_owner = 50; end if; end $$")
+
+
+def silence_welcome_credits(c):
+    """The welcome credits (migrations/20261123000600, 8 per verified address) are OFF for the shared templates so a suite that makes a confirmed account to test something else sees no ledger row it did not make (and can still delete the account:
+    credit_ledger.owner_id is on delete restrict): ONLY if the column exists. test_welcome_credits.py sets it back to 8 where it tests it."""
+    c.execute("do $$ begin if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ops_settings' "
+              "and column_name = 'welcome_credits') then update public.ops_settings set welcome_credits = 0; end if; end $$")
 
 
 class Db:

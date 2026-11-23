@@ -55,6 +55,7 @@ def setUpModule():
         for path in [WAIT_MIG, *POST]:
             c.execute(path.read_text(encoding="utf-8"))
         c.execute("update public.ops_settings set auto_render = true, default_credits_per_day = 100000")
+        core.silence_welcome_credits(c)                                       # the welcome credits (20261123000600) are tested in test_welcome_credits.py; here every credit count is the test's own
 
 
 def ungated(c):
