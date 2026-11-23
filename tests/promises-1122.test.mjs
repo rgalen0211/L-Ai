@@ -17,7 +17,7 @@ test('F4: the free-preview rule says what credits_ledger.sql does (6 a project, 
   assert.match(sql, /free_previews_per_project int not null default 6,/);
   assert.match(sql, /free_previews_per_24h int not null default 15,/);
   assert.match(sql, /'preview_extra', 1, null/);
-  assert.match(sql, /and not \(state = 'failed' and \(error_class = 'infrastructure' or error_code in \('engine_unsupported', 'limit_exceeded'\)\)\)/, 'only the machine\'s faults are not counted: an infrastructure failure, engine_unsupported and limit_exceeded (CONNECT 11-23, CC1\'s ruling); a failure caused by the story still counts');
+  assert.match(sql, /and not \(state = 'failed' and \(error_class = 'infrastructure' or error_code = 'engine_unsupported' or \(error_code = 'limit_exceeded' and p_since is null\)\)\)/, 'only the machine\'s faults are not counted: an infrastructure failure, engine_unsupported and limit_exceeded (CONNECT 11-23, CC1\'s ruling); a failure caused by the story still counts');
   const RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';
   const check = lib => {
     assert.ok(lib.includes(`const FREE_PREVIEW_RULE = '${RULE}';`));

@@ -62,8 +62,9 @@ class FreePreviewMachineFaults(unittest.TestCase):
             self.done(j)
         self.assertEqual(self.used(), 6)
         self.fail(jobs[0], "limit_exceeded")
-        self.assertEqual(self.used(), 5, "a limit on the machine does not use up a free preview")
+        self.assertEqual(self.used(), 5, "a limit on the machine does not use up a free preview of the project")
         self.assertEqual(self.used(self.project_of(vid)), 5)
+        self.assertEqual(self.admin("select ryagram_private.free_previews_used(%s, null, now() - interval '24 hours')", RYAN), 6, "but it still counts in the 15 a day (GAMES: one story cannot queue machine time without end)")
         nxt = self.submit(vid, "preview")
         self.assertTrue(self.admin("select free_preview from jobs where id = %s", nxt), "the next preview is free again")
         self.assertEqual(self.admin("select price_code from jobs where id = %s", nxt), "preview_free")
@@ -116,7 +117,10 @@ class FreePreviewMachineFaults(unittest.TestCase):
         self.assertFalse(self.admin("select free_preview from jobs where id = %s", self.submit(v4, "preview")), "the 16th in a day is not free")
         self.fail(jobs[0], "engine_unsupported")
         v5 = self.version()
-        self.assertTrue(self.admin("select free_preview from jobs where id = %s", self.submit(v5, "preview")), "after a machine fault one is free again")
+        self.assertTrue(self.admin("select free_preview from jobs where id = %s", self.submit(v5, "preview")), "after an unsupported setup one is free again")
+        self.fail(jobs[1], "limit_exceeded")
+        v6 = self.version()
+        self.assertFalse(self.admin("select free_preview from jobs where id = %s", self.submit(v6, "preview")), "a limit still counts in the 15 a day: no new free one")
 
     def apply(self, path):
         self.db.as_(None).c.execute(path.read_text(encoding="utf-8"))

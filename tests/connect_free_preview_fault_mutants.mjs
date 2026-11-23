@@ -12,17 +12,18 @@ const SUITE = 'connect-free-preview-fault.test.mjs';
 const MG = 'supabase/migrations/20261123000100_free_preview_machine_faults.sql', RB = 'supabase/rollbacks/20261123000100_free_preview_machine_faults_rollback.sql', LG = 'supabase/phase-2b/credits_ledger.sql',
   CK = 'supabase/live-steps/51_free_preview_machine_faults_check.sql', JS = 'assets/app-jobs.js';
 const FILES = [MG, RB, LG, CK, JS];
-const LIST = "error_code in ('engine_unsupported', 'limit_exceeded')";
-const NEWLINE = "        and not (state = 'failed' and (error_class = 'infrastructure' or error_code in ('engine_unsupported', 'limit_exceeded')))";
+const LIST = "error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)";
+const NEWLINE = "        and not (state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)))";
 const OLDLINE = "        and not (state = 'failed' and error_class = 'infrastructure')";
 const mutants = [
-  ['engine_unsupported counts against the free previews again', MG, LIST, "error_code in ('limit_exceeded')"],
-  ['limit_exceeded counts against the free previews again', MG, LIST, "error_code in ('engine_unsupported')"],
-  ['a timeout stops counting (it is the story\'s, and a catalog film cannot be shortened by a stranger: Ryan\'s call, not ours)', MG, LIST, "error_code in ('engine_unsupported', 'limit_exceeded', 'timeout')"],
-  ['a story the engine refused stops counting', MG, LIST, "error_code in ('engine_unsupported', 'limit_exceeded', 'schema_rejected')"],
+  ['engine_unsupported counts against the free previews again', MG, LIST, "(error_code = 'limit_exceeded' and p_since is null)"],
+  ['limit_exceeded counts against a project again', MG, LIST, "error_code = 'engine_unsupported'"],
+  ['limit_exceeded stops counting in the 15 a day too (one story could queue machine time without end)', MG, LIST, "error_code = 'engine_unsupported' or error_code = 'limit_exceeded'"],
+  ['a timeout stops counting (it is the story\'s, and a catalog film cannot be shortened by a stranger: Ryan\'s call, not ours)', MG, LIST, "error_code = 'engine_unsupported' or error_code = 'timeout' or (error_code = 'limit_exceeded' and p_since is null)"],
+  ['a story the engine refused stops counting', MG, LIST, "error_code = 'engine_unsupported' or error_code = 'schema_rejected' or (error_code = 'limit_exceeded' and p_since is null)"],
   ['an infrastructure failure counts again', MG, "(error_class = 'infrastructure' or ", "("],
-  ['a preview that did not fail is skipped by its code', MG, "(state = 'failed' and (error_class = 'infrastructure' or error_code in", "((error_class = 'infrastructure' or error_code in"],
-  ['the ledger file keeps the old rule (a fresh apply loses it)', LG, "    and not (state = 'failed' and (error_class = 'infrastructure' or error_code in ('engine_unsupported', 'limit_exceeded')))", "    and not (state = 'failed' and error_class = 'infrastructure')"],
+  ['a preview that did not fail is skipped by its code', MG, "(state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported'", "((error_class = 'infrastructure' or error_code = 'engine_unsupported'"],
+  ['the ledger file keeps the old rule (a fresh apply loses it)', LG, "    and not (state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)))", "    and not (state = 'failed' and error_class = 'infrastructure')"],
   ['the migration forgets to do nothing without the ledger', MG, "    return;\n", "    null;\n"],
   ['the migration changes a class of a code', MG, 'select ryagram_private.gate_apply();', "select ryagram_private.error_class_for('limit_exceeded');"],
   ['the migration does not end with the gate line', MG, 'select ryagram_private.gate_apply();', ''],

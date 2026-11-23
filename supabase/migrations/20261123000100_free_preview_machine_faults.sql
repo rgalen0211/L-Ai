@@ -5,7 +5,9 @@
 -- the error CODE (error_class_for), and two codes the machine itself raises land in other classes: engine_unsupported (the worker's own setup: no limits for the job type, no ffmpeg, or, since WORKER's 11-23 change,
 -- a catalog dataset or view missing from its list) is 'invalid_input', and limit_exceeded (memory or disk on the machine) is 'limit'. So a stranger who did nothing wrong lost a free preview, and for a person at the allowance
 -- (6 used) the next one cost a credit.
--- WHAT THIS CHANGES: one extra condition in free_previews_used: a FAILED preview whose error_code is engine_unsupported or limit_exceeded is not counted, like an infrastructure failure. Everything else counts as before
+-- WHAT THIS CHANGES: one extra condition in free_previews_used: a FAILED preview whose error_code is engine_unsupported is not counted at all, and one whose error_code is limit_exceeded is not counted against the 6 free previews of a
+-- PROJECT, like an infrastructure failure. A limit_exceeded preview STILL counts in the 15 free previews in any 24 hours (GAMES' review 11-23: with one render machine, a story that reliably runs it out of memory could otherwise be
+-- queued all day across many projects, free, while everyone behind it waits; engine_unsupported fails in seconds at the worker's setup check, so it needs no cap). Everything else counts as before
 -- (a story the engine refused, a timeout, a failed check, a cancelled or finished preview).
 -- WHAT IT DOES NOT CHANGE: the error class of any code (so the worker's contract.py / tests/worker_contract.py stay as they are, and the page's words for a limit and for an unsupported setup stay as they are:
 -- assets/app-jobs.js keys them on the code and the class), the price quote's shape, grants, or any table. The same body is in phase-2b/credits_ledger.sql, so an apply of the ledger from scratch is right too.
@@ -27,7 +29,7 @@ begin
       where owner_id = p_owner and job_type = 'preview' and free_preview
         and (p_project is null or project_id = p_project)
         and (p_since is null or created_at >= p_since)
-        and not (state = 'failed' and (error_class = 'infrastructure' or error_code in ('engine_unsupported', 'limit_exceeded')))
+        and not (state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)))
     $body$
   $f$;
 end $mig$;
