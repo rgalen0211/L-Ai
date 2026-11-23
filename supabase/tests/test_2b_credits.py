@@ -48,6 +48,7 @@ def setUpModule():
         # PIPE-1: these suites test the 2A/2B mechanics, written before render orders, where a final is claimable at once --
         # the auto_render ON behaviour. test_pipe1_orders.py sets it OFF (the live default) and covers Ryan's queue.
         c.execute("update public.ops_settings set auto_render = true, default_credits_per_day = 100000")   # and no daily cap
+        core.silence_welcome_credits(c)
         core.raise_queue_cap(c)                                                                     # the cap is tested in test_queue_cap_blocked_views.py
         c.execute("insert into public.credit_dataset_shapes (dataset, shape, noted_by) values "
                   "('test_standard', 'standard', 'test'), ('test_path', 'path', 'test'), ('test_flows', 'flows', 'test')")
