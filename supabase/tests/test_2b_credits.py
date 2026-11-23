@@ -247,7 +247,9 @@ class Ledger(unittest.TestCase):
                 self.final("line", dataset=dataset)                          # the view name doesn't matter
             self.assertIn(message, str(err.exception), dataset)
             vid = self.version("line", dataset=dataset)                      # sheets and previews still work
-            self.assertEqual(self.admin("select credits_quoted from jobs where id = %s", self.submit(vid, "preview")), 0)
+            pv = self.submit(vid, "preview")
+            self.assertEqual(self.admin("select credits_quoted from jobs where id = %s", pv), 0)
+            self.settle(pv, "complete")                                      # done, so the next one is not held by the queue cap (20261123000200)
         self.assertEqual(self.available(), 100)                              # nothing was held
         self.assertEqual(self.admin("select count(*) from jobs where job_type = 'final_render'"), 0)
         vid = self.version("line", dataset="test_path")

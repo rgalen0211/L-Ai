@@ -318,6 +318,8 @@ class Core(Base):
 
     # -- queue behaviour
     def test_three_jobs_run_in_order_exactly_once(self):
+        # three queued at once for one person: above the default queue cap of 2 (20261123000200), so this test raises it
+        self.db.as_(None).one("update ops_settings set queue_cap_per_owner = 3 returning 1")
         ids = []
         for _ in range(3):
             _, vid = self.project_with_version()
