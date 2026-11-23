@@ -61,6 +61,7 @@ class WedLiveSteps(core.Base):
         self.assertEqual(self.join("a@example.com", "ipA2"), {"ok": True}, "the same person pressing Send again takes no second place (people, not tries)")
         self.assertEqual(self.join("b@example.com", "ipB"), {"ok": True})
         self.assertEqual(self.join("c@example.com", "ipC"), {"ok": False, "reason": "full"}, "the 3rd try with a size of 2")
+        self.assertEqual(self.join("b@example.com", "ipB2"), {"ok": True}, "a person who already holds a place is let through on a full day (their email went missing)")
         self.d().execute(p2)                                                     # the undo
         self.assertEqual(self.d().execute(p3).fetchall(), [(200,)])
         self.assertEqual(self.join("c@example.com", "ipC"), {"ok": True}, "after the undo the next stranger is let in")
