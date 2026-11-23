@@ -3,6 +3,8 @@
 (() => {
   const TOPICS = [['render', 'A film is stuck or failed'], ['credits', 'Credits'], ['account', 'My account'],
                   ['upload', 'My own data (upload)'], ['other', 'Something else']];
+  // The topics the help form offers: 'My own data (upload)' only while uploads are on (uploadsOn() in app-library.js), so nobody is offered a topic about a feature that is off.
+  const topicsFor = uploads => TOPICS.filter(([id]) => id !== 'upload' || uploads === true);
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
   // service_status() -> the notice text, or null when nothing should be shown ('ok', 'unknown', or no answer at all).
@@ -11,7 +13,7 @@
     const t = Date.parse(status.last_check_in || '');
     const since = Number.isFinite(t)
       ? ` The render machine last checked in at ${new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...(timeZone ? { timeZone } : {}) })}.` : '';
-    return `Rendering is delayed.${since} Your film will start as soon as it is back. If it waits more than an hour we stop it and give your credits back.`;
+    return `Rendering is delayed.${since} Your film will start as soon as it is back. If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them.`;
   }
 
   // "#/help?job=<uuid>" -> the job id, or null (anything else is ignored, never passed on).
@@ -312,8 +314,8 @@
     return null;
   }
 
-  const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
+  const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { workerHealthLines, WORKER_FLOOR_GB, workerStatsLines, autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteSendLine, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
+  window.ryagramOps = { workerHealthLines, WORKER_FLOOR_GB, workerStatsLines, autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, topicsFor, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteSendLine, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
 })();

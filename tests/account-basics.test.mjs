@@ -26,7 +26,7 @@ test('DOWNLOAD: the file carries every part, says what it leaves out, and names 
   assert.deepEqual(plain(file.projects), [{ id: 'p1' }]);
   assert.deepEqual(plain(file.credit_ledger), [], 'an unreadable part is empty, not missing');
   assert.deepEqual(plain(file.account_settings), []);
-  assert.ok(file.not_in_this_file.some(l => /rendered films/.test(l)) && file.not_in_this_file.some(l => /uploaded|Spreadsheets/.test(l)));
+  assert.ok(file.not_in_this_file.some(l => /rendered films/.test(l)) && !file.not_in_this_file.some(l => /uploaded|Spreadsheets/.test(l)), 'uploads are off here: no spreadsheet line');
   assert.ok(file.not_in_this_file.some(l => /credit_ledger: permission denied/.test(l)), 'the gap is named in the file');
   assert.equal(A.fileName(now), 'ryagram-my-data-2026-10-17.json');
 });

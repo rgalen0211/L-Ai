@@ -10,11 +10,45 @@
     return quote.credits === 0 ? 'free' : plural(quote.credits);
   }
 
+  // The prices of a full film by film type, from the price table's final_* rows (data.filmPrices); [] when unread.
+  const filmPriceList = rows => (rows || []).map(r => r.credits).filter(c => typeof c === 'number' && c > 0);
+
+  // ' A film type that costs 6 credits would fit. Choose another film type in the builder.' when the price rows hold a film type the balance covers that costs less than this one: the REAL price of the dearest such type
+  // (at 7 credits that is 6, never a made-up 7); '' when no type fits. The builder's step is called 'Film type' (STEPS in assets/app-builder.js).
+  function fitsLine(quote, rows) {
+    const have = Math.max(0, quote.available || 0);
+    const fit = filmPriceList(rows).filter(c => c <= have && c < quote.credits);
+    return fit.length ? ` A film type that costs ${plural(Math.max(...fit))} would fit. Choose another film type in the builder.` : '';
+  }
+
   // Whether the person can afford it, and if not, why (a negative balance blocks every hold).
-  function affordable(quote) {
+  // A FULL FILM that costs more than the balance (Q679 B: 8 welcome credits pay for a 6 or 8 film, not a 10 one) says which film type costs what, that buying is not open yet when it is not,
+  // and which cost would fit (read from the price rows when given, never typed). opts = { rows: filmPrices, closed: buying is not open }.
+  function affordable(quote, opts) {
     if (!quote || quote.credits === 0 || quote.free_preview) return { ok: true };
     if (quote.available >= quote.credits) return { ok: true };
-    return { ok: false, reason: `This needs ${plural(quote.credits)} and you have ${plural(Math.max(0, quote.available))}.` };
+    const have = Math.max(0, quote.available);
+    if (opts && /^final_/.test(String(quote.price_code || ''))) {
+      return { ok: false, reason: `This film type costs ${plural(quote.credits)} and you have ${plural(have)}.${opts.closed ? ' Buying credits is not open yet.' : ''}${fitsLine(quote, opts.rows)}` };
+    }
+    return { ok: false, reason: `This needs ${plural(quote.credits)} and you have ${plural(have)}.` };
+  }
+
+  // The first-picture strip's cost sentence, by THE FILM'S OWN quote (q.credits is this version's view price, from credit_quote): what it uses when the balance covers it, and when it does
+  // not (buying closed) that this film type cannot be made yet, never 'the full film is next'.
+  function filmVsBalance(quote, short) {
+    const have = Math.max(0, quote.available || 0);
+    return short ? ` The full film for this film type costs ${plural(quote.credits)} and you have ${plural(have)}, so it cannot be made yet.` : ` The full film uses ${plural(quote.credits)}; you have ${plural(have)}.`;
+  }
+
+  // What the balance covers of the film prices (the Credits page): nothing when it covers every type or there is no balance to speak of.
+  function filmCoverLine(rows, available) {
+    const n = [...new Set(filmPriceList(rows))].sort((a, b) => a - b);
+    if (!n.length || typeof available !== 'number' || available <= 0 || n.length === 1 && available >= n[0]) return '';
+    if (available >= n[n.length - 1]) return '';
+    const covered = n.filter(c => c <= available).length;
+    if (!covered) return ` Your ${plural(available)} ${available === 1 ? 'does' : 'do'} not cover a full film.`;
+    return covered === 1 ? ` Your ${plural(available)} cover only the cheapest film type.` : ` Your ${plural(available)} cover the smaller film types.`;
   }
 
   // What happened to a job's credits, from job_accounting.
@@ -78,5 +112,5 @@
   }
   const hasPlan = plan => !!plan && ['incomplete', 'trialing', 'active', 'past_due', 'unpaid'].includes(plan.status);
 
-  window.ryagramCredits = { returnedNote, priceLabel, affordable, jobCredits, balanceLine, filmCostLine, plural, offerName, money, offerLine, planLine, hasPlan };
+  window.ryagramCredits = { returnedNote, priceLabel, affordable, fitsLine, filmVsBalance, filmCoverLine, jobCredits, balanceLine, filmCostLine, plural, offerName, money, offerLine, planLine, hasPlan };
 })();

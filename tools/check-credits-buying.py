@@ -1,5 +1,5 @@
 """Credits and the BUYING OPEN switch (WEB 11-21), real Chrome, mock mode, LOCAL server only, at 390 and 1280.
-CLOSED (?buyingclosed): Credits shows the balance, what credits are for, what a full film costs, the packs and plans with NO Buy / Subscribe button, NO test-card text, and the plain line
+CLOSED (?buyingclosed): Credits shows the balance, what credits are for, what a full film costs, NO packs, plans or prices (CC1 11-23), NO Buy / Subscribe button, NO test-card text, and the plain line
 'Buying credits is not open yet.'; the home page has no 'Buy credits' link; a render short of credits says buying is not open yet instead of linking to checkout.
 OPEN (mock default): today's page, Buy / Subscribe buttons and the mock-mode line. Planted fault: ?plant (a closed page that carries the open markup) must be CAUGHT by the same measurements.
 Writes screenshots. Not part of the node suite (needs Chrome).
@@ -27,7 +27,7 @@ STATE = """() => {
   return { text, buy: buttons.filter(t => /^(Buy|Subscribe)$/.test(t)).length, buyLinks: links.filter(t => /buy credits/i.test(t)).length,
            card: /4242/.test(text), testMode: /test mode/i.test(text), closedLine: /Buying credits is not open yet\\./.test(text),
            free: /Contact sheets are free\\. Each project gets 6 free previews/.test(text),
-           offers: [...main.querySelectorAll('.offer')].length, filmCost: /A full film costs/.test(text), overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+           offers: [...main.querySelectorAll('.offer')].length, price: /\\$\\d/.test(text), filmCost: /A full film costs/.test(text), overflow: document.documentElement.scrollWidth > innerWidth + 1 };
 }"""
 
 
@@ -56,7 +56,7 @@ def closed_faults(s):
     if s['card']: bad.append('test card')
     if s['testMode']: bad.append('test mode text')
     if not s['closedLine'] or not s['free']: bad.append('closed line missing')
-    if s['offers'] < 3: bad.append('offers not listed')
+    if s['offers'] or s['price']: bad.append('packs, plans or prices listed')      # CC1 ruling 11-23 08:34: no price a stranger cannot pay while buying is closed
     return bad
 
 
@@ -87,9 +87,20 @@ def main():
                     return page.evaluate(STATE)
                 s = credits('&buyingclosed')
                 page.screenshot(path=str(OUT / f'bc-credits-closed-{width}.png'), full_page=True)
-                check(closed_faults(s) == [], f'[{width}] CLOSED Credits: no Buy/Subscribe, no test card, no Test mode text, closed line, offers listed ({closed_faults(s)})')
+                check(closed_faults(s) == [], f'[{width}] CLOSED Credits: no Buy/Subscribe, no test card, no Test mode text, closed line, no packs, plans or prices ({closed_faults(s)})')
                 check(not s['overflow'], f'[{width}] CLOSED Credits: no sideways scroll')
                 check(s['filmCost'] and 'between 6 and 10 credits' in s['text'], f'[{width}] CLOSED Credits says what a full film costs (read from the price table)')
+                # Q679 B: an account holding 8 welcome credits (and the 0 / 2 / 10 states) reads what the balance covers, never 'a full film needs credits'
+                for have, cover in ((8, ' Your 8 credits cover the smaller film types.'), (2, ' Your 2 credits do not cover a full film.'), (10, None), (0, None)):
+                    s = credits(f'&buyingclosed&credits={have}')
+                    flat = ' '.join(s['text'].split())
+                    word = '1 credit available' if have == 1 else f'{have} credits available'
+                    check(word in flat, f'[{width}] CLOSED Credits at {have}: the balance row reads {word!r}')
+                    check('A full film costs between 6 and 10 credits, depending on the film type.' in flat and 'Buying credits is not open yet.' in flat, f'[{width}] CLOSED Credits at {have}: the cost and the closed sentence')
+                    check((cover is None and 'Your ' + str(have) + ' credits' not in flat) or (cover is not None and cover.strip() in flat), f'[{width}] CLOSED Credits at {have}: what the balance covers ({cover!r})')
+                    check('needs credits' not in flat and not s['overflow'], f'[{width}] CLOSED Credits at {have}: no "needs credits", no sideways scroll')
+                    if have == 8:
+                        page.screenshot(path=str(OUT / f'bc-credits-closed-8-{width}.png'), full_page=True)
                 s = credits('')
                 page.screenshot(path=str(OUT / f'bc-credits-open-{width}.png'), full_page=True)
                 check(s['filmCost'] and 'between 6 and 10 credits' in s['text'], f'[{width}] OPEN Credits says what a full film costs')
@@ -109,7 +120,7 @@ def main():
                 s = page.evaluate(STATE)
                 check(s['buyLinks'] == 1, f'[{width}] OPEN home: one Buy credits link')
                 # a render that needs more credits than the person has: closed says so plainly, open links to Credits
-                for query, want in (('&buyingclosed&credits=3', 'closed'), ('&credits=3', 'open')):
+                for query, want in (('&buyingclosed&credits=3', 'closed'), ('&credits=3', 'open'), ('&buyingclosed&credits=8', 'welcome8')):
                     page.goto(f'{BASE}/app/?mock{query}#/', wait_until='load')
                     page.wait_for_selector('.film-grid a, .film-grid button', timeout=20000)
                     page.locator('.film-grid h3 a').first.click()
@@ -132,7 +143,17 @@ def main():
                     final_title = page.get_by_role('button', name='Render final film').first.get_attribute('title') or ''
                     said = 'Buying credits is not open yet.' in body or 'Buying credits is not open yet.' in final_title
                     linked = page.locator('main a[href="#/credits"]').count() > 0
-                    if want == 'closed':
+                    if want == 'welcome8':
+                        # Q679 B: the strip reads THIS film's own cost against the 8 welcome credits (6 or 8: it can be made; 10: it cannot, and the page says why and the next step)
+                        flat = ' '.join(body.split())
+                        import re as _re
+                        uses = _re.search(r'The full film uses (\d+) credits; you have 8 credits\.', flat)
+                        cant = _re.search(r'The full film for this film type costs (\d+) credits and you have 8 credits, so it cannot be made yet\. Buying credits is not open yet\.', flat)
+                        check(bool(uses) != bool(cant), f'[{width}] 8 credits: the strip says either what the film uses or that it cannot be made yet ({(uses or cant) and (uses or cant).group(0)})')
+                        if uses: check(int(uses.group(1)) <= 8 and 'cannot be made' not in flat, f'[{width}] 8 credits: a film that costs {uses.group(1)} is offered')
+                        if cant: check(int(cant.group(1)) > 8 and 'costs ' + cant.group(1) + ' credits and you have 8 credits' in final_title + ' ' + flat, f'[{width}] 8 credits: a film that costs {cant.group(1)} is refused with its reason; the final button says {final_title!r}')
+                        check('Not enough credits' not in flat and '0 credits' not in flat.replace('10 credits', ''), f'[{width}] 8 credits: no raw refusal, no "0 credits"')
+                    elif want == 'closed':
                         check(said and not linked, f'[{width}] CLOSED, short of credits: says buying is not open yet, no link to checkout (said={said}, link={linked})')
                     else:
                         check(not said, f'[{width}] OPEN, short of credits: no closed line (link={linked})')

@@ -229,7 +229,7 @@ test('a signup calls join_waitlist (never the table) with email, reason and sour
   assert.equal(options.headers.Prefer, undefined, 'the call returns its answer, nothing to minimise');
   assert.deepEqual(JSON.parse(options.body), { p_email: 'person@example.com', p_reason: null, p_source: 'uselai.com/ryagram' });
   assert.equal(h.fields.hidden, true);
-  assert.match(h.status.textContent, /on the list/);
+  assert.match(h.status.textContent, /keep you posted/);
 });
 
 test('the reason is one line of at most 140 characters', async () => {
@@ -263,7 +263,8 @@ test('a new and a repeat address get the same answer, and the page no longer rea
   const h = harness({ fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, message: 'whatever the server says' }) }) });
   await h.submit();
   assert.equal(h.fields.hidden, true);
-  assert.match(h.status.textContent, /You’re on the list/);
+  assert.match(h.status.textContent, /^Thanks\. We’ll keep you posted about Ryagram\.$/);
+  assert.ok(!/on the list|when there’s something to try/.test(h.status.textContent), 'the old waiting-list promise is gone');
   assert.ok(!/whatever the server says/.test(h.status.textContent), 'the page owns the success words');
   assert.ok(!/status === 409|409/.test(code), 'no 409 branch: a repeat address is an ordinary success');
 });
@@ -365,7 +366,7 @@ test('a failing or throwing count never breaks the page or the waitlist form', a
   const h = harness({ config: COUNTING, navigator: {}, fetch: async (url) => { if (url.endsWith('record_visit')) throw new Error('offline'); return { ok: true, status: 201 }; } });
   await new Promise(r => setTimeout(r, 5));
   await h.submit();
-  assert.match(h.status.textContent, /on the list/);
+  assert.match(h.status.textContent, /keep you posted/);
 });
 
 // ---- Cloudflare Web Analytics beacon (analytics.js) ---------------------------------------------------
@@ -404,12 +405,13 @@ test('the shipped config: the tally is on, the Cloudflare beacon stays off until
 const visibleText = pageHtml.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/g, ' ').replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const assetSize = rel => fs.statSync(path.join(__dirname, '..', rel.replace(/^\//, ''))).size;
 
-test('LANDING: the hero is the headline, one sentence, a short muted loop of the Interstate film, and ONE call to action to the creator beta (phone order: words, film, button)', () => {
+test('LANDING: the hero is the headline, one sentence, a short muted loop of the Interstate film, and ONE call to action, Create an account (open sign-up 11-22; phone order: words, film, button)', () => {
   assert.match(pageHtml, /<h1 id="hero-title">You have a question\. Ryagram makes the data answer it\.<\/h1>/);
   assert.equal([...pageHtml.matchAll(/<h1[ >]/g)].length, 1);
   const hero = pageHtml.match(/<section class="rg-wrap rg-hero"[\s\S]*?<\/section>/)[0];
-  assert.deepEqual([...hero.matchAll(/class="rg-btn"[^>]*>([^<]*)</g)].map(m => m[1]), ['Join the creator beta']);        // exactly ONE button
-  assert.match(hero, /<a class="rg-btn" href="#creators">Join the creator beta<\/a>/);
+  assert.deepEqual([...hero.matchAll(/class="rg-btn"[^>]*>([^<]*)</g)].map(m => m[1]), ['Create an account']);        // exactly ONE button
+  assert.match(hero, /<a class="rg-btn" href="\/app\/#\/create-account">Create an account<\/a>/);
+  assert.match(hero, /<a class="rg-hero-signin" href="\/app\/">Sign in<\/a>/);
   const order = ['rg-hero-copy', 'rg-hero-film', 'rg-hero-cta'].map(c => hero.indexOf(`class="${c}"`));
   assert.ok(order[0] > -1 && order[0] < order[1] && order[1] < order[2], 'words, then the film, then the button');
   const v = hero.match(/<video class="rg-loop rg-hero-loop"[^>]*>/)[0];
@@ -444,10 +446,10 @@ test('the Compilation Maker section is an illustration with public-domain words,
   assert.match(sec, /public-domain words \(Lincoln, 1863\)/);
 });
 
-test('LANDING: how it works is three steps of what the beta really does, one checks line (no strip), and the private-beta line with both ways in', () => {
+test('LANDING: how it works is three steps of what the beta really does, one checks line (no strip), and the release line: anyone 18 or older can create a free account, or sign in', () => {
   const how = pageHtml.match(/<section id="how"[\s\S]*?<\/section>/)[0];
   assert.deepEqual([...how.matchAll(/<h3>([^<]*)<\/h3>/g)].map(m => m[1]), ['Ask', 'We draw it', 'You get it, checked']);
-  assert.match(how, /<p class="rg-release">Ryagram is in private beta\. Creators can <a href="#creators">ask for an invite<\/a>; everyone else can <a href="#waitlist">join the waitlist<\/a>\. Already have an invite\? <a href="\/app\/">Sign in<\/a>\.<\/p>/);
+  assert.match(how, /<p class="rg-release">Anyone 18 or older can <a href="\/app\/#\/create-account">create a free account<\/a>\. Already have one\? <a href="\/app\/">Sign in<\/a>\.<\/p>/);
   assert.doesNotMatch(pageHtml, /\[RELEASE DATE\]/);
   const checks = [...pageHtml.matchAll(/<p class="rg-checks">([^<]*)<\/p>/g)];
   assert.equal(checks.length, 1);                                              // ONE line
@@ -455,12 +457,12 @@ test('LANDING: how it works is three steps of what the beta really does, one che
   assert.doesNotMatch(pageHtml, /check-list|checks-strip|rg-strip-checks|Correctness checks/);   // and no strip or section
 });
 
-test('LANDING: the sections run hero, films, how it works, creator beta, waitlist, then the coming-soon compilation maker; non-creators are pointed at the waitlist', () => {
+test('LANDING: the sections run hero, films, how it works, creator beta, waitlist, then the coming-soon compilation maker; non-creators are pointed at Create an account', () => {
   const at = id => pageHtml.indexOf(id === 'hero' ? 'class="rg-wrap rg-hero"' : `<section id="${id}"`);
   const order = ['hero', 'films', 'how', 'creators', 'waitlist', 'compilation'].map(at);
   assert.ok(order.every(i => i > -1), JSON.stringify(order));
   assert.deepEqual([...order].sort((x, y) => x - y), order);
-  assert.match(pageHtml.match(/<section id="creators"[\s\S]*?<\/section>/)[0], /Not a creator\? <a href="#waitlist">Join the waitlist<\/a> instead\./);
+  assert.match(pageHtml.match(/<section id="creators"[\s\S]*?<\/section>/)[0], /Not a creator\? <a href="\/app\/#\/create-account">Create an account<\/a> instead\./);
 });
 
 test('LANDING: no claim the product cannot back yet: nothing about an editor, speed, self-serve sign-up, free trials or prices outside the one creator-beta terms paragraph', () => {
@@ -499,14 +501,19 @@ test('the waitlist form keeps its fields: required email, optional "What do you 
   assert.match(pageHtml, /id="wl-use" name="use_case"(?![^>]*required)/);
   assert.match(pageHtml, /id="wl-use" name="use_case"[^>]*maxlength="140"/);            // the join call's own limit; one line
   assert.match(pageHtml, /name="website"/);
-  assert.ok([...pageHtml.matchAll(/href="#waitlist"/g)].length >= 3);        // header, hero, skip link
+  assert.ok([...pageHtml.matchAll(/href="#waitlist"/g)].length >= 1);        // the skip link ("Skip to the sign-up"); the header and hero buttons now go straight to Create an account
+  assert.match(pageHtml, /<button class="rg-btn" type="submit">Keep me posted<\/button>/);
+  assert.doesNotMatch(pageHtml, /Join the waitlist|isn't open yet|private beta|by invitation|ask for an invite|Already invited/i);
+  assert.match(pageHtml, /<a class="rg-btn rg-btn-small" href="\/app\/#\/create-account">Create an account<\/a>/);
   assert.match(pageHtml, /<section id="waitlist"[^>]*>[\s\S]*Want to make one\?/);
 });
 
 // The one deliberate exception (Ryan, 2026-10-14): the creator beta terms must say plainly that beta credits are free. That paragraph (class
 // rg-terms) is checked on its own below, so "credits" is allowed THERE and nowhere else.
 const termsParagraph = (pageHtml.match(/<p class="rg-terms">[\s\S]*?<\/p>/) || [''])[0];
-const publicText = visibleText.replace(termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), ' ');
+// SECOND exception, Q679 B (8 welcome credits when the email is confirmed, Ryan 11-23 15:46): the one free-account line (id wl-free, tests/free-account-line.test.mjs pins its words) says free previews and that full films need credits. Only that paragraph.
+const freeLine = (pageHtml.match(/<p id="wl-free"[^>]*>([\s\S]*?)<\/p>/) || ['', ''])[1];
+const publicText = visibleText.replace(termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), ' ').replace(freeLine.trim(), ' ');
 
 test('nothing on the page reveals how data is found or chosen, or how anything is priced', () => {
   assert.notEqual(termsParagraph, '');
@@ -520,7 +527,7 @@ test('CREATOR BETA: the section says plainly that beta credits are free in excha
   assert.match(text, /promote .* you disclose that your credits were free/);
   assert.doesNotMatch(text, /\$|\b(price|pricing|priced|per film|Anthropic|Claude|Supabase|worker)\b/i);
   assert.match(pageHtml, /<section id="creators"[^>]*aria-labelledby="creators-title"/);
-  assert.match(pageHtml, /<a class="rg-navlink" href="#creators">Creator beta<\/a>/);
+  assert.match(pageHtml, /<a class="rg-navlink" href="#creators" hidden>Creator beta<\/a>/);
 });
 
 test('CREATOR BETA: the form asks name, email, who they are (all six kinds), what they make, a link, and their data question; has a honeypot; and every field has a label', () => {
@@ -529,7 +536,7 @@ test('CREATOR BETA: the form asks name, email, who they are (all six kinds), wha
   for (const kind of ['youtuber', 'podcaster', 'newsletter', 'journalist', 'teacher', 'researcher']) assert.match(form, new RegExp(`<option value="${kind}">`), kind);
   for (const id of [...form.matchAll(/<(?:input|select|textarea) id="([^"]+)"/g)].map(m => m[1])) assert.match(form, new RegExp(`for="${id}"`), id);
   assert.match(form, /<div class="hp" aria-hidden="true">/);
-  assert.match(pageHtml, /<script src="\/assets\/creator-beta\.js" defer><\/script>/);
+  assert.match(pageHtml, /<script src="\/assets\/creator-beta\.js\?v=20261123a" defer><\/script>/);
 });
 
 test('the page works with the strict policy: no inline script or style, and nothing from outside but the typeface', () => {
