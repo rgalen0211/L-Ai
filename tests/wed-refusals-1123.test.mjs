@@ -11,7 +11,7 @@ const load = src => { const win = {}; vm.runInNewContext(src, { window: win, set
 const jobsSrc = read('assets/app-jobs.js');
 const J = load(jobsSrc);
 const CAP = 'You have 2 films waiting. You can start another when one is done.';
-const VIEW = 'This film is not available yet. Please pick another view.';
+const VIEW = 'This film is not available yet. Please pick another view. A line view always works.';   // the server's words (20261123000300, CONNECT 13:37)
 
 test('the 2-films-waiting refusal keeps the server words and says where the waiting films are (also for another number)', () => {
   assert.equal(J.plainRefusal(CAP), `${CAP} Your waiting films are listed under Jobs on each film’s page.`);

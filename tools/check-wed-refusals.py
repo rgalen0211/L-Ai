@@ -81,7 +81,7 @@ def main():
                     body = page.inner_text('main')
                     page.screenshot(path=str(OUT / f'version-{tag}-{width}.png'), full_page=True)
                     check(want in body, f'[{width}] {tag}: the version page shows "{want[:60]}..."')
-                    check(' view' not in want and 'Please pick another view' not in body, f'[{width}] {tag}: never the word "view"')
+                    check(' view' not in want and 'Please pick another view' not in body and 'line view' not in body, f'[{width}] {tag}: never the word "view"')
                     check(btn.is_enabled(), f'[{width}] {tag}: Make contact sheet is usable again')
 
                 def films_on_home(query):
