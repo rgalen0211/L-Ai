@@ -35,7 +35,8 @@ begin
   if not exists (select 1 from cron.job where jobname = n) then raise exception 'could not find valid entry for job %', n; end if;
   delete from cron.job where jobname = n; return true;
 end $$;
-create table net._http_response (id serial primary key, status_code int, content text, created timestamptz not null default now());
+create table net._http_response (id bigint primary key, status_code int, content text, created timestamptz not null default now());
+create table net.http_request_queue (id bigint primary key, url text);
 create table vault.decrypted_secrets (name text, decrypted_secret text);
 """
 
@@ -136,12 +137,17 @@ class PurgeJobSteps(unittest.TestCase):
         self.assertEqual([x[1] for x in r], [True, True, True, True, False, False], "right after 55: the jobs are right, 'has run' is not yet (expected)")
         for jid in [x[0] for x in self.c.execute("select jobid from cron.job where jobname like 'purge%'").fetchall()]:
             self.c.execute("insert into cron.job_run_details (jobid, status) values (%s, 'succeeded')", (jid,))
-        self.c.execute("insert into net._http_response (status_code, content) values (200, '{\"ok\":true}')")
-        self.assertTrue(all(x[1] is True for x in self.rows(S55)), self.rows(S55))
-        self.c.execute("insert into net._http_response (status_code, content) values (403, 'forbidden')")
+        self.c.execute("insert into net.http_request_queue (id, url) values (1, 'https://x.supabase.co/functions/v1/purge-uploads'), (2, 'https://x.supabase.co/functions/v1/ops-tick'), (3, 'https://x.supabase.co/functions/v1/purge-partial-uploads')")
+        self.c.execute("insert into net._http_response (id, status_code, content) values (1, 200, '{\"ok\":true}')")
+        self.c.execute("insert into net._http_response (id, status_code, content) values (2, 503, 'an ops call failed')")
+        self.assertTrue(all(x[1] is True for x in self.rows(S55)), "a failing ops-tick call must NOT break the purge check: " + str(self.rows(S55)))
+        self.c.execute("insert into net._http_response (id, status_code, content) values (3, 403, 'forbidden')")
         r = self.rows(S55)
         self.assertEqual([x[1] for x in r], [True, True, True, True, True, False], "a refused call in the last 2 hours")
-        self.c.execute("delete from net._http_response where status_code = 403")
+        self.c.execute("delete from net._http_response where id = 3")
+        self.c.execute("delete from net._http_response where id = 1")
+        self.assertFalse(self.rows(S55)[5][1], "only an ops call answered (even a 200 from it): no purge call proves nothing, the row is false")
+        self.c.execute("insert into net._http_response (id, status_code, content) values (1, 200, '{\"ok\":true}')")
         self.c.execute("insert into cron.job_run_details (jobid, status, start_time) select jobid, 'failed', now() + interval '1 minute' from cron.job where jobname = 'purge-uploads'")
         self.assertFalse(self.rows(S55)[4][1], "the last run of a job failed")
         self.c.execute("update cron.job set command = command || ' -- service_role_key' where jobname = 'purge-uploads'")
