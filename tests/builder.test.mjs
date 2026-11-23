@@ -274,6 +274,6 @@ test('TUTORIAL POLISH: the sample\'s first step promises nothing it cannot keep 
   const src = read('assets/app-builder.js');
   const step = src.slice(src.indexOf('function stepDataset'), src.indexOf('function stepMeasure'));
   assert.match(step, /sample \? 'One click puts the sample’s own choices back and takes you to the last step\.'/, 'MUST-FAIL: no "first picture is free" in the sample');
-  assert.match(step, /sample\r?\n\s+\? 'The sample has one dataset\. With your own data you choose from the whole list/, 'no "choose your own" in a one-dataset sample');
+  assert.match(step, /sample\r?\n\s+\? 'The sample has one dataset\. Outside the sample you choose from the whole list/, 'no "choose your own" in a one-dataset sample');
   assert.ok(step.includes("The first picture is free.'") && step.includes("'Or choose your own. '"), 'the real builder keeps its own words');
 });

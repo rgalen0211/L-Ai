@@ -29,7 +29,7 @@ window.ryagramBuilderSample = {
   "publisher": "CDC (BRFSS) and U.S. Census Bureau (County Business Patterns)",
   "url": "https://data.cdc.gov/d/hn4x-zwk7",
   "licence_short": "Both are U.S. Government works in the public domain",
-  "licence": "Both are U.S. Government works in the public domain. The full licence is shown when you choose this dataset with your own data.",
+  "licence": "Both are U.S. Government works in the public domain. The full licence is shown when you choose this dataset outside the sample.",
   "geography": {
    "label": "US state (plus DC)",
    "noun": "states",
