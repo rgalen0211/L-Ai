@@ -96,6 +96,16 @@
   const FREE_PREVIEW_RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
   const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE;      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
   const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
+  // A film request costs credits. While buying is closed, the way in (the home link, the project page's pointer) shows only to someone who HAS credits: a new account has none and
+  // could not buy any, so the link would lead to a send that fails (BUILDER 11-23, the Wednesday first-user audit). Open buying, or credits off, leaves it as it was.
+  const availableOf = rows => (rows || []).reduce((s, r) => s + (r.available || 0), 0);
+  const requestGate = (data, el) => {
+    if (!el || buyingOn() || !creditsOn()) return el;
+    el.hidden = true;
+    data.creditBalances().then(rows => { if (availableOf(rows) > 0) el.hidden = false; }).catch(() => {});
+    return el;
+  };
+  const REQUEST_CLOSED = 'You need credits to request a film, and buying credits is not open yet.';      // the request page's send, at a balance below the cost while buying is closed
 
   // Every admin page that is switched on, in plain words and in groups (the Admin page #/admin, WEB 11-20: the admin tools live on ONE page, not in a menu and not scattered over the user pages).
   const adminPages = () => [
@@ -394,8 +404,8 @@
       const back = h('div', { class: 'layer back', 'data-parallax': '.16', role: 'img', 'aria-label': 'A map of the United States with interstate highways drawn in blue, from one of our own films' });
       back.style.backgroundImage = 'url(/assets/ryagram-hero-interstate.jpg)';
       const hero = h('section', { class: 'hero', 'aria-labelledby': 'home-h1' }, back, h('div', { class: 'layer glow', 'data-parallax': '.05' }),
-        h('div', { class: 'container' }, h('div', { class: 'copy' }, h('p', { class: 'eyebrow' }, 'Welcome back'), h('h1', { tabindex: '-1', class: 'display', id: 'home-h1' }, 'Your projects'),
-          h('p', { class: 'lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
+        h('div', { class: 'container' }, h('div', { class: 'copy' }, h('p', { class: 'eyebrow' }, projects.length ? 'Welcome back' : 'Welcome'), h('h1', { tabindex: '-1', class: 'display', id: 'home-h1' }, 'Your projects'),
+          h('p', { class: 'lede' }, projects.length ? 'Welcome back. Pick up a film below, or start a new one.' : 'Start your first film below. The first picture is free.'),      // a brand-new account is not greeted 'back' (BUILDER 11-23)
           h('div', { class: 'actions' }, h('a', { class: 'button primary', href: '#/', onclick: ev => { ev.preventDefault(); const t = document.getElementById('start-new'); if (t) { t.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' }); const f = t.querySelector('input'); if (f) f.focus({ preventScroll: true }); } } }, 'Start a new film'), filmsLink ? h('a', { class: 'button', href: '#/films' }, 'See your films') : null))));
       const startCard = h('section', { class: 'ds-start', id: 'start-new', 'aria-labelledby': 'start-card-h' }, h('div', { class: 'container' }, h('div', { class: 'card' }, h('div', { class: 'inner' },
         h('div', {}, h('p', { class: 'eyebrow' }, 'Start'), h('h2', { id: 'start-card-h' }, 'Start a new film'),
@@ -403,10 +413,11 @@
           h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null)),
         h('div', {}, form, startStrip ? [h('div', { class: 'or' }, 'or start from a line'), startStrip] : null)))));
       const quiet = [intakeLink, requestLink, looksLink, help].filter(Boolean);
+      const quietItem = x => (x === requestLink ? requestGate(data, h('li', {}, x)) : h('li', {}, x));      // the request link's whole row hides (no empty bullet) while it cannot be used
       // Ryan 11-20 11:55: no long vertical scroll. The hero, the Start card and the tab row sit on the first screen; the films (in their own scroll panel), the departments and the credits and links are flip sections.
       const filmsSection = h('div', { class: 'home-films' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), h('div', { class: 'scroll-panel' }, list));
       const deptSection = deptCards ? h('div', { class: 'home-depts' }, h('div', { class: 'scroll-panel' }, deptCards)) : null;
-      const moreBits = [credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null].filter(Boolean);
+      const moreBits = [credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(quietItem)) : null].filter(Boolean);
       const moreSection = moreBits.length ? h('div', { class: 'home-more' }, moreBits) : null;
       const flip = window.ryagramFlip.create({ h, label: 'Home', address: false, sections: [
         { id: 'films', label: 'Your films', el: filmsSection },
@@ -472,11 +483,15 @@
       const question = h('textarea', { id: 'rq-question', name: 'question', rows: '4', required: true, minlength: '10', maxlength: '1000', placeholder: 'For example: Did cities that legalized duplexes build more homes within five years?' });
       const notes = h('textarea', { id: 'rq-notes', name: 'notes', rows: '3', maxlength: '1000', placeholder: 'Anything that helps: the years, the places, the data you have in mind' });
       const send = h('button', { class: 'button primary', type: 'submit' }, 'Send request');
+      const closedNote = h('p', { class: 'form-note request-closed', hidden: true }, REQUEST_CLOSED);
       const list = h('div', { class: 'request-list' });
+      let short = false;      // buying closed and not enough credits (set by reload): say so, and no send that can only fail
       async function reload() {
         const [rows, c, bal] = await Promise.all([data.myFilmRequests().catch(() => []), data.filmRequestCost().catch(() => null), creditsOn() ? data.creditBalances().catch(() => null) : null]);
         cost.textContent = O.requestCostLine(c);
         if (bal) balance.replaceChildren(window.ryagramCredits.balanceLine(bal));
+        short = !buyingOn() && !!bal && c != null && availableOf(bal) < Number(c);
+        send.disabled = short; closedNote.hidden = !short;
         list.replaceChildren(rows.length ? h('ul', { class: 'project-list' }, rows.map(r => h('li', {},
           h('strong', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}`), h('span', { class: 'meta' }, ` ${date(r.created_at)}, ${r.credits} credits`),
           h('p', {}, r.question),
@@ -489,6 +504,7 @@
         error.hidden = true; done.hidden = true;
         const problem = O.checkRequest({ question: question.value, notes: notes.value });
         if (problem) { showError(error, new Error(problem)); return; }
+        if (short) return;
         await busy(send, 'Sending\u2026', async () => {
           try {
             const id = await data.requestFilm(question.value.trim(), notes.value.trim());
@@ -498,12 +514,13 @@
             await reload();
           } catch (err) { showError(error, err); }
         });
+        send.disabled = short;      // busy() turns the button back on; a send that spent the last credits leaves it off
       } }, h('label', { for: 'rq-question' }, 'The question you want answered'), question,
            h('label', { for: 'rq-notes' }, 'Notes (optional)'), notes, send, error);
       await reload();
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Request a film'),
               h('p', { class: 'form-note' }, 'Tell us the question you want data to answer. We make the film and send it back here. Each one is made by hand, so it can take a day or more.'),
-              balance, cost, form, done, h('h2', {}, 'Your requests'), list];
+              balance, cost, closedNote, form, done, h('h2', {}, 'Your requests'), list];
     }
 
     // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
@@ -932,7 +949,8 @@
       if (desktopOn()) { const computers = await deviceUi().computersSection(); if (computers) sections.push(computers); }          // null for an account that is not a tester and has no computer
       if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
-      // The store / don't-keep choice (spec 2B-6), as the default for uploads.
+      // The store / don't-keep choice (spec 2B-6), as the default for uploads. Only while uploads are on: with uploads off there is nothing to upload (BUILDER 11-23).
+      if (uploadsOn()) {
       const choiceNote = h('p', { class: 'form-note', role: 'status' });
       const choiceError = errorLine();
       let current = 'keep';
@@ -951,6 +969,7 @@
           option('keep', 'Store my data (default)', 'Ryagram privately keeps this dataset because it’s needed to rebuild the film later.'),
           option('dont_keep', 'Don’t keep my data', 'Ryagram deletes the input data after processing. The film can’t be rebuilt after its rendered copy is archived.')),
         choiceNote, choiceError));
+      }
 
       // Delete account
       const delError = errorLine();
@@ -1108,6 +1127,7 @@
         } }, `Start a new version from version ${v.number}`)));
 
       const helpNote = requestsOn() ? h('p', { class: 'form-note request-pointer' }, 'Not sure how to build a film? ', h('a', { href: '#/request' }, 'Request a film'), ' and we will make it for you.') : null;
+      requestGate(data, helpNote);      // the pointer hides while it cannot be used (buying closed, no credits): BUILDER 11-23
       return [
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, project.title),
@@ -1246,6 +1266,10 @@
       const advancedEl = h('div', { class: 'advanced-panel', id: 'advanced-panel' }, h('h2', {}, 'Advanced: your own data and the story file'),
         h('p', { class: 'form-note' }, 'Most films start from a ready-made film. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
         uploads?.el, storyForm);
+      if (!uploads) {      // uploads off: the tab holds only the story file, so it promises no 'own data' or spreadsheet (BUILDER 11-23)
+        advancedEl.querySelector('h2').textContent = 'Advanced: the story file';
+        advancedEl.querySelector('.form-note').textContent = 'Most films start from a ready-made film. Use this if you want to edit the story file directly.';
+      }
       advanced = advancedEl;
       let flip = null;
       const makeIt = h('div', { class: 'make-it' }, picker, byodPointer, saved, jobs.el, lookApply, v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null);
