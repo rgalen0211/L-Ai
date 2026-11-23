@@ -25,7 +25,7 @@ const CLAUSES = [
   ['no cash value, not transferable, buying closed', terms, 'Credits have no cash value and cannot be moved to another person. Buying credits is not open yet.', []],
   ['what a film costs', terms, 'A full film costs about 6 to 10 credits, depending on the film type, so 8 welcome credits cover a line film or a map film.', []],
   ['privacy: scrambled copy kept past deletion', privacy, 'To give welcome credits only once, we keep a scrambled copy of your email address. We keep it even if you delete your account.', [/hash|digest|sha256|hmac/i]],
-  ['privacy: credit history kept as a record', privacy, 'We keep each credit that is given to your account or used, with the time, as a record. We keep it even after you delete your account.', []],
+  ['privacy: credit record kept with the account ID, no end date, closed by hand (NOT "we then remove it": no code removes ledger rows)', privacy, 'We keep a record of each credit given to your account or used, with the time and your account\'s ID, as a financial record. We keep it after you delete your account, and we have no end date for it. Your account itself is then closed by hand.', []],
 ];
 
 test('WORDS: each welcome-credit sentence is on the page, exactly', () => {
@@ -50,11 +50,25 @@ test('MIGRATION: clauses are checked against CONNECT\'s welcome migration when i
   }
 });
 
+test('LEDGER: the credit record cannot go on closure (append-only, owner_id on delete restrict), so the Privacy page must not say we remove it', () => {
+  const l = read('supabase/phase-2b/credits_ledger.sql');
+  assert.match(l, /owner_id uuid not null references auth\.users \(id\) on delete restrict/);
+  assert.match(l, /credit_ledger_no_update before update or delete on public\.credit_ledger/);
+  assert.match(read('supabase/README.md'), /the ledger is an append-only financial record and restricts deletion, so the request\s+is recorded in `account_deletion_requests` for you to close by hand/);
+  assert.doesNotMatch(privacy, /we (then )?remove (it|that record|the record)|record is removed/i);
+  assert.match(privacy, /Your account itself is then closed by hand\./);
+});
+
+test('SETTING (once 000600 is on this branch): the page says 8 and the migration default for ops_settings.welcome_credits must be 8', () => {
+  if (!migrationLanded) return assert.ok(true, 'UNVERIFIED until CONNECT 000600 lands');
+  assert.match(read(MIGRATION), /welcome_credits[^;]*default 8/i);
+});
+
 test('PLAIN + NO NEW PROMISES: no sentence over 45 words; no retention number or end date invented; no price, refund or money words for credits', () => {
   for (const text of [terms, privacy]) for (const s of text.split(/(?<=[.!?])\s+/)) assert.ok(s.split(' ').length <= 45, s.slice(0, 80));
   const mine = CLAUSES.map(c => c[2]).join(' ');
   assert.doesNotMatch(mine, /\$|\brefund|\bprices?\b|\bsubscri|\bmonths?\b|\byears?\b|\bdays?\b/i);
-  assert.doesNotMatch(privacy.split('Welcome credits.')[1].split('Previews and contact sheets.')[0], /no end date|for \d/);
+  assert.doesNotMatch(privacy.split('Welcome credits.')[1].split('Credit history.')[0], /no end date|for \d/);
 });
 
 test('BANNER: the label stays true (buying closed) and no longer says credits do not exist', () => {
