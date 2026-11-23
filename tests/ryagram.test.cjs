@@ -511,7 +511,7 @@ test('the waitlist form keeps its fields: required email, optional "What do you 
 // The one deliberate exception (Ryan, 2026-10-14): the creator beta terms must say plainly that beta credits are free. That paragraph (class
 // rg-terms) is checked on its own below, so "credits" is allowed THERE and nowhere else.
 const termsParagraph = (pageHtml.match(/<p class="rg-terms">[\s\S]*?<\/p>/) || [''])[0];
-// SECOND exception, Q679 option A (Ryan has not answered Q679: DRAFT until he does): the one free-account line (id wl-free, tests/free-account-line.test.mjs pins its words) says free previews and that full films need credits. Only that paragraph.
+// SECOND exception, Q679 B (8 welcome credits when the email is confirmed, Ryan 11-23 15:46): the one free-account line (id wl-free, tests/free-account-line.test.mjs pins its words) says free previews and that full films need credits. Only that paragraph.
 const freeLine = (pageHtml.match(/<p id="wl-free"[^>]*>([\s\S]*?)<\/p>/) || ['', ''])[1];
 const publicText = visibleText.replace(termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), ' ').replace(freeLine.trim(), ' ');
 

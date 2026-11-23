@@ -13,10 +13,12 @@
   // The prices of a full film by film type, from the price table's final_* rows (data.filmPrices); [] when unread.
   const filmPriceList = rows => (rows || []).map(r => r.credits).filter(c => typeof c === 'number' && c > 0);
 
-  // ' A film type that costs 8 credits or less would fit.' when the price rows hold a film type the balance covers that costs less than this one; '' otherwise.
+  // ' A film type that costs 6 credits would fit. Choose another film type in the builder.' when the price rows hold a film type the balance covers that costs less than this one: the REAL price of the dearest such type
+  // (at 7 credits that is 6, never a made-up 7); '' when no type fits. The builder's step is called 'Film type' (STEPS in assets/app-builder.js).
   function fitsLine(quote, rows) {
     const have = Math.max(0, quote.available || 0);
-    return filmPriceList(rows).some(c => c <= have && c < quote.credits) ? ` A film type that costs ${plural(have)} or less would fit.` : '';
+    const fit = filmPriceList(rows).filter(c => c <= have && c < quote.credits);
+    return fit.length ? ` A film type that costs ${plural(Math.max(...fit))} would fit. Choose another film type in the builder.` : '';
   }
 
   // Whether the person can afford it, and if not, why (a negative balance blocks every hold).

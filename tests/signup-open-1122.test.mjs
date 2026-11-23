@@ -32,7 +32,7 @@ test('create-an-account page: a free account, 18 and older, Terms and Privacy li
   assert.match(panel, /<p class="form-intro">Make a free account to try Ryagram\.<\/p>/);
   assert.match(panel, /<p class="form-note" role="note">Ryagram is for people 18 and older\. Read the <a href="\/terms\/">Terms of Use<\/a> and the <a href="\/privacy-policy\.html">Privacy Policy<\/a>\.<\/p>/);
   assert.match(panel, /<input id="ca-age" name="over18" type="checkbox"[^>]*aria-required="true"><span>I am 18 or older\.<\/span>/);
-  assert.doesNotMatch(panel, /waitlist|invite|in testing|drafts|joins the list|access opens|puts you on the list/i);
+  assert.doesNotMatch(panel.replace('If you sign up with an invite code, you get the credits that code gives instead.', ''), /waitlist|invite|in testing|drafts|joins the list|access opens|puts you on the list/i, 'no invite words but the one true clause for a person who holds a code (GAMES 16:12; Terms T3)');
   assert.match(read('assets/app-data.js'), /functions\.invoke\('join', \{ body: \{ email: String\(email \|\| ''\)\.trim\(\), adult_confirmed: true \} \}\)/);
 });
 

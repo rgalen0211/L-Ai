@@ -90,7 +90,7 @@ test('the sign-up page (Q378 A): its own panel with one h1, the email box and NO
   assert.equal((panel.match(/<h1/g) || []).length, 1);
   assert.ok(panel.includes('id="ca-email"'));
   assert.ok(!/type="password"|ca-password|ca-again/.test(panel), 'no password on the sign-up page: it is chosen from the emailed link');
-  assert.doesNotMatch(panel, /are drafts|only puts you on the list|joins the list|access opens|waitlist|invite/i, 'open sign-up (11-22): no list, no wait, no invite words on the sign-up page');
+  assert.doesNotMatch(panel.replace('If you sign up with an invite code, you get the credits that code gives instead.', ''), /are drafts|only puts you on the list|joins the list|access opens|waitlist|invite/i, 'open sign-up (11-22): no list, no wait, no invite words on the sign-up page');
   assert.match(panel, /<p class="form-intro">Make a free account to try Ryagram\.<\/p>/);
   assert.match(panel, /Ryagram is for people 18 and older\. Read the <a href="\/terms\/">Terms of Use<\/a> and the <a href="\/privacy-policy\.html">Privacy Policy<\/a>\./);
   assert.match(panel, /Back to sign in/); assert.match(panel, /choose your password/);

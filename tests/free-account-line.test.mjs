@@ -8,7 +8,7 @@ import vm from 'node:vm';
 const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const RULE = (read('assets/app-library.js').match(/const FREE_PREVIEW_RULE = '([^']*)'/) || [])[1];            // the Credits page's own sentence
-const WELCOME = 'When you confirm your email you get 8 welcome credits, once for each email address.';
+const WELCOME = 'When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';
 const FREE = 'A free account can make free contact sheets. ' + RULE.replace(' A failed free one caused by your story still counts.', '');      // the failed-free sentence stays on the Credits page only (phone height)
 const CLOSED = WELCOME + ' ' + FREE + ' A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones. Buying credits is not open yet.';
 const OPEN = WELCOME + ' ' + FREE + ' Credits pay for full films.';

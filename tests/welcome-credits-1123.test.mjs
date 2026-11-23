@@ -30,12 +30,12 @@ test('FACTS: the price table, the view prices and the request cost are what the 
 
 test('THE TYPED NUMBERS (people who are not signed in cannot read the price table) match it: 6 to 10, and 8 welcome credits cover the smaller types only', () => {
   assert.ok(FREE.CLOSED.includes('A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.'));
-  assert.ok(FREE.CLOSED.startsWith('When you confirm your email you get 8 welcome credits, once for each email address. '));
-  assert.ok(FREE.OPEN.startsWith('When you confirm your email you get 8 welcome credits, once for each email address. ') && FREE.OPEN.endsWith('Credits pay for full films.'));
+  assert.ok(FREE.CLOSED.startsWith('When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. '));
+  assert.ok(FREE.OPEN.startsWith('When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. ') && FREE.OPEN.endsWith('Credits pay for full films.'));
   const lo = 6, mid = 8, hi = 10;
   assert.ok(mid >= lo && mid < hi, '8 covers some film types and not all');
   assert.ok(lib.includes("const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.';"));
-  assert.ok(lib.includes("const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address.';"));
+  assert.ok(lib.includes("const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';"));
   assert.ok(!/never a full film|have 0 credits|0 credits, so/i.test(FREE.CLOSED + FREE.OPEN + lib), 'no "you have none" sentence is typed anywhere');
   assert.ok(!/A full film needs credits/.test(FREE.CLOSED + read('app/index.html') + read('help/index.html') + read('ryagram/index.html') + lib), 'the old "needs credits" closed sentence is gone');
 });
@@ -58,7 +58,7 @@ test('THE CREDITS PAGE: the cost line follows the table; the balance sentence sa
 test('FINAL-FILM BUTTON and the strip, by the film\'s OWN cost: credits 0, 2, 6, 8, 10 against each of 6, 8, 10', () => {
   const closed = { rows: TABLE, closed: true };
   for (const cost of [6, 8, 10]) {
-    for (const have of [0, 2, 6, 8, 10]) {
+    for (const have of [0, 2, 6, 7, 8, 9, 10]) {
       const q = quote(cost, have);
       const a = C.affordable(q, closed);
       const short = have < cost;
@@ -68,9 +68,11 @@ test('FINAL-FILM BUTTON and the strip, by the film\'s OWN cost: credits 0, 2, 6,
         assert.ok(a.reason.startsWith(`This film type costs ${cost} credits and you have ${have === 1 ? '1 credit' : `${have} credit${have === 1 ? '' : 's'}`}.`), a.reason);
         assert.ok(a.reason.includes('Buying credits is not open yet.'), 'the next step: buying is closed');
         assert.doesNotMatch(a.reason, /Not enough credits/);
-        const fits = TABLE.some(r => r.credits <= have && r.credits < cost);
+        const best = Math.max(0, ...TABLE.map(r => r.credits).filter(c => c <= have && c < cost));      // the dearest film type the balance really covers
+        const fits = best > 0;
         assert.equal(a.reason.includes('A film type that costs'), fits, `${have} against ${cost}: the "would fit" hint shows only when a cheaper type is covered`);
-        if (fits) assert.ok(a.reason.endsWith(`A film type that costs ${have} credits or less would fit.`));
+        if (fits) assert.ok(a.reason.endsWith(`A film type that costs ${best} credits would fit. Choose another film type in the builder.`), a.reason);
+        assert.doesNotMatch(a.reason, /or less/);
         assert.equal(C.filmVsBalance(q, true), ` The full film for this film type costs ${cost} credits and you have ${have} credit${have === 1 ? '' : 's'}, so it cannot be made yet.`.replace(`${have} credit${have === 1 ? '' : 's'},`, `${have} credit${have === 1 ? '' : 's'},`));
       } else {
         assert.equal(C.filmVsBalance(q, false), ` The full film uses ${cost} credits; you have ${have} credit${have === 1 ? '' : 's'}.`);
@@ -78,14 +80,14 @@ test('FINAL-FILM BUTTON and the strip, by the film\'s OWN cost: credits 0, 2, 6,
     }
   }
   // the headline cases, word for word
-  assert.equal(C.affordable(quote(10, 8), closed).reason, 'This film type costs 10 credits and you have 8 credits. Buying credits is not open yet. A film type that costs 8 credits or less would fit.');
+  assert.equal(C.affordable(quote(10, 8), closed).reason, 'This film type costs 10 credits and you have 8 credits. Buying credits is not open yet. A film type that costs 8 credits would fit. Choose another film type in the builder.');
   assert.equal(C.affordable(quote(8, 8), closed).ok, true);
   assert.equal(C.affordable(quote(6, 8), closed).ok, true);
   assert.equal(C.filmVsBalance(quote(8, 8), false), ' The full film uses 8 credits; you have 8 credits.');
   assert.equal(C.filmVsBalance(quote(6, 8), false), ' The full film uses 6 credits; you have 8 credits.');
   assert.equal(C.filmVsBalance(quote(10, 8), true), ' The full film for this film type costs 10 credits and you have 8 credits, so it cannot be made yet.');
   // buying open: no "not open" sentence; a previous caller without rows keeps the old words for contact sheets and previews
-  assert.equal(C.affordable(quote(10, 8), { rows: TABLE, closed: false }).reason, 'This film type costs 10 credits and you have 8 credits. A film type that costs 8 credits or less would fit.');
+  assert.equal(C.affordable(quote(10, 8), { rows: TABLE, closed: false }).reason, 'This film type costs 10 credits and you have 8 credits. A film type that costs 8 credits would fit. Choose another film type in the builder.');
   assert.equal(C.affordable({ price_code: 'preview_extra', credits: 1, available: 0 }).reason, 'This needs 1 credit and you have 0 credits.');
   assert.equal(C.affordable({ price_code: 'final_map', credits: 8, available: 2 }, { rows: [], closed: true }).reason, 'This film type costs 8 credits and you have 2 credits. Buying credits is not open yet.');
 });
@@ -116,4 +118,38 @@ test('HELP: the one swappable Q&A entry says 8 welcome credits and what they cov
   assert.ok(entry.includes("WELCOME_LINE + ' A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' ' + FILM_COST_CLOSED + ' Buying credits is not open yet.')"));
   for (const f of ['app/index.html', 'ryagram/index.html', 'help/index.html']) assert.ok(read(f).includes(`>${FREE.CLOSED}</p>`), `${f} carries the CLOSED line word for word`);
   assert.equal((lib.match(/you get 8 welcome credits/g) || []).length, 1, 'one definition in the library');
+});
+
+test('THE HINT names a price a film type really has, and where to change it: balances 0, 2, 6, 7, 8, 9, 10 (the old words said "8 credits or less" and named a price no type has at 7)', () => {
+  const where = ' Choose another film type in the builder.';
+  const hint = (cost, have) => C.fitsLine(quote(cost, have), TABLE);
+  // a 10-credit film type: 0 and 2 fit nothing (no hint), 6 and 7 fit the 6 type, 8 and 9 fit the 8 type, 10 covers it (no hint: nothing is short)
+  assert.equal(hint(10, 0), '');
+  assert.equal(hint(10, 2), '');
+  assert.equal(hint(10, 6), ' A film type that costs 6 credits would fit.' + where);
+  assert.equal(hint(10, 7), ' A film type that costs 6 credits would fit.' + where, 'at 7 the real price is 6, not 7');
+  assert.equal(hint(10, 8), ' A film type that costs 8 credits would fit.' + where);
+  assert.equal(hint(10, 9), ' A film type that costs 8 credits would fit.' + where, 'at 9 the real price is 8, not 9');
+  assert.equal(C.affordable(quote(10, 10), { rows: TABLE, closed: true }).ok, true, 'a 10-credit balance covers a 10-credit type: not short, no hint');
+  // an 8-credit film type short of credit: only the 6 type is cheaper
+  assert.equal(hint(8, 7), ' A film type that costs 6 credits would fit.' + where);
+  assert.equal(hint(8, 5), '');
+  assert.equal(hint(6, 5), '', 'nothing is cheaper than the cheapest type');
+  // the same words reach the final-film button title (affordable().reason), closed and open
+  assert.equal(C.affordable(quote(10, 7), { rows: TABLE, closed: true }).reason, 'This film type costs 10 credits and you have 7 credits. Buying credits is not open yet. A film type that costs 6 credits would fit.' + where);
+  assert.equal(C.affordable(quote(10, 9), { rows: TABLE, closed: false }).reason, 'This film type costs 10 credits and you have 9 credits. A film type that costs 8 credits would fit.' + where);
+  assert.equal(C.affordable(quote(10, 2), { rows: TABLE, closed: true }).reason, 'This film type costs 10 credits and you have 2 credits. Buying credits is not open yet.', 'no type fits: no hint, as before');
+  assert.equal(C.affordable(quote(10, 0), { rows: TABLE, closed: true }).reason, 'This film type costs 10 credits and you have 0 credits. Buying credits is not open yet.');
+  // the step it points at exists under that name
+  assert.match(read('assets/app-builder.js'), /\['type', 'Film type'\]/);
+});
+
+test('THE INVITE CLAUSE (GAMES 16:12, FACES 16:09): every copy of the welcome line says an invite-code account gets the credits that code gives instead of the 8; the Credits page and Home do not carry it', () => {
+  const clause = 'If you sign up with an invite code, you get the credits that code gives instead.';
+  for (const f of ['app/index.html', 'ryagram/index.html', 'help/index.html']) assert.ok(read(f).includes(clause), f);
+  assert.ok(FREE.CLOSED.includes(clause) && FREE.OPEN.includes(clause));
+  assert.ok(lib.includes(`const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address. ${clause}';`));
+  const credits = lib.slice(lib.indexOf('async function creditsView'), lib.indexOf('async function creditsView') + 6000);
+  assert.ok(!credits.includes('invite code'), 'the Credits page does not say it (phone height; it cannot know where a balance came from)');
+  assert.ok(!credits.includes('These include your welcome credits'), 'FACES (b) not added: false for an invited account or a later buyer');
 });

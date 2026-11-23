@@ -5,7 +5,7 @@
 // The "buying credits is not open yet" half follows the SAME switch as the Credits page (buyingOn in assets/app-library.js: credits + payments + buyingOpen in assets/ryagram-config.js).
 // The HTML carries the closed wording (also right with scripts off); this file only swaps in the open wording.
 (() => {
-  const WELCOME = 'When you confirm your email you get 8 welcome credits, once for each email address.';
+  const WELCOME = 'When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';
   const FREE = 'A free account can make free contact sheets. Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each.';       // FREE_PREVIEW_RULE in assets/app-library.js without its last sentence (kept on the Credits page only: phone height); a test pins both
   const FILM = 'A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.';
   const CLOSED = WELCOME + ' ' + FREE + ' ' + FILM + ' Buying credits is not open yet.';
