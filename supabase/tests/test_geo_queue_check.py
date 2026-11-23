@@ -34,13 +34,17 @@ class QueueCheck(unittest.TestCase):
         return [r[1] for r in self.db.c.execute(STEP60.read_text(encoding="utf-8")).fetchall()]
 
     def test_GEO_60_true_after_both_and_each_rollback_turns_its_own_rows_false(self):
+        self.db.c.execute("reset role")
+        self.db.c.execute("update public.ops_settings set queue_cap_per_owner = 50")   # what a test template sets (BUILDER 80a39c87)
+        self.assertEqual(self.check()[1], False, "a limit other than 2 is shown")
+        self.db.c.execute("update public.ops_settings set queue_cap_per_owner = 2")    # as on live
         before = self.db.c.execute("select count(*) from ryagram_private.blocked_story_views").fetchone()[0]
-        self.assertEqual(self.check(), [True, True, True, True, True], "after A15 and A16")
+        self.assertEqual(self.check(), [True, True, True, True, True, True], "after A15 and A16")
         self.assertEqual(self.db.c.execute("select count(*) from ryagram_private.blocked_story_views").fetchone()[0], before, "the check writes nothing")
         self.db.c.execute(RB300.read_text(encoding="utf-8"))
-        self.assertEqual(self.check(), [True, True, False, False, True], "after 000300's undo: the cap stays, the blocked list is gone")
+        self.assertEqual(self.check(), [True, True, True, False, False, True], "after 000300's undo: the cap stays, the blocked list is gone")
         self.db.c.execute(RB200.read_text(encoding="utf-8"))
-        self.assertEqual(self.check(), [False, False, False, False, True], "after both undos (= before A15): no error, all false but the grants row")
+        self.assertEqual(self.check(), [False, False, False, False, False, True], "after both undos (= before A15): no error, all false but the grants row")
 
 
 if __name__ == "__main__":
