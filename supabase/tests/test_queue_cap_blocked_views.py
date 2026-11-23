@@ -9,7 +9,9 @@ What it proves, each with the opposite case beside it
   * with 2 jobs QUEUED a third contact sheet or preview is refused with the plain words and errcode PTQUE; nothing is inserted
   * a claimed or running job does not count: once the worker takes one, the next submit is accepted
   * another owner is not affected by someone else's 2 queued; a full film (submit_job with auto_render on) is not capped
-  * orders are NOT capped (CC1 10:00): a new render order is accepted while the owner has 2 queued
+  * queued jobs do not count against orders (CC1 10:00); a NEW order is refused while the owner already has 2 orders OPEN (CC1 11:37
+    (a): submit_render_order stays granted for Ryagram's worker_orders lane), a repeated key is never refused, a cancelled one frees
+    a place, another owner is not affected; must-fail without the limit
   * the number is ops_settings.queue_cap_per_owner (default 2, 1 to 50); two tabs at the same moment cannot both pass (two real
     connections; the must-fail without the lock lets the second through)
   * public.submit_job is pipe1's own function, untouched (grants, waiting-account gate); pipe1's ryagram_private.submit_job_for is
@@ -180,7 +182,7 @@ class QueueCapBlockedViews(unittest.TestCase):
         self.settle(a, "failed")
         self.assertIsNotNone(self.submit(v3, "contact_sheet"))
 
-    def test_orders_are_not_capped(self):
+    def test_queued_jobs_do_not_count_against_orders(self):
         self.submit(self.version(who=OTHER), "contact_sheet", who=OTHER)
         self.submit(self.version(who=OTHER), "contact_sheet", who=OTHER)
         self.assertEqual(self.queued(OTHER), 2)
@@ -188,6 +190,22 @@ class QueueCapBlockedViews(unittest.TestCase):
         self.assertIsNotNone(oid)
         self.assertEqual(self.order("orderkey-a", want="preview", who=OTHER), oid, "an idempotent retry returns the same order")
         self.assertEqual(self.queued(OTHER), 3)
+
+    def scenario_third_open_order_refused(self):
+        a = self.order("orderkey-o1", want="preview", who=OTHER)
+        self.order("orderkey-o2", want="preview", who=OTHER)
+        self.refused(OTHER, "select id from submit_render_order(%s::jsonb, %s, %s)", p1.story(), "orderkey-o3", "preview",
+                     words=CAP_WORDS, code="PTQUE")
+        self.assertEqual(self.admin("select count(*) from render_orders where owner_id = %s", OTHER), 2, "the refused order left nothing")
+        return a
+
+    def test_open_orders_limit(self):
+        # CC1 11:37 (a): submit_render_order stays granted (Ryagram's worker_orders lane calls it), so new orders are limited instead
+        a = self.scenario_third_open_order_refused()
+        self.assertEqual(self.order("orderkey-o1", want="preview", who=OTHER), a, "a repeated key is never refused")
+        self.db.as_(OTHER).one("select id from cancel_render_order(%s)", a)
+        self.assertIsNotNone(self.order("orderkey-o3", want="preview", who=OTHER), "an order that is no longer open frees a place")
+        self.assertIsNotNone(self.order("orderkey-x1", want="preview", who=RYAN), "another owner is not affected")
 
     def test_a_full_film_is_not_capped(self):
         self.admin("update ops_settings set auto_render = true returning 1")
@@ -254,7 +272,7 @@ class QueueCapBlockedViews(unittest.TestCase):
         self.assertIn("p_stage_id is null", src, "only a person's own new job (no order stage)")
 
     def test_nobody_can_call_the_new_private_functions(self):
-        for fn in ("ryagram_private.queue_cap_check(uuid)", "ryagram_private.blocked_view_check(jsonb)",
+        for fn in ("ryagram_private.queue_cap_check(uuid)", "ryagram_private.order_cap_check(uuid)", "ryagram_private.blocked_view_check(jsonb)",
                    "ryagram_private.blocked_view_in(jsonb)",
                    "ryagram_private.order_submit(uuid, jsonb, text, public.order_want, text, public.order_source)"):
             for role in ("anon", "authenticated", "service_role"):
@@ -356,6 +374,10 @@ class QueueCapBlockedViews(unittest.TestCase):
                        "and j.job_type in ('contact_sheet', 'preview', 'final_render')) >= 2 then "
                        "raise exception 'You have 2 films waiting. You can start another when one is done.' using errcode = 'PTQUE'; "
                        "end if; end $$", self.scenario_two_tabs_at_once)
+
+    def test_must_fail_without_the_open_orders_limit(self):
+        self.must_fail("create or replace function ryagram_private.order_cap_check(p_owner uuid) returns void "
+                       "language plpgsql set search_path = '' as $$ begin null; end $$", self.scenario_third_open_order_refused)
 
     def test_must_fail_without_the_blocked_list(self):
         self.must_fail("delete from ryagram_private.blocked_story_views", self.scenario_blocked_pair_refused)

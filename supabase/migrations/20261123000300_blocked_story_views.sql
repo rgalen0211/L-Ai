@@ -12,11 +12,11 @@
 -- of the same story, which this refuses first). An order's STAGE is never refused here (it runs inside the worker's report call).
 -- HOW: submit_job_for is 20261123000200's wrapper over pipe1's untouched submit_job_for_base. The check reads the story the base
 -- just stored in the new job (exactly what would run), and a refusal rolls the whole call back, so a story changed in another tab
--- between a read and the insert cannot slip through. The order path: pipe1's ryagram_private.order_submit is renamed, body
--- untouched, to order_submit_base, and a small wrapper checks a NEW order's story first.
+-- between a read and the insert cannot slip through. The order path: 20261123000200's order_submit wrapper (over pipe1's
+-- untouched order_submit_base) also checks a NEW order's story, and keeps its open-orders limit.
 -- The list is a table, so a pair ENGINE clears later is one delete (and its line comes off the JSON; the test keeps them equal).
--- Undo: rollbacks/20261123000300_blocked_story_views_rollback.sql (puts back 20261123000200's submit_job_for wrapper and pipe1's
--- order_submit, drops the table).
+-- Undo: rollbacks/20261123000300_blocked_story_views_rollback.sql (puts back 20261123000200's submit_job_for and order_submit
+-- wrappers, drops the table).
 begin;
 
 create table ryagram_private.blocked_story_views (
@@ -136,27 +136,25 @@ begin
   return j;
 end $$;
 
--- The order path: pipe1's function, untouched, renamed; the wrapper refuses a NEW order whose story uses a blocked pair (a repeat
--- of an existing order key goes straight through, as before).
-alter function ryagram_private.order_submit(uuid, jsonb, text, public.order_want, text, public.order_source)
-  rename to order_submit_base;
-
-create function ryagram_private.order_submit(p_owner uuid, p_story jsonb, p_key text, p_want public.order_want,
-                                             p_title text, p_source public.order_source)
+-- The order path: 20261123000200's order_submit wrapper (pipe1's body stays in order_submit_base), plus the blocked-view check for a
+-- NEW order (a repeat of an existing order key goes straight through, as before). Same revokes (create or replace keeps them).
+create or replace function ryagram_private.order_submit(p_owner uuid, p_story jsonb, p_key text, p_want public.order_want,
+                                                        p_title text, p_source public.order_source)
 returns public.render_orders
 language plpgsql security definer set search_path = '' as $$
 begin
+  perform pg_advisory_xact_lock(hashtext('render_order:' || p_owner::text || ':' || p_key));    -- the base's per-key lock, first (20261123000200)
   if p_owner is not null
      and not exists (select 1 from public.render_orders o where o.owner_id = p_owner and o.idempotency_key = p_key) then
     perform ryagram_private.blocked_view_check(p_story);                                         -- a NEW order only (BLOCKED VIEWS)
+    perform ryagram_private.order_cap_check(p_owner);                                            -- a NEW order only (OPEN-ORDERS LIMIT, 20261123000200)
   end if;
   return ryagram_private.order_submit_base(p_owner, p_story, p_key, p_want, p_title, p_source);
 end $$;
 
 revoke execute on function
   ryagram_private.blocked_view_in(jsonb),
-  ryagram_private.blocked_view_check(jsonb),
-  ryagram_private.order_submit(uuid, jsonb, text, public.order_want, text, public.order_source)
+  ryagram_private.blocked_view_check(jsonb)
   from public, anon, authenticated, service_role;
 
 select ryagram_private.gate_apply();                       -- every migration after the waiting-accounts file ends with it (tests/waiting-gate.test.mjs)
