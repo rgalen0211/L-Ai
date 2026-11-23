@@ -961,7 +961,7 @@
         event.preventDefault();
         delError.hidden = true;
         if (!delForm.reportValidity()) return;
-        if (!confirm('Delete your account, every project, film and file? This can’t be undone.')) return;
+        if (!confirm('Delete your account? Your films and uploaded files are removed for good. If your account has any credit history, we keep that record, we block your login at once, and an administrator closes the account by hand within 30 days.')) return;
         await busy(del, 'Deleting…', async () => {
           try {
             const result = await data.deleteAccount(typed.value);
@@ -973,7 +973,7 @@
         h('label', { for: 'acct-delete-email' }, 'Type your email to confirm'), typed, del, delNote, delError);
       sections.push(h('section', { class: 'account-section account-danger', 'aria-labelledby': 'acct-delete' },
         h('h2', { id: 'acct-delete' }, 'Delete your account'),
-        h('p', {}, 'This deletes your login, every project and version, every film and file, and any public film pages, at once. Renders must have finished first. If you’ve bought or used credits, those records are kept as financial records and your account is closed by hand within 30 days.'),
+        h('p', {}, 'We remove your films and uploaded files, replace your email in support requests and invite records, and then delete your login. If your account has any credit history, we keep that record, we block your login at once, and an administrator closes the account by hand within 30 days. A render that is still running has to finish or be cancelled first.'),
         delForm));
       if (helpSection) sections.push(helpSection);
       return sections;
