@@ -325,6 +325,7 @@
         }
         // The sample makes nothing: in place of the Make button, the way back to its own choices and the way to real data.
         const again = sample ? h('button', { class: 'button secondary', type: 'button', onclick: async () => { await sampleChoices(); compiled = null; s.problems = {}; go(0); } }, 'Start the sample again') : null;
+        let madeId = null;                                                  // the project a refused Make already created (BUILDER 11-23)
         if (sample) make.hidden = true;
         if (!sample) make.addEventListener('click', async () => {
           let finalStory;
@@ -340,9 +341,22 @@
               location.hash = `#/v/${made.version.id}`;
             } catch (err) {
               showError(error, err);
-              if (made) error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'));       // the project exists; the person can carry on there
+              if (made) {                                                                                  // the project exists
+                if (/^This film is not available yet\./.test(String(err && err.message || ''))) {
+                  // a blocked film (20261123000300): its own page would be refused again every time, so the way on is another film type here (GAMES 11:27)
+                  error.append(' ', h('button', { class: 'button secondary small', type: 'button', onclick: () => go(STEPS.findIndex(([id]) => id === 'type')) }, 'Choose another film type'));
+                } else if (/^You have \d+ films? waiting\./.test(String(err && err.message || ''))) {
+                  // the 2-films-waiting cap (20261123000200): the sheet cannot be made NOW either, so no promise that it can (FACES 13:03, GAMES 13:03)
+                  error.append(' Your film is saved. ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), '; when one of your waiting films is done, make its contact sheet there.');
+                } else {
+                  error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), ' and make its contact sheet there.');      // the person can carry on there
+                }
+                madeId = made.version.id;
+              }
             }
           });
+          // A second press would make ANOTHER project (BUILDER 11-23: with the 2-films-waiting cap this is a normal path): once the project exists, Make stays hidden.
+          if (madeId) make.hidden = true;
         });
         check();
         return [h('h2', { tabindex: '-1' }, 'Review'), out, sourceBox(),

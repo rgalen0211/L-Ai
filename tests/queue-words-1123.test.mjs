@@ -88,6 +88,7 @@ test('LOW 8 a refusal holding "already in progress" becomes the plain line; the 
   };
   check(J.plainRefusal);
   goesRed(check, () => 'Something went wrong. Please try again, or ask us to help.');
-  assert.equal(J.plainRefusal('You have 2 films waiting. You can start another when one is done.'), 'You have 2 films waiting. You can start another when one is done.');
+  assert.equal(J.plainRefusal('You have 2 films waiting. You can start another when one is done.'),          // the server's words, then where to go (BUILDER 11-23)
+               'You have 2 films waiting. You can start another when one is done. Your waiting films are listed under Jobs on each film’s page.');
   assert.match(panel, /h\('h2', \{ id: 'jobs-list-title' \}, 'Jobs'\)/, 'the list the sentence points to is called Jobs');
 });
