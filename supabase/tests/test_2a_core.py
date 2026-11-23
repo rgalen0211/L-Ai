@@ -83,6 +83,15 @@ def setUpModule():
         # PIPE-1: these suites test the 2A/2B mechanics, written before render orders, where a final is claimable at once --
         # the auto_render ON behaviour. test_pipe1_orders.py sets it OFF (the live default) and covers Ryan's queue.
         c.execute("update public.ops_settings set auto_render = true, default_credits_per_day = 100000")   # and no daily cap
+        raise_queue_cap(c)
+
+
+def raise_queue_cap(c):
+    """The queue cap (migrations/20261123000200, live default 2 per owner) is OFF the way for suites that queue many jobs or orders
+    for one owner to test other things: every shared template raises it to 50, ONLY if the column exists (CC1 12:00). The cap's own
+    tests (test_queue_cap_blocked_views.py) set it back to 2 where they test it."""
+    c.execute("do $$ begin if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ops_settings' "
+              "and column_name = 'queue_cap_per_owner') then update public.ops_settings set queue_cap_per_owner = 50; end if; end $$")
 
 
 class Db:
@@ -318,8 +327,6 @@ class Core(Base):
 
     # -- queue behaviour
     def test_three_jobs_run_in_order_exactly_once(self):
-        # three queued at once for one person: above the default queue cap of 2 (20261123000200), so this test raises it
-        self.db.as_(None).one("update ops_settings set queue_cap_per_owner = 3 returning 1")
         ids = []
         for _ in range(3):
             _, vid = self.project_with_version()
