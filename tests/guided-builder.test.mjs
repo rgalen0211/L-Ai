@@ -85,7 +85,8 @@ test('COMPILE: a look rides along and only changes the look (ENGINE\'s guard); a
   const { story, report } = await r.json();
   assert.equal(story.sequence.theme, 'light');
   assert.equal(report.look.applied, true);
-  const county = await post({ action: 'compile', request: { dataset: 'bps_county_permits', film_type: 'map', title: 'Permits', look: { profile_version: 1, name: 'mine', look: { ramp: { mode: 'hatch' } } } } });
+  const county = await post({ action: 'compile', request: { dataset: 'bps_county_permits', film_type: 'map', title: 'Permits', look: { profile_version: 1, name: 'mine', look: { ramp: { mode: 'hatch' } } } } },
+    { catalog: CATALOG.map(e => (e.style ? { ...e, film_types: ['map', ...e.film_types.filter(t => t !== 'map')] } : e)) });      // the catalog no longer offers a county map (ENGINE's block list); the engine's hatch guard is what this tests
   assert.equal(county.status, 422);
   assert.match((await county.json()).errors.join(' '), /too small to hatch/);
 });

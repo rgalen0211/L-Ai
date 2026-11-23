@@ -24,6 +24,11 @@ import { PRESETS } from '../supabase/functions/_shared/profile_data.ts';
 const root = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
 const plain = x => JSON.parse(JSON.stringify(x));
 const refusedProfile = p => { try { validateProfile(p); return null; } catch (e) { assert.ok(e instanceof ProfileError); return e.errors; } };
+// ENGINE's block list drops map from a county dataset's film_types (tests/catalog-block-list.test.mjs). The look rules below are about a county MAP,
+// which the catalog no longer offers, so those tests compile against the catalog with the map put back (the engine's own guard is what they test).
+const WITH_MAP = CATALOG.map(e => (e.style ? { ...e, film_types: ['map', ...e.film_types.filter(t => t !== 'map')] } : e));
+const refusedMap = req => refused(req, { catalog: WITH_MAP });
+const compileMap = req => compileFilm(req, { catalog: WITH_MAP });
 const refused = (req, opts) => { try { compileFilm(req, opts); return null; } catch (e) { assert.ok(e instanceof FilmError, String(e)); return e.errors; } };
 const usable = CATALOG.filter(e => e.status === 'usable');
 // Rules about a dataset's SHAPE (geography, film types, method breaks) are tested on every listable dataset with its status forced to usable:
@@ -35,7 +40,8 @@ const ALLOW = path.join(root, 'supabase', 'functions', '_shared', 'worker_allowl
 const LISTING = path.join(root, 'supabase', 'functions', '_shared', 'listing_decisions.json');
 const SHARED = path.join(root, 'supabase', 'functions', '_shared');
 const MOTION_RECORD = path.join(SHARED, 'motion_record.txt'), MOTION_BASELINE = path.join(SHARED, 'motion_baseline.txt'), MOTION_SKIP_OK = path.join(SHARED, 'motion_skip_named.txt');
-const MOTION_ARGS = ['--motion', MOTION_RECORD, '--motion-baseline', MOTION_BASELINE, '--motion-skip-ok', MOTION_SKIP_OK];
+const BLOCK_LIST = path.join(root, 'tools', 'data', 'engine-catalog-block-list-1123.json');       // ENGINE's block list, committed copy (tests/catalog-block-list.test.mjs)
+const MOTION_ARGS = ['--motion', MOTION_RECORD, '--motion-baseline', MOTION_BASELINE, '--motion-skip-ok', MOTION_SKIP_OK, '--block-list', BLOCK_LIST];
 
 // ------------------------------------------------------------------------------------------ the catalog
 
@@ -188,14 +194,15 @@ test('a window that crosses a method change warns and records it in the notes (u
 // ------------------------------------------------------------------------------------------ the look
 
 test('the look is applied by the profile compiler and changes ONLY look fields (honesty is not modifiable)', () => {
-  for (const e of [...usable.slice(0, 6), ...usable.filter(x => x.style)]) {
-    const base = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'Look test' });
+  const usableMap = WITH_MAP.filter(x => x.status === 'usable');
+  for (const e of [...usableMap.slice(0, 6), ...usableMap.filter(x => x.style)]) {
+    const base = compileMap({ dataset: e.id, film_type: e.film_types[0], title: 'Look test' });
     for (const id of Object.keys(PRESETS)) {
       if ((e.style?.choropleth?.continuous || (/counties/.test(e.geography.id) && e.film_types[0] === 'map')) && PRESETS[id].look?.ramp?.mode === 'hatch') {
-        assert.match(refused({ dataset: e.id, film_type: e.film_types[0], title: 'Look test', look: PRESETS[id] }).join(), /too small to hatch/, `${e.id} ${id}`);
+        assert.match(refusedMap({ dataset: e.id, film_type: e.film_types[0], title: 'Look test', look: PRESETS[id] }).join(), /too small to hatch/, `${e.id} ${id}`);
         continue;
       }
-      const styled = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'Look test', look: PRESETS[id] });
+      const styled = compileMap({ dataset: e.id, film_type: e.film_types[0], title: 'Look test', look: PRESETS[id] });
       assert.deepEqual(checkAgainst(STORY_SCHEMA, styled.story), [], `${e.id} ${id}`);
       assert.equal(styled.report.look.applied, true);
       const a = base.story, b = styled.story;
@@ -333,12 +340,12 @@ test('a bad look is refused with the profile reasons, prefixed; a look cannot ca
 });
 
 test('a county template pin survives a solid look and a hatching look is refused with the reason', () => {
-  const e = CATALOG.find(x => x.style && x.status === 'usable');
+  const e = WITH_MAP.find(x => x.style && x.status === 'usable');
   assert.ok(e, 'a usable dataset with a pinned style');
-  const base = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'County' });
+  const base = compileMap({ dataset: e.id, film_type: e.film_types[0], title: 'County' });
   assert.deepEqual(base.story.sequence.style_overrides, e.style);
-  assert.match(refused({ dataset: e.id, film_type: e.film_types[0], title: 'County', look: PRESETS['wtds-classic'] }).join(), /too small to hatch/);
-  const solid = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'County', look: PRESETS['clean-light'] });
+  assert.match(refusedMap({ dataset: e.id, film_type: e.film_types[0], title: 'County', look: PRESETS['wtds-classic'] }).join(), /too small to hatch/);
+  const solid = compileMap({ dataset: e.id, film_type: e.film_types[0], title: 'County', look: PRESETS['clean-light'] });
   assert.equal(solid.story.sequence.style_overrides.choropleth.continuous, true, 'the pin survives a solid look');
   assert.equal(solid.story.sequence.style_overrides.choropleth.mode, 'solid');
 });
@@ -427,7 +434,7 @@ test('THE MOTION GATE: usable needs a pass/na line (or the baseline, or a skip R
     fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(d, 'tools', 'gen-catalog.py'));
     const w = (f, lines) => { const p = path.join(d, f); fs.writeFileSync(p, lines.join('\n') + '\n'); return p; };
     const r = run(python, [path.join(d, 'tools', 'gen-catalog.py'), '--engine', tree, '--setup', SETUP, '--allowlist', ALLOW, '--listing', LISTING,
-      '--commit', CATALOG_ENGINE, '--motion', w('motion.txt', recordLines), '--motion-baseline', w('baseline.txt', baseline), '--motion-skip-ok', w('skipok.txt', skipOk),
+      '--commit', CATALOG_ENGINE, '--motion', w('motion.txt', recordLines), '--motion-baseline', w('baseline.txt', baseline), '--motion-skip-ok', w('skipok.txt', skipOk), '--block-list', BLOCK_LIST,
       '--out', path.join(d, 'assets', 'app-catalog-data.js')]);
     return { r, pub: r.status === 0 ? fs.readFileSync(path.join(d, 'assets', 'app-catalog-data.js'), 'utf8') : '' };
   };
@@ -743,9 +750,9 @@ test('MUST-FAIL (LOW-9): a long licence is never the thing the 4000-character ca
 });
 
 test('MUST-FAIL (LOW-7): a look that would undo a dataset\'s pinned style is refused with the reason; one that restates it is fine', () => {
-  const e = CATALOG.find(x => x.style && x.status === 'usable');
+  const e = WITH_MAP.find(x => x.style && x.status === 'usable');
   const mk = ramp => ({ profile_version: 1, name: 'x', look: { ramp } });
-  const ask = look => refused({ dataset: e.id, film_type: e.film_types[0], title: 'x', look });
+  const ask = look => refusedMap({ dataset: e.id, film_type: e.film_types[0], title: 'x', look });
   assert.match(ask(mk({ continuous: false, steps: 3 })).join(), /a county map is drawn as continuous colour.*leave .continuous. unset or true/);
   assert.match(ask(mk({ mode: 'hatch' })).join(), /too small to hatch/);
   assert.equal(ask(mk({ continuous: true, mode: 'solid' })), null, 'control: restating the pin is fine');
