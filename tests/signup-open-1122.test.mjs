@@ -80,7 +80,7 @@ test('film pages: the line beside "Make your own data film" says anyone 18 or ol
 
 test('Home teaser, Terms placeholder, Help (connect an AI) and the request page: no invitation, list or "ask Ryan" claims', () => {
   assert.match(read('index.html'), /<p>Short animated films drawn straight from the numbers, with correctness checks built in\. Anyone 18 or older can make a free account and try it\.<\/p>/);
-  assert.match(read('terms/index.html'), /Until then these Terms are not final\. Ryagram is open to anyone 18 or older\./);
+  assert.match(read('terms/index.html'), /Sign-up is open to anyone who is 18 or older\. We email you a link to finish signing up\./);
   const m = /<summary>How do I connect Claude or ChatGPT to Ryagram\?<\/summary>\s*<p>([^<]*)<\/p>/.exec(read('help/index.html'));
   assert.match(m[1], /^If you do not see Connected AIs under Account, connecting an AI is not available on your account; write to ryagram@uselai\.com\./);
   assert.match(read('assets/app-library.js'), /We make the film and send it back here\. Each one is made by hand, so it can take a day or more\./);
