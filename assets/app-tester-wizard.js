@@ -7,7 +7,7 @@
   const WORDS = {
     title: 'Get started as a tester',
     intro: 'Four short steps. Your films are made on your own computer, not on ours, so the first two make sure that computer is ready.',
-    notTester: 'This page is for invited testers. If you were invited, ask Ryan to turn it on for your account.',
+    notTester: 'This page is for invited testers. If you were invited, write to ryagram@uselai.com and we will turn it on for your account.',
     loadError: 'This page could not read your account just now. Try again in a minute.',
     again: 'Check again',
     diskNote: 'This page cannot see your computer’s disk, so only you can say yes here.',
