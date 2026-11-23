@@ -61,7 +61,7 @@ test('LOW e: the report page shows no film link example while film pages are off
 test('CC1 finding 1: Coming soon keeps its own solid ground in the redesign CSS, so its contrast is the tag against that ground', () => {
   const css = read('assets/ryagram-ds.css');
   const rule = css.match(/body\.ryagram-ds\.ryagram-look \.soon-tag\{[^}]*\}/)[0];
-  assert.match(rule, /color:var\(--accent-2\);background:var\(--bg-2\)/);
+  assert.match(rule, /color:#ffb27a;background:#10121a;opacity:1/);   // plain hex since 11-23 (tests/soon-tag-contrast.test.mjs)
   assert.match(css, /--bg-2:#10121a/);
   assert.match(css, /--accent-2:#ffb27a/);
   const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
