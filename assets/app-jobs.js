@@ -16,7 +16,7 @@
   };
   const STATE_LABELS = {
     queued: 'Queued', claimed: 'Starting', running: 'Rendering', validating: 'Checking', uploading: 'Uploading',
-    complete: 'Complete', failed: 'Failed', editorial_action_required: 'Needs a decision', cancelled: 'Cancelled'
+    complete: 'Complete', failed: 'Failed', editorial_action_required: 'Stopped by our checks', cancelled: 'Cancelled'
   };
 
   const isActive = job => ACTIVE.includes(job.state);
@@ -120,15 +120,15 @@
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
       if (/checks did not run/i.test(String(job.error_detail || ''))) return CHECKS_DID_NOT_RUN;   // the machine's fault, not the story's: never "Change the story"
       if (/render-anyway|override/i.test(rawDetail(job))) return `Ryagram’s checks stopped this render.${detail} No change to the story can fix this. ${RENDER_HELP}`;   // the local-only override: no web story can carry it
-      return `Ryagram’s checks stopped this render.${detail}${asksToContact ? '' : ' Change the story, then make a new preview.'}`;
+      return `Ryagram’s checks stopped this render.${detail}${asksToContact ? '' : ` Change the story, then ${job.job_type === 'contact_sheet' ? 'make a new contact sheet' : 'make a new preview'}.`}`;
     }
     switch (job.error_class) {
       case 'infrastructure':
         if (job.error_code === 'queue_timeout' && (job.job_type === 'contact_sheet' || job.job_type === 'preview')) return 'The render machine did not get to it in time, so we stopped it. This is not your story. You can try again.';   // queue_timeout fails only a job that NEVER STARTED while the machine was silent (ops_readiness.sql expire_stale_queue). A contact sheet holds none and a free preview holds none, so the server's 'Your credits were returned.' is not repeated here; a PAID preview (1 credit after the 6) gets its true line from the ledger (returnedLine in app-library.js, job_accounting), which the jobs rows do not carry
-        if (job.error_code === 'queue_timeout') return `The render machine had a problem, not your story.${detail} You can try again.`;     // it never ran: no "tried N times"
-        return `The render machine had a problem, not your story. It tried ${job.attempt} time${job.attempt === 1 ? '' : 's'}.${detail} You can try again.`;
+        if (job.error_code === 'queue_timeout') return `We had a problem on our side, not with your story.${detail} You can try again.`;     // the SERVER's own sentence (ops_readiness.sql), kept: it says what happened to the credits
+        return 'We had a problem on our side, not with your story. You can try again. If it keeps happening, open “Get help with this”.';     // no count, and never the worker's own detail (it is an internal message: only the help form carries it)
       case 'timeout':
-        return `It ran too long and was stopped.${detail} It wasn’t retried, because it would stop again: shorten the film or the preview window first.`;
+        return `It ran too long and was stopped.${detail} It wasn’t retried, because it would stop again: shorten the film${job.job_type === 'preview' ? ' or the preview window' : ''} first.`;     // only a preview has a window
       case 'invalid_input':
         if (job.error_code === 'dataset_not_allowed' || UPLOAD_WORDS.test(rawDetail(job))) return detail.trim() || 'The data this film uses was not accepted. Open Your data to check it.';   // the story is fine: the uploaded data is the thing to fix
         return `The story or its settings weren’t accepted.${detail}${asksToContact ? '' : ' Fix the story and submit again.'}`;
@@ -138,7 +138,7 @@
         return `It went over a size or memory limit.${detail} ${LIMIT_NEXT_OTHER}`;
       }
       default:
-        return `It failed for a reason Ryagram doesn’t recognise.${detail} You can try again.`;
+        return 'It failed for a reason Ryagram doesn’t recognise. You can try again.';          // the worker's own detail stays out of the page
     }
   }
 
@@ -152,18 +152,21 @@
   // How long a place in line may take (WEB 11-23, BUILDER's queue audit). The render PC makes one film at a time. Only a contact sheet has a measured time (the Version page says 'usually about 4 to 5
   // minutes'; WORKER's live run 11-17 took 3 min 52 s), so only a contact sheet gets a number: 5 minutes for each film ahead, said as 'about', never a promise, with 'may take longer' because a film ahead
   // may be a preview or a final render. Any other kind of job says only that each film ahead takes a few minutes (WORKER's preview timings disagree: 2 min 23 s measured, 5 to 7 min in the features list).
-  const ONE_AT_A_TIME = 'The machine makes one film at a time.';
+  const ONE_AT_A_TIME = 'We make one film at a time.';
+  const BUSY_HOURS = 'At busy times yours may take a few hours.';                                                       // WORKER: one PC, one job at a time: a big sign-up morning is hours, whatever the job type
+  const MANY_AHEAD = 'With this many ahead of yours, it may take a few hours or more.';                                // beyond 6 films ahead (30 minutes at 5 each) the estimate can only be longer
   const waitWords = minutes => { const h = Math.floor(minutes / 60), m = minutes % 60; return h ? `${h} hour${h === 1 ? '' : 's'}${m ? ` ${m} minutes` : ''}` : `${m} minutes`; };
   function queueWait(job, position) {
-    if (job.job_type !== 'contact_sheet') return `${ONE_AT_A_TIME} Each film ahead of yours takes a few minutes.`;
-    return `${ONE_AT_A_TIME} It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about ${waitWords(position * 5)} and takes about 5 more, and it may take longer.`;      // position = 1 + the films queued ahead (queue_position, 2a_core.sql), and the film the machine is making NOW is not counted: position x 5 covers it plus the ones ahead, up to when yours STARTS
+    const hours = position > 6 ? MANY_AHEAD : BUSY_HOURS;
+    if (job.job_type !== 'contact_sheet') return `${ONE_AT_A_TIME} Each film ahead of yours takes a few minutes. ${hours}`;
+    return `${ONE_AT_A_TIME} It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about ${waitWords(position * 5)} and takes about 5 more, and it may take longer. ${hours}`;      // position = 1 + the films queued ahead (queue_position, 2a_core.sql), and the film the machine is making NOW is not counted: position x 5 covers it plus the ones ahead, up to when yours STARTS
   }
   function progressNote(job, queuePosition, own) {
     const ownComputer = job.run_on ? job.run_on === 'owner_local' : !!(own && own.tester === true);
     if (job.state === 'queued' && ownComputer && !job.cancel_requested) return own && own.computers === 0 ? WAITING_FOR_COMPUTER : WAITING_FOR_COMPUTER_PICKUP;
     if (job.state === 'queued') {
-      const place = queuePosition ? (queuePosition === 1 ? 'Next in line.' : `Number ${queuePosition} in line. ${queueWait(job, queuePosition)}`) : 'Waiting in line.';
-      return job.attempt > 1 ? `${place} Retrying once after a render-machine problem (attempt ${job.attempt} of 2).` : place;
+      const place = queuePosition ? (queuePosition === 1 ? `Next in line. ${ONE_AT_A_TIME} ${BUSY_HOURS}` : `Number ${queuePosition} in line. ${queueWait(job, queuePosition)}`) : `Waiting in line. ${ONE_AT_A_TIME} ${BUSY_HOURS}`;
+      return job.attempt > 1 ? `${place} This was put back in line after a problem on our side.` : place;
     }
     if (job.cancel_requested) return 'Stopping…';
     if (job.state === 'claimed') return 'The render machine picked it up.';

@@ -14,26 +14,26 @@ const goesRed = (check, oldText) => assert.throws(() => check(oldText), undefine
 const lib = read('assets/app-library.js');
 const panel = lib.slice(lib.indexOf('function jobsPanel('), lib.indexOf("window.addEventListener('hashchange', route)"));
 
-const T20OLD = 'Number 20 in line. The machine makes one film at a time. At about 5 minutes for each film ahead of yours, that is about 1 hour 35 minutes, and it may take longer.';   // the old count: (position - 1) x 5, which left out the film running now and said when yours starts as if it were when it is ready
+const T20OLD = 'Number 20 in line. We make one film at a time. At about 5 minutes for each film ahead of yours, that is about 1 hour 35 minutes, and it may take longer.';   // the old count: (position - 1) x 5, which left out the film running now and said when yours starts as if it were when it is ready
 test('HIGH 2 queue line: a contact sheet behind a line says about 5 minutes for each film ahead, "about", and "may take longer"; no promise', () => {
   const sheet = n => J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, n);
-  const check = s => assert.equal(s, 'Number 20 in line. The machine makes one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour 40 minutes and takes about 5 more, and it may take longer.');
+  const check = s => assert.equal(s, 'Number 20 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour 40 minutes and takes about 5 more, and it may take longer. With this many ahead of yours, it may take a few hours or more.');
   check(sheet(20));
   goesRed(check, 'Number 20 in line.');
   goesRed(check, T20OLD);
-  assert.equal(sheet(2), 'Number 2 in line. The machine makes one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 10 minutes and takes about 5 more, and it may take longer.');
-  assert.equal(sheet(12), 'Number 12 in line. The machine makes one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour and takes about 5 more, and it may take longer.');
-  assert.equal(sheet(1), 'Next in line.', 'nothing ahead: no estimate');
-  assert.equal(sheet(0), 'Waiting in line.', 'position unknown: no number invented');
+  assert.equal(sheet(2), 'Number 2 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 10 minutes and takes about 5 more, and it may take longer. At busy times yours may take a few hours.');
+  assert.equal(sheet(12), 'Number 12 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour and takes about 5 more, and it may take longer. With this many ahead of yours, it may take a few hours or more.');
+  assert.equal(sheet(1), 'Next in line. We make one film at a time. At busy times yours may take a few hours.', 'nothing ahead: no estimate');
+  assert.equal(sheet(0), 'Waiting in line. We make one film at a time. At busy times yours may take a few hours.', 'position unknown: no number invented');
 });
 
 test('HIGH 2 queue line: a preview or a final render (no defensible time) gets no number, only the plain line', () => {
   for (const t of ['preview', 'final_render', undefined]) {
     const s = J.progressNote({ state: 'queued', attempt: 1, job_type: t }, 20);
-    assert.equal(s, 'Number 20 in line. The machine makes one film at a time. Each film ahead of yours takes a few minutes.');
-    assert.doesNotMatch(s, /\d+ minutes|hour/);
+    assert.equal(s, 'Number 20 in line. We make one film at a time. Each film ahead of yours takes a few minutes. With this many ahead of yours, it may take a few hours or more.');
+    assert.doesNotMatch(s, /\d+ minutes|\d+ hour/);
   }
-  assert.match(J.progressNote({ state: 'queued', attempt: 2, job_type: 'contact_sheet' }, 3), /Retrying once after a render-machine problem \(attempt 2 of 2\)\.$/, 'the retry sentence is kept');
+  assert.match(J.progressNote({ state: 'queued', attempt: 2, job_type: 'contact_sheet' }, 3), /This was put back in line after a problem on our side\.$/, 'the retry sentence is kept');
 });
 
 test('HIGH 2 Help, the banner and the in-app help no longer say "If it waits more than an hour we stop it" (expire_stale_queue acts only when rendering is delayed and every worker has been silent the whole timeout)', () => {

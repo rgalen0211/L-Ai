@@ -119,3 +119,65 @@ test('LOW download-my-data: the spreadsheet words appear only when uploads are o
   assert.ok(run({ uploads: true }).some(l => /Spreadsheets/.test(l)));
   assert.match(read('assets/app-account.js'), /uploadsOn\(\) \? 'Your films and uploaded spreadsheets are not inside it\.' : 'Your films are not inside it\.'/);
 });
+
+// ---- jobs words (FACES 09:47 and CC1): a stranger reads true plain words about the wait and about problems ---------------------------------------------
+const J = (() => { const win = {}; vm.runInNewContext(read('assets/app-jobs.js'), { window: win }); return win.ryagramJobs; })();
+const HOURS = /At busy times yours may take a few hours\.|it may take a few hours or more\./;
+
+test('queue: every waiting job, from position 1 and with no position, says one at a time and that busy times can take hours; a contact sheet keeps its 5 minute sentence for 2 and up', () => {
+  for (const type of ['contact_sheet', 'preview', 'final_render', undefined]) {
+    for (const pos of [0, 1, 2, 3, 7, 20]) {
+      const s = J.progressNote({ state: 'queued', attempt: 1, job_type: type }, pos);
+      assert.match(s, /We make one film at a time\./, `${type}/${pos}`);
+      assert.match(s, HOURS, `${type}/${pos}`);
+      assert.doesNotMatch(s, /The machine|render machine/, `${type}/${pos}`);
+    }
+  }
+  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 2), /about 5 minutes for each film ahead of yours/);
+  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 7), /With this many ahead of yours, it may take a few hours or more\./);
+  assert.doesNotMatch(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 3), /With this many/);
+});
+
+test('Help "Why is my film still Queued?" says it can be hours at busy times, on both Help pages', () => {
+  const A = 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours.';
+  assert.ok(read('help/index.html').includes(A));
+  assert.ok(read('assets/app-library.js').includes(A));
+});
+
+test('words a stranger should not read: no attempt counts, no "tried N times", no worker detail on a machine-side problem', () => {
+  const failed = over => J.problem({ state: 'failed', attempt: 2, error_class: 'infrastructure', error_detail: '', ...over });
+  const MOCK = 'The engine process exited unexpectedly (mock).';
+  for (const code of ['crash', 'worker_lost', undefined]) {
+    const s = failed({ error_code: code, error_detail: MOCK });
+    assert.equal(s, 'We had a problem on our side, not with your story. You can try again. If it keeps happening, open “Get help with this”.');
+    assert.doesNotMatch(s, /tried|attempt|engine|process|render machine|mock/i);
+  }
+  assert.equal(J.progressNote({ state: 'queued', attempt: 2 }, 1), 'Next in line. We make one film at a time. At busy times yours may take a few hours. This was put back in line after a problem on our side.');
+  assert.doesNotMatch(J.progressNote({ state: 'queued', attempt: 2 }, 3), /attempt|Retrying|render-machine/);
+  // an unrecognised class does not show the worker's words either; a story problem (checks, invalid input) still shows the plain reason the person can act on
+  assert.doesNotMatch(J.problem({ state: 'failed', error_class: 'weird', error_detail: MOCK }), /engine process/);
+  assert.match(J.problem({ state: 'failed', error_class: 'invalid_input', error_detail: 'The dataset has no data before 2010.' }), /no data before 2010/);
+  assert.equal(failed({ error_code: 'queue_timeout', job_type: 'contact_sheet', attempt: 1 }), 'The render machine did not get to it in time, so we stopped it. This is not your story. You can try again.');
+});
+
+test('contact sheet words: a failed sheet says a new contact sheet, a sheet timeout has no preview window, the state label is plain, the Latest job card maps claimed and running', () => {
+  const gate = type => J.problem({ state: 'editorial_action_required', error_class: 'gate', error_detail: '2 preflight check(s) failed', job_type: type });
+  assert.match(gate('contact_sheet'), /Change the story, then make a new contact sheet\.$/);
+  assert.match(gate('preview'), /Change the story, then make a new preview\.$/);
+  const slow = type => J.problem({ state: 'failed', error_class: 'timeout', error_detail: '', job_type: type });
+  assert.doesNotMatch(slow('contact_sheet'), /preview window/); assert.match(slow('contact_sheet'), /shorten the film first\.$/);
+  assert.doesNotMatch(slow('final_render'), /preview window/);
+  assert.match(slow('preview'), /shorten the film or the preview window first\.$/);
+  assert.equal(J.STATE_LABELS.editorial_action_required, 'Stopped by our checks');
+  assert.equal(J.STATE_LABELS.claimed, 'Starting'); assert.equal(J.STATE_LABELS.running, 'Rendering');
+  assert.match(read('assets/app-library.js'), /window\.ryagramJobs\.STATE_LABELS\[j\.state\] \|\| STATE_LABELS\[j\.state\] \|\| j\.state/);
+});
+
+test('get-app: the Windows download page is noindex and no stranger-visible page links to it (only the invite email does); the card in Account is tester-only', () => {
+  assert.match(read('get-app/index.html'), /<meta name="robots" content="noindex, nofollow">/);
+  for (const p of ['app/index.html', 'ryagram/index.html', 'help/index.html', 'index.html', 'terms/index.html', 'privacy-policy.html', 'report/index.html', 'ai-content/index.html', 'connect-ai/index.html']) {
+    assert.doesNotMatch(read(p), /href="[^"]*get-app/, p);
+  }
+  for (const f of ['assets/app-library.js', 'assets/app-device.js', 'assets/app-start.js', 'assets/app-connect.js']) assert.doesNotMatch(read(f), /href: ['"`][^'"`]*\/get-app/, f);
+  assert.match(read('assets/app-device.js'), /if \(!tester\) return null;\s+\/\/ only an account with the tester flag sees the card/);
+});
