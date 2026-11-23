@@ -62,3 +62,24 @@ test('all three ready-made starts are films the engine passed, and none is on th
   for (const r of B.READY_MADE) assert.ok(!blocked.includes(`${r.dataset}/${r.film_type}`) && !pairs(fixture).includes(`${r.dataset}/${r.film_type}`), r.id);
   assert.doesNotMatch(B.READY_MADE.map(r => r.blurb).join(' '), /county by county/);
 });
+
+test('no template pair that a stranger can be offered is on the block list (Map on county permits and Bars on state unemployment were dropped)', () => {
+  const on = pairs(fixture);
+  const T = ctx.window.ryagramTemplates;
+  const cfg = {}; vm.runInNewContext(fs.readFileSync(path.join(root, 'assets', 'ryagram-config.js'), 'utf8'), { window: cfg });
+  for (const t of T.TEMPLATES.filter(x => !x.unmeasured && !x.flag)) for (const d of t.datasets) assert.ok(!on.includes(`${d}/${t.view}`), `template ${t.id} offers ${d}/${t.view}, which the engine refuses`);
+  assert.equal(T.TEMPLATES.find(x => x.id === 'bars'), undefined);
+  assert.ok(!T.TEMPLATES.find(x => x.id === 'map').datasets.includes('bps_county_permits'));
+});
+
+test('the Industry template stays OFF while 11 of its sector bars are on the block list, and its switch carries the warning where someone would flip it', () => {
+  const on = pairs(fixture);
+  const T = ctx.window.ryagramTemplates;
+  const sector = T.TEMPLATES.find(x => x.id === 'sector');
+  const refused = sector.datasets.filter(d => on.includes(`${d}/bars`));
+  assert.equal(refused.length, 11, 'ENGINE refuses 11 sector bars; if that changed, the comment and this number must change together');
+  const cfgSrc = fs.readFileSync(path.join(root, 'assets', 'ryagram-config.js'), 'utf8');
+  assert.match(cfgSrc, /\n  industryTemplate: false,/);
+  assert.match(cfgSrc, /DO NOT TURN ON until the sector list loses the 11 sector bars the engine refuses \(ENGINE-CATALOG-BLOCK-LIST-1123\.json\), or switch it to map\/line\./);
+  assert.match(fs.readFileSync(path.join(root, 'assets', 'app-templates.js'), 'utf8'), /DO NOT TURN ON until the sector list loses the 11 sector bars the engine refuses/);
+});

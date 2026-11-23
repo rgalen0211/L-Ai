@@ -42,8 +42,9 @@ test('every template on every offered dataset builds a story in the worker schem
   assert.deepEqual([...views].sort(), ['bars', 'line', 'map']);              // paired is not built: it needs keyframes_per_year measured (tests/paired-guard.test.mjs)
 });
 
-test('county permits draw in continuous colour (too small to hatch); state maps keep hatching', () => {
-  assert.deepEqual(plain(T.build('map', 'bps_county_permits', '').sequence.style_overrides), { choropleth: { mode: 'solid', continuous: true } });
+test('state maps keep hatching; the county permits map is no longer a template pair (legend check fails it) and the Bars template is gone', () => {
+  assert.throws(() => T.build('map', 'bps_county_permits', ''), /isn.t offered for this template/);
+  assert.equal(T.TEMPLATES.find(x => x.id === 'bars'), undefined);
   assert.equal(T.build('map', 'state_obesity_fastfood', '').sequence.style_overrides, undefined);
 });
 

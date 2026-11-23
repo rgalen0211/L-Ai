@@ -49,9 +49,9 @@
     { id: 'line', view: 'line', label: 'Line', blurb: 'How a handful of places move over time.',
       datasets: ['bls_state_unemployment'], settings: { line_top_n: 6 }, confirmed: true },
     { id: 'map', view: 'map', label: 'Map', blurb: 'Where it is high and low, and how that shifts.',
-      datasets: ['state_obesity_fastfood', 'bps_county_permits'], confirmed: true },
-    { id: 'bars', view: 'bars', label: 'Bars', blurb: 'A ranked bar race: who leads, year by year.',
-      datasets: ['bls_state_unemployment'], settings: { top_n: 10, axis: 'fixed' }, confirmed: true },
+      datasets: ['state_obesity_fastfood'], confirmed: true },       // 2026-11-23: no county permits map (it fails the engine's legend_separability check)
+    // 2026-11-23: the 'Bars' template (bls_state_unemployment bars) is gone: the engine's rows_move_smoothly check fails it (proposals/ENGINE-CATALOG-BLOCK-LIST-1123.json,
+    // tests/fixtures/engine-catalog-block-list-1123.json). tests/engine-block-list.test.cjs fails if a template offers a pair on that list.
     { id: 'paired', view: 'paired', label: 'Paired', blurb: 'A map and a bar race side by side, one timeline.',
       datasets: ['state_obesity_fastfood'], confirmed: true,
       unmeasured: true },        // a paired film needs keyframes_per_year MEASURED for its own story (Ryan 2026-09-28): never offered, never built here
@@ -61,6 +61,7 @@
       datasets: ['state_obesity_fastfood'], settings: { line_top_n: 6 }, confirmed: true },
     { id: 'sector', view: 'bars', label: 'Industry', blurb: 'Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.',
       // Offered once the worker's dataset allowlist has these (a deliberate edit by Ryan): ryagramConfig.industryTemplate.
+      // DO NOT TURN ON until the sector list loses the 11 sector bars the engine refuses (ENGINE-CATALOG-BLOCK-LIST-1123.json), or switch it to map/line.
       // R002's pacing: 3 s a year, swaps of 0.5 s, fixed axis. Manufacturing sheet on engine main 43d4a1c
       // passes every check (0 jumps, motion 92.7%, 260 s); without swap_seconds the bars snap and fail.
       flag: 'industryTemplate', defaultDataset: 'cbp_manufacturing_share_state',
