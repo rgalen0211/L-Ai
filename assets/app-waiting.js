@@ -94,7 +94,7 @@
       const delForm = h('form', { class: 'contact-form', onsubmit: async event => {
         event.preventDefault(); delError.hidden = true;
         if (!delForm.reportValidity()) return;
-        if (!confirm('Delete your account? If your account has any credit history, we keep that record, we block your login at once, and an administrator closes the account by hand within 30 days.')) return;
+        if (!confirm('Delete your account? If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.')) return;
         await busy(del, 'Deleting…', async () => {
           try {
             const result = await data.deleteAccount(typed.value);
@@ -114,7 +114,7 @@
           h('p', { class: 'form-note' }, 'A valid code opens your access now.'), claimForm),
         h('section', { class: 'account-section', 'aria-labelledby': 'wt-pw' }, h('h2', { id: 'wt-pw' }, 'Password'), pwForm),
         h('section', { class: 'account-section account-danger', 'aria-labelledby': 'wt-del' }, h('h2', { id: 'wt-del' }, 'Delete your account'),
-          h('p', {}, 'We remove you from the list, replace your email in support requests and invite records, and then delete your login. If your account has any credit history, we keep that record, we block your login at once, and an administrator closes the account by hand within 30 days.'), delForm),
+          h('p', {}, 'We remove you from the list, replace your email in support requests and invite records, and then delete your login. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.'), delForm),
         h('p', {}, signOut)
       ];
     }
