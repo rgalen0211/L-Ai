@@ -64,7 +64,7 @@ body.ryagram-ds.ryagram-look .dept-list a:hover,body.ryagram-ds.ryagram-look .de
 body.ryagram-ds.ryagram-look .dept-list a[aria-current=page]{background:rgba(255,255,255,.09);border-color:transparent;color:var(--ink)}
 body.ryagram-ds.ryagram-look .soon-group summary{color:var(--accent-2);list-style:none}
 body.ryagram-ds.ryagram-look .soon-group ul{background:linear-gradient(180deg,rgba(28,30,40,.98),rgba(16,18,26,.98));border:1px solid var(--line-2);border-radius:var(--radius-sm);box-shadow:var(--shadow-2);padding:var(--s2)}
-body.ryagram-ds.ryagram-look .soon-tag{border-color:rgba(255,138,61,.3);color:var(--accent-2);background:var(--bg-2);font-size:var(--t-caption)}   /* its own solid ground: 'Coming soon' is #ffb27a on #10121a (about 10:1), never read against whatever sits behind it (a check read it at 2.25:1 on a pale ground) */
+body.ryagram-ds.ryagram-look .soon-tag{border-color:#6b4a2c;color:#ffb27a;background:#10121a;opacity:1;filter:none;font-size:var(--t-caption)}   /* its own solid ground: 'Coming soon' is #ffb27a on #10121a (10.6:1), plain hex, never read against whatever sits behind it (a check read it at 2.25:1 on a pale ground) */
 body.ryagram-ds.ryagram-look .dept-extra{display:none}
 body.ryagram-ds.ryagram-look .button.dept-menu,body.ryagram-ds.ryagram-look .dept-menu{display:none;align-items:center;min-height:44px;padding:0 var(--s4);border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font:600 var(--t-small)/1 var(--sans);cursor:pointer}
 body.ryagram-ds.ryagram-look .app-account{position:relative;margin-left:auto;display:flex;align-items:center;gap:var(--s3);flex:0 0 auto;font-size:var(--t-small);color:var(--muted)}
