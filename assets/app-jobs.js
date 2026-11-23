@@ -78,6 +78,8 @@
   const REFUSAL_GENERIC = 'Something went wrong. Please try again, or ask us to help.';
   const ALREADY_IN_PROGRESS = 'This film is already being made. You will see it under Jobs.';
   const REFUSAL_OFFLINE = 'Ryagram could not be reached. Check your internet connection and try again.';
+  const QUEUE_FULL_NEXT = 'Your waiting films are listed under Jobs on each film’s page.';
+  const VIEW_BLOCKED = 'This film is not available yet. Please choose another film.';          // the server says 'another view'; the app never calls them views
   const PAUSED_WHAT = { contact_sheet: 'contact sheets', preview: 'previews', final_render: 'full films', film_bundle: 'film files' };
   const DB_WORDS = /row-level security|violates|constraint|\brelation\b|\bcolumn\b|permission denied|\bJWT\b|PGRST|duplicate key|syntax error|schema cache|[\\\/][\w.-]+[\\\/]/i;
   function plainRefusal(message) {
@@ -87,6 +89,9 @@
     if ((m = /^(\w+) jobs are paused\.?$/.exec(text))) return Object.hasOwn(PAUSED_WHAT, m[1]) ? `Making ${PAUSED_WHAT[m[1]]} is paused for now. Please try again later.` : 'This is paused for now. Please try again later.';
     if (/failed to fetch|networkerror|load failed/i.test(text)) return REFUSAL_OFFLINE;
     if (/already in progress/i.test(text)) return ALREADY_IN_PROGRESS;                       // submit_job_for: 'A contact_sheet job for this version is already in progress.' (a second tab): the type name would read as code
+    // The two Tuesday refusals (BUILDER 11-23, migrations 20261123000200/000300): the server's words, plus where to go next (BUILDER's 11:22 page audit).
+    if (/^You have \d+ films? waiting\./.test(text)) return `${text} ${QUEUE_FULL_NEXT}`;
+    if (/^This film is not available yet\./.test(text)) return VIEW_BLOCKED;
     if (LOOKS_LIKE_CODE.test(text) || DB_WORDS.test(text) || text.length > DETAIL_MAX) return REFUSAL_GENERIC;
     return text;
   }

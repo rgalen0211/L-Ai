@@ -809,6 +809,12 @@
           return fail('The story is not a schema-1 sequence yet.');
         }
         const type = args.p_job_type;
+        // The two Tuesday refusals (BUILDER 11-23, migrations 20261123000200/000300), word for word, so a mock walk can see them: ?queuefull (the 2-films-waiting
+        // cap) and ?viewnotready (a blocked film), for a person's own contact sheet or preview only, as the server does.
+        if ((type === 'contact_sheet' || type === 'preview') && typeof location !== 'undefined') {
+          if (/[?&]queuefull/.test(location.search || '')) return fail('You have 2 films waiting. You can start another when one is done.');
+          if (/[?&]viewnotready/.test(location.search || '')) return fail('This film is not available yet. Please pick another view.');
+        }
         const params = args.p_params || {};
         const allowed = { contact_sheet: ['periods'], preview: ['window_s'], final_render: [] }[type];
         const bad = Object.keys(params).find(k => !allowed.includes(k));
