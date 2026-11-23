@@ -7,8 +7,9 @@ import vm from 'node:vm';
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const load = cfg => { const win = { ryagramConfig: cfg }; vm.runInNewContext(read('assets/app-waiting.js'), { window: win, location: { origin: 'https://uselai.com' } }); return win.ryagramWaiting; };
 
-test('the switch is OFF by default and needs exactly true (mock mode turns it on only on localhost)', () => {
-  assert.match(read('assets/ryagram-config.js'), /waitingAccounts:\s*false/);
+test('the switch needs exactly true (mock mode turns it on only on localhost); on branch web-signup-open-1122 the committed value is TRUE (Ryan 11-21: sign-up OPEN at launch), and the README says how to undo it', () => {
+  assert.match(read('assets/ryagram-config.js'), /\n  waitingAccounts: true,\n/);
+  assert.match(read('README.md'), /## Open sign-up switch[\s\S]*waitingAccounts: true[\s\S]*join_open/);
   assert.equal(load({ waitingAccounts: false }).on(), false);
   assert.equal(load({ waitingAccounts: 'true' }).on(), false);
   assert.equal(load({ waitingAccounts: true }).on(), true);
@@ -89,7 +90,10 @@ test('the sign-up page (Q378 A): its own panel with one h1, the email box and NO
   assert.equal((panel.match(/<h1/g) || []).length, 1);
   assert.ok(panel.includes('id="ca-email"'));
   assert.ok(!/type="password"|ca-password|ca-again/.test(panel), 'no password on the sign-up page: it is chosen from the emailed link');
-  assert.match(panel, /are drafts/); assert.match(panel, /Back to sign in/); assert.match(panel, /choose your password/);
+  assert.doesNotMatch(panel, /are drafts|only puts you on the list|joins the list|access opens|waitlist|invite/i, 'open sign-up (11-22): no list, no wait, no invite words on the sign-up page');
+  assert.match(panel, /<p class="form-intro">Make a free account to try Ryagram\.<\/p>/);
+  assert.match(panel, /Ryagram is for people 18 and older\. Read the <a href="\/terms\/">Terms of Use<\/a> and the <a href="\/privacy-policy\.html">Privacy Policy<\/a>\./);
+  assert.match(panel, /Back to sign in/); assert.match(panel, /choose your password/);
   assert.ok(html.indexOf('app-waiting.js') > 0 && html.indexOf('app-waiting.js') < html.indexOf('app-library.js'));
   assert.match(html, /id="create-row"[^>]*hidden>First time here\? <a href="#\/create-account"/);
 });
@@ -101,7 +105,8 @@ test('the account-made-by-sign-up path: the mock starts it WAITING and only a co
 });
 
 test('the waitlist section offers "Create an account" only when the switch is exactly true (hidden in the page, shown by ryagram.js)', () => {
-  assert.match(read('ryagram/index.html'), /<p id="wl-create" class="rg-note" hidden>Or create an account now and we hold your place: <a href="\/app\/#\/create-account">/);
+  assert.match(read('ryagram/index.html'), /<p id="wl-create" class="rg-note" hidden>Or start now: <a href="\/app\/#\/create-account">Create an account<\/a>\. We email you a link to confirm your address and choose a password, and then you can start\.<\/p>/);
+  assert.doesNotMatch(read('ryagram/index.html'), /hold your place|when your access opens/);
   assert.match(read('assets/ryagram.js'), /config\.waitingAccounts === true\) createLine\.hidden = false/);
 });
 
@@ -123,8 +128,12 @@ test('joinWaiting for real: the trimmed address goes in {email}; 200 is ok with 
   let D = dataWith(async (name, opts) => { calls.push([name, opts]); return { data: { message: 'If that email can join, a link is on its way.' }, error: null }; });
   assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('  a@b.co ', true))), { ok: true, off: false, message: 'If that email can join, a link is on its way.' });
   assert.equal(calls[0][0], 'join'); assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), { body: { email: 'a@b.co', adult_confirmed: true } });
+  D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet.' }));
+  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))), { ok: false, off: true, message: 'Making an account is not open yet. Please try again later.' });
   D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet. Join the waitlist instead.' }));
-  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))), { ok: false, off: true, message: 'Making an account is not open yet. Join the waitlist instead.' });
+  const wl = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.equal(wl.off, true); assert.equal(wl.message, 'Making an account is not open yet. Please try again later.'); assert.doesNotMatch(wl.message, /waitlist/i);
+  D = dataWith(async () => httpError(503, { error: 'We cannot send the email. Try later.' }));
+  const sf = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.deepEqual(sf, { ok: false, off: false, message: 'We could not send the email just now. Please try again in a few minutes.' });
   D = dataWith(async () => httpError(429, { error: 'Too many tries. Wait a while, then try again.' }));
   const t = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.equal(t.off, false); assert.equal(t.message, 'Too many tries. Wait a while, then try again.');
   D = dataWith(async () => ({ data: null, error: { message: 'network', context: { status: 0, json: async () => { throw new Error('not json'); } } } }));

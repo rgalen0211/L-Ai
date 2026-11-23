@@ -39,7 +39,7 @@
   };
   const HEADING = 'Tutorial: make a film step by step';
   const SAMPLE_NOTE = 'This is the sample: it walks every step on bundled sample data and makes nothing. No project, no story and no picture are made.';
-  const SAMPLE_ONLY = 'The sample can only check its own ready-made choices. Use “Start the sample again” to put them back, or try your own data.';
+  const SAMPLE_ONLY = 'The sample can only check its own ready-made choices. Use “Start the sample again” to put them back, or choose a dataset yourself.';
 
   // The data the sample walk-through reads: the bundled recording instead of the function. It answers only what was recorded, and refuses any other request in words.
   // A refusal carries `sampleChanges` (what differs from the recording, in words), so the review can say so calmly instead of reporting a problem (NEXT-BUILDER 47).
@@ -213,15 +213,15 @@
           h('div', { class: 'builder-list' }, starts.map(r => { const b = h('button', { type: 'button', class: 'builder-start', 'data-start': r.id }, h('strong', {}, r.label), h('span', { class: 'meta' }, r.blurb)); b.addEventListener('click', () => useStart(r, b)); return b; }))) : null;
         const trySample = sample ? null : h('p', { class: 'form-note builder-sample-link' }, h('a', { href: '#/build/sample' }, 'Try a sample first'), ': it walks every step on bundled sample data and makes nothing.');
         const dataEl = h('div', {}, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, sample
-          ? 'The sample has one dataset. With your own data you choose from the whole list; every dataset shows where it comes from and what its licence allows.'
+          ? 'The sample has one dataset. Outside the sample you choose from the whole list; every dataset shows where it comes from and what its licence allows.'
           : (starts.length ? 'Or choose your own. ' : '') + 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
           filter, h('div', { class: 'scroll-panel dataset-scroll' }, list), sourceHolder);
         const nav = h('div', { class: 'actions-row builder-nav' }, nextBtn);
-        // two sections to flip between (Ryan 11-20: no long pages): the ready-made films, and your own data
+        // two sections to flip between (Ryan 11-20: no long pages): the ready-made films, and choosing a dataset
         if (starts.length && window.ryagramFlip) {
           const flip = window.ryagramFlip.create({ h, label: 'Choose your data', address: false, initial: s.dataset ? 'own' : 'ready', sections: [
             { id: 'ready', label: 'Ready-made films', el: h('div', {}, trySample, ready) },
-            { id: 'own', label: 'Your own data', el: dataEl }] });
+            { id: 'own', label: 'Choose a dataset', el: dataEl }] });      // not 'Your own data': that is the upload panel's name, and this tab picks a public dataset (BUILDER 11-23)
           return [flip.el, nav];
         }
         return [trySample, ready, dataEl, nav];
@@ -314,7 +314,7 @@
               s.problems = {};
               out.replaceChildren(h('div', { class: 'builder-sample-changed', role: 'status' },
                 h('p', { class: 'form-note' }, `The sample has a recorded check only for its own choices, and you changed ${listWords(err.sampleChanges) || 'a choice'}. `,
-                  'Nothing is wrong with your choice: with your own data, Ryagram checks whatever you pick.'),
+                  'Nothing is wrong with your choice: with a dataset you choose, Ryagram checks whatever you pick.'),
                 h('p', { class: 'form-note' }, 'Use “Start the sample again” below to put the sample’s choices back.')));
               return;
             }
@@ -347,7 +347,7 @@
         check();
         return [h('h2', { tabindex: '-1' }, 'Review'), out, sourceBox(),
           h('details', { class: 'builder-advanced' }, h('summary', {}, 'Advanced: the story'), h('p', { class: 'form-note' }, 'This is the exact story that will be saved. You can edit it; Ryagram’s checks still run on every render.'), story, storyNote),
-          sample ? h('p', { class: 'form-note builder-sample-note' }, SAMPLE_NOTE, ' ', h('a', { href: '#/build' }, 'Try it with your own data')) : null,
+          sample ? h('p', { class: 'form-note builder-sample-note' }, SAMPLE_NOTE, ' ', h('a', { href: '#/build' }, 'Try it with a dataset you choose')) : null,
           h('div', { class: 'actions-row builder-nav' }, h('button', { class: 'button secondary', type: 'button', onclick: () => go(5) }, 'Back'), sample ? again : make)];
       }
 

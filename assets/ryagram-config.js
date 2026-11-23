@@ -118,8 +118,10 @@ window.ryagramConfig = Object.freeze({
   gamePhone: false,
   // The Geographic Intelligence demo page (/geo-demo/; NEXT-WEB 198): shaded areas, markers, a clicked site, a ring and labelled counts, on SYNTHETIC data only. Draft words for Ryan. OFF until he has seen it.
   geoDemo: false,
-  // Option B (Ryan 11-04): "Create an account" without an invite code makes a WAITING account that sees only a "You are on the list" page (pages: #/create-account, waiting screen, #/admin/waiting). The server gate (CONNECT) must be applied first or everyone is held; OFF.
-  waitingAccounts: false,
+  // Open sign-up (Ryan 11-21 11:30; LAUNCH-WED-1125 row 1): this switch SHOWS "Create an account" (sign-in page, /ryagram/) and runs the join call. TRUE on branch web-signup-open-1122, for the Wed 11-25 push ONLY AFTER the server half is on:
+  // join_open ON and waiting_accounts OFF (a new account is then ACTIVE at once; welcome credits are not granted, Q679 A; an invite code still grants its own). With waiting_accounts ON (the brake) the same page makes a WAITING
+  // account that sees "You are on the list" (pages: waiting screen, #/admin/waiting). If the server is not open the form says "not open yet". Push this value only after the join test with a new address passes. Set false to hide the Create link.
+  waitingAccounts: true,
   // On the geo demo page, a file chooser that loads the PRIVATE real-data file from the person's own computer (NEXT-WEB 204; OpenStreetMap data, attorney rows open). Needs geoDemo. Nothing is uploaded or stored. OFF.
   geoRealData: false,
   // More honest words on the Geographic Intelligence and Games Coming soon pages (NEXT-WEB 200, from the departments brief): what is coming, how numbers and people are treated, what is not built yet. Draft words for Ryan. OFF until he has read them.

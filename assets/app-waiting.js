@@ -28,6 +28,13 @@
   function ageProblem(over18) { return over18 === true ? null : AGE_PROBLEM; }
   // The one place a new account is asked for. Q378 = A (Ryan 11-04 15:47): CONNECT's join function, email only. It sends the invite-style email; the person confirms the address and
   // chooses a password from that link, as testers do. Supabase's own sign-up stays OFF. {ok, off, message}: off = the switch is not on yet (the page sends people to the waitlist).
+  // The line shown after a good send. The server's own sentence ends 'Already have an account? Sign in instead.'; someone who has an account but never chose a password gets no mail, so the last sentence also names Forgot your password.
+  const FORGOT = 'or use Forgot your password';
+  function sentWords(message) {
+    const m = String(message || 'If that email can join, a link to finish making your account is on its way. It works once. Already have an account? Sign in instead.');
+    if (/forgot your password/i.test(m)) return m;
+    return /Sign in instead\.\s*$/.test(m) ? m.replace(/Sign in instead\.\s*$/, `Sign in instead, ${FORGOT}.`) : `${m} Already have an account? Sign in instead, ${FORGOT}.`;
+  }
   async function signUp(data, email, over18) {
     if (ageProblem(over18)) return { ok: false, off: false, message: AGE_PROBLEM };        // unticked: nothing is sent
     return data.joinWaiting(String(email || '').trim(), true);
@@ -87,7 +94,7 @@
       const delForm = h('form', { class: 'contact-form', onsubmit: async event => {
         event.preventDefault(); delError.hidden = true;
         if (!delForm.reportValidity()) return;
-        if (!confirm('Delete your account? This can’t be undone.')) return;
+        if (!confirm('Delete your account? If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.')) return;
         await busy(del, 'Deleting…', async () => {
           try {
             const result = await data.deleteAccount(typed.value);
@@ -107,7 +114,7 @@
           h('p', { class: 'form-note' }, 'A valid code opens your access now.'), claimForm),
         h('section', { class: 'account-section', 'aria-labelledby': 'wt-pw' }, h('h2', { id: 'wt-pw' }, 'Password'), pwForm),
         h('section', { class: 'account-section account-danger', 'aria-labelledby': 'wt-del' }, h('h2', { id: 'wt-del' }, 'Delete your account'),
-          h('p', {}, 'This deletes your login and removes you from the list, at once.'), delForm),
+          h('p', {}, 'We remove you from the list, replace your email in support requests and invite records, and then delete your login. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.'), delForm),
         h('p', {}, signOut)
       ];
     }
@@ -155,5 +162,5 @@
     return { waitingView, adminView };
   }
 
-  window.ryagramWaiting = Object.freeze({ on, accessOf, pageFor, signUpProblem, ageProblem, signUp, waitingSummary, create, WORDS });
+  window.ryagramWaiting = Object.freeze({ on, accessOf, pageFor, signUpProblem, ageProblem, signUp, sentWords, waitingSummary, create, WORDS });
 })();

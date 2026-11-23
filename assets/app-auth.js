@@ -136,7 +136,7 @@
     const authExpired = $('auth-expired');
     const LINK_WORDS = {
       recovery: ['Reset your password', 'Press the button to choose a new password for your Ryagram account.', 'Choose a new password'],
-      invite: ['Welcome to Ryagram', 'Press the button to accept your invite and choose a password.', 'Accept the invite'],
+      invite: ['Welcome to Ryagram', 'Press the button to confirm your email and choose a password.', 'Continue'],
       signup: ['Confirm your email', 'Press the button to confirm your email address.', 'Confirm my email'],
       magiclink: ['Sign in to Ryagram', 'Press the button to sign in.', 'Sign in'],
       email_change: ['Confirm your new email', 'Press the button to confirm your new email address.', 'Confirm the new address'],
@@ -233,7 +233,7 @@
 
     if (linkToken || implicitSession) {
       const FAILED = {
-        invite: 'That invite link has expired or was already used. If you set a password, sign in; if not, ask for a new invite.',
+        invite: 'That email link has expired or was already used. If you set a password, sign in; if not, ask for a new email link.',
         recovery: 'That reset link has expired or was already used. Ask for a new one below.',
         signup: 'That confirmation link has expired or was already used. Try signing in; if that fails, ask for a new one.',
         magiclink: 'That sign-in link has expired or was already used. Ask for a new one from the sign-in page.',
@@ -409,10 +409,9 @@
       }
     });
 
-    // Option B (NEXT-WEB waiting pages): "First time here? Create an account" replaces the waitlist line when the switch is on; the account made is WAITING until access opens (server gate, CONNECT).
+    // Open sign-up (WEB 11-22): "First time here? Create an account" shows when the switch (waitingAccounts) is on. With the server's join_open ON and waiting_accounts OFF the account is ACTIVE at once; with the brake (waiting_accounts ON) it is WAITING (app-waiting.js).
     if ($('create-row') && waitingOn() && window.ryagramWaiting) {
       $('create-row').hidden = false;
-      const old = document.querySelector('.sign-in-help .help-line'); if (old && /waitlist/i.test(old.textContent)) old.hidden = true;
       const caForm = $('create-account-form'), caNote = $('create-account-note'), caError = $('create-account-error');
       caForm.addEventListener('submit', async event => {
         event.preventDefault();
@@ -426,8 +425,8 @@
         try {
           // Q378 A: email only, through CONNECT's join function; the emailed link confirms the address and lets the person choose a password.
           const r = await window.ryagramWaiting.signUp(window.ryagramData(client), f.email.value, f.over18.checked);
-          if (r.ok) { caNote.textContent = r.message || 'If that email can join, a link to finish joining is on its way.'; }
-          else if (r.off) { caError.textContent = r.message || 'Making an account is not open yet. Join the waitlist instead.'; caError.hidden = false; }
+          if (r.ok) { caNote.textContent = window.ryagramWaiting.sentWords(r.message); }
+          else if (r.off) { caError.textContent = r.message || 'Making an account is not open yet. Please try again later.'; caError.hidden = false; }
           else { caError.textContent = r.message || 'Couldn’t create the account just now. Try again in a minute.'; caError.hidden = false; }
         } catch { caError.textContent = 'Couldn’t reach the server. Check your connection and try again.'; caError.hidden = false; }
         finally { btn.disabled = false; }

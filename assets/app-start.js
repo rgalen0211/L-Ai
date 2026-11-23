@@ -110,7 +110,7 @@
         h('p', { class: 'form-intro' }, 'Connect Claude or ChatGPT once. Then you just tell it what you want, and it makes the film with Ryagram.'),
         h('div', { class: 'start-step' }, h('strong', {}, '1. Pick your AI'), h('p', { class: 'meta' }, 'We show the exact steps for it on your Account page.')),
         h('p', {}, h('a', { class: 'button primary', href: '#/account?connect=claude', 'data-key': 'door-claude' }, 'Connect Claude')),
-        h('p', {}, h('a', { class: 'button primary', href: '#/account?connect=chatgpt', 'data-key': 'door-chatgpt' }, 'Connect ChatGPT (beta)')),
+        h('p', {}, h('a', { class: 'button primary', href: '#/account?connect=chatgpt', 'data-key': 'door-chatgpt' }, 'Connect ChatGPT')),
         h('div', { class: 'start-step' }, h('strong', {}, '2. Come back here'), h('p', { class: 'meta', role: 'status' }, 'This page notices when your AI is connected and takes you to the next step.')),
         h('p', { class: 'start-outs' }, builderLink(), ' ', h('button', { class: 'button secondary', type: 'button', id: 'start-notnow', onclick: () => { store.set(Date.now()); location.hash = '#/'; } }, 'Not now'))
       ];
