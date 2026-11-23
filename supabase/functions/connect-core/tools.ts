@@ -29,7 +29,8 @@ const refuse = (text: string, code: string, extra: Partial<ToolResult> = {}): To
 export function friendlyError(e: unknown): string {
   const code = (e as { code?: string })?.code ?? "";
   const msg = String((e as Error)?.message ?? "");
-  const own = /^(PT\d{3}|P0002|42501|22023)$/.test(code);
+  // PTCAP (the daily credit cap), PTQUE (films already waiting) and PTVEW (a film the machine cannot make) are named, not a pattern: they are plain refusals a retry cannot pass, so the AI must read their words (CONNECT 11-23, BUILDER's ask)
+  const own = /^(PT\d{3}|PTCAP|PTQUE|PTVEW|P0002|42501|22023)$/.test(code);
   if (!own || msg.length > 300) return "Ryagram could not do that right now. Nothing was changed. Try again in a moment.";
   return msg.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]").replace(/\b(sk|ryg|rga|rgr|rgc)[-_][\w-]{8,}/g, "[removed]");
 }
