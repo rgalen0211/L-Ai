@@ -1,0 +1,92 @@
+{
+ "bps_county_permits": [
+  "map",
+  "bars",
+  "paired",
+  "panel",
+  "shares"
+ ],
+ "bea_sainc1_state_income_index": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "bls_state_unemployment": [
+  "bars",
+  "paired",
+  "panel",
+  "shares"
+ ],
+ "cbp_county_grocery": [
+  "map",
+  "bars",
+  "paired",
+  "panel",
+  "shares"
+ ],
+ "cbp_accommodation_food_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "cbp_admin_support_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "cbp_arts_share_state": [
+  "map",
+  "bars",
+  "paired",
+  "panel",
+  "shares"
+ ],
+ "cbp_construction_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "cbp_finance_share_state": [
+  "map",
+  "bars",
+  "paired",
+  "panel",
+  "shares"
+ ],
+ "cbp_management_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "cbp_mining_share_state": [
+  "map",
+  "paired",
+  "panel",
+  "shares"
+ ],
+ "cbp_other_services_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "cbp_professional_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "cbp_retail_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "cbp_utilities_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ],
+ "cbp_wholesale_share_state": [
+  "bars",
+  "paired",
+  "panel"
+ ]
+}

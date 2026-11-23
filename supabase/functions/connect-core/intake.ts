@@ -121,7 +121,7 @@ export function nextStep(input: Known): Step {
   }
   const allowed = SCALE_PICTURES[k.scale];
   if (k.picture === undefined) {
-    return mk({ step: "picture", asking: "picture", ask: "Which picture do you want?", options: allowed.map((p) => PICTURE_WORDS[p]), say: "The 3D interactive globe is coming soon and is not offered yet.",
+    return mk({ step: "picture", asking: "picture", ask: "Which picture do you want?", options: allowed.map((p) => PICTURE_WORDS[p]), say: "A line chart works for every dataset; a map or a ranked bar race only for some (ask dataset_info for the dataset: it lists the views to use), so offer the line first and never promise a map or bars before you have looked. The 3D interactive globe is coming soon and is not offered yet.",
       then: "Pass picture as county_map, state_map, prism_map, line, bars or paired, then continue with suggest_next_step." });
   }
   if (k.picture === "globe") {

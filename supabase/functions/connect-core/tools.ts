@@ -8,6 +8,7 @@ import { textOk } from "./edit_state.ts";
 import { checkStoryStructured } from "./story_check.ts";
 import { describeMeasured, measure, parseCsv, PREPARED_LIMITS } from "./prepared.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
+import { BLOCKED_VIEWS } from "../_shared/blocked_views.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
 import { homeView } from "./home_panel.ts";
@@ -163,7 +164,11 @@ export function datasetInfoText(d: DsRecord, usable: boolean): { text: string; p
   // an empty role or kind in the engine's record is left out, never printed as an empty field ("(per 100k, , rate)", CLOUD-SITE 11-02); a missing unit still says so
   const measureWords = (m: DsRecord["measures"][number]) => `${m.label} (${[m.unit || "no unit", m.role, m.kind].map((x) => String(x ?? "").trim()).filter(Boolean).join(", ")})`;
   L.push(`Measures: ${d.measures.map(measureWords).join("; ") || "none recorded"}.`);
-  L.push(`Views the engine can draw it as: ${d.views.join(", ") || "none"}. A story may still fail on some of these for some datasets: a line view works for every dataset, so prefer it unless the person needs another.`);
+  // The views an AI may USE in a story for this dataset: line always, map and bars only where the engine draws them AND ENGINE's v2 list does not say it fails (tools/data/engine-catalog-block-list-1123.json). Never the engine's raw list.
+  const failing = new Set(BLOCKED_VIEWS[d.id] ?? []);
+  const storyViews = ["line", "map", "bars"].filter((v) => v === "line" || (d.views.includes(v) && !failing.has(v)));
+  const knownBad = ["map", "bars"].filter((v) => d.views.includes(v) && failing.has(v));
+  L.push(`Views to use in a story for it: ${storyViews.join(", ")}. A line view works for every dataset.${knownBad.length ? ` A ${knownBad.join(" or ")} view is known to FAIL for this dataset: do not offer it.` : ""} (paired and panel need a measured keyframes_per_year that a connection cannot give.)`);
   const md = d.missing_data;
   L.push(`Missing data: ${md.absence_is_ambiguous ? "a missing value is ambiguous here" : "a missing value means no figure was published"}${md.note ? `. ${md.note}` : "."}`);
   if (d.method_breaks.length) {

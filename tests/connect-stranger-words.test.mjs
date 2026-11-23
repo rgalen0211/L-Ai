@@ -15,7 +15,7 @@ test('nothing steers the AI to a map or bars as the safe choice: a line view is,
   assert.match(UNMEASURED_WORDS, /use a line view \(it works for every dataset/);
   assert.match(src('connect-core/story_check.ts'), /Use a line view \(it works for every dataset\), or put a measured keyframes_per_year/);
   assert.doesNotMatch(UNMEASURED_WORDS, /make this film in the Ryagram app/);
-  assert.match(src('connect-core/tools.ts'), /A story may still fail on some of these for some datasets: a line view works for every dataset/);
+  assert.match(src('connect-core/tools.ts'), /Views to use in a story for it: \$\{storyViews\.join\(", "\)\}\. A line view works for every dataset\./);
   assert.match(tool('dataset_info').description, /Use it before you promise a person a map, bars or a range of years \(a line view works for every dataset\)/);
 });
 
