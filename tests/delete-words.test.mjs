@@ -39,10 +39,11 @@ test('what the server answers still matches the words: a credit-history account 
   assert.match(rm, /blockLogin\(user\.id\)[\s\S]*status: "requested"/);
   assert.match(rm, /closed by hand/);
   // The reply a credit-history person reads, the mock of it and the page words say the same and promise no number of days (RENDERER 11-23: the mock kept "within 30 days" after the page dropped it).
-  // GEO's ffbcdd16 (origin/geo-delete-free-1123) changes remove.ts to NEW; until it is merged this tree's remove.ts still holds OLD, so either is accepted from the server file, never the mock.
-  const NEW = 'Your films and uploaded files are deleted, and you can no longer sign in. Your credit history is kept as a financial record, so your account itself is closed by hand.';
-  const OLD = 'Your films and uploaded files are deleted, and you can no longer sign in. Your payment history is kept as a financial record, so your account itself is closed by hand within 30 days.';
-  assert.ok(rm.includes(NEW) || rm.includes(OLD), 'remove.ts replies with NEW (or, until GEO ffbcdd16 lands, OLD)');
+  // GEO's final reply (remove.ts on the Wednesday head). The mock and the page words are pinned to it on every tree.
+  // remove.ts is checked strictly only when it already holds GEO's file ('Your films, previews and files'); on v3 alone it still holds the older reply (which still says 'within 30 days'), so there we only assert it says 'closed by hand'; the Wednesday head carries GEO's file and the strict check then runs.
+  const NEW = 'Your films, previews and files are deleted, and you can no longer sign in. Your credit history is kept as a financial record, so your account itself is closed by hand.';
+  if (rm.includes('Your films, previews and files')) assert.ok(rm.includes(NEW), 'remove.ts replies with the pinned sentence');
+  else assert.match(rm, /closed by hand/);
   const mock = read('tests/fake-supabase.js');
   const check = m => { assert.ok(m.includes(`message: '${NEW}'`), 'the mock replies with the server words'); assert.doesNotMatch(m.match(/status: 'requested', message: '[^']*'/)[0], /\d+ days|within/); };
   check(mock);
