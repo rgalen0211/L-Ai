@@ -11,7 +11,7 @@
   // does not reach for a blocked one. The earlier lines on county housing costs, state population, US rents and county income named data the catalog does not have (or, for county permits, invited the blocked map).
   // tests/start.test.mjs pins each line to its (dataset, view): usable, listable, on the worker allowlist, the view in the catalog and not blocked, and the years inside the dataset's range.
   const CATALOG_LINES = [
-    { id: 'unemployment', text: 'Show how unemployment in my state changed from 2019 to 2022' },
+    { id: 'unemployment', text: 'Show how unemployment in my state changed from 2019 to 2022, as a line' },
     { id: 'permits', text: 'Show how building permits in my county changed since 1990, as a line' }
   ];
   const LINES = [
