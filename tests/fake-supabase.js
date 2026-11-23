@@ -1004,7 +1004,7 @@
               return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'A render is still running. Cancel it or let it finish, then try again.' }) } } };
             }
             if (ledger && db.jobs.some(j => j.credits_quoted > 0)) {
-              return { data: { status: 'requested', message: 'Your account has credit history, which is kept as a financial record. Your request is recorded, and your account and files will be deleted by hand within 30 days.' }, error: null };
+              return { data: { status: 'requested', message: 'Your films and uploaded files are deleted, and you can no longer sign in. Your credit history is kept as a financial record, so your account itself is closed by hand.' }, error: null };
             }
             for (const t of ['projects', 'versions', 'artifacts', 'jobs', 'film_pages', 'account_settings', 'ai_sessions', 'ai_messages']) db[t].length = 0;
             return { data: { status: 'deleted', files_removed: 0 }, error: null };

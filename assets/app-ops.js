@@ -13,7 +13,7 @@
     const t = Date.parse(status.last_check_in || '');
     const since = Number.isFinite(t)
       ? ` The render machine last checked in at ${new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...(timeZone ? { timeZone } : {}) })}.` : '';
-    return `Rendering is delayed.${since} Your film will start as soon as it is back. If it waits more than an hour we stop it and give your credits back.`;
+    return `Rendering is delayed.${since} Your film will start as soon as it is back. If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them.`;
   }
 
   // "#/help?job=<uuid>" -> the job id, or null (anything else is ignored, never passed on).
