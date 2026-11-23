@@ -1,5 +1,4 @@
-// Q679 option A (open sign-ups get no welcome credits); Ryan has not answered Q679, so this is a DRAFT until he does. The one plain line about what a free account can make, on the Create an account form and on /ryagram/.
-// Where to switch to option B (welcome credits chosen): change FREE/CLOSED/OPEN in assets/free-account-line.js, the closed sentence in app/index.html and ryagram/index.html, and the CLOSED/OPEN/6/15 expectations below.
+// Q679 option B (Ryan 11-23 15:46): 8 welcome credits when the email is verified, once per email address. The one plain line about what a free account has and can make, on the Create an account form, /ryagram/ and Help.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,9 +8,10 @@ import vm from 'node:vm';
 const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const RULE = (read('assets/app-library.js').match(/const FREE_PREVIEW_RULE = '([^']*)'/) || [])[1];            // the Credits page's own sentence
-const FREE = 'A free account can make free contact sheets. ' + RULE;
-const CLOSED = FREE + ' A full film needs credits, and buying credits is not open yet.';
-const OPEN = FREE + ' Credits pay for full films.';
+const WELCOME = 'When you confirm your email you get 8 welcome credits, once for each email address.';
+const FREE = 'A free account can make free contact sheets. ' + RULE.replace(' A failed free one caused by your story still counts.', '');      // the failed-free sentence stays on the Credits page only (phone height)
+const CLOSED = WELCOME + ' ' + FREE + ' A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones. Buying credits is not open yet.';
+const OPEN = WELCOME + ' ' + FREE + ' Credits pay for full films.';
 const load = (cfg, els = []) => {
   const win = { ryagramConfig: cfg };
   vm.runInNewContext(read('assets/free-account-line.js'), { window: win, document: { querySelectorAll: () => els } });
@@ -26,9 +26,10 @@ test('the free-preview numbers in the line are the ones the database enforces', 
   assert.ok(CLOSED.includes('6 free previews') && CLOSED.includes('15 across all projects in any 24 hours'));
 });
 
-test('ONE rule: the line carries the Credits page sentence word for word (6 per project, 15 in 24 hours, then 1 credit each, a failed free one caused by your story still counts)', () => {
+test('ONE rule: the line carries the Credits page sentence word for word, less its last sentence (6 per project, 15 in 24 hours, then 1 credit each); the failed-free sentence stays on the Credits page', () => {
   assert.equal(RULE, 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.');
-  const win = load({}); assert.ok(win.line().includes(RULE));
+  const win = load({}); assert.ok(win.line().includes(RULE.replace(' A failed free one caused by your story still counts.', '')));
+  assert.ok(!win.line().includes('A failed free one'), 'not duplicated where the phone is tight');
   assert.ok(!/up to 6 free previews/.test(read('app/index.html') + read('ryagram/index.html') + read('assets/free-account-line.js')), 'the older "up to 6" wording is gone: one rule');
 });
 
