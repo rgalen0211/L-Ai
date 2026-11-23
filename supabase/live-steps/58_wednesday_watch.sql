@@ -22,7 +22,7 @@ select 4, 'failed or needs-decision jobs in the last hour, by code',
        coalesce((select string_agg(code || ' x' || n, ', ' order by n desc, code)
                    from (select coalesce(error_code, 'no_code') as code, count(*) as n from public.jobs
                           where state in ('failed', 'editorial_action_required') and ended_at > now() - interval '1 hour' group by 1) f), 'none'),
-       'any one code 3 or more times, or any of crash, start_failed, no_receipt, worker_error, upload_failed'
+       'any one code 3 or more times, or any of crash, start_failed, no_receipt, no_output, no_commit, worker_error, upload_failed, straggler (the machine's faults, as WORKER's watch lists them)'
 union all
 select 5, 'sign-up size used (different addresses, last 24 hours)',
        (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day')::text
