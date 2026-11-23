@@ -14,6 +14,11 @@ union all select 'join_reserve still has the join limits and the turn-taking loc
        coalesce(pg_get_functiondef(to_regprocedure('public.join_reserve(text,text)')) like '%pg_advisory_xact_lock%'
          and pg_get_functiondef(to_regprocedure('public.join_reserve(text,text)')) like '%>= 200%'
          and pg_get_functiondef(to_regprocedure('public.join_reserve(text,text)')) like '%>= 10%', false)
+union all select 'join_release (gives a try back after a failed email send) exists and is for the service role only',
+       coalesce(to_regprocedure('public.join_release(text,text)') is not null
+         and has_function_privilege('service_role', to_regprocedure('public.join_release(text,text)'), 'execute')
+         and not has_function_privilege('authenticated', to_regprocedure('public.join_release(text,text)'), 'execute')
+         and not has_function_privilege('anon', to_regprocedure('public.join_release(text,text)'), 'execute'), false)
 union all select 'nobody signed in or anonymous can read or write the settings row (the flag is the dashboards alone)',
        coalesce(not has_table_privilege('anon', 'public.ops_settings', 'select') and not has_table_privilege('authenticated', 'public.ops_settings', 'select')
          and not has_table_privilege('authenticated', 'public.ops_settings', 'update') and not has_table_privilege('service_role', 'public.ops_settings', 'update'), false)

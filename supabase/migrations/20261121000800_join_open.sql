@@ -63,6 +63,19 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- 11-23 (CC1's audit of the email path): when the join function cannot send the email (SMTP down, Auth's hourly email allowance used up) it tells the person so and calls join_release, which gives back the ONE try
+-- join_reserve just counted for this caller and address (the newest, within the last 10 minutes). Otherwise three honest retries on a launch morning would lock a stranger out for the day. Service role only, like join_reserve.
+create function public.join_release(p_email text, p_ip_hash text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare eh text := encode(sha256(convert_to('ryagram-join:' || lower(btrim(coalesce(p_email, ''))), 'UTF8')), 'hex');
+begin
+  perform pg_advisory_xact_lock(hashtextextended('ryagram-join', 0));                                          -- takes turns with join_reserve
+  delete from public.join_attempts where ctid = (select a.ctid from public.join_attempts a
+    where a.ip_hash = left(coalesce(p_ip_hash, 'unknown'), 64) and a.email_hash = eh and a.at > now() - interval '10 minutes' order by a.at desc limit 1);
+end $$;
+revoke execute on function public.join_release(text, text) from public, anon, authenticated;
+grant execute on function public.join_release(text, text) to service_role;
+
 select ryagram_private.gate_apply();                       -- every migration after the gate ends with this line (a test fails otherwise)
 
 commit;
