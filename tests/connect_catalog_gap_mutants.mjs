@@ -28,7 +28,7 @@ const mutants = [
   ['the story rules say again that nothing can be added', TL, "you cannot add data yourself, and if the person's subject is not in the catalog you say so plainly instead of swapping in another dataset.", 'you cannot upload data.'],
   ['the refusal for an unknown dataset forgets the plain-words rule', SC, ' If the person asked for a subject that is not in this list, tell them so plainly; do not swap in another dataset without saying so.`);', '`);'],
   ['dataset_info forgets the plain-words rule', TL, ' If the person asked for a subject that is not among them, tell them so plainly; do not swap in another dataset without saying so.`, "not_found");', '`, "not_found");'],
-  ['the public guide forgets the catalog line', GD, "    <li>It can draw only the subjects in Ryagram's own catalog of data. If you ask for a subject that is not there, it should tell you so plainly and offer the closest one, not swap in another without saying.</li>\n", ''],
+  ['the public guide forgets the catalog line', GD, "    <li>It can draw only the subjects in Ryagram's own catalog of data and the tables you have accepted. If you ask for a subject that is in neither, it should tell you so plainly and offer the closest one, not swap in another without saying.</li>\n", ''],
   ['a new family of dataset is added and the catalog sentence is not updated', TP, '  bls_state_unemployment: { label: "State unemployment rate (BLS LAUS, monthly)", start: "2019-01", end: "2022-12" },\n', '  bls_state_unemployment: { label: "State unemployment rate (BLS LAUS, monthly)", start: "2019-01", end: "2022-12" },\n  zzz_new_family: { label: "A new family", start: "2010", end: "2019" },\n'],
 ];
 

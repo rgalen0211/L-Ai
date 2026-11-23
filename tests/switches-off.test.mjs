@@ -16,7 +16,8 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '
 
 // The switches Ryan has turned ON (each with his recorded yes in the config's comment or the commit that turned it on). Anything else must be false.
 const ON_BY_RYAN = ['visitCounting', 'credits', 'payments', 'stripeTestMode', 'accountTools', 'passwordReset', 'inviteSignup', 'opsTools', 'filmRequests', 'guidedBuilder',
-  'lookEditor', 'renderOrders', 'connectAi', 'aiFirst', 'departments', 'desktopApp'];
+  'lookEditor', 'renderOrders', 'connectAi', 'aiFirst', 'departments', 'desktopApp',
+  'uploads'];          // uploads: Ryan decided "uploads on for everyone" on 11-21 11:30 (RYAN-APPROVALS line 440); the flip branch is applied only at launch, with him, after WORKER's M3 and the live worker reading uploads
 // Permanently off and read by nothing (the config says so; tests/app-catalog.test.cjs fails if either turns true).
 // Switches that hold the string 'account' (on only for accounts an admin named; assets/app-switches.js featureOn). Each must be read through featureOn, and nothing else may be a string.
 const ACCOUNT_SWITCHES = ['myFilms', 'intake', 'testerFilmProgress', 'testerWizard', 'adminTesterDevices', 'liveEditor'];
