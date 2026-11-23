@@ -13,12 +13,13 @@
   // The prices of a full film by film type, from the price table's final_* rows (data.filmPrices); [] when unread.
   const filmPriceList = rows => (rows || []).map(r => r.credits).filter(c => typeof c === 'number' && c > 0);
 
-  // ' A film type that costs 6 credits would fit. Choose another film type in the builder.' when the price rows hold a film type the balance covers that costs less than this one: the REAL price of the dearest such type
-  // (at 7 credits that is 6, never a made-up 7); '' when no type fits. The builder's step is called 'Film type' (STEPS in assets/app-builder.js).
+  // ' A cheaper film type would fit. Choose another film type in the builder.' when the balance covers the CHEAPEST full-film price in the rows (6, the line view, which every dataset the builder offers keeps) and this film's
+  // own type costs more than the balance; '' otherwise (no hint below the cheapest price). No number is named: a dataset may not offer a type at the dearest price the balance covers (mining at 8 credits has Bars 10 and Line 6, no 8).
+  // The builder's step is called 'Film type' (STEPS in assets/app-builder.js). The strip, the final button's title and the refusal all read this one function.
   function fitsLine(quote, rows) {
     const have = Math.max(0, quote.available || 0);
-    const fit = filmPriceList(rows).filter(c => c <= have && c < quote.credits);
-    return fit.length ? ` A film type that costs ${plural(Math.max(...fit))} would fit. Choose another film type in the builder.` : '';
+    const prices = filmPriceList(rows);
+    return prices.length && Math.min(...prices) <= have && quote.credits > have ? ' A cheaper film type would fit. Choose another film type in the builder.' : '';
   }
 
   // Whether the person can afford it, and if not, why (a negative balance blocks every hold).
