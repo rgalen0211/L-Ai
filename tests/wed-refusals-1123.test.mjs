@@ -40,11 +40,17 @@ test('the builder: after a refused submit the project exists, so Make is hidden 
   assert.match(b, /\n        let madeId = null;[^\n]*\n        if \(sample\) make\.hidden = true;\n        if \(!sample\) make\.addEventListener\('click'/, 'the made project is remembered across presses');
   assert.match(click, /error\.append\(' ', h\('a', \{ href: `#\/v\/\$\{made\.version\.id\}` \}, 'Open the film'\), ' and make its contact sheet there\.'\);/);
   // a BLOCKED film: no Open link (its page would be refused again every time), the way on is another film type here (GAMES 11:27 MEDIUM)
-  const blocked = click.slice(click.indexOf("if (/^This film is not available yet\\./.test("), click.indexOf('} else {', click.indexOf("if (/^This film is not available yet\\./.test(")));
+  const blocked = click.slice(click.indexOf("if (/^This film is not available yet\\./.test("), click.indexOf('} else', click.indexOf("if (/^This film is not available yet\\./.test(")));
   assert.ok(blocked.length > 0, 'the blocked refusal has its own branch');
   assert.match(blocked, /'Choose another film type'/);
   assert.match(blocked, /go\(STEPS\.findIndex\(\(\[id\]\) => id === 'type'\)\)/);
   assert.doesNotMatch(blocked, /Open the film/);
+  // the CAP: the film is saved, and the sheet waits for one of the waiting films (no promise it can be made now: FACES/GAMES 13:03)
+  const capAt = click.indexOf("} else if (/^You have \\d+ films? waiting\\./.test(");
+  assert.ok(capAt > 0, 'the cap refusal has its own branch');
+  const cap = click.slice(capAt, click.indexOf('} else {', capAt));
+  assert.match(cap, /' Your film is saved\. ', h\('a', \{ href: `#\/v\/\$\{made\.version\.id\}` \}, 'Open the film'\), '; when one of your waiting films is done, make its contact sheet there\.'/);
+  assert.doesNotMatch(cap, /and make its contact sheet there/);
   assert.match(click, /madeId = made\.version\.id;/);
   assert.match(click, /\n          if \(madeId\) make\.hidden = true;\n        \}\);/, 'Make hides AFTER busy() has turned it back on');
   assert.ok(click.indexOf('if (madeId) make.hidden = true;') > click.lastIndexOf('await busy(make'), 'after the busy block');

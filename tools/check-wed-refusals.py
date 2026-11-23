@@ -107,7 +107,9 @@ def main():
                 page.wait_for_timeout(400)
                 page.screenshot(path=str(OUT / f'builder-queuefull-{width}.png'), full_page=True)
                 check(page.locator('main a', has_text='Open the film').count() == 1, f'[{width}] builder: "Open the film" is offered after the refusal')
-                check('and make its contact sheet there.' in page.inner_text('main'), f'[{width}] builder: it says to make the contact sheet there')
+                txt = page.inner_text('main')
+                check('Your film is saved.' in txt and 'when one of your waiting films is done, make its contact sheet there.' in txt and 'and make its contact sheet there' not in txt,
+                      f'[{width}] builder: the film is saved and the sheet waits for a waiting film (no promise it can be made now)')
                 check(make.is_hidden(), f'[{width}] builder: Make is hidden, so a second press cannot make a second project')
                 page.evaluate("location.hash = '#/'")
                 page.wait_for_selector('.film-grid', timeout=20000)

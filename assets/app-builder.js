@@ -345,6 +345,9 @@
                 if (/^This film is not available yet\./.test(String(err && err.message || ''))) {
                   // a blocked film (20261123000300): its own page would be refused again every time, so the way on is another film type here (GAMES 11:27)
                   error.append(' ', h('button', { class: 'button secondary small', type: 'button', onclick: () => go(STEPS.findIndex(([id]) => id === 'type')) }, 'Choose another film type'));
+                } else if (/^You have \d+ films? waiting\./.test(String(err && err.message || ''))) {
+                  // the 2-films-waiting cap (20261123000200): the sheet cannot be made NOW either, so no promise that it can (FACES 13:03, GAMES 13:03)
+                  error.append(' Your film is saved. ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), '; when one of your waiting films is done, make its contact sheet there.');
                 } else {
                   error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), ' and make its contact sheet there.');      // the person can carry on there
                 }
