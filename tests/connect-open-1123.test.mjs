@@ -33,9 +33,30 @@ test('PRIVACY says what is kept for a connection, and each clause is what the co
   const t = text(li[1]);
   assert.match(t, /^ Connected AI assistants\. If you connect one, we keep the connection \(the assistant's name and what you allowed\) until you delete your account\./);
   assert.match(t, /tokens are kept only in scrambled form, and stop working when you disconnect it or after 30 days without renewal/);
-  assert.match(t, /log of what it asked us to do for 30 days: the name of the action, whether it worked, a short code, the credits used and the time, but no story text and no tokens/);
+  assert.match(t, /log of what it asked us to do for 30 days: the name of the action, whether it worked, a short code, the credits used and the time, but no story text and no tokens\./);
+  assert.match(t, /The log also holds an identifier for the AI app and a count of its failed checks\./);
+  // what it asked Ryagram to PREPARE is kept elsewhere than the call log (GAMES 11-23 MEDIUM): each clause is pinned to the migration and the tool text
+  assert.match(t, /What it asked Ryagram to prepare for you is kept too\. Download requests \(the web address, its reason, a folder name and a small receipt\) are kept until you delete your account\. Compilation requests and the live editor's draft stay until you delete their project or your account\. A compilation's track list is dropped 24 hours after you last open the editor, and the editor's edit log is kept for 7 days\. Your chat/);
+  const dl = read('supabase/migrations/20261027000500_download_plans.sql');
+  assert.match(dl, /owner_id uuid not null references auth\.users \(id\) on delete cascade,\s+request jsonb[\s\S]*host text[\s\S]*receipt jsonb/);   // address+reason+folder in request, receipt; gone with the account
+  assert.doesNotMatch(dl, /delete from public\.download_plans/);                                                                       // and nothing purges it earlier
+  for (const f of fs.readdirSync(new URL('../supabase/migrations/', import.meta.url))) if (f.endsWith('.sql') && !/rollback/.test(f)) assert.doesNotMatch(read(`supabase/migrations/${f}`), /delete from public\.(download_plans|compilation_requests)\b/, f);
+  const cr = read('supabase/migrations/20261026000300_compilation_requests.sql');
+  assert.match(cr, /project_id uuid primary key references public\.projects \(id\) on delete cascade,\s+owner_id uuid not null references auth\.users \(id\) on delete cascade/);
+  const ed = read('supabase/migrations/20261027000400_live_editor.sql');
+  assert.match(ed, /create table public\.edit_drafts \(\s+project_id uuid not null references public\.projects \(id\) on delete cascade/);
+  assert.match(ed, /coalesce\(editor_seen_at, updated_at\) < now\(\) - interval '24 hours'/);                                              // the compilation track list
+  assert.match(ed, /delete from public\.edit_ops where created_at < now\(\) - interval '7 days'/);                                       // the edit log
+  assert.match(read('supabase/migrations/20261120000100_connect_purge_edit.sql'), /edit_purge/);                                         // the daily purge calls it
+  const tools = read('supabase/functions/connect-core/tools.ts');
+  const defLine = n => (tools.match(new RegExp(`name: "${n}"[^\n]*`)) || [''])[0];
+  for (const n of ['request_download', 'list_my_downloads', 'set_compilation_request']) { assert.match(defLine(n), /name:/, n); assert.doesNotMatch(defLine(n), /listed: false/, `${n} is offered`); }
+  // the place and forecast question tools are NOT offered (listed: false), so the page claims nothing about them
+  for (const n of ['place_question', 'forecast_series', 'what_is_within', 'geo_answer']) assert.match(defLine(n), /listed: false/, n);
+  assert.doesNotMatch(t, /place|forecast/i);
   assert.match(t, /handled by its company, under its own terms, not by us\./);
   const sql = read('supabase/migrations/20261018000100_connect_ai.sql');
+  assert.match(sql, /client_id text,[\s\S]*failed_checks int not null default 0\)/);                                                    // the call log's client id (an identifier, not the name) and failed-check count
   assert.match(sql, /access_hash text/); assert.match(sql, /refresh_hash text not null unique check \(refresh_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/);   // tokens stored only as hashes
   assert.match(sql, /p_refresh_hash, now\(\) \+ interval '30 days'/);                                                                   // the refresh lasts 30 days
   assert.match(sql, /one row per tool call; NO arguments, story text or tokens/);
