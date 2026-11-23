@@ -63,7 +63,7 @@ test('4a Help no longer says every film page has a Report link while film pages 
   const html = read('help/index.html');
   assert.match(html, /<summary>How do I report a film\?<\/summary>\s*<p>Public film pages are not open yet\. To report a film, use the <a href="\/report\/">report form<\/a>\./);
   assert.doesNotMatch(html, /Every public film page has/);
-  assert.ok(lib.includes("'Public film pages are not open yet. To report a film, use the report form. For reports about"));
+  assert.ok(lib.includes("['Public film pages are not open yet. To report a film, use the ', h('a', { href: '/report/' }, 'report form'), '. For reports about"));
   assert.ok(!lib.includes('Every public film page has'));
 });
 
