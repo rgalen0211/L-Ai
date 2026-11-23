@@ -18,6 +18,8 @@ test('H2 EMAIL: the Auth template that join and redeem-invite both use reads tru
   const html = read('supabase/email-templates/invite-user.html');
   assert.match(html, /<h1[^>]*>Finish making your Ryagram account<\/h1>/);
   assert.match(html, /Use the button to choose a password and open Ryagram\./);
+  assert.match(read('supabase/email-templates/invite-user.txt'), /Use the link below to choose a password and open Ryagram\./);   // the plain-text copy has no button (GAMES LOW3)
+  assert.doesNotMatch(read('supabase/email-templates/invite-user.txt'), /Use the button/);
   assert.match(html, />Open Ryagram<\/a>/);
   assert.equal(read('supabase/email-templates/invite-user.subject.txt').trim(), 'Finish making your Ryagram account');
   assert.doesNotMatch(read('supabase/email-templates/invite-user.txt') + html, /ConfirmationURL/);

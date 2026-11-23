@@ -536,7 +536,7 @@ test('CREATOR BETA: the form asks name, email, who they are (all six kinds), wha
   for (const kind of ['youtuber', 'podcaster', 'newsletter', 'journalist', 'teacher', 'researcher']) assert.match(form, new RegExp(`<option value="${kind}">`), kind);
   for (const id of [...form.matchAll(/<(?:input|select|textarea) id="([^"]+)"/g)].map(m => m[1])) assert.match(form, new RegExp(`for="${id}"`), id);
   assert.match(form, /<div class="hp" aria-hidden="true">/);
-  assert.match(pageHtml, /<script src="\/assets\/creator-beta\.js" defer><\/script>/);
+  assert.match(pageHtml, /<script src="\/assets\/creator-beta\.js\?v=20261123a" defer><\/script>/);
 });
 
 test('the page works with the strict policy: no inline script or style, and nothing from outside but the typeface', () => {

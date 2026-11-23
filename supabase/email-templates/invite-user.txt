@@ -2,7 +2,7 @@ Ryagram
 
 Finish making your Ryagram account
 
-You're getting this because this email address was used to make a Ryagram account. Use the button to choose a password and open Ryagram.
+You're getting this because this email address was used to make a Ryagram account. Use the link below to choose a password and open Ryagram.
 
 Open Ryagram:
 {{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=invite
