@@ -111,6 +111,31 @@ class Purge(core.Base):
         third = self.svc().one("select retention_purge()")
         self.assertEqual((third["skipped"], third["applications"]), (False, 1))
 
+    # -- CONNECT 11-23 (CC1 09:48 audit): Privacy says a join attempt's scrambled address and email go after 2 days; join_reserve cleaned them only when a join was tried
+    def test_CONNECT_join_attempts_go_after_2_days_and_invite_guesses_after_a_day_even_when_nobody_calls_join(self):
+        eh = "ab" * 32
+        for hrs in (96, 49, 47, 1):
+            self.admin("insert into public.join_attempts (ip_hash, email_hash, at) values (%s, %s, now() - make_interval(hours => %s)) returning 1", f"ip{hrs}", eh, hrs)
+        for hrs in (48, 12):
+            self.admin("insert into public.invite_attempts (ip_hash, at) values (%s, now() - make_interval(hours => %s)) returning 1", f"g{hrs}", hrs)
+        r = self.svc().one("select retention_purge()")
+        self.assertEqual((r["skipped"], r["join_attempts"], r["invite_attempts"]), (False, 2, 1))
+        self.assertEqual(sorted(x[0] for x in self.db.as_(None).all("select ip_hash from public.join_attempts")), ["ip1", "ip47"], "96 and 49 hours old: gone; 47 and 1: kept")
+        self.assertEqual([x[0] for x in self.db.as_(None).all("select ip_hash from public.invite_attempts")], ["g12"], "48 hours old: gone; 12: kept")
+        self.assertEqual(self.svc().one("select retention_purge()"), {"skipped": True}, "the same New York day: nothing more happens")
+
+    def test_CONNECT_the_old_answer_keys_are_still_there_and_the_rollback_puts_the_old_function_back(self):
+        r = self.svc().one("select retention_purge()")
+        for k in ("applications", "invite_codes", "person_invites", "help_requests", "reports", "funnel_events", "help_requests_unanswered", "outbox_invites", "outbox_ops_mail"):
+            self.assertIn(k, r, k)
+        self.admin("update public.retention_runs set last_run_on = null returning 1")
+        self.db.as_(None).c.execute((core.ROOT / "rollbacks" / "20261123000400_retention_join_attempts_rollback.sql").read_text(encoding="utf-8"))
+        self.admin("insert into public.join_attempts (ip_hash, email_hash, at) values ('old', %s, now() - interval '5 days') returning 1", "cd" * 32)
+        r = self.svc().one("select retention_purge()")
+        self.assertNotIn("join_attempts", r)
+        self.assertEqual(self.admin("select count(*) from public.join_attempts where ip_hash = 'old'"), 1, "the old function does not touch it")
+        self.assertIn("applications", r)
+
     def test_nothing_due_deletes_nothing(self):
         self.app(1, 11)
         r = self.svc().one("select retention_purge()")

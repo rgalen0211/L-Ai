@@ -29,7 +29,8 @@ const refuse = (text: string, code: string, extra: Partial<ToolResult> = {}): To
 export function friendlyError(e: unknown): string {
   const code = (e as { code?: string })?.code ?? "";
   const msg = String((e as Error)?.message ?? "");
-  const own = /^(PT\d{3}|P0002|42501|22023)$/.test(code);
+  // PTCAP (the daily credit cap), PTQUE (films already waiting) and PTVEW (a film the machine cannot make) are named, not a pattern: they are plain refusals a retry cannot pass, so the AI must read their words (CONNECT 11-23, BUILDER's ask)
+  const own = /^(PT\d{3}|PTCAP|PTQUE|PTVEW|P0002|42501|22023)$/.test(code);
   if (!own || msg.length > 300) return "Ryagram could not do that right now. Nothing was changed. Try again in a moment.";
   return msg.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]").replace(/\b(sk|ryg|rga|rgr|rgc)[-_][\w-]{8,}/g, "[removed]");
 }
@@ -51,8 +52,9 @@ const whoami: ToolDef = {
     const w = await ctx.data.whoami();
     return ok(
       `You are acting as the Ryagram account ${untrusted("account-label", w.label)}. Credits available: ${w.available}; held for running jobs: ${w.held}. ` +
-      `Contact sheets and previews started from a connection are free. If one would cost credits it is refused and the person starts it in the Ryagram app: ` +
-      `a connection cannot spend credits. A full render can never be started from a connection: the person presses "Render final film" in the Ryagram app.`,
+      `A contact sheet is free. A preview is free for the first 6 of a project (15 in any 24 hours), then it costs 1 credit. If one would cost credits it is refused: a connection cannot spend credits. ` +
+      `If the person has the credits they can start it in the Ryagram app; if they have none, nothing more can be started right now, so do not send them there for it. ` +
+      `A full render can never be started from a connection: the person presses "Render final film" in the Ryagram app.`,
       { account: w.label, credits_available: w.available, credits_held: w.held, full_render_enabled: false });
   },
 };
@@ -401,7 +403,8 @@ async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnTyp
   }
   const q = await ctx.data.quote(versionId, jobType);
   if (q.credits > 0) {
-    return refuse(`${label} would cost ${q.credits} credits. NOTHING was started. A connection cannot spend credits: tell the person, and they can start it in the Ryagram app.`,
+    return refuse(`${label} would cost ${q.credits} credits: the free previews of this project (6) or of the day (15 in any 24 hours) are used up. NOTHING was started. A connection cannot spend credits. ` +
+      (q.available >= q.credits ? `The person has ${q.available} credits and can start it in the Ryagram app.` : `The person has ${q.available} credits, which is not enough, so nothing more can be started right now: tell them so, and do not send them to the Ryagram app for it.`),
       "costs_credits", { credits: q.credits, data: { started: false, credits: q.credits } });
   }
   const job = await ctx.data.submitJob(versionId, jobType, params);
@@ -861,7 +864,7 @@ const costEstimate: ToolDef = {
     else parts.push(`${words[0].toUpperCase()}${words.slice(1)} would cost ${q.credits} credits.`);
     parts.push(`The person has ${q.available} credits${q.credits > 0 ? (enough ? `, so ${q.available - q.credits} would be left` : ", which is not enough") : ""}.`);
     if (step === "final_render") parts.push("A connection cannot start it: the person presses 'Render final film' in the Ryagram app.");
-    else if (!connectionCanStart) parts.push("A connection cannot spend credits: the person starts it in the Ryagram app.");
+    else if (!connectionCanStart) parts.push(enough ? "A connection cannot spend credits: the person starts it in the Ryagram app." : "A connection cannot spend credits and the person does not have enough, so nothing more can be started right now.");
     else parts.push("You can start it with the tool for it.");
     if (step === "preview" && !sheetDone) parts.push("A preview also waits for the finished contact sheet of this exact story.");
     parts.push("Nothing was started and no credits were used.");
