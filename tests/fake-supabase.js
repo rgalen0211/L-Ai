@@ -979,11 +979,14 @@
             if (body.adult_confirmed !== true) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Confirm that you are 18 or older to make an account.' }) } } };
             const email = String(body.email || '').trim().toLowerCase();
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Enter a valid email address.' }) } } };
-            if (typeof location !== 'undefined' && /[?&]joinoff/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 409, json: async () => ({ error: 'Making an account is not open yet. Join the waitlist instead.' }) } } };
+            if (typeof location !== 'undefined' && /[?&]joinoff/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 409, json: async () => ({ error: 'Making an account is not open yet. Please try again later.' }) } } };
+            // The server's other answers (supabase/functions/join/join.ts; tests/join-mock-words.test.mjs keeps these equal to it): ?joinsendfail = 503, ?joinfull = 429.
+            if (typeof location !== 'undefined' && /[?&]joinsendfail/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 503, json: async () => ({ error: 'We couldn’t send the email just now. Please try again in a few minutes.' }) } } };
+            if (typeof location !== 'undefined' && /[?&]joinfull/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 429, json: async () => ({ error: 'Sign-up is full for now. Please try again later.' }) } } };
             db.waiting = db.waiting || [];
             if (!db.waiting.some(w => w.email === email)) db.waiting.push({ user_id: `00000000-0000-4000-8000-${String(100 + db.waiting.length).padStart(12, '0')}`, email, joined_at: new Date().toISOString(), confirmed: false, approved: false });
             log.push({ joined: email });
-            return { data: { message: 'If that email can join, a link to finish joining is on its way. It works once.' }, error: null };
+            return { data: { message: 'If that email can join, a link to finish making your account is on its way. It works once. If it has not come in a few minutes, try again later. Already have an account? Sign in instead.' }, error: null };
           }
           if (name === 'approve-waiting') {
             // Mock of CONNECT's approve-waiting: admin only; refuses an unconfirmed address; answers {status, message} (mail is not switched on in the mock, so 'saved').
