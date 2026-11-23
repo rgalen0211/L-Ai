@@ -11,7 +11,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const terms = read('terms/index.html');
 const privacy = read('privacy-policy.html');
 const LABEL = 'Preview terms: free preview, no payments';
-const NOT_OPEN = 'Credits and payments are not open yet; these terms will be replaced before any payment.';
+const NOT_OPEN = 'Buying credits and payments are not open yet; these terms will be replaced before any payment.';
 const mainOf = (html) => html.match(/<main[\s\S]*?<\/main>/)[0];
 const textOf = (html) => mainOf(html).replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 const privPart = privacy.match(/<section id="ryagram-preview">[\s\S]*?<\/section>/)[0];

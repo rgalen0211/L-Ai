@@ -10,13 +10,13 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 const page = read('ai-content/index.html');
 const LABEL = 'Preview terms: free preview, no payments';
-const NOT_OPEN = 'Credits and payments are not open yet; these terms will be replaced before any payment.';
+const NOT_OPEN = 'Buying credits and payments are not open yet; these terms will be replaced before any payment.';
 const main = page.match(/<main[\s\S]*?<\/main>/)[0];
 const text = main.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 const BANNER = /<strong>Preview terms[^<]*<\/strong>[^<]*/;
 
 test('LABEL: the banner is the preview Terms banner, word for word, before any section; no draft or placeholder wording is left', () => {
-  assert.match(page, /<p class="shell-banner" role="note"><strong>Preview terms: free preview, no payments\.<\/strong> Credits and payments are not open yet; these terms will be replaced before any payment\.<\/p>/);
+  assert.match(page, /<p class="shell-banner" role="note"><strong>Preview terms: free preview, no payments\.<\/strong> Buying credits and payments are not open yet; these terms will be replaced before any payment\.<\/p>/);
   assert.ok(page.indexOf(LABEL) < page.indexOf('<h2>'));
   assert.ok(text.includes(NOT_OPEN));
   assert.doesNotMatch(page, /DRAFT\. Pending legal review|This page is a placeholder|PLACEHOLDER SHELL|data-legal-shell|\[RYAN|\[ATTORNEY|\bTBD\b/);
