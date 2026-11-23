@@ -502,7 +502,7 @@
            h('label', { for: 'rq-notes' }, 'Notes (optional)'), notes, send, error);
       await reload();
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Request a film'),
-              h('p', { class: 'form-note' }, 'Tell us the question you want data to answer. We make the film and send it back here. This is a private beta, so each one is made by hand.'),
+              h('p', { class: 'form-note' }, 'Tell us the question you want data to answer. We make the film and send it back here. Each one is made by hand, so it can take a day or more.'),
               balance, cost, form, done, h('h2', {}, 'Your requests'), list];
     }
 
