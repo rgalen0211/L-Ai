@@ -15,10 +15,10 @@ const SUITES = ['connect-prepared-data.test.mjs', 'connect-prepared-guide.test.m
 const mutants = [
   ['submit_prepared_data loses the switch', T, 'scope: "submit_data", readOnly: false, idempotent: false, preparedData: true,', 'scope: "submit_data", readOnly: false, idempotent: false,'],
   ['list_my_data loses the switch', T, 'scope: "read", readOnly: true, idempotent: true, preparedData: true,', 'scope: "read", readOnly: true, idempotent: true,'],
-  ['a call is answered while the switch is off', DI, ' || (found.preparedData && !env.preparedData))', ')'],
+  ['a call is answered while the switch is off', DI, ' || (found.preparedData && !env.preparedData) || (env.listedOnly', ' || (env.listedOnly'],
   ['the list shows the tools while the switch is off', M, ' && (!t.preparedData || preparedData))', ')'],
   ['the MCP list is always told the switch is on', M, 'homePanelOn(deps.mcpApp), preparedDataOn(deps.mcpApp))', 'homePanelOn(deps.mcpApp), true)'],
-  ['the MCP call is always told the switch is on', M, 'preparedData: preparedDataOn(deps.mcpApp) };', 'preparedData: true };'],
+  ['the MCP call is always told the switch is on', M, 'preparedData: preparedDataOn(deps.mcpApp), listedOnly: true };', 'preparedData: true, listedOnly: true };'],
   ['the switch needs the MCP App face as well', M, 'export const preparedDataOn = (a?: McpAppConfig) => !!a?.preparedData;', 'export const preparedDataOn = (a?: McpAppConfig) => !!(a?.enabled && a.preparedData);'],
   ['the OpenAPI document offers the tools while the switch is off', RE, ' && !x.homePanel && !x.preparedData)', ' && !x.homePanel)'],
   ['the scope is advertised while the switch is off', OA, 'preparedData ? SCOPES : SCOPES.filter((s) => s !== "submit_data");', 'SCOPES;'],
