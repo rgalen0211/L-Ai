@@ -53,7 +53,9 @@ test('the plain-text part says the same as the HTML part: same reason, button wo
     const html = plain(read(name + '.html'));
     const text = read(name + '.txt');
     const why = html.match(/(You(?:'|’)re getting this because[^<]+)</)[1];
-    assert.ok(text.includes(why), name + ': reason');
+    // (the plain-text copy has no button, so for the invite mail it says "Use the link below" where the HTML says "Use the button": GAMES LOW3 11-23)
+    const whyText = name === 'invite-user' ? why.replace('Use the button', 'Use the link below') : why;
+    assert.ok(text.includes(whyText), name + ': reason');
     const button = html.match(/<a href="[^"]+" style="display:inline-block[^>]*>([^<]+)<\/a>/)[1];
     assert.ok(text.includes(button + ':'), name + ': button words');
     const heading = html.match(/<h1[^>]*>([^<]+)<\/h1>/)[1];

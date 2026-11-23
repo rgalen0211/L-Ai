@@ -272,7 +272,7 @@ test('an invite link: checked as an invite only when the button is pressed, remo
   const stale = harness({ location: { hostname: 'uselai.com', search: '?invite=expiredinvite1' }, verifyOtp: () => ({ error: { message: 'expired' } }) });
   await stale.emit(null);
   await stale.click();
-  assert.match(stale.els['app-status'].textContent, /invite link has expired/);
+  assert.match(stale.els['app-status'].textContent, /email link has expired/);
 });
 
 // ---- Auth emails link through our own domain: /app/#/auth?token_hash=...&type=... (deliverability); the token is spent only when the person presses the button ----
@@ -322,7 +322,7 @@ test('confirm route: after the button, signup, magic link and email change go to
 });
 
 test('confirm route: an expired or used link says so in words for each type, shows the ask-for-a-new-link screen, and never leaves the page stuck', async () => {
-  const expected = { signup: /confirmation link has expired/, invite: /invite link has expired/, magiclink: /sign-in link has expired/,
+  const expected = { signup: /confirmation link has expired/, invite: /email link has expired/, magiclink: /sign-in link has expired/,
                      recovery: /reset link has expired/, email_change: /Start the email change again/, email: /link has expired/ };
   for (const [type, re] of Object.entries(expected)) {
     const h = harness({ location: confirmAt(type), verifyOtp: () => ({ error: { message: 'expired' } }) });

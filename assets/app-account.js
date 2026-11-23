@@ -6,9 +6,11 @@
 // everything the database holds about them (a server-side export is proposed to CC1); the file says so, and says what it leaves out (rendered film files, uploaded spreadsheets).
 // Everything from the server goes in as text nodes, never as HTML.
 (() => {
+  // The spreadsheet line is said only when uploads are on (uploads is off in the preview: nobody has uploaded anything). Same test as app-library.js uploadsOn().
+  const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
+  const SPREADSHEETS = 'Spreadsheets you uploaded are not inside this file: you already have the originals.';
   const NOT_IN_THE_FILE = [
     'Your rendered films and contact sheets are not inside this file: each one has an Open link in its version’s Files list.',
-    'Spreadsheets you uploaded are not inside this file: you already have the originals.',
     'Records that belong to the service rather than to you (payment events, abuse reports, internal logs) are not shown to you and are not in this file.'
   ];
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -30,7 +32,7 @@
     for (const [name, rows] of Object.entries(parts)) {
       if (rows && rows.error) { missing.push(`${name}: ${rows.error}`); out[name] = []; } else out[name] = Array.isArray(rows) ? rows : rows == null ? [] : rows;
     }
-    out.not_in_this_file = [...NOT_IN_THE_FILE, ...missing.map(m => `Could not be read just now: ${m}`)];
+    out.not_in_this_file = [NOT_IN_THE_FILE[0], ...(uploadsOn() ? [SPREADSHEETS] : []), ...NOT_IN_THE_FILE.slice(1), ...missing.map(m => `Could not be read just now: ${m}`)];
     return out;
   }
   const fileName = (now = new Date()) => `ryagram-my-data-${now.toISOString().slice(0, 10)}.json`;
@@ -78,7 +80,7 @@
         });
       });
       return h('section', { class: 'account-section', 'aria-labelledby': 'acct-export' }, h('h2', { id: 'acct-export' }, 'Download your data'),
-        h('p', { class: 'form-note' }, 'A file with your projects, every version’s story, your jobs, credits and requests. It is made here on your device and goes nowhere. Your films and uploaded spreadsheets are not inside it.'), h('p', {}, button), done, error);
+        h('p', { class: 'form-note' }, 'A file with your projects, every version’s story, your jobs, credits and requests. It is made here on your device and goes nowhere. ' + (uploadsOn() ? 'Your films and uploaded spreadsheets are not inside it.' : 'Your films are not inside it.')), h('p', {}, button), done, error);
     }
 
     function helpSection() {

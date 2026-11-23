@@ -16,7 +16,7 @@
   };
   const STATE_LABELS = {
     queued: 'Queued', claimed: 'Starting', running: 'Rendering', validating: 'Checking', uploading: 'Uploading',
-    complete: 'Complete', failed: 'Failed', editorial_action_required: 'Needs a decision', cancelled: 'Cancelled'
+    complete: 'Complete', failed: 'Failed', editorial_action_required: 'Stopped', cancelled: 'Cancelled'
   };
 
   const isActive = job => ACTIVE.includes(job.state);
@@ -28,7 +28,7 @@
   // Also (WEB 11-21, WORKER's table proposals/WORKER-FREE-PREVIEW-FAILURES-1121.md): an "...Error" word (KeyError), "exit 1:", a file name (preview.mp4, x.json), a bare limit number ("limit 52428800", "61234567 bytes")
   // and the lower-case jargon "sidecar", "engine commit", "preflight". A full stop in ordinary prose is not caught: a file name needs one of the listed endings right after its dot.
   const LOOKS_LIKE_CODE = /[$\[\]{}]|::|Traceback|\bat line\b|\bException\b|\b[a-z]+_[a-z_]+\b|\b[A-Z][a-z]+Error\b|^\s*exit \d+\b|\b[\w-]+\.(?:mp4|json|png|csv|py|log|txt)\b|\blimit \d{3,}|\b\d{5,} bytes\b|\b(?:[Ss]idecar|[Ee]ngine commit|[Pp]reflight)\b/;
-  const UNREADABLE = 'The render machine gave a reason Ryagram cannot put into plain words. Open “Get help with this” to see it, or send it to us.';
+  const UNREADABLE = 'The render machine gave a reason Ryagram cannot put into plain words. Open “Get help with this” and send it to us.';
   const unquote = t => String(t).trim().replace(/^(['"“])(.*)\1$/, '$2');
   function where(path) {
     const parts = String(path || '').replace(/^\$\.?/, '').split('.').filter(Boolean)
@@ -51,7 +51,7 @@
     let m;
     if ((m = /^unknown key '([^']+)'/i.exec(msg))) return `The story has a setting Ryagram doesn’t recognise: “${m[1]}”${at}.`;
     if ((m = /^(?:missing|required)(?: key)? '?([^']*)'?/i.exec(msg))) return `The story is missing a required setting${m[1] ? `: “${m[1]}”` : ''}${at}.`;
-    if ((m = /^(.+?) is not on this worker.s dataset allowlist/i.exec(msg))) return `The dataset “${unquote(m[1])}”${at} can’t be drawn here. Pick a dataset from the catalog.`;
+    if ((m = /^(.+?) is not on this worker.s dataset allowlist/i.exec(msg))) return `The dataset “${unquote(m[1])}”${at} can’t be drawn here. Start again from a ready-made film.`;
     if ((m = /^(.+?) is not offered for (\S+) on this worker \(offered: ([^)]*)\)/i.exec(msg))) return `${unquote(m[2])} can’t be drawn as ${unquote(m[1])}${at}. It can be drawn as: ${m[3].trim()}.`;
     if ((m = /^(.+?) is not one of (.+)$/i.exec(msg))) {
       const choices = m[2].replace(/[\[\]"“”']/g, '').split(',').map(x => x.trim()).filter(Boolean);
@@ -69,9 +69,29 @@
     if (!out.length) return text.startsWith('$') || LOOKS_LIKE_CODE.test(text) || text.length > DETAIL_MAX ? UNREADABLE : text;
     const advice = faults.some(f => /unknown key/i.test(f)) ? ' Remove the setting(s) above, or pick a ready-made film and start again.' : '';       // said once, not after every fault
     const shown = out.slice(0, 5).join(' ') + advice;
-    return out.length > 5 ? `${shown} And ${out.length - 5} more: open “Get help with this”.` : shown;
+    return out.length > 5 ? `${shown} And ${out.length - 5} more. Open “Get help with this” and send it to us.` : shown;
   }
-  const rawDetail = job => String((job && job.error_detail) || '').trim();
+  const rawDetail = job => String((job && job.error_detail) || '').trim();      // kept for the help form's own use; the job list never shows it (WEB 11-23: a stranger's page shows only problem()'s words)
+
+  // The words a stranger reads when a click is refused (WEB 11-23). The server's own sentences are shown as they come only when they already are plain; a code name, a path or a database
+  // phrase becomes one plain line. 'contact_sheet jobs are paused.' is control.disabled_job_types (an operator switch, 20261017000600_pipe1_orders.sql): nothing says for how long.
+  const REFUSAL_GENERIC = 'Something went wrong. Please try again, or ask us to help.';
+  const ALREADY_IN_PROGRESS = 'This film is already being made. You will see it under Jobs.';
+  const REFUSAL_OFFLINE = 'Ryagram could not be reached. Check your internet connection and try again.';
+  const PAUSED_WHAT = { contact_sheet: 'contact sheets', preview: 'previews', final_render: 'full films', film_bundle: 'film files' };
+  const DB_WORDS = /row-level security|violates|constraint|\brelation\b|\bcolumn\b|permission denied|\bJWT\b|PGRST|duplicate key|syntax error|schema cache|[\\\/][\w.-]+[\\\/]/i;
+  function plainRefusal(message) {
+    const text = String(message == null ? '' : message).trim();
+    if (!text) return REFUSAL_GENERIC;
+    let m;
+    if ((m = /^(\w+) jobs are paused\.?$/.exec(text))) return Object.hasOwn(PAUSED_WHAT, m[1]) ? `Making ${PAUSED_WHAT[m[1]]} is paused for now. Please try again later.` : 'This is paused for now. Please try again later.';
+    if (/failed to fetch|networkerror|load failed/i.test(text)) return REFUSAL_OFFLINE;
+    if (/already in progress/i.test(text)) return ALREADY_IN_PROGRESS;                       // submit_job_for: 'A contact_sheet job for this version is already in progress.' (a second tab): the type name would read as code
+    if (LOOKS_LIKE_CODE.test(text) || DB_WORDS.test(text) || text.length > DETAIL_MAX) return REFUSAL_GENERIC;
+    return text;
+  }
+  // The free-preview limit, said once with both limits because credit_quote says only that the preview is not free (credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15).
+  const FREE_PREVIEW_USED = 'Your free previews are used up: each project gets 6, and 15 across all projects in any 24 hours. Start a new project if this one used its 6, or try again later.';
 
   // One sentence for a finished job that did not complete, by error class.
   // DRAFT FOR RYAN (WEB 11-21, from WORKER's failure table): the words for a limit with no next step, for the machine's own setup (engine_unsupported), and for checks that did not run.
@@ -100,14 +120,15 @@
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
       if (/checks did not run/i.test(String(job.error_detail || ''))) return CHECKS_DID_NOT_RUN;   // the machine's fault, not the story's: never "Change the story"
       if (/render-anyway|override/i.test(rawDetail(job))) return `Ryagram’s checks stopped this render.${detail} No change to the story can fix this. ${RENDER_HELP}`;   // the local-only override: no web story can carry it
-      return `Ryagram’s checks stopped this render.${detail}${asksToContact ? '' : ' Change the story, then make a new preview.'}`;
+      return `Ryagram’s checks stopped this render.${detail}${asksToContact ? '' : ` Change the story, then ${job.job_type === 'contact_sheet' ? 'make a new contact sheet' : 'make a new preview'}.`}`;
     }
     switch (job.error_class) {
       case 'infrastructure':
-        if (job.error_code === 'queue_timeout') return `The render machine had a problem, not your story.${detail} You can try again.`;     // it never ran: no "tried N times"
-        return `The render machine had a problem, not your story. It tried ${job.attempt} time${job.attempt === 1 ? '' : 's'}.${detail} You can try again.`;
+        if (job.error_code === 'queue_timeout' && (job.job_type === 'contact_sheet' || job.job_type === 'preview')) return 'The render machine did not get to it in time, so we stopped it. This is not your story. You can try again.';   // queue_timeout fails only a job that NEVER STARTED while the machine was silent (ops_readiness.sql expire_stale_queue). A contact sheet holds none and a free preview holds none, so the server's 'Your credits were returned.' is not repeated here; a PAID preview (1 credit after the 6) gets its true line from the ledger (returnedLine in app-library.js, job_accounting), which the jobs rows do not carry
+        if (job.error_code === 'queue_timeout') return `We had a problem on our side, not with your story.${detail} You can try again.`;     // the SERVER's own sentence (ops_readiness.sql), kept: it says what happened to the credits
+        return 'We had a problem on our side, not with your story. You can try again. If it keeps happening, open “Get help with this”.';     // no count, and never the worker's own detail (it is an internal message: only the help form carries it)
       case 'timeout':
-        return `It ran too long and was stopped.${detail} It wasn’t retried, because it would stop again: shorten the film or the preview window first.`;
+        return `It ran too long and was stopped.${detail} It wasn’t retried, because it would stop again: shorten the film${job.job_type === 'preview' ? ' or the preview window' : ''} first.`;     // only a preview has a window
       case 'invalid_input':
         if (job.error_code === 'dataset_not_allowed' || UPLOAD_WORDS.test(rawDetail(job))) return detail.trim() || 'The data this film uses was not accepted. Open Your data to check it.';   // the story is fine: the uploaded data is the thing to fix
         return `The story or its settings weren’t accepted.${detail}${asksToContact ? '' : ' Fix the story and submit again.'}`;
@@ -117,7 +138,7 @@
         return `It went over a size or memory limit.${detail} ${LIMIT_NEXT_OTHER}`;
       }
       default:
-        return `It failed for a reason Ryagram doesn’t recognise.${detail} You can try again.`;
+        return 'It failed for a reason Ryagram doesn’t recognise. You can try again.';          // the worker's own detail stays out of the page
     }
   }
 
@@ -128,12 +149,24 @@
   // own = { tester, computers } for an account whose films are made on its own computer; computers is how many are signed in, or null when that could not be read (then nothing is claimed).
   // A job reserved for the person's own computer (run_on 'owner_local') says so whatever the account switches are; with no run_on on the row, the account's tester flag decides.
   const WAITING_FOR_COMPUTER_PICKUP = 'Waiting for your computer to pick it up. Open the Ryagram app on your computer and keep it signed in; the film starts there.';
+  // How long a place in line may take (WEB 11-23, BUILDER's queue audit). The render PC makes one film at a time. Only a contact sheet has a measured time (the Version page says 'usually about 4 to 5
+  // minutes'; WORKER's live run 11-17 took 3 min 52 s), so only a contact sheet gets a number: 5 minutes for each film ahead, said as 'about', never a promise, with 'may take longer' because a film ahead
+  // may be a preview or a final render. Any other kind of job says only that each film ahead takes a few minutes (WORKER's preview timings disagree: 2 min 23 s measured, 5 to 7 min in the features list).
+  const ONE_AT_A_TIME = 'We make one film at a time.';
+  const BUSY_HOURS = 'At busy times yours may take a few hours.';                                                       // WORKER: one PC, one job at a time: a big sign-up morning is hours, whatever the job type
+  const MANY_AHEAD = 'With this many ahead of yours, it may take a few hours or more.';                                // beyond 6 films ahead (position 8 and up; position 7 = 6 ahead = 30 minutes at 5 each) the estimate can only be longer
+  const waitWords = minutes => { const h = Math.floor(minutes / 60), m = minutes % 60; return h ? `${h} hour${h === 1 ? '' : 's'}${m ? ` ${m} minutes` : ''}` : `${m} minutes`; };
+  function queueWait(job, position) {
+    // The hours sentence is said only where NO number is shown ('Waiting in line') and for a job with no measured time: beside 'yours starts in about 10 minutes' it contradicted itself.
+    if (job.job_type !== 'contact_sheet') return `${ONE_AT_A_TIME} Each film ahead of yours takes a few minutes. ${position > 7 ? MANY_AHEAD : BUSY_HOURS}`;
+    return `${ONE_AT_A_TIME} It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about ${waitWords(position * 5)} and takes about 5 more, and it may take longer.`;      // position = 1 + the films queued ahead (queue_position, 2a_core.sql), and the film the machine is making NOW is not counted: position x 5 covers it plus the ones ahead, up to when yours STARTS
+  }
   function progressNote(job, queuePosition, own) {
     const ownComputer = job.run_on ? job.run_on === 'owner_local' : !!(own && own.tester === true);
     if (job.state === 'queued' && ownComputer && !job.cancel_requested) return own && own.computers === 0 ? WAITING_FOR_COMPUTER : WAITING_FOR_COMPUTER_PICKUP;
     if (job.state === 'queued') {
-      const place = queuePosition ? (queuePosition === 1 ? 'Next in line.' : `Number ${queuePosition} in line.`) : 'Waiting in line.';
-      return job.attempt > 1 ? `${place} Retrying once after a render-machine problem (attempt ${job.attempt} of 2).` : place;
+      const place = queuePosition ? (queuePosition === 1 ? `Next in line. ${ONE_AT_A_TIME}` : `Number ${queuePosition} in line. ${queueWait(job, queuePosition)}`) : `Waiting in line. ${ONE_AT_A_TIME} ${BUSY_HOURS}`;
+      return job.attempt > 1 ? `${place} This was put back in line after a problem on our side.` : place;
     }
     if (job.cancel_requested) return 'Stopping…';
     if (job.state === 'claimed') return 'The render machine picked it up.';
@@ -288,7 +321,7 @@
 
   // Render orders (a full render is requested, then waits for approval, renders and is delivered).
   const ORDER_WORDS = { running: 'Rendering', awaiting_approval: 'Waiting for approval', delivered: 'Delivered', previewed: 'Previewed', failed: 'Failed', declined: 'Not approved',
-                        cancelled: 'Cancelled', expired: 'Expired', editorial_action_required: 'Stopped by a check' };
+                        cancelled: 'Cancelled', expired: 'Expired', editorial_action_required: 'Stopped' };
   // The Credits page's own switch (app-library.js buyingOn: credits + payments + buyingOpen, open in mock mode unless ?buyingclosed), read here from the same config so this file needs nothing from app-library.js.
   const buyingOpen = () => {
     const cfg = window.ryagramConfig, mock = !!window.ryagramMock;
@@ -327,6 +360,6 @@
   const orderOpen = state => state === 'running' || state === 'awaiting_approval';
 
   window.ryagramJobs = { ORDER_WORDS, orderLine, orderOpen,
-    TYPE_LABELS, typeLabel, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, rawDetail, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
+    TYPE_LABELS, typeLabel, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, rawDetail, plainRefusal, FREE_PREVIEW_USED, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
   };
 })();

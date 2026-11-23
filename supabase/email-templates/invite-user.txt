@@ -1,13 +1,13 @@
 Ryagram
 
-You're invited to Ryagram
+Finish making your Ryagram account
 
-You're getting this because you were invited to the Ryagram private beta.
+You're getting this because this email address was used to make a Ryagram account. Use the link below to choose a password and open Ryagram.
 
-Join Ryagram:
+Open Ryagram:
 {{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=invite
 
-If you weren't expecting this, you can ignore this email and nothing will happen.
+If you didn't ask for this, you can ignore this email and nothing will happen.
 
 --
 Ryagram is operated by L'Ai, LLC.
