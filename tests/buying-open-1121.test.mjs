@@ -1,5 +1,6 @@
 // BUYING OPEN (WEB 11-21, Ryan's 11:30 decisions): one switch, ryagramConfig.buyingOpen (default false while live payments are off), ties every Buy / Subscribe button and "Buy credits" link.
-// Closed: Credits shows the balance, what credits are for and the packs and plans WITHOUT any button and WITHOUT the test-card text; a render short of credits says buying is not open yet.
+// Closed: Credits shows the balance and what credits are for, with NO packs, plans or prices (CC1 ruling 11-23 08:34: no price a stranger cannot pay during the preview), no button and no
+// test-card text; a render short of credits says buying is not open yet.
 // Open: today's page exactly (Buy/Subscribe buttons, the test-card text while stripeTestMode is true). The Credits page's real code runs here against a tiny fake DOM.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -58,12 +59,13 @@ const closedViolations = view => {
   if (/4242/.test(text)) bad.push('the test card');
   if (/Test mode/i.test(text)) bad.push('Test mode text');
   if (!/Buying credits is not open yet\. Contact sheets are free\. Each project gets 6 free previews \(15 across all projects in any 24 hours\); then 1 credit each\. A failed free one caused by your story still counts\./.test(text)) bad.push('the closed line is missing');
-  if (!/10 credits for \$12/.test(text) || !/30 credits a month, \$24 a month/.test(text) || !/100 credits a month, \$69 a month/.test(text)) bad.push('the packs and plans are not listed');
+  if (/\$\d/.test(text) || /Credit packs|Monthly plans|credits for \$|a month, \$/.test(text)) bad.push('packs, plans or prices are listed');
+  if (elements(view).some(e => e.className === 'offer-list')) bad.push('an offer list is on the page');
   if (!/22 credits available/.test(text)) bad.push('the balance is missing');
   return bad;
 };
 
-test('CLOSED (the default config): Credits has no Buy or Subscribe button, no test card, no Test mode text, and says buying is not open yet; packs, plans and balance still show', async () => {
+test('CLOSED (the default config): Credits has no Buy or Subscribe button, no test card, no Test mode text, and says buying is not open yet; no packs, plans or prices; the balance still shows', async () => {
   assert.equal(vm.runInNewContext(`${read('assets/ryagram-config.js')}; window.ryagramConfig.buyingOpen`, { window: {} }), false, 'the committed config has buyingOpen false');
   assert.deepEqual(closedViolations(await credits({ config: { buyingOpen: false } })), []);
   assert.deepEqual(closedViolations(await credits({})), [], 'a missing switch is closed');
@@ -79,6 +81,8 @@ test('OPEN (buyingOpen true): today\'s page, Buy and Subscribe buttons, the test
   assert.match(text, /Test mode — prices are placeholders, no real charge\./);
   assert.match(text, /Payments are handled by Stripe/);
   assert.doesNotMatch(text, /Buying credits is not open yet/);
+  assert.ok(/10 credits for \$12/.test(text) && /30 credits a month, \$24 a month/.test(text) && /100 credits a month, \$69 a month/.test(text), 'open: the packs and plans are listed with their prices');
+  assert.deepEqual(closedViolations(view).filter(v => /packs, plans or prices|offer list/.test(v)).length, 2, 'the closed check really sees the open lists (it is not blind)');
 });
 
 test('MOCK mode is open (so the checkout checks keep their meaning) and ?buyingclosed shows the closed page there', async () => {
@@ -159,15 +163,17 @@ test('M1: no page says previews are always free; both states say contact sheets 
 });
 
 test('LOW 1: "Cancel any time from Manage plan." is shown only when there is a plan (and so a Manage plan button)', async () => {
+  const PLAN = { price_code: 'sub_creator', status: 'active', current_period_end: '2099-01-01T00:00:00Z' };
   for (const config of [{ buyingOpen: false }, { buyingOpen: true }]) {
     assert.doesNotMatch(textOf(await credits({ config })), /Manage plan/);
-    const withPlan = textOf(await credits({ config, plan: { price_code: 'sub_creator', status: 'active', current_period_end: '2099-01-01T00:00:00Z' } }));
-    assert.match(withPlan, /Cancel any time from Manage plan\./);
-    assert.match(withPlan, /Manage plan/);
+    const withPlan = textOf(await credits({ config, plan: PLAN }));
+    assert.match(withPlan, /Manage plan/, 'a plan holder always has the Manage plan button');
+    if (config.buyingOpen) assert.match(withPlan, /Cancel any time from Manage plan\./);
+    else assert.doesNotMatch(withPlan, /Monthly plans/, 'closed: the plan list (and its note) is hidden even for a plan holder');
   }
   const planted = lib.replace("${current || plan ? ' Cancel any time from Manage plan.' : ''}", " Cancel any time from Manage plan.");
   assert.notEqual(planted, lib);
-  assert.match(textOf(await credits({ source: planted })), /Manage plan/, 'the planted always-on sentence is caught');
+  assert.match(textOf(await credits({ config: { buyingOpen: true }, source: planted })), /Manage plan/, 'the planted always-on sentence is caught');
 });
 
 test('LOW 2: a paid preview with too few credits and buying closed says buying is not open yet, before any confirm or server call', () => {
