@@ -42,9 +42,7 @@ export const TEMPLATES = [
   { id: "line", view: "line", label: "Line", blurb: "How a handful of places move over time.",
     datasets: ["bls_state_unemployment"], settings: { line_top_n: 6 } as Record<string, unknown> | undefined, confirmed: true },
   { id: "map", view: "map", label: "Map", blurb: "Where it is high and low, and how that shifts.",
-    datasets: ["state_obesity_fastfood", "bps_county_permits"], settings: undefined, confirmed: true },
-  { id: "bars", view: "bars", label: "Bars", blurb: "A ranked bar race: who leads, year by year.",
-    datasets: ["bls_state_unemployment"], settings: { top_n: 10, axis: "fixed" }, confirmed: true },
+    datasets: ["state_obesity_fastfood"], settings: undefined, confirmed: true },   // 2026-11-23: no county permits map and no Bars template: the engine's own checks fail them (ENGINE-CATALOG-BLOCK-LIST-1123.json); same as assets/app-templates.js
   { id: "paired", view: "paired", label: "Paired", blurb: "A map and a bar race side by side, one timeline.",
     datasets: ["state_obesity_fastfood"], settings: undefined, confirmed: true,
     unmeasured: true },   // a paired film needs keyframes_per_year MEASURED for its own story (Ryan 2026-09-28): never offered, never built here
@@ -52,6 +50,8 @@ export const TEMPLATES = [
     headline: "The states with the highest adult obesity",
     datasets: ["state_obesity_fastfood"], settings: { line_top_n: 6 }, confirmed: true },
   { id: "sector", view: "bars", label: "Industry", blurb: "Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.",
+    // No flag here on purpose: the site hides this template with ryagramConfig.industryTemplate (off). Its bars are refused by the engine for 11 of these 18 datasets
+    // (tools/data/engine-catalog-block-list-1123.json, v2), so the server must not be taught to build it as it stands: change its view or its list first.
     style: { bars: { swap_seconds: 0.5 } } as Record<string, unknown>, hold: 3,
     datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10, axis: "fixed" }, confirmed: false },
 ];
