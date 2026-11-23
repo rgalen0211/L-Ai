@@ -1,5 +1,5 @@
 """Credits and the BUYING OPEN switch (WEB 11-21), real Chrome, mock mode, LOCAL server only, at 390 and 1280.
-CLOSED (?buyingclosed): Credits shows the balance, what credits are for, what a full film costs, the packs and plans with NO Buy / Subscribe button, NO test-card text, and the plain line
+CLOSED (?buyingclosed): Credits shows the balance, what credits are for, what a full film costs, NO packs, plans or prices (CC1 11-23), NO Buy / Subscribe button, NO test-card text, and the plain line
 'Buying credits is not open yet.'; the home page has no 'Buy credits' link; a render short of credits says buying is not open yet instead of linking to checkout.
 OPEN (mock default): today's page, Buy / Subscribe buttons and the mock-mode line. Planted fault: ?plant (a closed page that carries the open markup) must be CAUGHT by the same measurements.
 Writes screenshots. Not part of the node suite (needs Chrome).
@@ -27,7 +27,7 @@ STATE = """() => {
   return { text, buy: buttons.filter(t => /^(Buy|Subscribe)$/.test(t)).length, buyLinks: links.filter(t => /buy credits/i.test(t)).length,
            card: /4242/.test(text), testMode: /test mode/i.test(text), closedLine: /Buying credits is not open yet\\./.test(text),
            free: /Contact sheets are free\\. Each project gets 6 free previews/.test(text),
-           offers: [...main.querySelectorAll('.offer')].length, filmCost: /A full film costs/.test(text), overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+           offers: [...main.querySelectorAll('.offer')].length, price: /\\$\\d/.test(text), filmCost: /A full film costs/.test(text), overflow: document.documentElement.scrollWidth > innerWidth + 1 };
 }"""
 
 
@@ -56,7 +56,7 @@ def closed_faults(s):
     if s['card']: bad.append('test card')
     if s['testMode']: bad.append('test mode text')
     if not s['closedLine'] or not s['free']: bad.append('closed line missing')
-    if s['offers'] < 3: bad.append('offers not listed')
+    if s['offers'] or s['price']: bad.append('packs, plans or prices listed')      # CC1 ruling 11-23 08:34: no price a stranger cannot pay while buying is closed
     return bad
 
 
@@ -87,7 +87,7 @@ def main():
                     return page.evaluate(STATE)
                 s = credits('&buyingclosed')
                 page.screenshot(path=str(OUT / f'bc-credits-closed-{width}.png'), full_page=True)
-                check(closed_faults(s) == [], f'[{width}] CLOSED Credits: no Buy/Subscribe, no test card, no Test mode text, closed line, offers listed ({closed_faults(s)})')
+                check(closed_faults(s) == [], f'[{width}] CLOSED Credits: no Buy/Subscribe, no test card, no Test mode text, closed line, no packs, plans or prices ({closed_faults(s)})')
                 check(not s['overflow'], f'[{width}] CLOSED Credits: no sideways scroll')
                 check(s['filmCost'] and 'between 6 and 10 credits' in s['text'], f'[{width}] CLOSED Credits says what a full film costs (read from the price table)')
                 s = credits('')

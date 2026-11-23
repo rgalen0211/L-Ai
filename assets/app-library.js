@@ -96,13 +96,15 @@
   const FREE_PREVIEW_RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
   const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE;      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
   const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
-  // A film request costs credits. While buying is closed, the way in (the home link, the project page's pointer) shows only to someone who HAS credits: a new account has none and
-  // could not buy any, so the link would lead to a send that fails (BUILDER 11-23, the Wednesday first-user audit). Open buying, or credits off, leaves it as it was.
+  // A film request costs credits. While buying is closed, the way in (the home link, the project page's pointer) shows only to someone whose balance COVERS a request (the same
+  // cost the request page reads): a new account has none and could not buy any, so the link would lead to a send that fails (BUILDER 11-23, the Wednesday first-user audit; the
+  // full cost, not 'any credits', per GAMES/CC1 08:33). A failed read keeps it hidden. Open buying, or credits off, leaves it as it was.
   const availableOf = rows => (rows || []).reduce((s, r) => s + (r.available || 0), 0);
   const requestGate = (data, el) => {
     if (!el || buyingOn() || !creditsOn()) return el;
     el.hidden = true;
-    data.creditBalances().then(rows => { if (availableOf(rows) > 0) el.hidden = false; }).catch(() => {});
+    Promise.all([data.creditBalances(), data.filmRequestCost()])
+      .then(([rows, cost]) => { if (cost != null && availableOf(rows) >= Number(cost)) el.hidden = false; }).catch(() => {});
     return el;
   };
   const REQUEST_CLOSED = 'You need credits to request a film, and buying credits is not open yet.';      // the request page's send, at a balance below the cost while buying is closed
@@ -486,6 +488,7 @@
       const closedNote = h('p', { class: 'form-note request-closed', hidden: true }, REQUEST_CLOSED);
       const list = h('div', { class: 'request-list' });
       let short = false;      // buying closed and not enough credits (set by reload): say so, and no send that can only fail
+      send.disabled = !buyingOn() && creditsOn();      // off until reload has read the balance and the cost (CC1 08:34)
       async function reload() {
         const [rows, c, bal] = await Promise.all([data.myFilmRequests().catch(() => []), data.filmRequestCost().catch(() => null), creditsOn() ? data.creditBalances().catch(() => null) : null]);
         cost.textContent = O.requestCostLine(c);
@@ -1069,7 +1072,8 @@
           current ? h('p', {}, current) : null,
           h('button', { class: 'button secondary small', type: 'button',
                         onclick: event => go(event.currentTarget, 'Opening…', () => data.openBillingPortal()) }, 'Manage plan')) : null,
-        packs.length && plans.length ? window.ryagramFlip.create({ h, label: 'Credits', address: false, sections: [
+        // Buying closed: no packs, plans or prices a stranger cannot pay (CC1 ruling 11-23 08:34; the closed sentence and the free-preview rule above stay). Open: today's lists.
+        !open ? null : packs.length && plans.length ? window.ryagramFlip.create({ h, label: 'Credits', address: false, sections: [
           { id: 'packs', label: 'Credit packs', el: h('div', {}, h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)), h('p', { class: 'form-note' }, 'Pack credits never expire.')) },
           { id: 'plans', label: 'Monthly plans', el: h('div', {}, h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)), h('p', { class: 'form-note' }, planNote)) }] }).el : [
         packs.length ? [h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)),

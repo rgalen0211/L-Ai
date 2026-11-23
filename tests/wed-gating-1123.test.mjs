@@ -22,7 +22,7 @@ function gate(source, { config = {}, mock = false, available = 0, search = '' } 
   if (mock) win.ryagramMock = {};
   const fn = vm.runInNewContext(`(function (window, location) { ${helpers}\n${source.slice(g0, g1)}\n return { requestGate, availableOf }; })`, {});
   const api = fn(win, { search });
-  const data = { creditBalances: async () => [{ available, held: 0 }] };
+  const data = { creditBalances: async () => [{ available, held: 0 }], filmRequestCost: async () => 10 };      // 10 = the request cost (creator_flow default; the mock's too)
   return { ...api, data };
 }
 const settle = () => new Promise(r => setTimeout(r, 5));
@@ -35,8 +35,16 @@ test('REQUEST GATE: buying closed and 0 credits: the request link is hidden (a n
   assert.equal(el.hidden, true);
 });
 
-test('REQUEST GATE: buying closed but the account HAS credits: shown again once the balance loads', async () => {
+test('REQUEST GATE: buying closed with a balance BELOW the cost (5 of 10): still hidden, so no link leads to a disabled Send', async () => {
   const g = gate(lib, { config: { buyingOpen: false }, available: 5 });
+  const el = { hidden: false };
+  g.requestGate(g.data, el);
+  await settle();
+  assert.equal(el.hidden, true);
+});
+
+test('REQUEST GATE: buying closed but the balance COVERS a request (10 of 10): shown once the balance and the cost load', async () => {
+  const g = gate(lib, { config: { buyingOpen: false }, available: 10 });
   const el = { hidden: false };
   g.requestGate(g.data, el);
   await settle();
@@ -62,16 +70,29 @@ test('REQUEST GATE: a balance that fails to load keeps it hidden while buying is
   g.requestGate(g.data, el);
   await settle();
   assert.equal(el.hidden, true);
+  const g2 = gate(lib, { config: { buyingOpen: false }, available: 50 });
+  g2.data.filmRequestCost = async () => { throw new Error('offline'); };
+  const el2 = { hidden: false };
+  g2.requestGate(g2.data, el2);
+  await settle();
+  assert.equal(el2.hidden, true, 'a cost that fails to load keeps it hidden too');
 });
 
 test('PLANTED FAULT: a gate that never hides is caught', async () => {
-  const faulty = lib.replace('    el.hidden = true;\n    data.creditBalances()', '    data.creditBalances()');
+  const faulty = lib.replace('    el.hidden = true;\n    Promise.all(', '    Promise.all(');
   assert.notEqual(faulty, lib);
   const g = gate(faulty, { config: { buyingOpen: false }, available: 0 });
   const el = { hidden: false };
   g.requestGate(g.data, el);
   await settle();
-  assert.equal(el.hidden, false, 'the faulty gate leaves the link showing, which the first test would catch');
+  assert.equal(el.hidden, false, 'the faulty gate leaves the link showing at 0 credits, which the first test forbids');
+  const anyCredit = lib.replace('availableOf(rows) >= Number(cost)', 'availableOf(rows) > 0');
+  assert.notEqual(anyCredit, lib);
+  const g2 = gate(anyCredit, { config: { buyingOpen: false }, available: 5 });
+  const el2 = { hidden: false };
+  g2.requestGate(g2.data, el2);
+  await settle();
+  assert.equal(el2.hidden, false, 'the old any-credit rule shows the link at 5 of 10, which the below-cost test forbids');
 });
 
 test('both ways in go through the gate: the home link row and the project page pointer', () => {
