@@ -52,18 +52,29 @@ test('NOTHING INVENTED: no governing law, liability limit, arbitration or DMCA t
   assert.doesNotMatch(terms + privacy, /[A-Za-z0-9._%+-]+@(?!uselai\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'no other email address on the pages');
 });
 
-test('SECTIONS: the pages cover accounts, 18+, uploads, 30-day films, connecting an AI, deleting your account and the contact', () => {
-  for (const id of ['what', 'who', 'account', 'uploads', 'films', 'ai', 'connect', 'rules', 'delete', 'contact']) assert.match(terms, new RegExp(`<section id="${id}">`), id);
+test('SECTIONS: the pages cover accounts, 18+, free sheets and previews, 30-day films, deleting your account, what we keep and the contact', () => {
+  for (const id of ['what', 'who', 'account', 'making', 'films', 'ai', 'rules', 'delete', 'contact']) assert.match(terms, new RegExp(`<section id="${id}">`), id);
   const t = textOf(terms);
   assert.match(t, /You must be 18 or older\. To create an account you confirm that you are\./);
   assert.match(t, /kept for 30 days after it is delivered/);
-  assert.match(t, /up to 10 MB/);
-  assert.match(t, /You can connect an AI assistant/);
+  assert.match(t, /Each project gets 6 free previews, and 15 across all your projects in any 24 hours/);
   assert.match(t, /delete your login/);
   const p = textOf(privacy);
-  assert.match(p, /To create an account you confirm that you are\./);
+  assert.match(p, /To create an account you confirm that you are, on the sign-up page or with an invite code\./);
   assert.match(p, /30 days after delivery/);
   assert.match(p, /Deleting your account/);
+  assert.match(p, /for 2 days/);
+  assert.match(p, /for 1 day/);
+});
+
+test('NOT YET: features that are OFF on Wednesday are named only as "not yet in the preview" (uploads, film pages, connecting an AI); swap-in text is in WEB-PREVIEW-TERMS-1122.md section G', () => {
+  assert.match(textOf(terms), /Some things are not yet in the preview: uploading your own data, publishing a film page, and connecting your own AI assistant\./);
+  assert.match(textOf(privacy), /Not yet in the preview, so nothing is kept for them: uploading your own data, publishing a film page, and connecting your own AI assistant\./);
+  const rest = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/Some things are not yet in the preview:[^.]*\./, '').replace(/Not yet in the preview, so nothing[^.]*\./, '');
+  for (const html of [terms, privPart]) {
+    assert.doesNotMatch(rest(html), /upload|spreadsheet|\.csv|Recently deleted|restore|Delete forever|publish|anyone with the link|stop sharing|connect(ed|ing)? (an|your|AI)|\bAI assistant|Report page|DMCA/i);
+  }
+  assert.doesNotMatch(privPart, /13 months|Stripe|Resend|sends the sign-up email/);
 });
 
 test('PLAIN: no sentence on either page runs past 45 words', () => {
@@ -86,8 +97,7 @@ test('LINKS: every internal link on both pages resolves to a file in the repo, a
     for (const h of hrefs) assert.ok(exists(h), `${name}: ${h}`);
     for (const must of ['/terms/', '/privacy-policy.html', '/help/', '/ai-content/']) assert.ok(hrefs.includes(must), `${name} links ${must}`);
   }
-  assert.ok(terms.includes('href="/report/"'));
-  assert.ok(!terms.includes('/connect-ai/'), 'the Connect-an-AI guide is unlisted: not linked from the Terms')
+  assert.ok(!terms.includes('/report/') && !terms.includes('/connect-ai/'), 'the Report page and the Connect-an-AI guide are not linked while film pages and Connect-an-AI are off')
   for (const page of ['help/index.html', 'ai-content/index.html']) {
     const foot = read(page).match(/<footer[\s\S]*?<\/footer>/)[0];
     assert.match(foot, /href="\/terms\/"/, page);
@@ -96,15 +106,17 @@ test('LINKS: every internal link on both pages resolves to a file in the repo, a
 });
 
 test('FACTS: the figures the pages state are the figures in the code', () => {
-  assert.match(read('assets/app-uploads.js'), /MAX_BYTES = 10 \* 1024 \* 1024/);
-  assert.match(read('supabase/migrations/20261021000100_r9_render_node.sql'), /expires_at timestamptz not null default now\(\) \+ interval '30 days'/);
+  assert.match(read('supabase/migrations/20261017000600_pipe1_orders.sql'), /delivery_days int not null default 30/);
+  assert.match(read('supabase/phase-2b/credits_ledger.sql'), /free_previews_per_project int not null default 6,\s*free_previews_per_24h int not null default 15/);
+  assert.match(read('supabase/migrations/20261104000200_waiting_join.sql'), /delete from public\.join_attempts where at < now\(\) - interval '2 days'/);
+  assert.match(read('supabase/migrations/20261003000200_invite_codes.sql'), /delete from public\.invite_attempts where at < now\(\) - interval '1 day'/);
+  assert.match(read('supabase/migrations/20261121000400_retention_outbox_support.sql'), /answered_at is not null and answered_at < now\(\) - interval '3 years'/);
+  assert.match(read('supabase/migrations/20261121000400_retention_outbox_support.sql'), /answered_at is null and created_at < now\(\) - interval '12 months'/);
+  assert.match(read('supabase/functions/redeem-invite/redeem.ts'), /if \(body\.adult_confirmed !== true\) return reply\(400/);
+  assert.match(read('supabase/functions/delete-account/remove.ts'), /if \(c\.has_credit_history\) \{\s*step = "erase";/);
   assert.match(read('assets/app-library.js'), /const AI_LABEL = 'AI-assisted \(Ryagram\)'/);
   assert.match(read('supabase/functions/join/join.ts'), /if \(body\.adult_confirmed !== true\) return reply\(400/);
   assert.match(read('supabase/functions/delete-account/remove.ts'), /within 30 days/);
-  assert.match(read('report/index.html'), /We reply to your email within 7 days/);
-  const m = read('supabase/migrations/20261121000500_unfinished_uploads_purged.sql');
-  assert.match(m, /interval '7 days'/);
-  assert.match(m, /interval '1 day'/);
-  for (const f of ['20261121000200_expired_films_really_gone', '20261121000300_upload_films_gone', '20261121000700_connect_ai_open_to_all'])
+  for (const f of ['20261121000200_expired_films_really_gone'])
     assert.ok(fs.existsSync(path.join(root, `supabase/migrations/${f}.sql`)), f);
 });
