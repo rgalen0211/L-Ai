@@ -252,7 +252,8 @@ class Account(core.Base):
     def test_GEO_g1_after_checks_true_then_the_rollbacks_in_order_put_the_old_bodies_back(self):
         self.assertEqual(self.g1_check("account_delete_paid"), [True] * 4)
         self.assertEqual(self.g1_check("retention_outbox_support"), [True] * 4)
-        self.g1_rollback("retention_outbox_support")                 # 000400's undo FIRST
+        self.g1_rollback("retention_join_attempts")                  # 20261123000400 (A17) first: its own guard in 000400's undo demands it (CONNECT 7407c7e0)
+        self.g1_rollback("retention_outbox_support")                 # then 000400's undo, before 000100's
         self.assertEqual(self.g1_check("retention_outbox_support"), [False, True, False, True])
         self.assertEqual(self.g1_check("account_delete_paid"), [True] * 4)   # 000100's own functions untouched
         self.g1_rollback("account_delete_paid")
