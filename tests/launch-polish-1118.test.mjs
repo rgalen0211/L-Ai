@@ -25,9 +25,10 @@ test('sign-in page order: the card, then Forgot your password, then Have an invi
 });
 
 // Q649 (Ryan 11-18 21:2x: 1 yes, 2 yes, 3 coming soon, 4 keep both and say why, 5 yes): the words, found by GAMES' live /help/ and /ryagram/ walk.
-test('Q649 1: the private-beta box says creators can ASK FOR AN INVITE (the application form is off, so "apply now" was not true)', () => {
+test('Q649 1 (open sign-up, 11-22): the release line says anyone 18 or older can create a free account; no private beta, invite or waitlist words; "apply now" is still not offered (the application form is off)', () => {
   const html = read('ryagram/index.html');
-  assert.match(html, /<p class="rg-release">Ryagram is in private beta\. Creators can <a href="#creators">ask for an invite<\/a>; everyone else can <a href="#waitlist">join the waitlist<\/a>\./);
+  assert.match(html, /<p class="rg-release">Anyone 18 or older can <a href="\/app\/#\/create-account">create a free account<\/a>\. Already have one\? <a href="\/app\/">Sign in<\/a>\.<\/p>/);
+  assert.doesNotMatch(html.match(/<p class="rg-release">[\s\S]*?<\/p>/)[0], /private beta|invite|waitlist/i);
   assert.doesNotMatch(html, /Creators can <a href="#creators">apply now/);
 });
 
