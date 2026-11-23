@@ -130,7 +130,7 @@ test('joinWaiting for real: the trimmed address goes in {email}; 200 is ok with 
   assert.equal(calls[0][0], 'join'); assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), { body: { email: 'a@b.co', adult_confirmed: true } });
   D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet.' }));
   assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))), { ok: false, off: true, message: 'Making an account is not open yet. Please try again later.' });
-  D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet. Join the waitlist instead.' }));
+  D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet. Please try again later.' }));
   const wl = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.equal(wl.off, true); assert.equal(wl.message, 'Making an account is not open yet. Please try again later.'); assert.doesNotMatch(wl.message, /waitlist/i);
   D = dataWith(async () => httpError(503, { error: 'We cannot send the email. Try later.' }));
   const sf = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co', true))); assert.deepEqual(sf, { ok: false, off: false, message: 'We could not send the email just now. Please try again in a few minutes.' });
