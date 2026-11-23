@@ -143,6 +143,8 @@ class WedLiveSteps(core.Base):
         text = STEP58.read_text(encoding="utf-8").lower()
         for verb in ("insert ", "update ", "delete ", "alter ", "drop ", "truncate ", "grant "):
             self.assertNotIn(verb, text.split("select", 1)[1], "read-only: " + verb)
+        self.d().execute("alter table public.ops_settings drop column join_daily_max")   # before Tuesday's migration the column is not there yet
+        self.assertEqual(self.watch()["sign-up size used (different addresses, last 24 hours)"][0], "2 of 200 (no setting)", "no error before the column exists")
 
 
 if __name__ == "__main__":
