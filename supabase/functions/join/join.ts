@@ -15,6 +15,9 @@ export interface Deps {
 }
 
 export const ADULT_WORDS = "Confirm that you are 18 or older to make an account.";
+// What a person reads when sign-up is not open (the server flag join_open is OFF, or the brake is on). There is no waitlist to point to any more (11-22: the page that ships with open sign-up has none),
+// so the words only say to try again later. The page shows this sentence as it comes (assets/app-auth.js, a 409 is "not open yet").
+export const NOT_OPEN_WORDS = "Making an account is not open yet. Please try again later.";
 
 export const SENT = "If that email can join, a link to finish making your account is on its way. It works once. If it has not come in a few minutes, try again later. Already have an account? Sign in instead.";
 
@@ -53,7 +56,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (!r.ok) {
     if (r.reason === "throttled") return reply(429, { error: "Too many tries. Wait a while, then try again." });
     if (r.reason === "email") return reply(400, { error: "Enter a valid email address." });
-    if (r.reason === "off") return reply(409, { error: "Making an account is not open yet. Join the waitlist instead." });
+    if (r.reason === "off") return reply(409, { error: NOT_OPEN_WORDS });
     return reply(500, { error: "Something went wrong. Try again in a minute." });
   }
   try {
