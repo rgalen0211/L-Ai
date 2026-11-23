@@ -25,6 +25,10 @@ export const NOT_OPEN_WORDS = "Making an account is not open yet. Please try aga
 // What a person reads when the email could not be sent just now (not a refusal: nothing is wrong with their address). No waitlist, no invite, no person to write to.
 export const SEND_FAILED_WORDS = "We couldn\u2019t send the email just now. Please try again in a few minutes.";
 
+// What a person reads when the day's size is reached (ops_settings.join_daily_max, default 200 in any 24 hours: join_reserve answers 'full'). Not their fault and not a refusal of them: nothing about tries, no one to write to.
+// 429, not 409: the page turns EVERY 409 into "not open yet" (assets/app-data.js joinWaiting), and passes any other answer's own sentence through as it comes.
+export const FULL_WORDS = "Sign-up is full for now. Please try again later.";
+
 // An address that Auth itself refuses (a shape the reserve check lets through, such as a@b..cc): the person is told to check it, and the try is NOT given back (a refusal is not a send failure: it must stay counted).
 export const BAD_ADDRESS_WORDS = "Enter a valid email address.";
 
@@ -67,6 +71,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     if (r.reason === "throttled") return reply(429, { error: "Too many tries. Wait a while, then try again." });
     if (r.reason === "email") return reply(400, { error: "Enter a valid email address." });
     if (r.reason === "off") return reply(409, { error: NOT_OPEN_WORDS });
+    if (r.reason === "full") return reply(429, { error: FULL_WORDS });
     return reply(500, { error: "Something went wrong. Try again in a minute." });
   }
   try {

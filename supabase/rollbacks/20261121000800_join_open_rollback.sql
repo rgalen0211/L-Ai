@@ -27,6 +27,7 @@ begin
 end $$;
 
 drop function public.join_release(text, text);
+alter table public.ops_settings drop column join_daily_max;
 alter table public.ops_settings drop column join_open;
 drop trigger account_adult_new_trg on auth.users;
 drop function ryagram_private.account_adult_new();

@@ -3,7 +3,7 @@
 --
 -- WHY: today join_reserve answers 'off' unless the waiting switch (ops_settings.waiting_accounts) is ON, and while it is ON every new account is recorded WAITING. So there was no setting where a stranger joins AND is let in.
 -- WHAT THIS ADDS: one flag, ops_settings.join_open, OFF by default. join_reserve answers 'off' only when the waiting switch is off AND join_open is off. Nothing else changes: the same address check, the same limits (5 an hour and 10 a day per caller,
--- 3 a day per email, 200 a day overall), the same lock, the same answers. The account is recorded by the trigger that already exists: with the waiting switch OFF it is ACTIVE, with the switch ON (the brake, live-step 20) it is WAITING.
+-- 3 a day per email), the same lock, the same answers. The overall cap (200 in any 24 hours) is now ops_settings.join_daily_max (default 200, CC1's ruling 11-23: Ryan can size opening day) and answers its OWN reason 'full', which the join function words without blaming the person. The account is recorded by the trigger that already exists: with the waiting switch OFF it is ACTIVE, with the switch ON (the brake, live-step 20) it is WAITING.
 -- So after launch: join_open ON + waiting switch OFF = a stranger joins and is in; the brake (live-step 20) = new sign-ups wait instead; live-step 21 puts it back. join_open OFF + switch OFF = join closed, as today.
 -- The migration turns NOTHING on: join_open is false after it. Ryan flips it with live-step 47 (and back with 48). Only the dashboard (the table owner) can write the flag: ops_settings is closed to every API role.
 -- join_reserve keeps its name, arguments, owner and grants (service role only; create or replace keeps them).
@@ -38,6 +38,7 @@ end $$;
 revoke execute on function ryagram_private.account_adult_new() from public, anon, authenticated, service_role;
 create trigger account_adult_new_trg after insert on auth.users for each row execute function ryagram_private.account_adult_new();
 
+alter table public.ops_settings add column join_daily_max integer not null default 200 check (join_daily_max >= 0);        -- CC1 11-23: the size of sign-up for any 24 hours; 200 unless Ryan sets another number (0 shuts sign-up for everyone); only the dashboard can write it
 alter table public.ops_settings add column join_open boolean not null default false;        -- Ryan's flag: a stranger who joins is let in (with the waiting switch off); false = join is closed unless the waiting list is on
 
 create or replace function public.join_reserve(p_email text, p_ip_hash text) returns jsonb
@@ -53,10 +54,12 @@ begin
   eh := encode(sha256(convert_to('ryagram-join:' || mail, 'UTF8')), 'hex');
   perform pg_advisory_xact_lock(hashtextextended('ryagram-join', 0));                                          -- count-then-write takes turns, so callers at the same moment cannot pass the limit together
   delete from public.join_attempts where at < now() - interval '2 days';
+  if (select count(*) from public.join_attempts where at > now() - interval '1 day') >= coalesce((select o.join_daily_max from public.ops_settings o limit 1), 200) then       -- the size of sign-up for any 24 hours (Ryan's setting, 200 unless he changes it): nobody is blamed
+    return jsonb_build_object('ok', false, 'reason', 'full');
+  end if;
   if (select count(*) from public.join_attempts where ip_hash = left(coalesce(p_ip_hash, 'unknown'), 64) and at > now() - interval '1 hour') >= 5
      or (select count(*) from public.join_attempts where ip_hash = left(coalesce(p_ip_hash, 'unknown'), 64) and at > now() - interval '1 day') >= 10
-     or (select count(*) from public.join_attempts where email_hash = eh and at > now() - interval '1 day') >= 3
-     or (select count(*) from public.join_attempts where at > now() - interval '1 day') >= 200 then
+     or (select count(*) from public.join_attempts where email_hash = eh and at > now() - interval '1 day') >= 3 then
     return jsonb_build_object('ok', false, 'reason', 'throttled');
   end if;
   insert into public.join_attempts (ip_hash, email_hash) values (left(coalesce(p_ip_hash, 'unknown'), 64), eh);

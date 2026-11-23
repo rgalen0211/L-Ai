@@ -18,6 +18,11 @@ const mutants = [
   ['the not-open words stop saying to try again', JN, NW, 'export const NOT_OPEN_WORDS = "Making an account is not open yet.";'],
   ['the not-open answer is not a 409 (the page reads 409 as not open)', JN, OFF, 'if (r.reason === "off") return reply(400, { error: NOT_OPEN_WORDS });'],
   ['the not-open answer is its own old text again, not the constant', JN, OFF, 'if (r.reason === "off") return reply(409, { error: "Making an account is not open yet. Join the waitlist instead." });'],
+  ['a full day answers 409 (the page would say not open yet)', JN, 'if (r.reason === "full") return reply(429, { error: FULL_WORDS });', 'if (r.reason === "full") return reply(409, { error: FULL_WORDS });'],
+  ['a full day blames the person', JN, 'export const FULL_WORDS = "Sign-up is full for now. Please try again later.";', 'export const FULL_WORDS = "Too many tries. Please try again later.";'],
+  ['a full day sends the person to a waitlist', JN, 'export const FULL_WORDS = "Sign-up is full for now. Please try again later.";', 'export const FULL_WORDS = "Sign-up is full for now. Join the waitlist instead.";'],
+  ['a full day stops saying to try again', JN, 'export const FULL_WORDS = "Sign-up is full for now. Please try again later.";', 'export const FULL_WORDS = "Sign-up is full for now.";'],
+  ['a full day is answered as a generic failure', JN, 'if (r.reason === "full") return reply(429, { error: FULL_WORDS });', ''],
   ['the throttled answer points to a person', JN, 'return reply(429, { error: "Too many tries. Wait a while, then try again." });', 'return reply(429, { error: "Too many tries. Ask Ryan for an invite." });'],
 ];
 

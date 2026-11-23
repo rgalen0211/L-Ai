@@ -3,7 +3,7 @@
 // never to a waitlist, an invite or a person. Runs the real handler with fake dependencies; talks to nothing. Must-fails: tests/connect_join_notopen_mutants.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handle as join, NOT_OPEN_WORDS, SENT, ADULT_WORDS } from '../supabase/functions/join/join.ts';
+import { handle as join, NOT_OPEN_WORDS, SENT, ADULT_WORDS, FULL_WORDS } from '../supabase/functions/join/join.ts';
 
 const ORIGIN = 'https://uselai.com';
 const deps = (reason) => ({ allowedOrigins: [ORIGIN], siteUrl: ORIGIN, reserve: async () => ({ ok: false, reason }), invite: async () => {} });
@@ -21,11 +21,23 @@ test('when sign-up is not open the answer is 409 with the plain words, and never
 });
 
 test('none of the other refusals of the join function points to a waitlist, an invite or a person either', async () => {
-  for (const reason of ['throttled', 'email', 'boom']) {
+  for (const reason of ['throttled', 'email', 'full', 'boom']) {
     const r = await join(post(), deps(reason));
     const said = (await r.json()).error;
     assert.ok(said && !WRONG.test(said), reason + ': ' + said);
   }
   assert.ok(!WRONG.test(ADULT_WORDS), 'the 18+ words are clean too');
   assert.ok(!WRONG.test(SENT.replace('Already have an account? Sign in instead.', '')), 'and so are the sent words');
+});
+
+test('a full day (join_daily_max reached) is 429, not 409 (the page turns every 409 into "not open yet"), in words that blame no one and point to no waitlist, invite or person', async () => {
+  const r = await join(post(), deps('full'));
+  assert.equal(r.status, 429);
+  const said = (await r.json()).error;
+  assert.equal(said, FULL_WORDS);
+  assert.match(said, /full/i);
+  assert.match(said, /try again later/i);
+  assert.ok(!WRONG.test(said), said);
+  assert.ok(!/too many tries|wait a while/i.test(said), 'nothing about their tries: it is the day that is full');
+  assert.notEqual(said, NOT_OPEN_WORDS);
 });
