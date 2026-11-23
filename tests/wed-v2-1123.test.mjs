@@ -14,11 +14,9 @@ test('privacy: no waitlist promise of invitations; the Keep me posted form is de
   assert.ok(js.includes('p_email:') && js.includes('p_reason:') && js.includes('p_source:'), 'what the form sends is what the page says it keeps');
 });
 
-test('Connect sentence agrees on all four pages: connecting your own AI assistant is not yet in the preview', () => {
-  assert.match(read('terms/index.html'), /connecting your own AI assistant/);
-  assert.match(read('privacy-policy.html'), /connecting your own AI assistant/);
-  assert.match(read('ai-content/index.html'), /connecting your own AI assistant/);
-  assert.match(read('help/index.html'), /Connecting your own AI is not yet in the preview\./);
+test('Connect sentence agrees on the pages (Connect-an-AI open, L5): the same first sentence on Terms, AI content and Help; Privacy says what is kept', () => {
+  for (const p of ['terms/index.html', 'ai-content/index.html', 'help/index.html']) assert.match(read(p), /You can connect an AI assistant such as Claude or ChatGPT to your account\./, p);
+  assert.match(read('privacy-policy.html'), /Connected AI assistants\./);
 });
 
 test('the sign-in link-expired word says email link, not invite link', () => {

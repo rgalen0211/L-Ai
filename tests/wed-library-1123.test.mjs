@@ -67,11 +67,11 @@ test('4a Help no longer says every film page has a Report link while film pages 
   assert.ok(!lib.includes('Every public film page has'));
 });
 
-test('4b the Help Connect entry says the same "not yet in the preview" as the Terms, in one sentence to swap', () => {
+test('4b the Help Connect entry opens with the same Connect sentence as the Terms (Connect-an-AI open, L5), in one sentence to swap', () => {
   const html = read('help/index.html');
   const m = /<summary>How do I connect Claude or ChatGPT to Ryagram\?<\/summary>\s*<p>([^<]*)<\/p>/.exec(html);
   assert.ok(m);
-  assert.ok(m[1].startsWith('Connecting your own AI is not yet in the preview. If you do not see Connected AIs under Account, it is not available on your account; write to ryagram@uselai.com.'));
+  assert.ok(m[1].startsWith('You can connect an AI assistant such as Claude or ChatGPT to your account. If you do not see Connected AIs under Account, it is not available on your account; write to ryagram@uselai.com.'));
   assert.doesNotMatch(m[1], /invited|waitlist/i);
 });
 

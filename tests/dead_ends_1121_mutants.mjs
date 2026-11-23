@@ -16,7 +16,7 @@ const mutants = [
   ["row 1: the strip no longer uses the shared gate", SM, 'if (!(await canStart(data))) return null;', 'if (false) return null;'],
   ["row 2: the sign-up button is drawn for an account that is not invited", DP, "if (!invited) { area.replaceChildren(", "if (false) { area.replaceChildren("],
   ["row 2: the invited-only line promises a retry", DP, "invitedOnly: 'Sign-up for this is not open to your account yet.'", "invitedOnly: 'Sign-up for this is not open to your account yet. Try again in a minute.'"],
-  ["row 3: the help entry drops its invited-only sentence", 'help/index.html', "Connecting your own AI is not yet in the preview. If you do not see Connected AIs under Account, it is not available on your account; write to ryagram@uselai.com. If you do see it: open Account", "Open Account"],
+  ["row 3: the help entry drops its invited-only sentence", 'help/index.html', "You can connect an AI assistant such as Claude or ChatGPT to your account. If you do not see Connected AIs under Account, it is not available on your account; write to ryagram@uselai.com. If you do see it: open Account", "Open Account"],
   ["row 4: no real path falls back to the made-up job again", ED, "window.ryagramMock ? 'mock' : null);", "'mock');"],
   ["row 4: a null is handed to the panel again (shows as the text null)", ED, "...(path ? [] : [h('p', { class: 'form-note', id: 'le-render-soon', role: 'status' }, RENDER_SOON)]),", "path ? null : h('p', { class: 'form-note', id: 'le-render-soon', role: 'status' }, RENDER_SOON),"],
   ["row 4: the old heading stays over the no-path panel", ED, "path ? 'What will render' : NOT_IN_FILM_HEAD", "path ? 'What will render' : 'What the film will be made from'"],
