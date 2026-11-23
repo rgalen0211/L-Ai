@@ -87,6 +87,17 @@ class WelcomeRepair(wc.WelcomeCredits):
         self.d().execute("update auth.users set email_confirmed_at = now() where id = %s", (a,))
         self.assertEqual(self.got(a), 8, "opening the first email later pays nothing more: the address has its record")
 
+    def test_capitals_and_spaces_in_the_address_are_the_same_address_as_the_trigger_sees_it(self):
+        self.lever(0)
+        a = self.user(50, "  Cap.Name@Example.COM ")
+        self.lever(8)
+        self.run_part(2)
+        self.assertEqual(self.got(a), 8)
+        self.lever(8)
+        b = self.user(51, "cap.name@example.com")
+        self.assertEqual(self.got(b), 0, "the same address in other case/spacing was recorded by the repair under the trigger's key, so the trigger pays nothing")
+        self.assertEqual(self.d().execute("select count(*) from ryagram_private.welcome_credit_grants").fetchone()[0], 1)
+
     def test_someone_who_already_had_their_credits_is_not_paid_again(self):
         a = self.user(30, "fine@example.com")
         self.assertEqual(self.got(a), 8)
