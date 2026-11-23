@@ -33,11 +33,27 @@
 
   // What contact sheets have shown for the exact story the catalog builds (engine main 56f652e,
   // 2026-10-04). A view that fails the engine's own checks is not offered: it would stop at the gate.
-  // Add to this list from a measured sheet, never from a guess.
+  // Add to this list from a measured sheet, never from a guess. 2026-11-23: the engine's own checks ran on every catalog film (proposals/ENGINE-CATALOG-BLOCK-LIST-1123.json,
+  // kept as tests/fixtures/engine-catalog-block-list-1123.json): 18 failed a check and 2 county bars did not finish, so they are blocked until the engine fixes them and a sheet passes.
   const MEASURED = {
-    ok: { cbp_county_grocery: ['map'], cbp_suppression: ['line'] },
+    ok: { cbp_suppression: ['line'] },
     blocked: {
-      bls_state_unemployment: { map: 'its dots change too little to see, so the engine\u2019s check stops it' },
+      bls_state_unemployment: { map: 'its dots change too little to see, so the engine\u2019s check stops it', bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      bps_county_permits: { map: 'two colours in its key look the same, so the engine\u2019s check stops it', bars: 'the engine has not finished checking it yet, so it is not offered' },
+      bea_sainc1_state_income_index: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_county_grocery: { map: 'its map colours do not change the way the engine\u2019s check needs, so it stops it', bars: 'the engine has not finished checking it yet, so it is not offered' },
+      cbp_accommodation_food_share_state: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_admin_support_share_state: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_arts_share_state: { map: 'a label would overlap other parts of the picture, so the engine\u2019s check stops it', bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_construction_share_state: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_finance_share_state: { map: 'its colours flicker between bands, so the engine\u2019s check stops it', bars: 'its colours flicker between bands, so the engine\u2019s check stops it' },
+      cbp_management_share_state: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_mining_share_state: { map: 'a label would overlap other parts of the picture, so the engine\u2019s check stops it' },
+      cbp_other_services_share_state: { bars: 'bars that tie swap places unevenly, so the engine\u2019s check stops it' },
+      cbp_professional_share_state: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_retail_share_state: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_utilities_share_state: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
+      cbp_wholesale_share_state: { bars: 'its bars jump too far between steps, so the engine\u2019s check stops it' },
       cbp_suppression: { bars: 'it has too few rows for a ten-row race' },
       state_obesity_fastfood: { bars: 'states missing in some years make the rows jump' }
     }

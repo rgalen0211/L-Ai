@@ -18,10 +18,10 @@
     paired: ['Paired', 'Shows two measures of the same places together.']
   };
   // Ready-made starts (NEXT-WEB 132 G3/G4): one click fills dataset, years, film type and title and lands on the Review (Back still works). Each is a view that has been
-  // rendered before (app-templates.js): housing and health as maps, work as lines. A start is offered only when its dataset is in the catalog the function returned.
+  // rendered before (app-templates.js): health as a map, housing and work as lines (housing was a map until 2026-11-23: the engine's checks stop that map, see MEASURED.blocked in app-catalog.js). A start is offered only when its dataset is in the catalog the function returned.
   // Income is not here: no income dataset is listable yet (proposals/WEB-GUIDED-FIRST-FILM-GAPS.md, G4).
   const READY_MADE = [
-    { id: 'housing', label: 'Housing', blurb: 'Where new homes were permitted, county by county, 1990 to 2024.', dataset: 'bps_county_permits', film_type: 'map', title: 'New homes permitted per 1,000 residents, by county', start: '1990', end: '2024' },
+    { id: 'housing', label: 'Housing', blurb: 'New homes permitted per 1,000 residents: the top counties as lines, 1990 to 2024.', dataset: 'bps_county_permits', film_type: 'line', title: 'New homes permitted per 1,000 residents, by county', start: '1990', end: '2024' },
     { id: 'health', label: 'Health', blurb: 'Adult obesity, state by state, 2011 to 2023.', dataset: 'state_obesity_fastfood', film_type: 'map', title: 'Adult obesity by state', start: '2011', end: '2023' },
     { id: 'work', label: 'Work', blurb: 'Unemployment, state by state, 2019 to 2022.', dataset: 'bls_state_unemployment', film_type: 'line', title: 'State unemployment rate, 2019 to 2022', start: '2019-01', end: '2022-12' }
   ];

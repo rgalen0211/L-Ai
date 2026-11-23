@@ -150,7 +150,7 @@ test('LINKS (CC1 LOW-3): a data link from the catalog is shown only as a plain h
 });
 
 test('READY-MADE STARTS (NEXT-WEB 132): housing, health and work, each a view rendered before, offered only when the function\'s catalog lists its dataset; no income (nothing listable)', () => {
-  assert.deepEqual(plain(B.READY_MADE.map(r => [r.id, r.dataset, r.film_type])), [['housing', 'bps_county_permits', 'map'], ['health', 'state_obesity_fastfood', 'map'], ['work', 'bls_state_unemployment', 'line']]);
+  assert.deepEqual(plain(B.READY_MADE.map(r => [r.id, r.dataset, r.film_type])), [['housing', 'bps_county_permits', 'line'], ['health', 'state_obesity_fastfood', 'map'], ['work', 'bls_state_unemployment', 'line']]);
   assert.ok(!B.READY_MADE.some(r => /income/i.test(`${r.id} ${r.dataset} ${r.title}`)), 'no income start until an income dataset is listable');
   const all = B.READY_MADE.map(r => ({ id: r.dataset }));
   assert.deepEqual(plain(B.readyMade(all).map(r => r.id)), ['housing', 'health', 'work']);

@@ -141,9 +141,11 @@ test('"not drawn before" is said for any view and dataset pair no confirmed temp
 
 test('measured combinations: blocked views are not built, drawn-and-passing ones are marked drawn', () => {
   const by = id => K.viewChoices(D.entries.find(e => e.id === id), T.TEMPLATES);
-  assert.deepEqual(plain(by('bls_state_unemployment').filter(c => c.blocked).map(c => c.view)), ['map']);
+  assert.deepEqual(plain(by('bls_state_unemployment').filter(c => c.blocked).map(c => c.view)), ['map', 'bars']);
   assert.deepEqual(plain(by('cbp_suppression').filter(c => c.blocked).map(c => c.view)), ['bars']);
-  assert.equal(by('cbp_county_grocery').find(c => c.view === 'map').tested, true);
+  const grocery = by('cbp_county_grocery').find(c => c.view === 'map');
+  assert.equal(grocery.tested, false);     // it was drawn once, but the engine's own checks fail it (ENGINE 2026-11-23), so it is blocked
+  assert.ok(grocery.blocked);
   assert.equal(by('cbp_suppression').find(c => c.view === 'line').tested, true);
   // Every measured entry names a dataset the catalog actually has, and a view it offers.
   for (const kind of ['ok', 'blocked']) {
