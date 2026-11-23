@@ -284,7 +284,7 @@
         { id: 'write', label: 'Write to us', el: h('div', {}, form, done) },
         { id: 'films', label: 'Films and credits', el: answers(
           qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them. Otherwise a waiting film keeps its place in line.'),
-          qa('Why is my film still "Queued"?', 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours. The Render panel shows your place in line.'),
+          qa('Why is my film still "Queued"?', 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours. The Render panel shows your place in line. You can have 2 films waiting at once.'),
           qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits.'),
           qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.')) },
         { id: 'account', label: 'Account and reports', el: answers(

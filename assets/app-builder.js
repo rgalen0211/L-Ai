@@ -325,6 +325,7 @@
         }
         // The sample makes nothing: in place of the Make button, the way back to its own choices and the way to real data.
         const again = sample ? h('button', { class: 'button secondary', type: 'button', onclick: async () => { await sampleChoices(); compiled = null; s.problems = {}; go(0); } }, 'Start the sample again') : null;
+        let madeId = null;                                                  // the project a refused Make already created (BUILDER 11-23)
         if (sample) make.hidden = true;
         if (!sample) make.addEventListener('click', async () => {
           let finalStory;
@@ -340,9 +341,14 @@
               location.hash = `#/v/${made.version.id}`;
             } catch (err) {
               showError(error, err);
-              if (made) error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'));       // the project exists; the person can carry on there
+              if (made) {                                                                                  // the project exists; the person can carry on there
+                error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), ' and make its contact sheet there.');
+                madeId = made.version.id;
+              }
             }
           });
+          // A second press would make ANOTHER project (BUILDER 11-23: with the 2-films-waiting cap this is a normal path): once the project exists, Make stays hidden.
+          if (madeId) make.hidden = true;
         });
         check();
         return [h('h2', { tabindex: '-1' }, 'Review'), out, sourceBox(),
