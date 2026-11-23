@@ -194,7 +194,7 @@
              h('p', { class: 'form-intro', role: 'status' }, 'It may belong to a different account, or it may have been removed.'),
              h('a', { class: 'button primary', id: 'not-available-home', href: '#/' }, 'Back to your projects')]
           : [h('h1', { tabindex: '-1' }, 'Something went wrong'),
-             h('p', { class: 'app-error', role: 'alert' }, err.message),
+             h('p', { class: 'app-error', role: 'alert' }, window.ryagramJobs.plainRefusal(err && err.message)),
              h('a', { href: '#/' }, 'Back to your projects')];
       }
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
@@ -231,7 +231,7 @@
       const error = errorLine();
       const done = h('p', { class: 'form-note', role: 'status', hidden: true });
       const email = h('input', { id: 'help-email', type: 'email', required: true, maxlength: '200', autocomplete: 'email', value: known });
-      const topics = O.TOPICS.map(([id, label]) => h('label', { class: 'choice' },
+      const topics = O.topicsFor(uploadsOn()).map(([id, label]) => h('label', { class: 'choice' },
         h('input', { type: 'radio', name: 'help-topic', value: id, ...(id === (job ? 'render' : 'other') ? { checked: true } : {}) }), ' ', label));
       const topicValue = () => form.querySelector('input[name="help-topic"]:checked')?.value;
       const message = h('textarea', { id: 'help-message', required: true, rows: '5', maxlength: '4000' });
@@ -269,7 +269,7 @@
           qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.')) },
         { id: 'account', label: 'Account and reports', el: answers(
           qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
-          qa('How do I report a film?', 'Every public film page has a \u201cReport this film\u201d link, or use the report form. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.'),
+          qa('How do I report a film?', 'Public film pages are not open yet. To report a film, use the report form. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.'),
           qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, Ryagram will read spreadsheets (CSV and similar files). If a file can\u2019t be read you\u2019ll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.')) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
@@ -281,7 +281,7 @@
       return h('p', { class: 'form-note app-error', role: 'alert', hidden: true });
     }
     function showError(el, err) {
-      el.textContent = err.message;
+      el.textContent = window.ryagramJobs.plainRefusal(err && err.message);
       el.hidden = false;
     }
     async function busy(button, label, work) {
@@ -1800,7 +1800,7 @@
         if (w.error) return showError(error, new Error(w.error));
         const q = quotes.preview;
         if (creditsOn() && q && !q.error && q.credits > 0 && paymentsOn() && !buyingOn() && (q.available || 0) < q.credits) {      // short of credits and buying is closed: say so here, not the server's refusal
-          return showError(error, new Error(`This preview needs ${C.plural(q.credits)} and you have ${C.plural(Math.max(0, q.available || 0))}. ${BUYING_CLOSED_SHORT}`));
+          return showError(error, new Error(`${q.free_preview ? '' : J.FREE_PREVIEW_USED + ' '}This preview needs ${C.plural(q.credits)} and you have ${C.plural(Math.max(0, q.available || 0))}. ${BUYING_CLOSED_SHORT}`));
         }
         if (creditsOn() && q && !q.error && q.credits > 0
             && !(await askConfirm(previewButton, `Your free previews are used up for now, so this one costs ${C.plural(q.credits)}. Go ahead?`, 'Yes, make the preview'))) return;
@@ -1867,8 +1867,9 @@
         {
           const q = quotes.final_render;
           const anySheet = jobs.some(j => j.job_type === 'contact_sheet' && j.state === 'complete' && j.story_sha256 === storySha);
+          const cantBuy = !!q && typeof q.credits === 'number' && (q.available || 0) < q.credits && !buyingOn();      // short of credits with nowhere to get them: the strip must not promise the full film
           if (creditsOn() && anySheet && !jobs.some(j => j.job_type === 'final_render') && q && !q.error && typeof q.credits === 'number') {
-            nextStrip.replaceChildren(h('strong', {}, 'That first picture was free.'), ' ', ladder.preview ? 'You have a preview too, so the full film is next.' : 'Next make a short preview, then the full film.',
+            nextStrip.replaceChildren(h('strong', {}, 'That first picture was free.'), ' Your contact sheet is under Files. ', ladder.preview ? (cantBuy ? 'You have a preview too.' : 'You have a preview too, so the full film is next.') : (cantBuy ? 'Next make a short preview.' : 'Next make a short preview, then the full film.'),
               ` The full film uses ${C.plural(q.credits)}; you have ${C.plural(Math.max(0, q.available || 0))}.`, ...(buyingOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : paymentsOn() && (q.available || 0) < q.credits ? [' ', BUYING_CLOSED_SHORT] : []));
             nextStrip.hidden = false;
           } else nextStrip.hidden = true;
@@ -1886,6 +1887,7 @@
             const q = quotes[type];
             button.textContent = q && !q.error ? `${base} · ${C.priceLabel(q)}` : base;
             const can = q && !q.error ? C.affordable(q) : { ok: true };
+            if (type === 'preview' && q && !q.error && !q.free_preview && q.credits > 0 && !can.ok) can.reason = `${J.FREE_PREVIEW_USED} ${can.reason}`;      // which limit, and the next step
             if (!can.ok && paymentsOn() && !buyingOn()) can.reason += ` ${BUYING_CLOSED_SHORT}`;      // short of credits and nothing to link to: say plainly buying is not open yet
             if (!can.ok) { button.disabled = true; whyKey(button, q?.error ? q.error : can.reason); }
             return q?.error ? q.error : can.ok ? '' : can.reason;
@@ -1955,11 +1957,9 @@
                        j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
               }, 'Try again') : null,
           creditsOn() && failed ? returnedLine(j, note) : null,
-          failed && j.state !== 'cancelled' && (J.rawDetail(j) || opsOn())
+          failed && j.state !== 'cancelled' && opsOn()      // the render machine's own raw words (paths, codes) are never put on the page: only the plain problem() words above, and a way to send the job to us
             ? h('details', { class: 'job-help' }, h('summary', {}, 'Get help with this'),
-                J.rawDetail(j) ? h('p', { class: 'form-note' }, 'What the render machine reported, in its own words:') : null,
-                J.rawDetail(j) ? h('code', {}, J.rawDetail(j)) : null,
-                opsOn() ? h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Send this to us') : null) : null);
+                h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Send this to us')) : null);
       }
 
       function draw() {

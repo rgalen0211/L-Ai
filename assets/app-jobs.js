@@ -28,7 +28,7 @@
   // Also (WEB 11-21, WORKER's table proposals/WORKER-FREE-PREVIEW-FAILURES-1121.md): an "...Error" word (KeyError), "exit 1:", a file name (preview.mp4, x.json), a bare limit number ("limit 52428800", "61234567 bytes")
   // and the lower-case jargon "sidecar", "engine commit", "preflight". A full stop in ordinary prose is not caught: a file name needs one of the listed endings right after its dot.
   const LOOKS_LIKE_CODE = /[$\[\]{}]|::|Traceback|\bat line\b|\bException\b|\b[a-z]+_[a-z_]+\b|\b[A-Z][a-z]+Error\b|^\s*exit \d+\b|\b[\w-]+\.(?:mp4|json|png|csv|py|log|txt)\b|\blimit \d{3,}|\b\d{5,} bytes\b|\b(?:[Ss]idecar|[Ee]ngine commit|[Pp]reflight)\b/;
-  const UNREADABLE = 'The render machine gave a reason Ryagram cannot put into plain words. Open “Get help with this” to see it, or send it to us.';
+  const UNREADABLE = 'The render machine gave a reason Ryagram cannot put into plain words. Open “Get help with this” and send it to us.';
   const unquote = t => String(t).trim().replace(/^(['"“])(.*)\1$/, '$2');
   function where(path) {
     const parts = String(path || '').replace(/^\$\.?/, '').split('.').filter(Boolean)
@@ -51,7 +51,7 @@
     let m;
     if ((m = /^unknown key '([^']+)'/i.exec(msg))) return `The story has a setting Ryagram doesn’t recognise: “${m[1]}”${at}.`;
     if ((m = /^(?:missing|required)(?: key)? '?([^']*)'?/i.exec(msg))) return `The story is missing a required setting${m[1] ? `: “${m[1]}”` : ''}${at}.`;
-    if ((m = /^(.+?) is not on this worker.s dataset allowlist/i.exec(msg))) return `The dataset “${unquote(m[1])}”${at} can’t be drawn here. Pick a dataset from the catalog.`;
+    if ((m = /^(.+?) is not on this worker.s dataset allowlist/i.exec(msg))) return `The dataset “${unquote(m[1])}”${at} can’t be drawn here. Start again from a ready-made film.`;
     if ((m = /^(.+?) is not offered for (\S+) on this worker \(offered: ([^)]*)\)/i.exec(msg))) return `${unquote(m[2])} can’t be drawn as ${unquote(m[1])}${at}. It can be drawn as: ${m[3].trim()}.`;
     if ((m = /^(.+?) is not one of (.+)$/i.exec(msg))) {
       const choices = m[2].replace(/[\[\]"“”']/g, '').split(',').map(x => x.trim()).filter(Boolean);
@@ -69,9 +69,27 @@
     if (!out.length) return text.startsWith('$') || LOOKS_LIKE_CODE.test(text) || text.length > DETAIL_MAX ? UNREADABLE : text;
     const advice = faults.some(f => /unknown key/i.test(f)) ? ' Remove the setting(s) above, or pick a ready-made film and start again.' : '';       // said once, not after every fault
     const shown = out.slice(0, 5).join(' ') + advice;
-    return out.length > 5 ? `${shown} And ${out.length - 5} more: open “Get help with this”.` : shown;
+    return out.length > 5 ? `${shown} And ${out.length - 5} more. Open “Get help with this” and send it to us.` : shown;
   }
-  const rawDetail = job => String((job && job.error_detail) || '').trim();
+  const rawDetail = job => String((job && job.error_detail) || '').trim();      // kept for the help form's own use; the job list never shows it (WEB 11-23: a stranger's page shows only problem()'s words)
+
+  // The words a stranger reads when a click is refused (WEB 11-23). The server's own sentences are shown as they come only when they already are plain; a code name, a path or a database
+  // phrase becomes one plain line. 'contact_sheet jobs are paused.' is control.disabled_job_types (an operator switch, 20261017000600_pipe1_orders.sql): nothing says for how long.
+  const REFUSAL_GENERIC = 'Something went wrong. Please try again, or ask us to help.';
+  const REFUSAL_OFFLINE = 'Ryagram could not be reached. Check your internet connection and try again.';
+  const PAUSED_WHAT = { contact_sheet: 'contact sheets', preview: 'previews', final_render: 'full films', film_bundle: 'film files' };
+  const DB_WORDS = /row-level security|violates|constraint|\brelation\b|\bcolumn\b|permission denied|\bJWT\b|PGRST|duplicate key|syntax error|schema cache|[\\\/][\w.-]+[\\\/]/i;
+  function plainRefusal(message) {
+    const text = String(message == null ? '' : message).trim();
+    if (!text) return REFUSAL_GENERIC;
+    let m;
+    if ((m = /^(\w+) jobs are paused\.?$/.exec(text))) return Object.hasOwn(PAUSED_WHAT, m[1]) ? `Making ${PAUSED_WHAT[m[1]]} is paused for now. Please try again later.` : 'This is paused for now. Please try again later.';
+    if (/failed to fetch|networkerror|load failed/i.test(text)) return REFUSAL_OFFLINE;
+    if (LOOKS_LIKE_CODE.test(text) || DB_WORDS.test(text) || text.length > DETAIL_MAX) return REFUSAL_GENERIC;
+    return text;
+  }
+  // The free-preview limit, said once with both limits because credit_quote says only that the preview is not free (credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15).
+  const FREE_PREVIEW_USED = 'Your free previews are used up: each project gets 6, and 15 across all projects in any 24 hours. Start a new project if this one used its 6, or try again later.';
 
   // One sentence for a finished job that did not complete, by error class.
   // DRAFT FOR RYAN (WEB 11-21, from WORKER's failure table): the words for a limit with no next step, for the machine's own setup (engine_unsupported), and for checks that did not run.
@@ -327,6 +345,6 @@
   const orderOpen = state => state === 'running' || state === 'awaiting_approval';
 
   window.ryagramJobs = { ORDER_WORDS, orderLine, orderOpen,
-    TYPE_LABELS, typeLabel, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, rawDetail, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
+    TYPE_LABELS, typeLabel, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, rawDetail, plainRefusal, FREE_PREVIEW_USED, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
   };
 })();

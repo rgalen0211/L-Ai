@@ -99,10 +99,11 @@ test('ROW 3 HELP FAQ: "How do I connect Claude or ChatGPT?" is true for everyone
   const m = /<details[^>]*data-flag="connectAi"[^>]*><summary>How do I connect Claude or ChatGPT to Ryagram\?<\/summary>\s*<p>([^<]*)<\/p>/.exec(html);
   assert.ok(m, 'the entry is there');
   const first = m[1];
-  assert.match(first, /^If you do not see Connected AIs under Account, connecting an AI is not available on your account; write to ryagram@uselai\.com\. If you do see it:/);
+  assert.match(first, /^Connecting your own AI is not yet in the preview\. If you do not see Connected AIs under Account, it is not available on your account; write to ryagram@uselai\.com\. If you do see it:/);
   assert.doesNotMatch(first, /invited|for now|we will tell you when it opens/i);
   assert.ok(first.indexOf('not available on your account') < first.indexOf('open Account, then Connected AIs'), 'the caveat comes before the steps');
   assert.doesNotMatch(first, /^Open Account/);
+  assert.match(first, /^Connecting your own AI is not yet in the preview\./, 'the same "not yet in the preview" state as the Terms (preview terms: connecting your own AI assistant is not yet in the preview)');
 });
 
 // ---------------------------------------------------------------------------------------------- ROW 4: the live editor's "Start the render"
