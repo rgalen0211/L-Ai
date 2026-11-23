@@ -103,6 +103,7 @@ class WedLiveSteps(core.Base):
         self.assertEqual(w["scheduled job ops-tick"][0], "succeeded 1 min ago", "the LAST run, not an older failed one")
         self.assertEqual(w["scheduled job purge-partial-uploads"][0], "never ran")
         self.assertTrue(w["scheduled job cost-sync"][0].endswith("(NOT ACTIVE)"))
+        self.assertEqual(w["full films waiting for YOUR approval (#/admin/renders)"][0], "0 waiting; oldest made 0 min ago")
         # plant one case per row
         pid = self.d().execute("insert into public.projects (owner_id, title) values (%s, 'w') returning id", (core.RYAN,)).fetchone()[0]
         vid = self.d().execute("insert into public.versions (project_id, owner_id, number) values (%s, %s, 1) returning id", (pid, core.RYAN)).fetchone()[0]
@@ -118,7 +119,9 @@ class WedLiveSteps(core.Base):
         self.job(pid, vid, "failed", 20, "crash")
         self.job(pid, vid, "editorial_action_required", 30, None)
         self.job(pid, vid, "failed", 90, "limit_exceeded")                      # outside the hour
-        self.job(pid, vid, "complete", 10)                                       # not a failure
+        ladder = self.job(pid, vid, "complete", 10)                              # not a failure (and the ladder for the full films below)
+        self.d().execute("insert into public.jobs (owner_id, project_id, version_id, job_type, story, story_sha256, state, created_at, sheet_job_id, preview_job_id, approved_by, approved_at) values (%s, %s, %s, 'final_render', '{}'::jsonb, repeat('a', 64), 'awaiting_approval', now() - interval '25 minutes', %s, %s, %s, now())", (core.RYAN, pid, vid, ladder, ladder, core.RYAN))
+        self.d().execute("insert into public.jobs (owner_id, project_id, version_id, job_type, story, story_sha256, state, created_at, ended_at, sheet_job_id, preview_job_id, approved_by, approved_at) values (%s, %s, %s, 'final_render', '{}'::jsonb, repeat('a', 64), 'complete', now() - interval '90 minutes', now() - interval '60 minutes', %s, %s, %s, now())", (core.RYAN, pid, vid, ladder, ladder, core.RYAN))
         self.d().execute("update public.workers set last_seen_at = now() - interval '7 minutes' where name = 'ryan-pc'")
         self.d().execute("update public.workers set last_seen_at = now() - interval '1 minute', enabled = false where name = 'spare'")   # a disabled PC does not count
         self.d().execute("insert into auth.users (id, email, created_at, email_confirmed_at) values"
@@ -139,8 +142,9 @@ class WedLiveSteps(core.Base):
         self.assertEqual(w["failed or needs-decision jobs in the last hour, by code"][0], "crash x2, no_code x1", "the 90-minute-old failure and the complete job are not counted")
         self.assertEqual(w["sign-up size used (different addresses, last 24 hours)"][0], "2 of 10", "one address twice counts once; 25 hours ago does not count")
         self.assertEqual(w["scheduled calls answered with an error in the last hour"][0], "2 of 3", "a 403 and a call with no answer, in the hour")
+        self.assertEqual(w["full films waiting for YOUR approval (#/admin/renders)"][0], "1 waiting; oldest made 25 min ago", "the waiting full film counts; a complete one and the queued previews do not")
         self.assertEqual(self.d().execute("select (select count(*) from public.jobs), (select count(*) from auth.users), (select count(*) from public.join_attempts)").fetchone(),
-                         (before[0] + 10, before[1] + 4, before[2] + 4), "the watch itself wrote nothing")
+                         (before[0] + 12, before[1] + 4, before[2] + 4), "the watch itself wrote nothing")
         text = STEP58.read_text(encoding="utf-8").lower()
         for verb in ("insert ", "update ", "delete ", "alter ", "drop ", "truncate ", "grant "):
             self.assertNotIn(verb, text.split("select", 1)[1], "read-only: " + verb)
