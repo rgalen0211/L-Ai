@@ -278,19 +278,20 @@
           job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
           send, error));
       // the form is the main action and stays on the first screen; the quick answers (the same words as the help pages) sit in two more flip sections (Ryan 11-20: no long pages)
-      const qa = (q, ...a) => h('details', {}, h('summary', {}, q), ...a.map(t => h('p', {}, t)));
-      const answers = (...items) => h('div', { class: 'help-answers' }, h('div', { class: 'scroll-panel' }, ...items));
+      const qa = (q, ...a) => h('details', {}, h('summary', {}, q), ...a.map(t => h('p', {}, ...[].concat(t))));      // an answer may be a string or an array of strings and nodes (a link)
+      const answers = (...items) => h('div', { class: 'help-answers' }, h('div', { class: 'scroll-panel' }, ...items.filter(Boolean)));
       const flip = window.ryagramFlip.create({ h, label: 'Help', address: false, sections: [
         { id: 'write', label: 'Write to us', el: h('div', {}, form, done) },
         { id: 'films', label: 'Films and credits', el: answers(
           qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them. Otherwise a waiting film keeps its place in line.'),
-          qa('Why is my film still "Queued"?', 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours. The Render panel shows your place in line. You can have 2 films waiting at once.'),
-          qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits.'),
-          qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.')) },
+          qa('Why is my film still "Queued"?', 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A full film is checked by a person before it starts, which can take longer. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours. The Render panel shows your place in line. You can have 2 films waiting at once.'),
+          qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits (a failed free preview still counts toward your free ones).'),
+          qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.'),
+          qa('Why can\u2019t I make a full film? How do I get credits?', 'A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' A full film needs credits, and buying credits is not open yet.'))) },
         { id: 'account', label: 'Account and reports', el: answers(
           qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
-          qa('How do I report a film?', 'Public film pages are not open yet. To report a film, use the report form. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.'),
-          qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, this answer will say how your files are read and deleted. Until then nothing can be uploaded.')) }
+          qa('How do I report a film?', ['Public film pages are not open yet. To report a film, use the ', h('a', { href: '/report/' }, 'report form'), '. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.']),
+          uploadsOn() ? null : qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, this answer will say how your files are read and deleted. Until then nothing can be uploaded.')) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
               h('p', { class: 'form-intro' }, 'Common questions are answered below and in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
