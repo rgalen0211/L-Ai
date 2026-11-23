@@ -27,13 +27,13 @@ test('DRAFTS: both are marked as drafts for Ryan, noindex, with the draft styles
   assert.ok(fs.existsSync(path.join(root, 'assets/legal-draft.css')));
 });
 
-test('SHELLS: Terms and AI-content pages exist as clearly marked placeholders (no legal wording), are noindex, and every Ryagram footer links them; nothing links to a draft', () => {
+test('SHELLS: the AI-content page exists as a clearly marked placeholder (no legal wording), is noindex, and every Ryagram footer links it and the Terms; nothing links to a draft (the Terms are now the preview terms: tests/preview-terms-1122.test.mjs)', () => {
   for (const p of ['ryagram/index.html', 'app/index.html', 'film/index.html', 'help/index.html', 'report/index.html', 'preview-demo/index.html', 'privacy-policy.html']) {
     const foot = read(p).match(/<footer[\s\S]*?<\/footer>/)[0];
     assert.match(foot, /<a href="\/terms\/">Terms of Use<\/a><a href="\/privacy-policy\.html"[^>]*>Privacy Policy<\/a><a href="\/ai-content\/">AI content<\/a>/, p);
     assert.doesNotMatch(read(p), /legal-drafts/, p);
   }
-  for (const name of ['terms', 'ai-content']) {
+  for (const name of ['ai-content']) {
     const html = read(`${name}/index.html`);
     assert.match(html, new RegExp(`data-legal-shell="${name}"`));
     assert.match(html, /<meta name="robots" content="noindex, nofollow">/);
