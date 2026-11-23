@@ -220,6 +220,12 @@ class JoinOpen(core.Base):
         self.d().execute("insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), 'stuck@example.com', 'pending', now() - interval '20 minutes')")
         self.d().execute("insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), 'young@example.com', 'pending', now() - interval '1 minute')")
         self.d().execute("insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), 'noaccount@example.com', 'pending', now() - interval '30 minutes')")
+        # a pending row YOUNGER than 10 minutes whose email already has an account is still in flight: not listed, not counted
+        self.signs_up(STRANGER2, "inflight@example.com", {"adult_confirmed": "true", "adult_source": "invite"})
+        self.d().execute("insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), 'inflight@example.com', 'pending', now() - interval '2 minutes')")
+        # a RELEASED row (no mail went out) with an account made later: never listed, invite_sent cannot repair it
+        self.signs_up(str(uuid.UUID(int=706)), "released@example.com", {"adult_confirmed": "true", "adult_source": "invite"})
+        self.d().execute("insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), 'released@example.com', 'released', now() - interval '30 minutes')")
         rows = self.d().execute(chk).fetchall()
         self.assertEqual(len(rows), 2, rows)
         self.assertEqual(rows[0][1], "1", "one stuck: old enough and the email has an account (the young one and the one without an account are not listed)")
