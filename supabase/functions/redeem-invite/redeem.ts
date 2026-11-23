@@ -61,14 +61,21 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   }
 
   const redemption = r.redemption!;
+  let userId: string | null;
   try {
-    const { userId } = await deps.invite(email, `${deps.siteUrl}/app/`, { adult_confirmed: true, adult_source: "invite" });
-    await deps.sent(redemption, userId);
-    return reply(200, { message: SENT });
+    ({ userId } = await deps.invite(email, `${deps.siteUrl}/app/`, { adult_confirmed: true, adult_source: "invite" }));
   } catch (e) {
     await deps.release(redemption).catch(() => {});
     if ((e as { code?: string }).code === "email_exists") return reply(200, { message: SENT });   // same answer
     console.error(`redeem-invite invite: ${(e as Error).message}`);
     return reply(503, { error: "We couldn’t send the email just now. Your code still works; try again later." });
   }
+  // The email HAS gone out. Recording that (and the welcome credits it grants) is bookkeeping: if it fails once, try once more; if it still fails, log it and still tell the person the truth (the mail is on its way).
+  // Releasing the code and answering "we couldn't send" here would be false (11-23, a subagent's audit of the stranger path).
+  try { await deps.sent(redemption, userId); }
+  catch (e1) {
+    try { await deps.sent(redemption, userId); }
+    catch (e2) { console.error(`redeem-invite sent (the email went out; the redemption ${redemption} is not marked sent; user ${userId}; repair: select public.invite_sent(${redemption}, '<that user id>')): ${(e2 as Error).message}`); }
+  }
+  return reply(200, { message: SENT });
 }
