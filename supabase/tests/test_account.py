@@ -20,6 +20,8 @@ class Account(core.Base):
     project_with_version = core.Core.project_with_version
     run_job = core.Core.run_job
     claim = core.Core.claim
+    ladder = core.Core.ladder
+    denied = core.Core.denied
 
     def admin(self, sql, *args):
         return self.db.as_(None).one(sql, *args)
@@ -92,6 +94,28 @@ class Account(core.Base):
         self.admin("delete from auth.users where id = %s returning 1", RYAN)
         for table in ("projects", "versions", "jobs", "artifacts", "datasets", "account_settings"):
             self.assertEqual(self.admin(f"select count(*) from {table} where owner_id = %s", RYAN), 0, table)
+
+    def test_GEO_a_free_preview_stranger_with_a_finished_sheet_and_preview_deletes_cleanly(self):
+        # GEO 11-23, the Wednesday preview: a stranger joins (18+ recorded), makes the free contact sheet and preview on a version that
+        # points at an upload, writes to support, and deletes. Zero-cost jobs write no credit row, so the hard-delete path runs; the
+        # login delete must clear every owned row through the 'on delete restrict' keys between jobs, artifacts and versions.
+        self.admin("insert into account_adult_confirmation (user_id, source) values (%s, 'join') returning 1", RYAN)
+        _, vid, sheet, prev = self.ladder()
+        ds = self.dataset()
+        self.admin("update versions set dataset_id = %s where id = %s returning 1", ds, vid)
+        self.admin("insert into support_requests (owner_id, email, topic, message) values (%s, 'ryan@x', 'other', 'Hello there.') returning 1", RYAN)
+        self.admin("insert into funnel_events (event, user_id) values ('contact_sheet', %s) returning 1", RYAN)
+        check = self.check()
+        self.assertEqual((check["active_jobs"], check["has_credit_history"]), (0, False))          # the free path, not the paid one
+        self.assertEqual(len(check["storage_paths"]), 2)                                             # the sheet and the preview
+        self.admin("delete from auth.users where id = %s returning 1", RYAN)
+        for table in ("projects", "versions", "jobs", "artifacts", "datasets"):
+            self.assertEqual(self.admin(f"select count(*) from {table} where owner_id = %s", RYAN), 0, table)
+        self.assertEqual(self.admin("select count(*) from account_adult_confirmation where user_id = %s", RYAN), 0)
+        self.assertEqual(self.admin("select count(*) from jobs where id = any(%s)", [sheet, prev]), 0)
+        # what remains is not tied to the person (what the Privacy page must say): the support message and the page-visit count
+        self.assertEqual(self.admin("select count(*) from support_requests where owner_id is null and message = 'Hello there.'"), 1)
+        self.assertEqual(self.admin("select count(*) from funnel_events where user_id is null and event = 'contact_sheet'"), 1)
 
     def test_a_request_is_recorded_once_and_only_the_service_role_can_do_any_of_this(self):
         for reason in ("credit history", "again"):
