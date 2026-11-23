@@ -54,7 +54,8 @@ begin
   eh := encode(sha256(convert_to('ryagram-join:' || mail, 'UTF8')), 'hex');
   perform pg_advisory_xact_lock(hashtextextended('ryagram-join', 0));                                          -- count-then-write takes turns, so callers at the same moment cannot pass the limit together
   delete from public.join_attempts where at < now() - interval '2 days';
-  if (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day') >= coalesce((select o.join_daily_max from public.ops_settings o limit 1), 200) then       -- the size of sign-up for any 24 hours (Ryan's setting, 200 unless he changes it), counted in DIFFERENT ADDRESSES (people), not tries (GAMES 09:21): nobody is blamed
+  if (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day') >= coalesce((select o.join_daily_max from public.ops_settings o limit 1), 200)
+     and not exists (select 1 from public.join_attempts a where a.email_hash = eh and a.at > now() - interval '1 day') then       -- the size of sign-up for any 24 hours (Ryan's setting, 200 unless he changes it), counted in DIFFERENT ADDRESSES (people), not tries (GAMES 09:21), and an address that ALREADY holds a place in the window is never turned away by it (GEO 09:51: the person whose email went missing presses Send again): nobody is blamed
     return jsonb_build_object('ok', false, 'reason', 'full');
   end if;
   if (select count(*) from public.join_attempts where ip_hash = left(coalesce(p_ip_hash, 'unknown'), 64) and at > now() - interval '1 hour') >= 5

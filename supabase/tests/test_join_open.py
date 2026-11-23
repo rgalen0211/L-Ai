@@ -156,7 +156,7 @@ class JoinOpen(core.Base):
         for i in range(3):
             self.assertEqual(self.join(f"s{i}@example.com", f"ip{i}"), {"ok": True})
         self.assertEqual(self.join("s9@example.com", "ip9"), {"ok": False, "reason": "full"}, "the 4th in the day with a size of 3")
-        self.assertEqual(self.join("s0@example.com", "ip0"), {"ok": False, "reason": "full"}, "a repeat caller is told the day is full too, never that they tried too often")
+        self.assertEqual(self.join("s0@example.com", "ip0"), {"ok": True}, "s0 already holds a place: let through (see the held-place test), never told they tried too often")
         self.d().execute("update public.ops_settings set join_daily_max = 4")
         self.assertEqual(self.join("s9@example.com", "ip9"), {"ok": True}, "raising the number lets the next one in at once")
         self.d().execute("update public.ops_settings set join_daily_max = 0")
@@ -174,6 +174,21 @@ class JoinOpen(core.Base):
         self.waiting(False)
         self.flag(False)
         self.assertEqual(self.join("u@example.com", "ipU"), {"ok": False, "reason": "off"}, "closed stays 'off' whatever the size")
+
+    def test_an_address_that_already_holds_a_place_is_not_turned_away_when_the_day_is_full(self):
+        """GEO 09:51: person number N, whose email did not arrive, presses Send again after the size is reached: they hold a place, so they are let through to the usual per-address limit (3 a day), not told 'full'."""
+        self.flag(True)
+        self.d().execute("update public.ops_settings set join_daily_max = 2")
+        self.assertEqual(self.join("a@example.com", "ip1"), {"ok": True})
+        self.assertEqual(self.join("b@example.com", "ip2"), {"ok": True})
+        self.assertEqual(self.join("c@example.com", "ip3"), {"ok": False, "reason": "full"}, "a third person: full")
+        self.assertEqual(self.join("b@example.com", "ip4"), {"ok": True}, "b already holds a place: let in again (their mail did not come)")
+        self.assertEqual(self.join("b@example.com", "ip5"), {"ok": True})
+        self.assertEqual(self.join("b@example.com", "ip6"), {"ok": False, "reason": "throttled"}, "the per-address limit of 3 a day still bites, with its own words")
+        self.assertEqual(self.join("c@example.com", "ip7"), {"ok": False, "reason": "full"}, "and the third person is still told it is full")
+        self.d().execute("update public.ops_settings set join_daily_max = 0")
+        self.assertEqual(self.join("a@example.com", "ip8"), {"ok": True}, "a held place passes even when Ryan sets 0 (0 turns away NEW people)")
+        self.assertEqual(self.join("z@example.com", "ip9"), {"ok": False, "reason": "full"})
 
     def test_the_daily_size_counts_people_not_tries(self):
         """GAMES 09:21: Ryan thinks in people. The same address pressing Send again, and the step-5 test join, use one place, not three."""

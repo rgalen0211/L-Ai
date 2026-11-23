@@ -34,7 +34,7 @@ test('the flag is OFF by default and not null, on the one settings row; the migr
 
 test('join_reserve is the 20261106000100 function plus exactly two changes: with the flag taken out and the daily size read from the setting (as its own answer), it is the old function character for character', () => {
   const now = fn(MIG, 'public.join_reserve'), before = fn(OLD, 'public.join_reserve');
-  const FULLBLOCK = "if (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day') >= coalesce((select o.join_daily_max from public.ops_settings o limit 1), 200) then return jsonb_build_object('ok', false, 'reason', 'full'); end if; ";
+  const FULLBLOCK = "if (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day') >= coalesce((select o.join_daily_max from public.ops_settings o limit 1), 200) and not exists (select 1 from public.join_attempts a where a.email_hash = eh and a.at > now() - interval '1 day') then return jsonb_build_object('ok', false, 'reason', 'full'); end if; ";
   const noflag = now.replace(' and not coalesce((select o.join_open from public.ops_settings o limit 1), false)', '');
   assert.notEqual(noflag, now, 'the flag condition is there');
   assert.ok(noflag.includes(FULLBLOCK), 'the daily size is read from the setting and answers its own reason full, before the per-caller limits');
