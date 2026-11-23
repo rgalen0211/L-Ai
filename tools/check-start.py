@@ -113,11 +113,11 @@ def main():
                 t = p.inner_text('main')
                 check('Claude is connected' in t, 'the pill says which AI is connected')
                 check(p.locator('.start-line').count() == 6, 'six starting lines')
-                first = 'Make me a film about housing costs in my county'
+                first = 'Show how adult obesity changed across US states from 2011 to 2023, on a map'
                 href = p.eval_on_selector('.start-line:first-child a:has-text("Claude")', 'e => e.href')
                 check(href == 'https://claude.ai/new?q=' + quote(first + ' ' + TAIL, safe="-_.!~*'()"), 'Claude opens a new chat with the line and its tail encoded in the address')
                 href2 = p.eval_on_selector('.start-line:first-child a:has-text("ChatGPT")', 'e => e.href')
-                check(href2.startswith('https://chatgpt.com/?q=') and 'housing' in href2, 'ChatGPT opens a new chat the same way')
+                check(href2.startswith('https://chatgpt.com/?q=') and 'obesity' in href2, 'ChatGPT opens a new chat the same way')
                 check(p.locator('.start-line:first-child a.primary:has-text("Claude")').count() == 1 and p.locator('.start-line:first-child a.primary:has-text("ChatGPT")').count() == 0, 'the connected AI\'s button is the highlighted one')
                 check(p.locator('.start-line button:has-text("Copy")').count() == 6, 'every line has Copy')
                 check('No AI? Build it step by step' in t and 'Connected AIs' in t, 'the builder link and Connected AIs are the footer')
