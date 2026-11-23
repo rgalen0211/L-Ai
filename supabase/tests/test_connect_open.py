@@ -88,6 +88,19 @@ class ConnectOpen(core.Base):
             self.assertTrue(all(r[1] is True for r in rows), rows)
             self.assertIn("ON" if on else "OFF", rows[-1][0])
 
+    def test_the_check_step_runs_BEFORE_the_migration_without_an_error(self):
+        """11-23 (a subagent's audit of the launch paper): the check's first run is BEFORE the migration, where the column open_to_all does not exist. Postgres resolves a column when it parses a statement,
+        so a plain read of the column failed the whole statement ('column does not exist'). Put the database back to its state before the migration with the rollback, run the check, and it must answer, not fail."""
+        self.db.as_(None).c.execute(RB.read_text(encoding="utf-8"))
+        text = (core.ROOT / "live-steps" / "35_connect_open_check.sql").read_text(encoding="utf-8")
+        rows = self.db.as_(None).c.execute(text).fetchall()
+        self.assertEqual(len(rows), 5)
+        self.assertEqual([r[1] for r in rows[:4]], [False, False, False, False], rows)
+        self.assertIn("OFF", rows[-1][0])
+        undo = (core.ROOT / "live-steps" / "37_connect_open_OFF.sql").read_text(encoding="utf-8")
+        self.assertIn("update public.connect_tokens set revoked_at = now() where revoked_at is null;", undo, "the undo says how to end the connections from the SQL Editor")
+        self.assertIn("update public.connect_grants set revoked_at = now() where revoked_at is null;", undo)
+
     def test_the_rollback_puts_the_old_rule_back_and_removes_what_was_added(self):
         self.flag(True)
         self.db.as_(None).c.execute(RB.read_text(encoding="utf-8"))
