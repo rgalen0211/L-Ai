@@ -143,7 +143,7 @@ test('queue: every waiting job says one at a time; the hours line is said only w
 });
 
 test('Help "Why is my film still Queued?" says it can be hours at busy times, on both Help pages', () => {
-  const A = 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours.';
+  const A = 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A full film is checked by a person before it starts, which can take longer. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours.';
   assert.ok(read('help/index.html').includes(A));
   assert.ok(read('assets/app-library.js').includes(A));
 });
