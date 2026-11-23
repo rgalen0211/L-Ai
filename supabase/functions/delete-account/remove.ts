@@ -75,7 +75,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       step = "block";
       await deps.blockLogin(user.id);
       return reply(202, { status: "requested", files_removed: paths.length + uploads.length,
-        message: "Your films and uploaded files are deleted, and you can no longer sign in. Your credit history is kept as a financial record, so your account itself is closed by hand." });
+        message: "Your films, previews and files are deleted, and you can no longer sign in. Your credit history is kept as a financial record, so your account itself is closed by hand." });
     }
     step = "login";
     await deps.deleteUser(user.id);

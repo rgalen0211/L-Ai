@@ -57,7 +57,7 @@ test('a running render blocks it; credit history still deletes files and uploads
   const body = await res.json();
   assert.equal(body.status, 'requested');
   assert.equal(body.files_removed, 2);
-  assert.match(body.message, /films and uploaded files are deleted, and you can no longer sign in/);
+  assert.match(body.message, /Your films, previews and files are deleted, and you can no longer sign in/);
   // MUST-FAIL (GEO 11-23): the kept record is CREDIT history, which includes welcome credits that were never paid for (an invite or an
   // approved waiting account), and the free preview takes no payments; the page and the preview Terms say 'credit history' too (WEB ad64ecb9)
   assert.match(body.message, /Your credit history is kept as a financial record/);
