@@ -232,7 +232,14 @@
 
     async function delayedNotice() {
       const text = window.ryagramOps.bannerText(await data.serviceStatus());
-      return text ? h('p', { class: 'app-status', role: 'status' }, text) : null;
+      return text ? h('p', { class: 'app-status delayed-notice', role: 'status' }, text) : null;
+    }
+    // The same notice, kept current by the Version page's own 10-second read (WEB 11-23): shown when rendering turns delayed while a film waits, removed when it is back. Never a second timer.
+    function setDelayedNotice(text) {
+      const now = root.querySelector('.delayed-notice');
+      if (!text) { if (now) now.remove(); return; }
+      if (now) { if (now.textContent !== text) now.textContent = text; return; }
+      root.prepend(h('p', { class: 'app-status delayed-notice', role: 'status' }, text));
     }
 
     // --- #/help  the help form. Signed-in people's job (from #/help?job=<id>) is attached by the server.
@@ -275,7 +282,7 @@
       const flip = window.ryagramFlip.create({ h, label: 'Help', address: false, sections: [
         { id: 'write', label: 'Write to us', el: h('div', {}, form, done) },
         { id: 'films', label: 'Films and credits', el: answers(
-          qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If it waits more than an hour we stop it and give your credits back.'),
+          qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them. Otherwise a waiting film keeps its place in line.'),
           qa('Why is my film still "Queued"?', 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. The Render panel shows your place in line.'),
           qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits.'),
           qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.')) },
@@ -1885,9 +1892,9 @@
         const busyType = type => jobs.some(j => j.job_type === type && J.isActive(j));
         const why = { sheet: '', preview: '', final: '' };                 // why a button is off: its tooltip, and the not-allowed cursor
         sheetButton.disabled = busyType('contact_sheet');
-        if (sheetButton.disabled) why.sheet = 'A contact sheet is already being made.';
+        if (sheetButton.disabled) why.sheet = jobs.some(j => j.job_type === 'contact_sheet' && j.state === 'queued') ? 'Your contact sheet is waiting in line.' : 'A contact sheet is already being made.';
         previewButton.disabled = busyType('preview');
-        if (previewButton.disabled) why.preview = 'A preview is already being made.';
+        if (previewButton.disabled) why.preview = jobs.some(j => j.job_type === 'preview' && j.state === 'queued') ? 'Your preview is waiting in line.' : 'A preview is already being made.';
         const ladder = J.ladder(jobs, storySha, engine);
         const noFilm = !!(window.ryagramTemplates && window.ryagramTemplates.isBlank(v.story_spec));
         blankNote.hidden = !noFilm;
@@ -2043,10 +2050,13 @@
             balance = bal;
           }
           const pos = {};
-          await Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
+          // The delayed notice is read in THIS pass (so never an overlapping request), only while a film waits or a notice is showing and may need to clear.
+          const statusRead = opsOn() && (fresh.some(j => j.state === 'queued') || root.querySelector('.delayed-notice')) ? data.serviceStatus() : Promise.resolve(undefined);
+          const [, status] = await Promise.all([Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
             try { pos[j.id] = await data.queuePosition(j.id); } catch { /* position unknown */ }
-          }));
+          })), statusRead]);
           if (stopped || pass !== gen) return;
+          if (status !== undefined) setDelayedNotice(window.ryagramOps.bannerText(status));
           const before = seen;
           seen = new Map(fresh.map(j => [j.id, j.state]));
           jobs = fresh;

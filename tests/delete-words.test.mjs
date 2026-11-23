@@ -5,6 +5,7 @@ import fs from 'node:fs';
 
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const CREDIT = 'If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.';
+const goesRed = (check, oldText) => assert.throws(() => check(oldText), undefined, 'the check must fail on the old wording');
 const files = { library: read('assets/app-library.js'), waiting: read('assets/app-waiting.js') };
 
 test('the dialogs and sections give no date: Terms 9 and Privacy promise none, so "within 30 days" is gone (WEB 11-23 v2)', () => {
@@ -36,7 +37,17 @@ test('the section says the same as Terms 9: files removed, email replaced in sup
 test('what the server answers still matches the words: a credit-history account gets 202 requested with the login blocked, anyone else 200 deleted', () => {
   const rm = read('supabase/functions/delete-account/remove.ts');
   assert.match(rm, /blockLogin\(user\.id\)[\s\S]*status: "requested"/);
-  assert.match(rm, /closed by hand/);   // (remove.ts still says "within 30 days"; reported to CONNECT/GEO, the page and Terms no longer give a date)
+  assert.match(rm, /closed by hand/);
+  // The reply a credit-history person reads, the mock of it and the page words say the same and promise no number of days (RENDERER 11-23: the mock kept "within 30 days" after the page dropped it).
+  // GEO's ffbcdd16 (origin/geo-delete-free-1123) changes remove.ts to NEW; until it is merged this tree's remove.ts still holds OLD, so either is accepted from the server file, never the mock.
+  const NEW = 'Your films and uploaded files are deleted, and you can no longer sign in. Your credit history is kept as a financial record, so your account itself is closed by hand.';
+  const OLD = 'Your films and uploaded files are deleted, and you can no longer sign in. Your payment history is kept as a financial record, so your account itself is closed by hand within 30 days.';
+  assert.ok(rm.includes(NEW) || rm.includes(OLD), 'remove.ts replies with NEW (or, until GEO ffbcdd16 lands, OLD)');
+  const mock = read('tests/fake-supabase.js');
+  const check = m => { assert.ok(m.includes(`message: '${NEW}'`), 'the mock replies with the server words'); assert.doesNotMatch(m.match(/status: 'requested', message: '[^']*'/)[0], /\d+ days|within/); };
+  check(mock);
+  goesRed(check, mock.replace(NEW, 'Your account has credit history, which is kept as a financial record. Your request is recorded, and your account and files will be deleted by hand within 30 days.'));
+  for (const s of Object.values(files)) assert.doesNotMatch(s.slice(s.indexOf('Delete your account?'), s.indexOf('Delete your account?') + 450), /\b\d+ days\b/, 'the page promises no number of days either');
   assert.match(rm, /status: "deleted"/);
   assert.match(rm, /A render is still running/);
 });
