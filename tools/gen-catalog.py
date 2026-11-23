@@ -56,6 +56,7 @@ STYLE_PINS = {'bps_county_permits': {'choropleth': {'mode': 'solid', 'continuous
 #: The film types the guided builder offers: the app's tested templates that need no per-story measurement. `paired` is NOT here:
 #: a paired story must carry keyframes_per_year measured for that story (Ryan, 2026-09-28), which takes minutes of rendering.
 FILM_TYPES = ('map', 'bars', 'line')
+BLOCK_VIEWS = APP_VIEWS + ('shares',)    # ENGINE's block list v2 also names 'shares' (a sheet view the site never offers): valid in the list, never in film_types
 LEVELS = {'us_states': 'U.S. states', 'us_counties': 'U.S. counties', 'us_counties_tv': 'U.S. counties', 'tx_counties': 'Texas counties'}
 
 
@@ -415,8 +416,8 @@ def read_block_list(path):
         sys.exit(f'gen-catalog: the block list must be an object of dataset id -> list of views: {path}')
     out = {}
     for i, vs in raw.items():
-        if not isinstance(vs, list) or not vs or not all(isinstance(v, str) and v in APP_VIEWS for v in vs):
-            sys.exit(f'gen-catalog: block list {i!r}: expected a non-empty list of views from {APP_VIEWS}, got {vs!r}')
+        if not isinstance(vs, list) or not vs or not all(isinstance(v, str) and v in BLOCK_VIEWS for v in vs):
+            sys.exit(f'gen-catalog: block list {i!r}: expected a non-empty list of views from {BLOCK_VIEWS}, got {vs!r}')
         out[i] = set(vs)
     return out
 
