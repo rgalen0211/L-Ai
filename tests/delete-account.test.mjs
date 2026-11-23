@@ -58,6 +58,10 @@ test('a running render blocks it; credit history still deletes files and uploads
   assert.equal(body.status, 'requested');
   assert.equal(body.files_removed, 2);
   assert.match(body.message, /films and uploaded files are deleted, and you can no longer sign in/);
+  // MUST-FAIL (GEO 11-23): the kept record is CREDIT history, which includes welcome credits that were never paid for (an invite or an
+  // approved waiting account), and the free preview takes no payments; the page and the preview Terms say 'credit history' too (WEB ad64ecb9)
+  assert.match(body.message, /Your credit history is kept as a financial record/);
+  assert.doesNotMatch(body.message, /payment/i);
   // MUST-FAIL: before the fix only the request was recorded and NO file was touched
   assert.deepEqual(w.calls, [['remove', 1], ['remove-uploads', 1], ['redact', ME, 'Ryan@Example.com'], ['erase', ME], ['request', ME, 'credit history'], ['block', ME]]);
   assert.ok(!w.calls.some(c => c[0] === 'deleteUser'));                       // the login and the ledger stay
