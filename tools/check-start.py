@@ -77,7 +77,7 @@ def main():
                 p.wait_for_selector('h1:has-text("Use your AI to make films")', timeout=20000)
                 check(p.evaluate('location.hash') == '#/start', 'no AI connected: the plain address lands on #/start')
                 t = p.inner_text('main')
-                check('Connect Claude' in t and 'Connect ChatGPT (beta)' in t and 'No AI? Build it step by step' in t and 'Not now' in t, 'Connect Claude, Connect ChatGPT (beta), the builder link and Not now are there')
+                check('Connect Claude' in t and 'Connect ChatGPT' in t and 'Connect ChatGPT (beta)' not in t and 'No AI? Build it step by step' in t and 'Not now' in t, 'Connect Claude, Connect ChatGPT, the builder link and Not now are there')
                 hrefs = p.eval_on_selector_all('main a.button', 'els => els.map(e => e.getAttribute("href"))')
                 check('#/account?connect=claude' in hrefs and '#/account?connect=chatgpt' in hrefs, 'the two connect buttons go to the Account page steps for each app (King\'s Island W2)')
                 check(not any('connect-ai' in (x or '') for x in hrefs), 'and not to the long public guide')

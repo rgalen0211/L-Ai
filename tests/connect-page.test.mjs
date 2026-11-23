@@ -91,7 +91,7 @@ test('the guide is TRUE WHETHER OR NOT connecting is open to everyone (Ryan 11-2
   assert.doesNotMatch(page, /invite-only|has been invited/i, 'no wording that goes false the day the list opens');
   const app = fs.readFileSync(path.join(root, 'assets/app-library.js'), 'utf8');
   assert.ok(app.includes('Connected AIs'), 'and the page the guide points to says exactly that');
-  assert.ok(read('assets/creator-beta.js').includes("encodeURIComponent('Ryagram invite request')") && read('assets/creator-beta.js').includes('ryagram@uselai.com'), 'the subject and the address are the ones the site uses');
+  assert.ok(read('assets/creator-beta.js').includes('ryagram@uselai.com'), 'the address is the one the site uses');   // creator-beta.js no longer builds the invite mailto (WEB 11-23): the hero button is Create an account
 });
 test('the connector\'s no-grant message is also true in both states (it never says invite-only), and tells the person where to look and how to ask', () => {
   const d = read('supabase/functions/connect-core/dispatch.ts');

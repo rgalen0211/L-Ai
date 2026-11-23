@@ -116,7 +116,7 @@ def main():
             p.click('.builder-start[data-start="housing"]')
             p.wait_for_selector('.builder-summary', timeout=15000)
             text = p.inner_text('.builder-summary')
-            check('1990 to 2024' in text and 'Map' in text, 'one tap lands on the Review with data, years and kind filled')
+            check('1990 to 2024' in text and 'Lines' in text, 'one tap lands on the Review with data, years and kind filled')
             screen(p, '5-review', 'review')
             p.click('button:has-text("Make the film and a free contact sheet")')
 
