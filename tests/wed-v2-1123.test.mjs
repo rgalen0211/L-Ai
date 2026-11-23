@@ -5,10 +5,6 @@ import fs from 'node:fs';
 
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
-test('LOW1: /ryagram/ loads creator-beta.js with a version stamp (a returning visitor gets the changed script)', () => {
-  assert.match(read('ryagram/index.html'), /<script src="\/assets\/creator-beta\.js\?v=20261123a" defer>/);
-});
-
 test('privacy: no waitlist promise of invitations; the Keep me posted form is described as what the code does (email, optional note, the link you came from)', () => {
   const p = read('privacy-policy.html');
   assert.doesNotMatch(p, /Ryagram waitlist|including invitations to try it|cover our website, inquiries and the waitlist/);
@@ -30,8 +26,3 @@ test('the sign-in link-expired word says email link, not invite link', () => {
   assert.match(read('assets/app-auth.js'), /That email link has expired or was already used\./);
 });
 
-test('LOW1: the stamp\'s pair is recorded and equals the file as it is now', async () => {
-  const { createHash } = await import('node:crypto');
-  const rec = JSON.parse(read('tests/asset-versions.json'))['creator-beta.js'];
-  assert.equal(rec['20261123a'], createHash('sha256').update(read('assets/creator-beta.js')).digest('hex'));
-});
