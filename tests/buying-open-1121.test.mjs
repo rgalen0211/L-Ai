@@ -110,8 +110,9 @@ test('EVERY Buy site is tied to the one switch: no Buy/Subscribe label or #/cred
   assert.ok(lib.lastIndexOf("!open ? null : h('button'", at) > lib.lastIndexOf('const offerItem', at), 'the checkout button is inside the open-only branch');
   assert.equal(lib.split('startCheckout(').length, 2, 'one checkout call in the whole library');
   assert.equal((lib.match(/paymentsOn\(\) \? \[/g) || []).length, 0, 'no Buy link is gated by paymentsOn alone any more');
-  assert.match(lib, /if \(!can\.ok && paymentsOn\(\) && !buyingOn\(\)\) can\.reason \+= ` \$\{BUYING_CLOSED_SHORT\}`/, 'a render short of credits says buying is not open yet');
-  assert.match(lib, /: paymentsOn\(\) && \(q\.available \|\| 0\) < q\.credits \? \[' ', BUYING_CLOSED_SHORT\]/, 'the next-step strip says so too');
+  assert.match(lib, /if \(!can\.ok && !isFinal && paymentsOn\(\) && !buyingOn\(\)\) can\.reason \+= ` \$\{BUYING_CLOSED_SHORT\}`/, 'a preview short of credits says buying is not open yet (a full film says it inside its own reason: affordable(q, { closed }))');
+  assert.match(lib, /closed: paymentsOn\(\) && !buyingOn\(\)/);
+  assert.match(lib, /: paymentsOn\(\) && \(q\.available \|\| 0\) < q\.credits \? \[' ', BUYING_CLOSED_SHORT, C\.fitsLine\(q, filmRows\)\]/, 'the next-step strip says so too');
   assert.match(lib, /DRAFT FOR RYAN/);
   const cfg = read('assets/ryagram-config.js');
   assert.match(cfg, /\n  buyingOpen: false,/);

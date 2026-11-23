@@ -90,6 +90,17 @@ def main():
                 check(closed_faults(s) == [], f'[{width}] CLOSED Credits: no Buy/Subscribe, no test card, no Test mode text, closed line, no packs, plans or prices ({closed_faults(s)})')
                 check(not s['overflow'], f'[{width}] CLOSED Credits: no sideways scroll')
                 check(s['filmCost'] and 'between 6 and 10 credits' in s['text'], f'[{width}] CLOSED Credits says what a full film costs (read from the price table)')
+                # Q679 B: an account holding 8 welcome credits (and the 0 / 2 / 10 states) reads what the balance covers, never 'a full film needs credits'
+                for have, cover in ((8, ' Your 8 credits cover the smaller film types.'), (2, ' Your 2 credits do not cover a full film.'), (10, None), (0, None)):
+                    s = credits(f'&buyingclosed&credits={have}')
+                    flat = ' '.join(s['text'].split())
+                    word = '1 credit available' if have == 1 else f'{have} credits available'
+                    check(word in flat, f'[{width}] CLOSED Credits at {have}: the balance row reads {word!r}')
+                    check('A full film costs between 6 and 10 credits, depending on the film type.' in flat and 'Buying credits is not open yet.' in flat, f'[{width}] CLOSED Credits at {have}: the cost and the closed sentence')
+                    check((cover is None and 'Your ' + str(have) + ' credits' not in flat) or (cover is not None and cover.strip() in flat), f'[{width}] CLOSED Credits at {have}: what the balance covers ({cover!r})')
+                    check('needs credits' not in flat and not s['overflow'], f'[{width}] CLOSED Credits at {have}: no "needs credits", no sideways scroll')
+                    if have == 8:
+                        page.screenshot(path=str(OUT / f'bc-credits-closed-8-{width}.png'), full_page=True)
                 s = credits('')
                 page.screenshot(path=str(OUT / f'bc-credits-open-{width}.png'), full_page=True)
                 check(s['filmCost'] and 'between 6 and 10 credits' in s['text'], f'[{width}] OPEN Credits says what a full film costs')

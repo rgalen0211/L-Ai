@@ -17,7 +17,7 @@ test('1 the next-step strip says where the contact sheet is, and does not promis
   assert.ok(strip.includes("cantBuy ? 'You have a preview too.' : 'You have a preview too, so the full film is next.'"));
   assert.ok(strip.includes("cantBuy ? 'Next make a short preview.' : 'Next make a short preview, then the full film.'"));
   assert.match(lib, /const cantBuy = !!q && typeof q\.credits === 'number' && \(q\.available \|\| 0\) < q\.credits && !buyingOn\(\);/);
-  assert.ok(strip.includes("The full film uses ${C.plural(q.credits)}; you have"), 'still says the cost and the balance');
+  assert.ok(strip.includes('C.filmVsBalance(q, cantBuy)'), 'still says the cost and the balance (words in app-credits.js filmVsBalance, tested in welcome-credits-1123.test.mjs)');
   assert.match(lib, /\{ id: 'files', label: 'Files'/, 'the tab it points to is called Files');
 });
 

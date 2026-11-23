@@ -87,15 +87,17 @@ def main():
                     page.wait_for_timeout(800)
                     return page.evaluate(REQUEST)
 
-                for credits in (0, 5, 10):
+                for credits in (0, 5, 8, 10):
                     row = home(f'&buyingclosed&credits={credits}')
                     check(closed_home_faults(row, credits) == [], f'[{width}] CLOSED home at {credits} credits: the request row is {row}')
                     st = request(f'&buyingclosed&credits={credits}')
                     short = credits < 10
                     check(st['disabled'] == short and st['note'] == short, f'[{width}] CLOSED #/request at {credits} credits: Send disabled={st["disabled"]}, closed line={st["note"]}')
                     check(not st['overflow'], f'[{width}] #/request at {credits} credits: no sideways scroll')
+                    if credits in (0, 8):
+                        want = 'A film request costs 10 credits; you have ' + ('0 credits' if credits == 0 else '8 credits') + '. Buying credits is not open yet.'
+                        check(st['noteText'] == want, f'[{width}] the closed line says the cost and the balance at {credits} credits: {st["noteText"]!r}')
                     if credits == 0:
-                        check(st['noteText'] == 'You need credits to request a film, and buying credits is not open yet.', f'[{width}] the closed line reads plainly')
                         page.screenshot(path=str(OUT / f'request-closed-0-{width}.png'), full_page=True)
                 row = home('&credits=0')
                 check(row == 'shown', f'[{width}] OPEN home at 0 credits: the request row is {row} (buying open leaves it as it was)')

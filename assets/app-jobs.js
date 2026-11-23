@@ -92,6 +92,9 @@
     // The two Tuesday refusals (BUILDER 11-23, migrations 20261123000200/000300): the server's words, plus where to go next (BUILDER's 11:22 page audit).
     if (/^You have \d+ films? waiting\./.test(text)) return `${text} ${QUEUE_FULL_NEXT}`;
     if (/^This film is not available yet\./.test(text)) return VIEW_BLOCKED;
+    // credits_ledger.sql: 'Not enough credits: this needs 10, and 8 are available.' (or 'Not enough credits for this job.'): what it costs, what you have, and the next step (Q679 B; FACES 11-23).
+    if ((m = /^Not enough credits: this needs (\d+), and (\d+) (?:is|are) available\.?$/.exec(text))) return `This needs ${m[1]} credit${m[1] === '1' ? '' : 's'} and you have ${m[2]}. ${buyingOpen() ? 'Buy credits, then try again.' : 'Buying credits is not open yet.'}`;
+    if (/^Not enough credits\b/.test(text)) return `You do not have enough credits for this. ${buyingOpen() ? 'Buy credits, then try again.' : 'Buying credits is not open yet.'}`;
     if (LOOKS_LIKE_CODE.test(text) || DB_WORDS.test(text) || text.length > DETAIL_MAX) return REFUSAL_GENERIC;
     return text;
   }

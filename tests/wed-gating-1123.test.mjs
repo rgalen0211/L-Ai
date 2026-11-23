@@ -104,7 +104,8 @@ test('both ways in go through the gate: the home link row and the project page p
 });
 
 test('the request page itself: with buying closed and a balance below the cost, Send is disabled and the page says why', () => {
-  assert.match(lib, /const REQUEST_CLOSED = 'You need credits to request a film, and buying credits is not open yet\.';/);
+  assert.ok(lib.includes("const REQUEST_CLOSED = (cost, have) => `A film request costs ${window.ryagramCredits.plural(Number(cost))}; you have ${window.ryagramCredits.plural(have)}. Buying credits is not open yet.`;"));
+  assert.ok(lib.includes('if (short) closedNote.textContent = REQUEST_CLOSED(c, availableOf(bal));'));
   assert.match(lib, /let short = false;/);
   assert.match(lib, /\n        short = !buyingOn\(\) && !!bal && c != null && availableOf\(bal\) < Number\(c\);/);
   assert.match(lib, /send\.disabled = short; closedNote\.hidden = !short;/);
@@ -114,6 +115,24 @@ test('the request page itself: with buying closed and a balance below the cost, 
   assert.ok(sub.indexOf('if (short) return;') > 0 && sub.indexOf('if (short) return;') < sub.indexOf('await busy(send'), 'a short click returns before any send');
   assert.ok(sub.indexOf('send.disabled = short;') > sub.indexOf('await busy(send'), 'the button state is put back AFTER busy() re-enables it');
   assert.match(lib, /balance, cost, closedNote, form, done, h\('h2', \{\}, 'Your requests'\), list\];/);
+});
+
+test('REQUEST GATE at the welcome balance (Q679 B): 8 credits of a 10-credit request stays hidden; 10 shows; the request page says what it costs and what you have', async () => {
+  const at8 = gate(lib, { config: { buyingOpen: false }, available: 8 });
+  const el8 = { hidden: false };
+  at8.requestGate(at8.data, el8);
+  await settle();
+  assert.equal(el8.hidden, true, 'a request costs 10: 8 welcome credits do not cover it');
+  const at10 = gate(lib, { config: { buyingOpen: false }, available: 10 });
+  const el10 = { hidden: false };
+  at10.requestGate(at10.data, el10);
+  await settle();
+  assert.equal(el10.hidden, false);
+  const C = {}; vm.runInNewContext(read('assets/app-credits.js'), { window: C });
+  const said = vm.runInNewContext(`(function (window) { ${lib.slice(lib.indexOf('  const REQUEST_CLOSED ='), lib.indexOf('\n', lib.indexOf('  const REQUEST_CLOSED =')))}\n return REQUEST_CLOSED; })`, {})({ ryagramCredits: C.ryagramCredits });
+  assert.equal(said(10, 8), 'A film request costs 10 credits; you have 8 credits. Buying credits is not open yet.');
+  assert.equal(said(10, 0), 'A film request costs 10 credits; you have 0 credits. Buying credits is not open yet.');
+  assert.equal(said(10, 1), 'A film request costs 10 credits; you have 1 credit. Buying credits is not open yet.');
 });
 
 test('HOME: a brand-new account (no projects) is not greeted "Welcome back"; a returning one still is', () => {

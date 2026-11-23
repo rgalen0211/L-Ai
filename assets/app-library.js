@@ -96,6 +96,8 @@
   const FREE_PREVIEW_RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
   const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE;      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
   const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
+  const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address.';      // Q679 B (Ryan 11-23 15:46); the same words as assets/free-account-line.js (a test pins both)
+  const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.';      // typed for the Help answer only; the Credits page reads the price table
   // A film request costs credits. While buying is closed, the way in (the home link, the project page's pointer) shows only to someone whose balance COVERS a request (the same
   // cost the request page reads): a new account has none and could not buy any, so the link would lead to a send that fails (BUILDER 11-23, the Wednesday first-user audit; the
   // full cost, not 'any credits', per GAMES/CC1 08:33). A failed read keeps it hidden. Open buying, or credits off, leaves it as it was.
@@ -107,7 +109,7 @@
       .then(([rows, cost]) => { if (cost != null && availableOf(rows) >= Number(cost)) el.hidden = false; }).catch(() => {});
     return el;
   };
-  const REQUEST_CLOSED = 'You need credits to request a film, and buying credits is not open yet.';      // the request page's send, at a balance below the cost while buying is closed
+  const REQUEST_CLOSED = (cost, have) => `A film request costs ${window.ryagramCredits.plural(Number(cost))}; you have ${window.ryagramCredits.plural(have)}. Buying credits is not open yet.`;      // the request page's send, at a balance below the cost while buying is closed (Q679 B: 8 welcome credits are not 10)
 
   // Every admin page that is switched on, in plain words and in groups (the Admin page #/admin, WEB 11-20: the admin tools live on ONE page, not in a menu and not scattered over the user pages).
   const adminPages = () => [
@@ -287,7 +289,7 @@
           qa('Why is my film still "Queued"?', 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A full film is checked by a person before it starts, which can take longer. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours. The Render panel shows your place in line. You can have 2 films waiting at once.'),
           qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits (a failed free preview still counts toward your free ones).'),
           qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.'),
-          qa('Why can\u2019t I make a full film? How do I get credits?', 'A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' A full film needs credits, and buying credits is not open yet.'))) },
+          qa('Why can\u2019t I make a full film? How do I get credits?', WELCOME_LINE + ' A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' ' + FILM_COST_CLOSED + ' Buying credits is not open yet.'))) },
         { id: 'account', label: 'Account and reports', el: answers(
           qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
           qa('How do I report a film?', ['Public film pages are not open yet. To report a film, use the ', h('a', { href: '/report/' }, 'report form'), '. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.']),
@@ -494,7 +496,7 @@
       const question = h('textarea', { id: 'rq-question', name: 'question', rows: '4', required: true, minlength: '10', maxlength: '1000', placeholder: 'For example: Did cities that legalized duplexes build more homes within five years?' });
       const notes = h('textarea', { id: 'rq-notes', name: 'notes', rows: '3', maxlength: '1000', placeholder: 'Anything that helps: the years, the places, the data you have in mind' });
       const send = h('button', { class: 'button primary', type: 'submit' }, 'Send request');
-      const closedNote = h('p', { class: 'form-note request-closed', hidden: true }, REQUEST_CLOSED);
+      const closedNote = h('p', { class: 'form-note request-closed', hidden: true }, '');
       const list = h('div', { class: 'request-list' });
       let short = false;      // buying closed and not enough credits (set by reload): say so, and no send that can only fail
       send.disabled = !buyingOn() && creditsOn();      // off until reload has read the balance and the cost (CC1 08:34)
@@ -504,6 +506,7 @@
         if (bal) balance.replaceChildren(window.ryagramCredits.balanceLine(bal));
         short = !buyingOn() && !!bal && c != null && availableOf(bal) < Number(c);
         send.disabled = short; closedNote.hidden = !short;
+        if (short) closedNote.textContent = REQUEST_CLOSED(c, availableOf(bal));
         list.replaceChildren(rows.length ? h('ul', { class: 'project-list' }, rows.map(r => h('li', {},
           h('strong', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}`), h('span', { class: 'meta' }, ` ${date(r.created_at)}, ${r.credits} credits`),
           h('p', {}, r.question),
@@ -1013,7 +1016,7 @@
     // --- #/credits  packs and plans (Stripe Checkout; credits arrive through the webhook)
     async function creditsView(paidCode, onStop) {
       const C = window.ryagramCredits;
-      const [offers, plan, filmRows] = await Promise.all([data.shopOffers(), data.myPlan(), Promise.resolve().then(() => data.filmPrices()).catch(() => [])]);   // (the film price is a nicety: no answer, no sentence)
+      const [offers, plan, filmRows, haveRows] = await Promise.all([data.shopOffers(), data.myPlan(), Promise.resolve().then(() => data.filmPrices()).catch(() => []), Promise.resolve().then(() => creditsOn() ? data.creditBalances() : null).catch(() => null)]);   // (the film price is a nicety: no answer, no sentence)
       const error = errorLine();
       const balance = h('p', { class: 'credit-balance' }, 'Loading credits…');
       let before = null;
@@ -1073,7 +1076,7 @@
         h('h1', { tabindex: '-1' }, 'Credits'),
         balance, thanks,
         // DRAFT FOR RYAN: what credits are for and what a full film costs (the cost is read from the ledger's price table, the same numbers the Render step quotes).
-        h('p', { class: 'form-note credit-about' }, 'Credits pay for full films. ', C.filmCostLine(filmRows), open ? ' Contact sheets are free. ' + FREE_PREVIEW_RULE : null),      // DRAFT FOR RYAN
+        h('p', { class: 'form-note credit-about' }, 'Credits pay for full films. ', C.filmCostLine(filmRows), C.filmCoverLine(filmRows, haveRows ? haveRows.reduce((s, r) => s + (r.available || 0), 0) : null), open ? ' Contact sheets are free. ' + FREE_PREVIEW_RULE : null),      // DRAFT FOR RYAN
         open ? null : h('p', { class: 'form-note credit-closed' }, BUYING_CLOSED),
         testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
         testMode && !window.ryagramMock ? h('p', { class: 'form-note credit-test-label' }, 'Test mode — prices are placeholders, no real charge.') : null,
@@ -1773,6 +1776,7 @@
       let ownCompute = null;                                          // { tester, computers } for a tester account with a film waiting; null = unknown, nothing is claimed
       let engine = null;                           // the worker's current engine version, if known
       let quotes = {};                             // job type -> credit_quote, when credits are on
+      let filmRows = null;                         // the price table's final_* rows (data.filmPrices), read once: the 'a film that costs less would fit' hint; never typed
       let accounting = {};                         // job id -> job_accounting row
       let balance = null;
       const C = window.ryagramCredits;
@@ -1907,7 +1911,8 @@
           const cantBuy = !!q && typeof q.credits === 'number' && (q.available || 0) < q.credits && !buyingOn();      // short of credits with nowhere to get them: the strip must not promise the full film
           if (creditsOn() && anySheet && !jobs.some(j => j.job_type === 'final_render') && q && !q.error && typeof q.credits === 'number') {
             nextStrip.replaceChildren(h('strong', {}, 'That first picture was free.'), ' Your contact sheet is under Files. ', ladder.preview ? (cantBuy ? 'You have a preview too.' : 'You have a preview too, so the full film is next.') : (cantBuy ? 'Next make a short preview.' : 'Next make a short preview, then the full film.'),
-              ` The full film uses ${C.plural(q.credits)}; you have ${C.plural(Math.max(0, q.available || 0))}.`, ...(buyingOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : paymentsOn() && (q.available || 0) < q.credits ? [' ', BUYING_CLOSED_SHORT] : []));
+              C.filmVsBalance(q, cantBuy),
+              ...(buyingOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : paymentsOn() && (q.available || 0) < q.credits ? [' ', BUYING_CLOSED_SHORT, C.fitsLine(q, filmRows)] : []));      // (the strip's two sentences by the film's OWN quote: q.credits is this version's view price)
             nextStrip.hidden = false;
           } else nextStrip.hidden = true;
         }
@@ -1923,9 +1928,10 @@
           const label = (button, base, type) => {
             const q = quotes[type];
             button.textContent = q && !q.error ? `${base} · ${C.priceLabel(q)}` : base;
-            const can = q && !q.error ? C.affordable(q) : { ok: true };
+            const isFinal = type === 'final_render';
+            const can = q && !q.error ? C.affordable(q, isFinal ? { rows: filmRows, closed: paymentsOn() && !buyingOn() } : undefined) : { ok: true };
             if (type === 'preview' && q && !q.error && !q.free_preview && q.credits > 0 && !can.ok) can.reason = `${J.FREE_PREVIEW_USED} ${can.reason}`;      // which limit, and the next step
-            if (!can.ok && paymentsOn() && !buyingOn()) can.reason += ` ${BUYING_CLOSED_SHORT}`;      // short of credits and nothing to link to: say plainly buying is not open yet
+            if (!can.ok && !isFinal && paymentsOn() && !buyingOn()) can.reason += ` ${BUYING_CLOSED_SHORT}`;      // short of credits and nothing to link to: say plainly buying is not open yet
             if (!can.ok) { button.disabled = true; whyKey(button, q?.error ? q.error : can.reason); }
             return q?.error ? q.error : can.ok ? '' : can.reason;
           };
@@ -2042,11 +2048,13 @@
           engine = currentEngine;
           if (creditsOn()) {
             const types = ['contact_sheet', 'preview', 'final_render'];
-            const [q, acct, bal] = await Promise.all([
+            const [q, acct, bal, prices] = await Promise.all([
               Promise.all(types.map(t => data.creditQuote(v.id, t).catch(err => ({ error: err.message })))),
               data.jobAccounting(v.id).catch(() => ({})),
-              data.creditBalances().catch(() => null)
+              data.creditBalances().catch(() => null),
+              filmRows ? filmRows : Promise.resolve().then(() => data.filmPrices()).catch(() => null)
             ]);
+            if (prices) filmRows = prices;
             quotes = Object.fromEntries(types.map((t, i) => [t, q[i]]));
             accounting = acct;
             balance = bal;
