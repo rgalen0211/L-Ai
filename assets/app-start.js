@@ -7,20 +7,20 @@
 (() => {
   // Ends every line so any AI knows what to do. The connector already refuses to spend credits, so this is courtesy, not security.
   const TAIL = 'Use the Ryagram connector. Show me a free contact sheet before anything that costs credits.';
-  // Two lines are on topics the catalog RUNS today, until uploads and find-data ship (Ryan 2026-10-26 13:16, Q233): they stand where 'Use my spreadsheet to make a map' and the 'paste a link' line stood.
-  // Each says only what the connector's catalog list tells the AI (get_story_schema: 'State unemployment rate' 2019-01 to 2022-12; 'Residential building permits per 1,000 residents, by county' 1990 to 2024),
-  // and a keyword search for 'unemployment state' or 'building permits county' finds each dataset. When uploads and find-data are on, these two go back to the spreadsheet and link lines.
+  // GAMES audit 11-23 (vii): every starting line leads to a (dataset, view) the catalog OFFERS after ENGINE's block list v2 (tools/data/engine-catalog-block-list-1123.json), and says its view and years so the AI
+  // does not reach for a blocked one. The earlier lines on county housing costs, state population, US rents and county income named data the catalog does not have (or, for county permits, invited the blocked map).
+  // tests/start.test.mjs pins each line to its (dataset, view): usable, listable, on the worker allowlist, the view in the catalog and not blocked, and the years inside the dataset's range.
   const CATALOG_LINES = [
-    { id: 'unemployment', text: 'Show how unemployment in my state changed from 2019 to 2022' },
-    { id: 'permits', text: 'Show how building permits in my county changed since 1990' }
+    { id: 'unemployment', text: 'Show how unemployment in my state changed from 2019 to 2022, as a line' },
+    { id: 'permits', text: 'Show how building permits in my county changed since 1990, as a line' }
   ];
   const LINES = [
-    { id: 'housing', text: 'Make me a film about housing costs in my county' },
-    { id: 'population', text: 'Show how my state’s population changed since 1970' },
+    { id: 'obesity', text: 'Show how adult obesity changed across US states from 2011 to 2023, on a map' },
     CATALOG_LINES[0],
-    { id: 'rents', text: 'What changed most in US rents this decade? Make it a film' },
     CATALOG_LINES[1],
-    { id: 'income', text: 'Compare my county with the state average on income' }
+    { id: 'retail', text: 'Show how retail’s share of jobs in my state changed since 1998, as a line' },
+    { id: 'healthjobs', text: 'Show how health care jobs as a share of all jobs changed in my state since 1998' },
+    { id: 'construction', text: 'Show how the construction share of jobs changed across states since 1998, on a map' }
   ];
   const STRIP = 3;                                  // the library strip shows the first three lines, then "More lines"
   const APPS = {
