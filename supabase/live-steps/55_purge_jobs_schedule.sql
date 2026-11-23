@@ -1,4 +1,4 @@
--- SCHEDULE the two purge jobs (CONNECT 2026-11-23). A WRITE: run it ONCE, in the live SQL Editor, only after live-steps/53 answered true on rows 1 to 5, the two functions are deployed with their secrets, and Ryan says go.
+-- SCHEDULE the two purge jobs (CONNECT 2026-11-23). A WRITE: run it ONCE, in the live SQL Editor, only after live-steps/54 answered true on rows 1 to 5, the two functions are deployed with their secrets, and Ryan says go.
 --   purge-uploads          every hour at :00  removes spreadsheets a person deleted or did not keep, unfinished uploads after a day, and the films made from removed uploads
 --   purge-partial-uploads  every hour at :30  removes the files (contact sheets, previews) left by a job that FAILED or was CANCELLED, 24 hours after it ended: this one matters for the free preview even with uploads off
 -- Each call carries its OWN per-job secret from the Vault, never the service-role key (pg_net keeps every scheduled call where every database login can read it).
@@ -8,7 +8,7 @@ do $do$
 begin
   if not coalesce((select bool_and(length(s.decrypted_secret) >= 32) from vault.decrypted_secrets s where s.name = 'cron_purge_uploads'), false)
      or not coalesce((select bool_and(length(s.decrypted_secret) >= 32) from vault.decrypted_secrets s where s.name = 'cron_purge_partial'), false) then
-    raise exception 'Not scheduled: the Vault secret cron_purge_uploads or cron_purge_partial is missing or shorter than 32 characters. Add them (paper steps P2 and P3), run live-steps/53, then this again.';
+    raise exception 'Not scheduled: the Vault secret cron_purge_uploads or cron_purge_partial is missing or shorter than 32 characters. Add them (paper steps P2 and P3), run live-steps/54, then this again.';
   end if;
   perform cron.schedule('purge-uploads', '0 * * * *', $job$ select net.http_post(
     url := 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/purge-uploads',

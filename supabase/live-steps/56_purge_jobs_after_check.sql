@@ -1,5 +1,5 @@
--- AFTER live-steps/54 (CONNECT 2026-11-23): READ-ONLY, one SELECT, changes nothing, never prints a secret. Every column is named.
--- Run it twice: right after 54 (rows 1 to 4 must be true; rows 5 and 6 say 'not run yet' and are false: that is expected), and again a few minutes PAST the next :30 (all six true).
+-- AFTER live-steps/55 (CONNECT 2026-11-23): READ-ONLY, one SELECT, changes nothing, never prints a secret. Every column is named.
+-- Run it twice: right after 55 (rows 1 to 4 must be true; rows 5 and 6 say 'not run yet' and are false: that is expected), and again a few minutes PAST the next :30 (all six true).
 select 'both jobs are scheduled and active, at :00 and :30 every hour' as check_name,
        coalesce((select count(*) = 2 from cron.job j where j.active and ((j.jobname = 'purge-uploads' and j.schedule = '0 * * * *') or (j.jobname = 'purge-partial-uploads' and j.schedule = '30 * * * *'))), false) as ok
 union all select 'each job calls its own function with its own Vault secret, not the service-role key',

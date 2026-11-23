@@ -1,13 +1,13 @@
-"""LIVE STEPS 53 to 56: scheduling the two purge jobs (purge-uploads, purge-partial-uploads), CONNECT 2026-11-23. Run from the repo root with TEMP/TMP/TMPDIR on D: (the storage rule):
+"""LIVE STEPS 54 to 57: scheduling the two purge jobs (purge-uploads, purge-partial-uploads), CONNECT 2026-11-23. Run from the repo root with TEMP/TMP/TMPDIR on D: (the storage rule):
     pgvenv/Scripts/python -m unittest supabase/tests/test_purge_jobs_steps.py -v
 
 pg_cron, pg_net and Vault are NOT in the local Postgres, so this builds minimal stand-ins (cron.job with schedule/unschedule that replace by name like the real one, cron.job_run_details, net._http_response,
 vault.decrypted_secrets) and runs the four SQL files against them. It proves the SQL parses and does what its header says; it cannot prove the real extensions' behaviour (the paper's live run does).
 What it proves, each with the opposite case beside it
-  * 53 (before): with no secrets rows 2 to 4 are false; with good distinct secrets they are true; a short secret, a missing one, or a purge secret equal to an ops secret makes its row false; it never prints a secret;
-  * 54 (schedule): REFUSES with an error and schedules NOTHING when a secret is missing or short; with the secrets it makes exactly the two jobs at :00 and :30, each reading its OWN Vault name, never the service-role key; run twice it still has two jobs;
-  * 55 (after): right after 54 the job rows are true and the 'has run' rows false (expected); after a successful run and a 200 all six are true; a 403 in the last 2 hours or a failed last run makes its row false;
-  * 56 (undo): removes exactly the two jobs, leaves every other job, and runs fine when they are not there.
+  * 54 (before): with no secrets rows 2 to 4 are false; with good distinct secrets they are true; a short secret, a missing one, or a purge secret equal to an ops secret makes its row false; it never prints a secret;
+  * 55 (schedule): REFUSES with an error and schedules NOTHING when a secret is missing or short; with the secrets it makes exactly the two jobs at :00 and :30, each reading its OWN Vault name, never the service-role key; run twice it still has two jobs;
+  * 56 (after): right after 55 the job rows are true and the 'has run' rows false (expected); after a successful run and a 200 all six are true; a 403 in the last 2 hours or a failed last run makes its row false;
+  * 57 (undo): removes exactly the two jobs, leaves every other job, and runs fine when they are not there.
 """
 import sys
 import unittest
@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_2a_core as core  # noqa: E402
 
 STEPS = core.ROOT / "live-steps"
-S53, S54, S55, S56 = (next(STEPS.glob(f"{n}_*.sql")).read_text(encoding="utf-8") for n in (53, 54, 55, 56))
+S53, S54, S55, S56 = (next(STEPS.glob(f"{n}_*.sql")).read_text(encoding="utf-8") for n in (54, 55, 56, 57))
 _server = None
 _count = 0
 GOOD = {name: (name[-3:] * 20)[:40] + str(i) * 4 for i, name in enumerate(("cron_purge_uploads", "cron_purge_partial", "cron_ops_tick", "cron_ops_digest", "cron_cost_sync"))}
@@ -133,7 +133,7 @@ class PurgeJobSteps(unittest.TestCase):
         self.c.execute(S54)
         r = self.rows(S55)
         self.assertEqual(len(r), 6)
-        self.assertEqual([x[1] for x in r], [True, True, True, True, False, False], "right after 54: the jobs are right, 'has run' is not yet (expected)")
+        self.assertEqual([x[1] for x in r], [True, True, True, True, False, False], "right after 55: the jobs are right, 'has run' is not yet (expected)")
         for jid in [x[0] for x in self.c.execute("select jobid from cron.job where jobname like 'purge%'").fetchall()]:
             self.c.execute("insert into cron.job_run_details (jobid, status) values (%s, 'succeeded')", (jid,))
         self.c.execute("insert into net._http_response (status_code, content) values (200, '{\"ok\":true}')")
@@ -164,7 +164,7 @@ class PurgeJobSteps(unittest.TestCase):
 
     def test_the_steps_read_only_what_they_say_53_and_55_are_one_select_without_writes(self):
         import re
-        for name, text in (("53", S53), ("55", S55)):
+        for name, text in (("54", S53), ("56", S55)):
             code = re.sub(r"--[^\n]*", "", text)
             self.assertFalse(re.search(r"\b(insert|update|delete|drop|alter|create|unschedule)\b|(?<![.\w])schedule\b", code, re.I), name)
             self.assertEqual(code.strip().count(";"), 1, name + " is ONE statement")

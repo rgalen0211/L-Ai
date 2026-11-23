@@ -1,5 +1,5 @@
--- UNDO of live-steps/54 (CONNECT 2026-11-23): stops the two purge jobs. A WRITE to cron only; nothing is deleted from any table or bucket, and files already removed stay removed.
--- Safe to run when a job is missing (it only unschedules what is there). To put them back: live-steps/54 again.
+-- UNDO of live-steps/55 (CONNECT 2026-11-23): stops the two purge jobs. A WRITE to cron only; nothing is deleted from any table or bucket, and files already removed stay removed.
+-- Safe to run when a job is missing (it only unschedules what is there). To put them back: live-steps/55 again.
 -- While they are stopped, deleted uploads and the files of failed jobs stay in Storage until they are scheduled again (they are hidden from people in the meantime: the database lists what is due; Storage keeps the bytes).
 do $do$
 begin
