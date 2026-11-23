@@ -28,6 +28,10 @@ def setUpModule():
 
 class WelcomeRepair(wc.WelcomeCredits):
     # the shared fixtures and helpers (user, got, d) come from the welcome tests; only the repair's own tests run here
+    def setUp(self):
+        super().setUp()
+        self.d().execute("alter table auth.users add column if not exists last_sign_in_at timestamptz")   # real Supabase has it; the test stub does not
+
     def run_part(self, n):
         cur = self.d().execute(PARTS[n])
         return cur.fetchall() if cur.description else None
@@ -67,6 +71,22 @@ class WelcomeRepair(wc.WelcomeCredits):
         self.assertEqual((self.got(a), self.got(b)), (8, 8), "never paid twice")
         self.assertEqual(self.run_part(3)[0][0], 2)
 
+    def test_a_signed_in_account_whose_email_is_still_unconfirmed_is_paid_once_and_opening_the_first_email_later_pays_nothing_more(self):
+        # GAMES 18:06 / CC1 18:07: a stranger who came back by the reset link and never opened the first email (hosted behaviour unproven)
+        self.d().execute("alter table auth.users add column if not exists last_sign_in_at timestamptz")
+        a = self.user(40, "reset1@example.com", confirmed=False)
+        b = self.user(41, "never@example.com", confirmed=False)
+        c = self.user(42, "longago@example.com", confirmed=False)
+        self.d().execute("update auth.users set last_sign_in_at = now() where id = %s", (a,))
+        self.d().execute("update auth.users set last_sign_in_at = now() - interval '3 days' where id = %s", (c,))
+        self.assertEqual(self.run_part(1)[0][0], 1, "part 1 counts only the signed-in unconfirmed one (not never-signed-in, not outside the window)")
+        self.run_part(2)
+        self.assertEqual((self.got(a), self.got(b), self.got(c)), (8, 0, 0))
+        self.run_part(2)
+        self.assertEqual(self.got(a), 8, "a second run pays nobody")
+        self.d().execute("update auth.users set email_confirmed_at = now() where id = %s", (a,))
+        self.assertEqual(self.got(a), 8, "opening the first email later pays nothing more: the address has its record")
+
     def test_someone_who_already_had_their_credits_is_not_paid_again(self):
         a = self.user(30, "fine@example.com")
         self.assertEqual(self.got(a), 8)
@@ -103,7 +123,9 @@ class WelcomeRepair(wc.WelcomeCredits):
         self.assertIn("public.grant_credits(", PARTS[2])
         self.assertIn("'welcome-repair'", PARTS[2])
         self.assertIn("on conflict (email_hash) do nothing", PARTS[2])
-        self.assertIn("interval '48 hours'", PARTS[1]); self.assertIn("interval '48 hours'", PARTS[2])
+        for n in (1, 2):                                                                    # the window is written twice in each part (confirmed, and signed in but unconfirmed): every one must say 48, in both parts
+            self.assertEqual(PARTS[n].count("interval '48 hours'"), 2, f"part {n}")
+            self.assertEqual(len(re.findall(r"interval '\d+ hours'", PARTS[n])), 2, f"part {n}: another window written")
 
 
 # the inherited tests belong to test_welcome_credits.py: only the repair's own run here

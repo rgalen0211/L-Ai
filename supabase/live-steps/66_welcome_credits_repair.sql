@@ -5,6 +5,7 @@
 --   PART 2 (the one write, a single DO block): for each of those accounts, in the order they verified, it records the scrambled address and gives ops_settings.welcome_credits through public.grant_credits (created_by 'welcome-repair'), EXACTLY the trigger's rule.
 --     It REFUSES, changing nothing, if the lever is 0 (put it back to 8 first). All or nothing: any error undoes the whole block. Safe to run twice: the record makes the second run pay nobody.
 --   PART 3 (read-only): how many were paid in the last 10 minutes, and the lever.
+-- ALSO PAID (CC1 18:07, GAMES 18:06): a person who is signed in but whose email_confirmed_at is STILL EMPTY (they came back by the 'Forgot your password?' link and never opened the first email). That only matters if the hosted recovery link does NOT confirm the address (unproven: Ryan's Wednesday item 7 checks it). If it does confirm, the trigger already paid them and the record keeps this step from paying twice. Their address is recorded too, so opening the first email later pays nothing more.
 -- CHANGE THE WINDOW in PART 1 and PART 2 TOGETHER (the number after 'hours'): 48 covers everyone who confirmed since Monday's launch prep; make it the number of hours since the lever went to 0.
 -- UNDO: none needed for the grant itself (credits are credits); to stop everything first set the lever to 0 again. It never touches an account that already has a record.
 
@@ -12,7 +13,8 @@
 select count(*) as accounts_that_would_be_paid,
        (select o.welcome_credits from public.ops_settings o limit 1) as lever_now
   from auth.users u
- where u.email_confirmed_at > now() - interval '48 hours'
+ where (u.email_confirmed_at > now() - interval '48 hours'
+        or (u.email_confirmed_at is null and u.last_sign_in_at > now() - interval '48 hours'))
    and btrim(coalesce(u.email, '')) <> ''
    and not exists (select 1 from public.workers x where x.user_id = u.id)
    and not exists (select 1 from public.app_admins a where a.user_id = u.id)
@@ -32,13 +34,14 @@ begin
   for r in
     select u.id, lower(btrim(u.email)) as mail
       from auth.users u
-     where u.email_confirmed_at > now() - interval '48 hours'
+     where (u.email_confirmed_at > now() - interval '48 hours'
+            or (u.email_confirmed_at is null and u.last_sign_in_at > now() - interval '48 hours'))
        and btrim(coalesce(u.email, '')) <> ''
        and not exists (select 1 from public.workers x where x.user_id = u.id)
        and not exists (select 1 from public.app_admins a where a.user_id = u.id)
        and not exists (select 1 from public.invite_redemptions q where q.email = lower(btrim(u.email)))
        and coalesce(u.raw_user_meta_data ->> 'adult_source', '') <> 'invite'
-     order by u.email_confirmed_at, u.id
+     order by coalesce(u.email_confirmed_at, u.last_sign_in_at), u.id
   loop
     eh := encode(sha256(convert_to('ryagram-welcome:' || r.mail, 'UTF8')), 'hex');
     insert into ryagram_private.welcome_credit_grants (email_hash) values (eh) on conflict (email_hash) do nothing;
