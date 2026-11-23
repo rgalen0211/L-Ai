@@ -4,7 +4,7 @@
 -- (a scheduled job's 'succeeded' below only means its call was QUEUED; the 'calls answered with an error' row and the Invocations page are what prove a function answered).
 -- Rows: render-PC jobs waiting now and the oldest; jobs claimed but not started after 10 minutes; the render PC's last check-in; sign-ups in the last hour; sign-ups
 -- not opened 20 minutes after; failed or needs-decision jobs in the last hour by code; the sign-up size used (different addresses in 24 hours, as join counts, CONNECT
--- d028a68d) against join_daily_max; scheduled calls answered with an error in the last hour; then one row per scheduled job: its last run.
+-- d028a68d) against join_daily_max; scheduled calls answered with an error in the last hour; one row per scheduled job: its last run; and (last) the full films waiting for Ryan's approval.
 select what, value, tell_cc1_if from (
 select 1 as n, 'jobs waiting now for the render PC' as what,
        (select count(*) from public.jobs where state = 'queued' and run_on = 'house')::text || ' waiting; oldest made '
@@ -50,5 +50,15 @@ select 9, 'scheduled job ' || j.jobname,
        'its status is failed (running or starting just means it is on now), it is NOT ACTIVE, or ops-tick last ran more than 3 minutes ago'
   from cron.job j
   left join lateral (select d.status, d.start_time from cron.job_run_details d where d.jobid = j.jobid order by d.start_time desc limit 1) r on true
+union all
+select 10, 'full films waiting for YOUR approval (#/admin/renders)',
+       (select count(*) from public.jobs where state = 'awaiting_approval')::text || ' waiting; oldest made '
+         || coalesce((select round(extract(epoch from now() - min(created_at)) / 60)::text from public.jobs where state = 'awaiting_approval'), '0') || ' min ago',
+       'any is waiting: approve or refuse it on #/admin/renders (with 8 welcome credits a stranger can ask for one; the first full film on the live render PC is untested, Q636)'
+union all
+select 11, 'account deletions waiting for YOU to close by hand',
+       (select count(*) from public.account_deletion_requests)::text || ' waiting; oldest asked '
+         || coalesce((select round(extract(epoch from now() - min(requested_at)) / 3600)::text from public.account_deletion_requests), '0') || ' h ago',
+       'any is waiting: their login is already blocked and their files gone; close the account by hand (CONNECT 15:59: with 8 welcome credits every verified stranger has credit history, so closing such an account is a request, not automatic)'
 ) watch
 order by n, what;
