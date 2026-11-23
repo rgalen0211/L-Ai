@@ -32,7 +32,7 @@ test('WIRING: #/start and the landing redirect and the strip exist only behind s
   assert.match(lib, /const startStrip = startOn\(\) \? await startUi\(\)\.strip\(\) : null;/);
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-start.js') > 0 && html.indexOf('app-start.js') < html.indexOf('app-library.js'));
-  assert.match(html, /app-start\.js\?v=20261123a/);
+  assert.match(html, /app-start\.js\?v=20261123c/);
 });
 
 test('SCREEN: no AI = connect, an AI = start; a failed check, or an account that is not invited, is the library, never a blank door', () => {
@@ -65,17 +65,20 @@ test('LANDING: the plain address goes to the door only with the flag on, an invi
   assert.equal(S.landsOnDoor({ ...base, notNowAt: String(NOW - 9 * 24 * 3600 * 1000) }), true);
 });
 
-test('LINES: six plain starting lines, no dataset ids, nothing from a person; every line is sent with its tail', () => {
+test('LINES (GAMES 11-23 vii): six plain starting lines, no dataset ids, nothing from a person; every line is sent with its tail', () => {
   assert.equal(S.LINES.length, 6);
   assert.equal(S.STRIP, 3);
-  assert.deepEqual(plain(S.LINES.map(l => l.id)), ['housing', 'population', 'unemployment', 'rents', 'permits', 'income']);
+  assert.deepEqual(plain(S.LINES.map(l => l.id)), ['obesity', 'unemployment', 'permits', 'retail', 'healthjobs', 'construction']);
   // Ryan 2026-10-26 13:16 (Q233): lines 3 and 5 are on topics the catalog runs today, in ONE named list; the other four and the closing line are unchanged.
   assert.deepEqual(plain(S.CATALOG_LINES.map(l => l.id)), ['unemployment', 'permits']);
-  assert.equal(S.LINES[2], S.CATALOG_LINES[0]); assert.equal(S.LINES[4], S.CATALOG_LINES[1]);
-  assert.equal(S.LINES[0].text, 'Make me a film about housing costs in my county');
-  assert.equal(S.LINES[1].text, 'Show how my state’s population changed since 1970');
-  assert.equal(S.LINES[3].text, 'What changed most in US rents this decade? Make it a film');
-  assert.equal(S.LINES[5].text, 'Compare my county with the state average on income');
+  assert.equal(S.LINES[1], S.CATALOG_LINES[0]); assert.equal(S.LINES[2], S.CATALOG_LINES[1]);
+  assert.equal(S.LINES[0].text, 'Show how adult obesity changed across US states from 2011 to 2023, on a map');
+  assert.equal(S.LINES[2].text, 'Show how building permits in my county changed since 1990, as a line');   // the county permits LINE: the map is blocked
+  assert.equal(S.LINES[3].text, 'Show how retail’s share of jobs in my state changed since 1998, as a line');
+  assert.equal(S.LINES[4].text, 'Show how health care jobs as a share of all jobs changed in my state since 1998');
+  assert.equal(S.LINES[5].text, 'Show how the construction share of jobs changed across states since 1998, on a map');
+  // the old words, which led to data the catalog does not have or to the blocked county-permits map, are gone (fails on the old lines)
+  assert.doesNotMatch(S.LINES.map(l => l.text).join(' | '), /housing costs|population|rents|average on income|permits in my county changed since 1990$/i);
   assert.doesNotMatch(S.LINES.map(l => l.text).join(' '), /spreadsheet|paste a link/i);
   for (const l of S.LINES) {
     assert.ok(l.text.length > 10 && l.text.length < 90, l.id);
@@ -86,7 +89,7 @@ test('LINES: six plain starting lines, no dataset ids, nothing from a person; ev
 });
 
 test('LINKS: a new-chat address with the line and its tail encoded; an unknown app gets none; an over-long line falls back to the plain new-chat address', () => {
-  const line = 'Make me a film about housing costs in my county';
+  const line = 'Show how adult obesity changed across US states from 2011 to 2023, on a map';
   assert.equal(S.chatUrl('claude', line), 'https://claude.ai/new?q=' + encodeURIComponent(`${line} ${S.TAIL}`));
   assert.equal(S.chatUrl('chatgpt', line), 'https://chatgpt.com/?q=' + encodeURIComponent(`${line} ${S.TAIL}`));
   assert.equal(S.chatUrl('gemini', line), '');
@@ -128,26 +131,40 @@ test('NOTHING ELSE MOVES: the builder link, the library heading and the connect 
   assert.ok(guide.includes('<a id="chatgpt"></a><h2>ChatGPT</h2>'));
 });
 
-test('CATALOG LINES (Ryan 2026-10-26 13:16, Q233): each of the two catalog lines names a dataset that is usable and on the installed worker\'s list, its years sit inside what the catalog and the connector tell the AI, and a keyword search finds it', async () => {
+test('EVERY START LINE maps to an OFFERED (dataset, view) (GAMES 11-23 vii): usable, listable, on the worker allowlist, the view in the catalog and not on the block list, the years inside the data, and a keyword search finds it', async () => {
   const { CATALOG } = await import('../supabase/functions/_shared/catalog_data.ts');
   const { searchCatalog } = await import('../supabase/functions/_shared/film.ts');
   const { DATASETS } = await import('../supabase/functions/_shared/templates.ts');
   const allow = read('supabase/functions/_shared/worker_allowlist.txt').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  const block = JSON.parse(read('tools/data/engine-catalog-block-list-1123.json'));
+  const pub = {}; vm.runInNewContext(read('assets/app-catalog-data.js'), { window: pub });
   const plan = {
-    unemployment: { dataset: 'bls_state_unemployment', years: [2019, 2022], words: 'unemployment state' },
-    permits: { dataset: 'bps_county_permits', years: [1990, new Date().getUTCFullYear()], words: 'building permits county' }
+    obesity: { dataset: 'state_obesity_fastfood', view: 'map', words: 'obesity state' },
+    unemployment: { dataset: 'bls_state_unemployment', view: 'line', words: 'unemployment state' },
+    permits: { dataset: 'bps_county_permits', view: 'line', words: 'building permits county' },
+    retail: { dataset: 'cbp_retail_share_state', view: 'line', words: 'retail share state' },
+    healthjobs: { dataset: 'cbp_health_care_share_state', view: 'line', words: 'health care share state' },
+    construction: { dataset: 'cbp_construction_share_state', view: 'map', words: 'construction share state' }
   };
-  for (const line of S.CATALOG_LINES) {
+  assert.deepEqual(Object.keys(plan).sort(), plain(S.LINES.map(l => l.id)).sort(), 'every line has a plan and every plan a line (a new line needs its pair)');
+  for (const line of S.LINES) {
     const p = plan[line.id];
-    assert.ok(p, line.id);
     const entry = CATALOG.find(e => e.id === p.dataset);
     assert.ok(entry && entry.status === 'usable' && entry.listable === true, `${p.dataset} is usable and listable`);
     assert.ok(allow.includes(p.dataset), `${p.dataset} is on the worker allowlist`);
+    const pubEntry = pub.ryagramCatalogData.entries.find(e => e.id === p.dataset);
+    assert.ok(pubEntry && pubEntry.views.includes(p.view), `${p.dataset} offers the ${p.view} view in the public catalog`);
+    assert.ok(!(block[p.dataset] || []).includes(p.view), `${p.dataset}/${p.view} is not on the block list`);
     const d = DATASETS[p.dataset];                                                              // what get_story_schema tells the connector's AI
     const first = Number(String(d.start).slice(0, 4)), last = Number(String(d.end).slice(0, 4));
     const years = (line.text.match(/\b(19|20)\d{2}\b/g) || []).map(Number);
     assert.ok(years.length >= 1, `${line.id} names its years`);
     for (const y of years) assert.ok(y >= first && y <= last, `${line.id}: ${y} is inside ${first} to ${last}`);
     assert.ok(searchCatalog(p.words).some(r => (r.id || r) === p.dataset), `a keyword search finds ${p.dataset}`);
+    if (/on a map/.test(line.text)) assert.equal(p.view, 'map', line.id);
+    if (/as a line/.test(line.text)) assert.equal(p.view, 'line', line.id);
   }
+  // the blocked county-permits map cannot be asked for by a start line
+  assert.ok(block.bps_county_permits.includes('map'));
+  assert.doesNotMatch(S.LINES.find(l => l.id === 'permits').text, /map/i);
 });
