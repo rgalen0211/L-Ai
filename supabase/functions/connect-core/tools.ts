@@ -35,6 +35,15 @@ export function friendlyError(e: unknown): string {
   return msg.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]").replace(/\b(sk|ryg|rga|rgr|rgc)[-_][\w-]{8,}/g, "[removed]");
 }
 
+/** The desktop app is for invited testers and administrators for now (the rule of request_app_download). A person without it cannot use a tool that hands work to the app: the tool refuses, nothing is saved, no plan is left waiting for an app that will never open it.
+ *  `desktop_app` absent = an older server that does not say: allowed (nothing changes until migration 20261123000500). */
+async function noDesktopApp(ctx: ToolCtx, what: string): Promise<ToolResult | null> {
+  const w = await ctx.data.whoami();
+  if (w.desktop_app !== false) return null;
+  return refuse(`${what} needs the Ryagram desktop app, which is not open to this account yet. NOTHING was saved or written down. Tell the person plainly that this is not available to them yet; a data film made in the website works for them.`,
+    "not_available", { data: { ok: false, saved: false, started: false, reason: "desktop_app_not_open" } });
+}
+
 /** The code an AI is given for a database refusal that friendlyError lets through. A distinct code tells it to STOP: a full queue, a daily cap and a blocked film are not retryable by asking again. Everything else stays 'error'. */
 export function errorCodeOf(e: unknown): string {
   const code = (e as { code?: string })?.code ?? "";
@@ -315,6 +324,7 @@ const setCompilationRequest: ToolDef = {
       description: "Optional guided footage: a checklist of footage the PERSON gets for themselves (Ryagram downloads nothing and the AI sends no file). The desktop app shows it beside the request and ticks an item when its folder holds the files." },
   }, ["project_id", "phrase", "folders"]),
   async run(a, ctx) {
+    { const gate = await noDesktopApp(ctx, "A compilation request"); if (gate) return gate; }
     const phrase = cleanText(a.phrase, 200);
     if (!phrase) return refuse("Give the words to look for.", "args");
     const rules = ((a.rules as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ phrase: cleanText(r.phrase, 200), picture: String(r.picture), seconds: Number(r.seconds), mode: r.mode as CompilationRequest["rules"][number]["mode"] }));
@@ -745,8 +755,12 @@ const suggestNextStep: ToolDef = {
     chose: { type: "string", enum: [...CHOSE], description: "Compilation: phrase (every time it is said) or song." },
     department: { type: "string", maxLength: 60, description: "A part of Ryagram they asked for that you do not see a tool for." },
   }),
-  async run(a) {
+  async run(a, ctx) {
     const step = nextStep(a as Known);
+    if (step.kind === "compilation" && (await ctx.data.whoami()).desktop_app === false) {
+      return ok("A compilation is made in the Ryagram desktop app, which is not open to this account yet. Tell the person plainly that a compilation is not available to them yet, and offer a data film instead (ask again with kind data_film).",
+        { step: "not_available", asking: null, reask: false, ask: null, options: ["a data film instead"], say: null, then: "Continue with kind data_film if they want one.", kind: "compilation", already_known: step.known });
+    }
     return ok(stepText(step), { step: step.step, asking: step.asking, reask: step.reask === true, ask: step.ask, options: step.options, say: step.say, then: step.then, kind: step.kind, already_known: step.known });
   },
 };
@@ -784,6 +798,7 @@ const requestDownload: ToolDef = {
     folder: { type: "string", maxLength: 60, pattern: DL_NAME, description: "Optional. The NAME of a folder inside the person's data folder (letters, digits, space, dot, dash). Never a path." },
   }, ["url", "why"]),
   async run(a, ctx) {
+    { const gate = await noDesktopApp(ctx, "A download request"); if (gate) return gate; }
     const bad = downloadUrlProblem(a.url);
     if (bad) return refuse(bad + " Nothing was written.", "args");
     const why = cleanText(a.why, 300);
@@ -836,6 +851,7 @@ const listDownloads: ToolDef = {
     + "a small receipt: size, SHA-256, how many files were unpacked, and whether the website was an official one. It never shows a file, a file name or a place on the person's computer.",
   inputSchema: obj(),
   async run(_a, ctx) {
+    { const gate = await noDesktopApp(ctx, "Download requests"); if (gate) return gate; }
     const rows = (await ctx.data.listDownloads()).slice(0, 20);
     if (!rows.length) return ok("There are no download requests. Use request_download.", { downloads: [] });
     const line = (r: (typeof rows)[number]) => `${r.id}  ${untrusted("download-host", r.host)}  ${r.state}`

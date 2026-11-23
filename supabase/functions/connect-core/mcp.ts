@@ -114,7 +114,7 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
     case "tools/call": {
       const name = msg.params?.name;
       if (typeof name !== "string") return rpcError(msg.id, -32602, "A tool name is required.");
-      const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps, probe: probeOn(deps.mcpApp), chatEditor: chatEditorOn(deps.mcpApp), homePanel: homePanelOn(deps.mcpApp), preparedData: preparedDataOn(deps.mcpApp) };
+      const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps, probe: probeOn(deps.mcpApp), chatEditor: chatEditorOn(deps.mcpApp), homePanel: homePanelOn(deps.mcpApp), preparedData: preparedDataOn(deps.mcpApp), listedOnly: true };
       const r = await callTool(name, msg.params?.arguments, principal, env);
       const result: Record<string, unknown> = { content: [{ type: "text", text: r.text }], isError: !!r.isError };
       if (r.data) result.structuredContent = r.data;
