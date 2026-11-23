@@ -14,13 +14,15 @@ const goesRed = (check, oldText) => assert.throws(() => check(oldText), undefine
 const lib = read('assets/app-library.js');
 const panel = lib.slice(lib.indexOf('function jobsPanel('), lib.indexOf("window.addEventListener('hashchange', route)"));
 
+const T20OLD = 'Number 20 in line. The machine makes one film at a time. At about 5 minutes for each film ahead of yours, that is about 1 hour 35 minutes, and it may take longer.';   // the old count: (position - 1) x 5, which left out the film running now and said when yours starts as if it were when it is ready
 test('HIGH 2 queue line: a contact sheet behind a line says about 5 minutes for each film ahead, "about", and "may take longer"; no promise', () => {
   const sheet = n => J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, n);
-  const check = s => assert.equal(s, 'Number 20 in line. The machine makes one film at a time. At about 5 minutes for each film ahead of yours, that is about 1 hour 35 minutes, and it may take longer.');
+  const check = s => assert.equal(s, 'Number 20 in line. The machine makes one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour 40 minutes and takes about 5 more, and it may take longer.');
   check(sheet(20));
   goesRed(check, 'Number 20 in line.');
-  assert.equal(sheet(2), 'Number 2 in line. The machine makes one film at a time. At about 5 minutes for each film ahead of yours, that is about 5 minutes, and it may take longer.');
-  assert.equal(sheet(13), 'Number 13 in line. The machine makes one film at a time. At about 5 minutes for each film ahead of yours, that is about 1 hour, and it may take longer.');
+  goesRed(check, T20OLD);
+  assert.equal(sheet(2), 'Number 2 in line. The machine makes one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 10 minutes and takes about 5 more, and it may take longer.');
+  assert.equal(sheet(12), 'Number 12 in line. The machine makes one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour and takes about 5 more, and it may take longer.');
   assert.equal(sheet(1), 'Next in line.', 'nothing ahead: no estimate');
   assert.equal(sheet(0), 'Waiting in line.', 'position unknown: no number invented');
 });
@@ -60,7 +62,7 @@ test('LOW 6 an expired contact sheet or free preview does not say credits were r
   const SERVER = 'Rendering was delayed, so this film could not start. Your credits were returned.';
   const exp = t => J.problem({ state: 'failed', attempt: 1, error_class: 'infrastructure', error_code: 'queue_timeout', error_detail: SERVER, job_type: t });
   for (const t of ['contact_sheet', 'preview']) {
-    const check = s => { assert.equal(s, 'This took too long and was stopped. You can try again.'); assert.doesNotMatch(s, /credits/); };
+    const check = s => { assert.equal(s, 'The render machine did not get to it in time, so we stopped it. This is not your story. You can try again.'); assert.doesNotMatch(s, /credits|too long/); };
     check(exp(t));
     goesRed(check, 'The render machine had a problem, not your story. Rendering was delayed, so this film could not start. Your credits were returned. You can try again.');
   }

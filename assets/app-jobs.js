@@ -124,7 +124,7 @@
     }
     switch (job.error_class) {
       case 'infrastructure':
-        if (job.error_code === 'queue_timeout' && (job.job_type === 'contact_sheet' || job.job_type === 'preview')) return 'This took too long and was stopped. You can try again.';   // no credits were held for a contact sheet or a free preview, so the server's 'Your credits were returned.' is not shown
+        if (job.error_code === 'queue_timeout' && (job.job_type === 'contact_sheet' || job.job_type === 'preview')) return 'The render machine did not get to it in time, so we stopped it. This is not your story. You can try again.';   // queue_timeout fails only a job that NEVER STARTED while the machine was silent (ops_readiness.sql expire_stale_queue). A contact sheet holds none and a free preview holds none, so the server's 'Your credits were returned.' is not repeated here; a PAID preview (1 credit after the 6) gets its true line from the ledger (returnedLine in app-library.js, job_accounting), which the jobs rows do not carry
         if (job.error_code === 'queue_timeout') return `The render machine had a problem, not your story.${detail} You can try again.`;     // it never ran: no "tried N times"
         return `The render machine had a problem, not your story. It tried ${job.attempt} time${job.attempt === 1 ? '' : 's'}.${detail} You can try again.`;
       case 'timeout':
@@ -156,7 +156,7 @@
   const waitWords = minutes => { const h = Math.floor(minutes / 60), m = minutes % 60; return h ? `${h} hour${h === 1 ? '' : 's'}${m ? ` ${m} minutes` : ''}` : `${m} minutes`; };
   function queueWait(job, position) {
     if (job.job_type !== 'contact_sheet') return `${ONE_AT_A_TIME} Each film ahead of yours takes a few minutes.`;
-    return `${ONE_AT_A_TIME} At about 5 minutes for each film ahead of yours, that is about ${waitWords((position - 1) * 5)}, and it may take longer.`;
+    return `${ONE_AT_A_TIME} It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about ${waitWords(position * 5)} and takes about 5 more, and it may take longer.`;      // position = 1 + the films queued ahead (queue_position, 2a_core.sql), and the film the machine is making NOW is not counted: position x 5 covers it plus the ones ahead, up to when yours STARTS
   }
   function progressNote(job, queuePosition, own) {
     const ownComputer = job.run_on ? job.run_on === 'owner_local' : !!(own && own.tester === true);
