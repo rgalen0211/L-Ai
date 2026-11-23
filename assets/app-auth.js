@@ -233,7 +233,7 @@
 
     if (linkToken || implicitSession) {
       const FAILED = {
-        invite: 'That invite link has expired or was already used. If you set a password, sign in; if not, ask for a new invite.',
+        invite: 'That invite link has expired or was already used. If you set a password, sign in; if not, ask for a new email link.',
         recovery: 'That reset link has expired or was already used. Ask for a new one below.',
         signup: 'That confirmation link has expired or was already used. Try signing in; if that fails, ask for a new one.',
         magiclink: 'That sign-in link has expired or was already used. Ask for a new one from the sign-in page.',
@@ -425,7 +425,7 @@
         try {
           // Q378 A: email only, through CONNECT's join function; the emailed link confirms the address and lets the person choose a password.
           const r = await window.ryagramWaiting.signUp(window.ryagramData(client), f.email.value, f.over18.checked);
-          if (r.ok) { caNote.textContent = r.message || 'If that email can join, a link to finish joining is on its way.'; }
+          if (r.ok) { caNote.textContent = window.ryagramWaiting.sentWords(r.message); }
           else if (r.off) { caError.textContent = r.message || 'Making an account is not open yet. Please try again later.'; caError.hidden = false; }
           else { caError.textContent = r.message || 'Couldn’t create the account just now. Try again in a minute.'; caError.hidden = false; }
         } catch { caError.textContent = 'Couldn’t reach the server. Check your connection and try again.'; caError.hidden = false; }

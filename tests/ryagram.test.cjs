@@ -527,7 +527,7 @@ test('CREATOR BETA: the section says plainly that beta credits are free in excha
   assert.match(text, /promote .* you disclose that your credits were free/);
   assert.doesNotMatch(text, /\$|\b(price|pricing|priced|per film|Anthropic|Claude|Supabase|worker)\b/i);
   assert.match(pageHtml, /<section id="creators"[^>]*aria-labelledby="creators-title"/);
-  assert.match(pageHtml, /<a class="rg-navlink" href="#creators">Creator beta<\/a>/);
+  assert.match(pageHtml, /<a class="rg-navlink" href="#creators" hidden>Creator beta<\/a>/);
 });
 
 test('CREATOR BETA: the form asks name, email, who they are (all six kinds), what they make, a link, and their data question; has a honeypot; and every field has a label', () => {

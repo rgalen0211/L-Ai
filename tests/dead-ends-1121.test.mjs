@@ -75,7 +75,8 @@ test('ROW 2 COMING SOON: an account that is NOT invited gets a plain line and NO
       const p = await pageOf(id, opt);
       assert.equal(byId(p.view, 'soon-notify').length, 0, `${id}: no button`);
       assert.equal(byId(p.view, 'soon-invited-only').length, 1, `${id}: the honest line`);
-      assert.equal(textOf(byId(p.view, 'soon-invited-only')), 'Sign-up for this is for invited accounts for now.');
+      assert.equal(textOf(byId(p.view, 'soon-invited-only')), 'Sign-up for this is not open to your account yet.');
+      assert.ok(!/invite/i.test(textOf(p.view)), 'no invite word');
       assert.ok(!/Try again/.test(textOf(p.view)), 'no retry promise');
     }
     const inv = await pageOf(id, { invited: true });
