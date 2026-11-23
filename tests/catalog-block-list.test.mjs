@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -15,7 +16,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const plain = x => JSON.parse(JSON.stringify(x));
 const COPY = path.join(root, 'tools', 'data', 'engine-catalog-block-list-1123.json');
-const ENGINE_FILE = process.env.ENGINE_BLOCK_LIST || path.join(os.homedir(), 'Ryagram-logs', 'proposals', 'ENGINE-CATALOG-BLOCK-LIST-1123.json');
+const ENGINE_FILE = process.env.ENGINE_BLOCK_LIST || path.join(os.homedir(), 'Ryagram-logs', 'proposals', 'ENGINE-CATALOG-BLOCK-LIST-1123-v2.json');
 const block = JSON.parse(read('tools/data/engine-catalog-block-list-1123.json'));
 const pairs = Object.entries(block).flatMap(([id, vs]) => vs.map(v => [id, v]));
 
@@ -23,23 +24,35 @@ const win = {};
 vm.runInNewContext(read('assets/app-catalog-data.js'), { window: win });
 const PUB = win.ryagramCatalogData;
 
-test('BLOCK LIST: the committed copy has ENGINE\'s shape (16 datasets, 20 pairs) and names real catalog datasets', () => {
+// ENGINE's FINAL list v2 (2026-11-23 09:55): 16 datasets, 58 pairs; file sha256 is of the text with plain LF and no trailing newline (ENGINE's 09:55 correction).
+const V2_FILE_SHA256 = 'c5a110285e934ac4cbaefe1338e62088e676e6d03dc139409744b5bcee662e46';
+// The parsed list in canonical form (keys sorted, each view list sorted, python json.dumps spacing), exactly what tools/gen-catalog.py hashes; its first 12 hex digits are in both generated headers.
+const canonical = o => '{' + Object.keys(o).sort().map(k => `${JSON.stringify(k)}: [${[...o[k]].sort().map(v => JSON.stringify(v)).join(', ')}]`).join(', ') + '}';
+const CANON_SHA256 = '843a1e5a2062008cae613b02f6ca9d254ecc7fc91546a82cbb82c4136307ffbe';
+const sha = x => crypto.createHash('sha256').update(x).digest('hex');
+
+test('BLOCK LIST v2: the committed copy has ENGINE\'s final shape (16 datasets, 58 pairs) and both pinned hashes, and names real catalog datasets', () => {
   assert.equal(Object.keys(block).length, 16);
-  assert.equal(pairs.length, 20);
+  assert.equal(pairs.length, 58);
+  assert.equal(sha(read('tools/data/engine-catalog-block-list-1123.json').replace(/\r\n/g, '\n')), V2_FILE_SHA256, 'the committed list is not ENGINE\'s v2 file (CRLF is read as LF)');
+  assert.equal(sha(canonical(block)), CANON_SHA256, 'the parsed list changed');
+  for (const [id, vs] of Object.entries(block)) for (const v of ['paired', 'panel']) assert.ok(vs.includes(v), `${id} must block ${v} (the engine refuses both for every catalog dataset)`);
   for (const [id, v] of pairs) {
     assert.ok(CATALOG.some(e => e.id === id), `${id} is not in the server catalog`);
-    assert.ok(['map', 'bars', 'line', 'paired', 'panel'].includes(v), `${id}: ${v}`);
+    assert.ok(['map', 'bars', 'line', 'paired', 'panel', 'shares'].includes(v), `${id}: ${v}`);
   }
 });
 
-test('BLOCK LIST: the committed copy equals ENGINE\'s file when that file is present', t => {
+test('BLOCK LIST v2: the committed copy equals ENGINE\'s v2 file when that file is present (parsed JSON, not bytes)', t => {
   if (!fs.existsSync(ENGINE_FILE)) { t.skip(`ENGINE's file is not here (${ENGINE_FILE}): the committed copy is not compared`); return; }
   assert.deepEqual(plain(JSON.parse(fs.readFileSync(ENGINE_FILE, 'utf8'))), plain(block), 'ENGINE changed its block list: copy it to tools/data/ and regenerate (python tools/gen-catalog.py --block-list ...)');
 });
 
 test('NO BLOCKED PAIR is offered, in either generated file; every unblocked film type of those datasets still is', () => {
   const blocked = new Set(pairs.map(([id, v]) => `${id}|${v}`));
-  for (const [id, v] of pairs) {
+  // the site only ever offers map, bars and line: the v2 pairs paired, panel and shares are in the list for the worker and the seed, never in film_types
+  for (const e of CATALOG) for (const v of e.film_types) assert.ok(['map', 'bars', 'line'].includes(v), `${e.id} offers ${v}`);
+  for (const [id, v] of pairs.filter(([, v]) => ['map', 'bars', 'line'].includes(v))) {
     assert.ok(!CATALOG.find(e => e.id === id).film_types.includes(v), `server catalog still offers ${id} ${v}`);
     assert.ok(!PUB.entries.find(e => e.id === id)?.views.includes(v), `public catalog still offers ${id} ${v}`);
   }
@@ -57,9 +70,10 @@ test('NO BLOCKED PAIR is offered, in either generated file; every unblocked film
   for (const e of CATALOG) if (e.status === 'usable') assert.ok(e.film_types.length >= 1, `${e.id} is usable with no film type`);
 });
 
-test('THE GENERATED FILES name the block list (header) and the counts agree: 20 pairs gone from the 71 usable offers', () => {
-  assert.match(read('supabase/functions/_shared/catalog_data.ts'), /catalog block list .*: 20 \(dataset, view\) pairs\./);
-  assert.match(read('assets/app-catalog-data.js'), /catalog block list .*: 20 \(dataset, view\) pairs\./);
+test('THE GENERATED FILES name the block list (header: its parsed-canonical hash and the 20 map/bars/line pairs it removes) and the counts agree', () => {
+  const head = new RegExp(`block list \\(tools/data/engine-catalog-block-list-1123\\.json, sha ${CANON_SHA256.slice(0, 12)}\\): 20 \\(dataset, view\\) pairs\\.`);
+  assert.match(read('supabase/functions/_shared/catalog_data.ts'), head);
+  assert.match(read('assets/app-catalog-data.js'), head);
   assert.equal(CATALOG.filter(e => e.status === 'usable').reduce((n, e) => n + e.film_types.length, 0), 51);
 });
 
