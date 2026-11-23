@@ -10,6 +10,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const terms = read('terms/index.html');
 const privacy = read('privacy-policy.html');
+const ADDRESS = read('tests/mailing-address.txt').trim();   // the one value: node tools/set-mailing-address.mjs "..." swaps it everywhere
 const LABEL = 'Preview terms: free preview, no payments';
 const NOT_OPEN = 'Buying credits and payments are not open yet; these terms will be replaced before any payment.';
 const mainOf = (html) => html.match(/<main[\s\S]*?<\/main>/)[0];
@@ -45,7 +46,7 @@ test('NOTHING INVENTED: no governing law, liability limit, arbitration or DMCA t
   assert.doesNotMatch(text, /governed by|governing law|arbitrat|class action|class-action|DMCA|liability|liable|indemnif|warrant/i);
   for (const html of [terms, privacy]) {
     // When Ryan gives the address, replace the placeholder AND this pin together.
-    assert.equal((textOf(html).match(/\[Mailing address: to be added before launch\]/g) || []).length, 1);
+    assert.equal(textOf(html).split(ADDRESS.replace(/&amp;/g, '&')).length - 1, 1);
     assert.match(textOf(html), /L'Ai, LLC/);
     assert.match(html, /mailto:ryagram@uselai\.com/);
   }
@@ -159,5 +160,5 @@ test('WEB 11-23 (BUILDER second review): who reads requests, steps recorded, inv
   // nothing in the page source names the author or the proposals path
   assert.doesNotMatch(terms + privacy, /WEB 11-22|proposals\/|<!--/);
   // the placeholders stay until Ryan supplies the address and the Connect wording
-  assert.match(t, /\[Mailing address: to be added before launch\]/);
+  assert.ok(t.includes(ADDRESS.replace(/&amp;/g, '&')));
 });
