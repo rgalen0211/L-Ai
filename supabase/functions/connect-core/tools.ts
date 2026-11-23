@@ -35,6 +35,14 @@ export function friendlyError(e: unknown): string {
   return msg.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]").replace(/\b(sk|ryg|rga|rgr|rgc)[-_][\w-]{8,}/g, "[removed]");
 }
 
+/** The code an AI is given for a database refusal that friendlyError lets through. A distinct code tells it to STOP: a full queue, a daily cap and a blocked film are not retryable by asking again. Everything else stays 'error'. */
+export function errorCodeOf(e: unknown): string {
+  const code = (e as { code?: string })?.code ?? "";
+  const msg = String((e as Error)?.message ?? "");
+  if (msg.length > 300) return "error";
+  return code === "PTQUE" ? "queue_full" : code === "PTCAP" ? "daily_credit_cap" : code === "PTVEW" ? "not_available" : "error";
+}
+
 async function projectVersion(ctx: ToolCtx, projectId: string) {
   const versionId = await ctx.data.currentVersionId(projectId);
   if (!versionId) return null;

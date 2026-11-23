@@ -30,3 +30,33 @@ test('a token inside a passed message is still removed', () => {
   assert.doesNotMatch(out, /eyJ|rgc_abcdefgh/);
   assert.match(out, /\[removed\]/);
 });
+
+// ---- GAMES 11:04 LOW: the AI gets a distinct code, so it stops asking instead of retrying
+import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
+import { errorCodeOf } from '../supabase/functions/connect-core/tools.ts';
+import Ajv2020 from 'ajv/dist/2020.js';
+import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
+import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
+
+test('errorCodeOf names the three refusals a retry cannot pass and leaves everything else as error', () => {
+  assert.equal(errorCodeOf(err('PTQUE', 'You have 2 films waiting.')), 'queue_full');
+  assert.equal(errorCodeOf(err('PTCAP', 'Daily limit.')), 'daily_credit_cap');
+  assert.equal(errorCodeOf(err('PTVEW', 'Not available.')), 'not_available');
+  for (const code of ['PT404', 'PT429', 'PTXYZ', '42501', '', undefined]) assert.equal(errorCodeOf(err(code, 'x')), 'error', String(code));
+  assert.equal(errorCodeOf(err('PTQUE', 'x'.repeat(301))), 'error', 'a message friendlyError would replace gets no special code');
+  assert.equal(errorCodeOf(null), 'error');
+});
+
+test('a tool that hits PTQUE, PTCAP or PTVEW answers the AI with that distinct code and the real words', async () => {
+  const compile = makeCompile(Ajv2020);
+  const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
+  for (const [code, msg, want] of [['PTQUE', 'You have 2 films waiting. You can start another when one is done.', 'queue_full'], ['PTCAP', 'You reached today\'s credit limit.', 'daily_credit_cap'], ['PTVEW', 'This film is not available yet. Please pick another view.', 'not_available'], ['PT429', 'Too many.', 'error']]) {
+    const w = new FakeWorld();
+    w.addUser(A.userId, 'alice@example.test', 100); w.invite(A.userId, A.clientId);
+    const data = { ...w.data(A.userId), createProject: async () => { throw err(code, msg); } };
+    const r = await callTool('create_project', { title: 'Film' }, A, { data, policy: w.policy(), deps: { compile } });
+    assert.equal(r.isError, true, code);
+    assert.equal(r.code, want, code);
+    assert.equal(r.text, msg, code);
+  }
+});
