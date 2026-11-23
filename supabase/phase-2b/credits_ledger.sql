@@ -294,7 +294,12 @@ language sql set search_path = '' as $$
 $$;
 
 -- Free previews counted against the allowance: every free preview submitted, except those
--- that ended in an infrastructure failure (not the person's doing).
+-- that ended in an infrastructure failure (not the person's doing), and (CONNECT 11-23, CC1's ruling) those
+-- that failed with engine_unsupported (the render machine's own setup), and, for the PER-PROJECT count only (p_since is null),
+-- limit_exceeded (it ran out of memory or disk): the database classes those two as invalid_input and limit, but they are the
+-- machine's fault. A limit_exceeded preview still counts in the 15 a day, so one story cannot queue machine time without end.
+-- A preview cancelled before any machine picked it up (state cancelled, claimed_at null) is not counted either (CC1 11-23).
+-- A live database that already has this function gets the same body from migrations/20261123000100_free_preview_machine_faults.sql.
 create function ryagram_private.free_previews_used(p_owner uuid, p_project uuid, p_since timestamptz)
 returns int
 language sql stable set search_path = '' as $$
@@ -302,7 +307,8 @@ language sql stable set search_path = '' as $$
   where owner_id = p_owner and job_type = 'preview' and free_preview
     and (p_project is null or project_id = p_project)
     and (p_since is null or created_at >= p_since)
-    and not (state = 'failed' and error_class = 'infrastructure')
+    and not (state = 'failed' and (error_class = 'infrastructure' or error_code = 'engine_unsupported' or (error_code = 'limit_exceeded' and p_since is null)))
+    and not (state = 'cancelled' and claimed_at is null)
 $$;
 
 -- ---------------------------------------------------------------- quote + hold (on insert)
