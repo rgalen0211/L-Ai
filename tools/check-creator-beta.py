@@ -56,34 +56,31 @@ def main():
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
                 page.goto(f'{BASE}/ryagram/', wait_until='load')
-                text = page.inner_text('#creators')
-                check('Creator beta' in text, 'the section is on the page')
+                # creatorBeta is OFF in the committed config: the whole Creator beta section and its nav link are hidden (reworded 2026-11-23 for open sign-up), and the hero says "Create an account".
+                section = page.locator('#creators')
+                check(section.count() == 1 and not section.is_visible(), 'switched off: the Creator beta section is hidden')
+                check(not page.locator('.rg-navlink').is_visible(), 'switched off: the Creator beta nav link is hidden')
+                text = section.text_content() or ''           # the words stay in the page for the day the switch goes on
+                check('Creator beta' in text, 'the section is in the page, ready for the switch')
                 for who in ('YouTubers', 'podcasters', 'newsletter writers', 'journalists', 'teachers', 'researchers'):
                     check(who in text, f'it names {who}')
                 check('Beta credits are free, in exchange for your feedback.' in text, 'it says beta credits are free, in exchange for feedback')
                 check('disclose that your credits were free' in text, 'it says any promotion is disclosed')
                 check(page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'no sideways scroll')
-                nav = page.locator('.rg-navlink')
-                if name == 'phone':
-                    check(nav.count() == 1 and not nav.is_visible(), 'on a phone the header is the brand and one button (the hero leads to the creator beta)')
-                else:
-                    check(nav.count() == 1 and nav.bounding_box()['height'] >= 44, 'the nav link is there and a 44px target')
                 box = page.locator('.rg-top').bounding_box()
                 check(box['height'] < 140, f'the header did not wrap into a tall block ({box["height"]:.0f}px)')
-                page.locator('#creators').scroll_into_view_if_needed()
-                page.screenshot(path=str(OUT / f'creator-{name}-section.png'))
-                # creatorBeta is OFF in the committed config (Ryan 2026-10-17: the landing ships before the Terms and Privacy pages), so there is no form to fill in for nothing: the fields are hidden,
-                # the form's place says to email, and the hero button is the invite email. (This block used to fill and submit the form; that was the page before the ruling.)
+                page.screenshot(path=str(OUT / f'creator-{name}-top.png'))
+                # creatorBeta is OFF in the committed config (Ryan 2026-10-17; reworded 2026-11-23): the section, its form and its status line are all hidden, nothing is sent,
+                # and the hero button is "Create an account" (not the old invite email).
                 sent = []
                 page.on('request', lambda r: sent.append(r.url) if 'functions/v1' in r.url else None)
                 fields = page.locator('#creator-form .creator-fields')
                 check(fields.count() == 1 and not fields.is_visible(), 'switched off: the form fields are not shown')
-                msg = page.inner_text('#creator-status')
-                check('open soon' in msg and 'ryagram@uselai.com' in msg, f'switched off: it says to email, not "thanks" ({msg[:60]!r})')
+                check(not page.locator('#creator-status').is_visible(), 'switched off: there is no status line to read')
                 hero = page.locator('.rg-hero-cta a.rg-btn')
-                check(hero.count() == 1 and (hero.get_attribute('href') or '').startswith('mailto:ryagram@uselai.com'), 'and the hero button is the invite email')
+                check(hero.count() == 1 and hero.inner_text().strip() == 'Create an account' and (hero.get_attribute('href') or '') == '/app/#/create-account', 'and the hero button is Create an account')
+                check('invite' not in page.locator('.rg-hero-cta').inner_text().lower(), 'and the hero says nothing about an invite')
                 check(not sent, 'and nothing was sent')
-                page.screenshot(path=str(OUT / f'creator-{name}-filled.png'))
                 check(not errors, f'no console errors {errors}')
                 ctx.close()
 

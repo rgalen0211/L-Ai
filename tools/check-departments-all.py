@@ -47,7 +47,7 @@ def judge(p, tag, did, label, how):
     else:
         notinv = '&noinvite' in p.url                              # dead-end sweep row 2 (11-21): a not-invited account gets the plain invited-only line, never a button the server refuses
         want = ('tell me when it’s ready' in body.lower()) if did != 'forecasts' or '&deptforecasts' in p.url else ('nothing to sign up for yet' in body.lower())
-        if notinv: want = ('invited accounts for now' in body.lower()) and p.locator('#soon-notify').count() == 0
+        if notinv: want = ('sign-up for this is not open to your account yet.' in body.lower()) and p.locator('#soon-notify').count() == 0
         check('coming soon' in body.lower() and want, f'{tag}: {label} is a Coming soon page with {"its sign-up button" if did != "forecasts" or "&deptforecasts" in p.url else "the plain no-sign-up line"}')
     check(len(body.strip()) > 80, f'{tag}: {label} is not a blank page')
 

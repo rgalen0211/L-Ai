@@ -32,10 +32,10 @@ from pathlib import Path
 
 CARD = {'number': '4242 4242 4242 4242', 'expiry': '12 / 34', 'cvc': '123', 'name': 'Smoke Test', 'zip': '10001'}
 HEADLINE = 'You have a question. Ryagram makes the data answer it.'
-# The hero button follows the creatorBeta switch (Ryan, 2026-10-17): 'Join the creator beta' when the form is on, 'Email to request an invite'
-# while it is off. check_pages reads the switch from the live page and expects the matching words.
-CREATOR_CTA = '<creator call to action>'
-CREATOR_CTA_ON, CREATOR_CTA_OFF = 'Join the creator beta', 'Email to request an invite'
+# The hero button is "Create an account" whatever the creatorBeta switch says (open sign-up, 2026-11-23). The Creator beta section and its nav link are
+# hidden while creatorBeta is false and shown only when it is true; check_pages reads the switch from the live page for that.
+CREATOR_CTA = 'Create an account'
+CREATOR_SECTION = '#creators'
 VIEWPORTS = (('desktop', dict(viewport={'width': 1280, 'height': 900})),
              ('phone', dict(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True)))
 
@@ -173,10 +173,15 @@ def check_pages(run, pw_browser, base):
                     continue
                 run.check('pages', f'{label}: loads (HTTP {status})', status == 200, f'HTTP {status}', required)
                 text = page.inner_text('body')
-                on = bool(page.evaluate('!!(window.ryagramConfig && window.ryagramConfig.creatorBeta === true)')) if CREATOR_CTA in must else None
+                if CREATOR_CTA in must:
+                    on = bool(page.evaluate('!!(window.ryagramConfig && window.ryagramConfig.creatorBeta === true)'))
+                    shown = page.locator(CREATOR_SECTION).is_visible()
+                    run.check('pages', f'{label}: the Creator beta section is {"shown" if on else "hidden"} (creatorBeta is {"on" if on else "off"})', shown == on, f'section visible={shown}', required)
+                    hero_button = page.locator('.rg-hero-cta a.rg-btn')       # the header also says 'Create an account': check the hero's own button
+                    run.check('pages', f'{label}: the hero button itself says "{CREATOR_CTA}"', hero_button.count() == 1 and hero_button.first.inner_text().strip() == CREATOR_CTA, 'the hero has no such button', required)
+                    for t in ('Email to request an invite', 'Join the creator beta'):
+                        run.check('pages', f'{label}: the hero does not say "{t}"', t not in page.locator('.rg-hero-cta').inner_text(), 'old hero words', required)
                 for t in must:
-                    if t == CREATOR_CTA:
-                        t = CREATOR_CTA_ON if on else CREATOR_CTA_OFF
                     run.check('pages', f'{label}: shows "{t[:50]}"', t in text, 'text missing', required)
                 for t in must_not:
                     run.check('pages', f'{label}: does not show "{t[:30]}"', t not in text and t not in page.content(), 'found on the page', required)
@@ -207,7 +212,11 @@ def check_forms(run, pw_browser, base):
     page.click('#waitlist-form button[type=submit]')
     page.wait_for_timeout(4000)
     msg = page.inner_text('#waitlist-status') if page.locator('#waitlist-status').is_visible() else ''
-    run.check('forms', 'the waitlist form accepts an address', "on the list" in msg, msg[:120])
+    run.check('forms', 'the waitlist form accepts an address', 'keep you posted' in msg, msg[:120])
+    if not page.locator('#cb-name').is_visible():      # creatorBeta is off: the section is hidden, there is no form to fill (open sign-up, 2026-11-23)
+        run.check('forms', 'the creator beta form is OFF (its section is hidden); switch creatorBeta on to test it', False, 'section hidden', required=bool(run.a.expect_creator_live))
+        ctx.close()
+        return
     page.fill('#cb-name', 'Smoke Test')
     page.fill('#cb-email', f'smoke+creator{stamp}@example.com')
     page.select_option('#cb-kind', 'other')
@@ -218,7 +227,7 @@ def check_forms(run, pw_browser, base):
     page.wait_for_timeout(4000)
     msg = page.inner_text('#creator-status') if page.locator('#creator-status').is_visible() else ''
     live = 'we have your application' in msg
-    run.check('forms', 'the creator beta form accepts an application' if live else 'the creator beta form is OFF (it says to email); switch creatorBeta on to test it', live, msg[:120], required=bool(run.a.expect_creator_live))
+    run.check('forms', 'the creator beta form accepts an application', live, msg[:120], required=bool(run.a.expect_creator_live))
     print(f'     cleanup: delete from public.ryagram_waitlist where email like \'smoke+{stamp}%\'; and the creator_applications row for smoke+creator{stamp}@example.com (SQL Editor)')
     ctx.close()
 

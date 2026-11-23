@@ -17,6 +17,14 @@
   function pageFor(access, hash) {
     return access === 'active' ? 'normal' : 'waiting';
   }
+  // Ask the server who this is. ONE failed call is tried once more after a short pause (no loop, no storm); a second failure is 'unknown', which is NOT the same as
+  // 'waiting': the page then says it could not check and asks for a reload, and makes no claim about a list. The server's own answer still decides active or waiting.
+  async function checkAccess(call, pause = ms => new Promise(resolve => setTimeout(resolve, ms)), ms = 1500) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { return accessOf(await call()); } catch { if (attempt === 0) await pause(ms); }
+    }
+    return 'unknown';
+  }
   function signUpProblem(email) {
     const e = String(email || '').trim();
     if (!e || e.length > 254 || !EMAIL.test(e)) return 'Type your email address.';
@@ -28,6 +36,13 @@
   function ageProblem(over18) { return over18 === true ? null : AGE_PROBLEM; }
   // The one place a new account is asked for. Q378 = A (Ryan 11-04 15:47): CONNECT's join function, email only. It sends the invite-style email; the person confirms the address and
   // chooses a password from that link, as testers do. Supabase's own sign-up stays OFF. {ok, off, message}: off = the switch is not on yet (the page sends people to the waitlist).
+  // The line shown after a good send. The server's own sentence ends 'Already have an account? Sign in instead.'; someone who has an account but never chose a password gets no mail, so the last sentence also names Forgot your password.
+  const FORGOT = 'or use Forgot your password';
+  function sentWords(message) {
+    const m = String(message || 'If that email can join, a link to finish making your account is on its way. It works once. Already have an account? Sign in instead.');
+    if (/forgot your password/i.test(m)) return m;
+    return /Sign in instead\.\s*$/.test(m) ? m.replace(/Sign in instead\.\s*$/, `Sign in instead, ${FORGOT}.`) : `${m} Already have an account? Sign in instead, ${FORGOT}.`;
+  }
   async function signUp(data, email, over18) {
     if (ageProblem(over18)) return { ok: false, off: false, message: AGE_PROBLEM };        // unticked: nothing is sent
     return data.joinWaiting(String(email || '').trim(), true);
@@ -47,9 +62,20 @@
     detail: 'Ryagram is opening to a few people at a time. Until then your account is held here: you can change your password or delete your account, and nothing else is open.',
     noCredits: 'No credits are held or charged on a waiting account.'
   };
+  // Shown when my_access failed twice: the app stays closed (fail closed) but says what happened, not that the person is on a list.
+  const UNKNOWN_WORDS = { title: 'We could not check your account just now.', line: 'Reload the page.' };
 
   // ---------------------------------------------------------------- pages
   function create({ h, data, busy, showError, errorLine }) {
+    // The page for 'unknown' (the check failed twice): no list, no waiting claim, a reload, and a way to sign out.
+    function unknownView() {
+      return [
+        h('h1', { tabindex: '-1' }, UNKNOWN_WORDS.title),
+        h('p', { class: 'form-intro', role: 'status' }, UNKNOWN_WORDS.line),
+        h('p', {}, h('button', { class: 'button primary', type: 'button', id: 'wt-reload', onclick: () => location.reload() }, 'Reload the page')),
+        h('p', {}, h('button', { class: 'button secondary', type: 'button', id: 'wt-sign-out', onclick: () => data.signOut() }, 'Sign out'))
+      ];
+    }
     // #/waiting: the only page a WAITING account can reach.
     async function waitingView(email, onOpened) {
       const claimError = errorLine(), claimNote = h('p', { class: 'form-note', role: 'status' });
@@ -87,7 +113,7 @@
       const delForm = h('form', { class: 'contact-form', onsubmit: async event => {
         event.preventDefault(); delError.hidden = true;
         if (!delForm.reportValidity()) return;
-        if (!confirm('Delete your account? This can’t be undone.')) return;
+        if (!confirm('Delete your account? If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.')) return;
         await busy(del, 'Deleting…', async () => {
           try {
             const result = await data.deleteAccount(typed.value);
@@ -107,7 +133,7 @@
           h('p', { class: 'form-note' }, 'A valid code opens your access now.'), claimForm),
         h('section', { class: 'account-section', 'aria-labelledby': 'wt-pw' }, h('h2', { id: 'wt-pw' }, 'Password'), pwForm),
         h('section', { class: 'account-section account-danger', 'aria-labelledby': 'wt-del' }, h('h2', { id: 'wt-del' }, 'Delete your account'),
-          h('p', {}, 'This deletes your login and removes you from the list, at once.'), delForm),
+          h('p', {}, 'We remove you from the list, replace your email in support requests and invite records, and then delete your login. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.'), delForm),
         h('p', {}, signOut)
       ];
     }
@@ -152,8 +178,8 @@
         note, error
       ];
     }
-    return { waitingView, adminView };
+    return { waitingView, adminView, unknownView };
   }
 
-  window.ryagramWaiting = Object.freeze({ on, accessOf, pageFor, signUpProblem, ageProblem, signUp, waitingSummary, create, WORDS });
+  window.ryagramWaiting = Object.freeze({ on, accessOf, checkAccess, pageFor, signUpProblem, ageProblem, signUp, sentWords, waitingSummary, create, WORDS, UNKNOWN_WORDS });
 })();

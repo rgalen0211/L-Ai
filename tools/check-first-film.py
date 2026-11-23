@@ -88,7 +88,7 @@ def main():
             p.wait_for_selector('h2:has-text("Review")', timeout=15000)
             p.wait_for_selector('.builder-summary', timeout=15000)
             text = p.inner_text('.builder-summary')
-            check('Residential building permits' in text and '1990 to 2024' in text and 'Map' in text and 'New homes permitted' in text, f'one tap lands on the Review with the data, years, kind and title filled ({text.replace(chr(10), " | ")[:150]})')
+            check('Residential building permits' in text and '1990 to 2024' in text and 'Lines' in text and 'New homes permitted' in text, f'one tap lands on the Review with the data, years, kind and title filled ({text.replace(chr(10), " | ")[:150]})')
             check('Source:' in p.inner_text('main') and 'Licence:' in p.inner_text('main'), 'the source and licence are shown on the Review')
             p.screenshot(path=str(OUT / '3-review.png'), full_page=True)
             p.click('.builder-nav button:has-text("Back")')

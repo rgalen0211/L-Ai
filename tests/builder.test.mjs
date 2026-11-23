@@ -150,7 +150,7 @@ test('LINKS (CC1 LOW-3): a data link from the catalog is shown only as a plain h
 });
 
 test('READY-MADE STARTS (NEXT-WEB 132): housing, health and work, each a view rendered before, offered only when the function\'s catalog lists its dataset; no income (nothing listable)', () => {
-  assert.deepEqual(plain(B.READY_MADE.map(r => [r.id, r.dataset, r.film_type])), [['housing', 'bps_county_permits', 'map'], ['health', 'state_obesity_fastfood', 'map'], ['work', 'bls_state_unemployment', 'line']]);
+  assert.deepEqual(plain(B.READY_MADE.map(r => [r.id, r.dataset, r.film_type])), [['housing', 'bps_county_permits', 'line'], ['health', 'state_obesity_fastfood', 'map'], ['work', 'bls_state_unemployment', 'line']]);
   assert.ok(!B.READY_MADE.some(r => /income/i.test(`${r.id} ${r.dataset} ${r.title}`)), 'no income start until an income dataset is listable');
   const all = B.READY_MADE.map(r => ({ id: r.dataset }));
   assert.deepEqual(plain(B.readyMade(all).map(r => r.id)), ['housing', 'health', 'work']);
@@ -274,6 +274,6 @@ test('TUTORIAL POLISH: the sample\'s first step promises nothing it cannot keep 
   const src = read('assets/app-builder.js');
   const step = src.slice(src.indexOf('function stepDataset'), src.indexOf('function stepMeasure'));
   assert.match(step, /sample \? 'One click puts the sample’s own choices back and takes you to the last step\.'/, 'MUST-FAIL: no "first picture is free" in the sample');
-  assert.match(step, /sample\r?\n\s+\? 'The sample has one dataset\. With your own data you choose from the whole list/, 'no "choose your own" in a one-dataset sample');
+  assert.match(step, /sample\r?\n\s+\? 'The sample has one dataset\. Outside the sample you choose from the whole list/, 'no "choose your own" in a one-dataset sample');
   assert.ok(step.includes("The first picture is free.'") && step.includes("'Or choose your own. '"), 'the real builder keeps its own words');
 });
