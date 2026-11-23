@@ -82,7 +82,7 @@ test('Home teaser, Terms placeholder, Help (connect an AI) and the request page:
   assert.match(read('index.html'), /<p>Short animated films drawn straight from the numbers, with correctness checks built in\. Anyone 18 or older can make a free account and try it\.<\/p>/);
   assert.match(read('terms/index.html'), /Sign-up is open to anyone who is 18 or older\. We email you a link to finish signing up\./);
   const m = /<summary>How do I connect Claude or ChatGPT to Ryagram\?<\/summary>\s*<p>([^<]*)<\/p>/.exec(read('help/index.html'));
-  assert.match(m[1], /^If you do not see Connected AIs under Account, connecting an AI is not available on your account; write to ryagram@uselai\.com\./);
+  assert.match(m[1], /^Connecting your own AI is not yet in the preview. If you do not see Connected AIs under Account, it is not available on your account; write to ryagram@uselai\.com\./);
   assert.match(read('assets/app-library.js'), /We make the film and send it back here\. Each one is made by hand, so it can take a day or more\./);
   assert.doesNotMatch(read('assets/app-library.js'), /This is a private beta, so each one is made by hand/);
   assert.match(read('assets/app-tester-wizard.js'), /If you were invited, write to ryagram@uselai\.com and we will turn it on for your account\./);
