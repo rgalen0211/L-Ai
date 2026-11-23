@@ -57,7 +57,7 @@ export const TEMPLATES = [
 ];
 
 export const UNMEASURED_WORDS =
-  "A paired or panel view needs keyframes_per_year: how many pictures a year it draws, measured for this film. That takes minutes of drawing and cannot be chosen here, so use a map, bars or line view, or make this film in the Ryagram app.";
+  "A paired or panel view needs keyframes_per_year: how many pictures a year it draws, measured for this film. That takes minutes of drawing and cannot be chosen here, so use a line view (it works for every dataset; a map or bars only where dataset_info says the engine draws them).";
 
 // The worker's v1 render views; a story may use any of them on any catalog dataset.
 export const RENDER_VIEWS = ["map", "bars", "line", "paired", "panel"];

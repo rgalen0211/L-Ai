@@ -20,7 +20,7 @@ const mutants = [
   ['a saved story is not checked for keyframes_per_year', TOOLS, '(c as { view?: unknown }).view === "panel")\n        && !(st', '(c as { view?: unknown }).view === "panel") && false\n        && !(st'],
   ['any settings object counts as measured', TOOLS, '!(st && typeof st === "object" && Number.isInteger((st as { keyframes_per_year?: unknown }).keyframes_per_year))', '!(st && typeof st === "object")'],
   ['a map view is refused too', TOOLS, '(c as { view?: unknown }).view === "paired" || (c as { view?: unknown }).view === "panel")', '(c as { view?: unknown }).view === "paired" || (c as { view?: unknown }).view === "panel" || (c as { view?: unknown }).view === "map")'],
-  ['the refusal does not say what to do instead', TS, 'so use a map, bars or line view, or make this film in the Ryagram app.', 'so it is not possible.'],
+  ['the refusal does not say what to do instead', TS, 'so use a line view (it works for every dataset; a map or bars only where dataset_info says the engine draws them).', 'so it is not possible.'],
 ];
 
 function run(cwd) {

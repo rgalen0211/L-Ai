@@ -83,7 +83,7 @@ export function nextStep(input: Known): Step {
         say: null, then: "Pass have_app, then continue with suggest_next_step." });
     }
     if (k.have_app === false) {
-      return mk({ step: "get_app", asking: null, ask: null, options: [], say: "The compilation is made in the Ryagram desktop app for Windows, on the person's own computer; their videos never leave it. Tell them where to get the app on the Ryagram website (Account), and that you can write down what they want so the app shows it when they open it.",
+      return mk({ step: "get_app", asking: null, ask: null, options: [], say: "The compilation is made in the Ryagram desktop app for Windows, on the person's own computer; their videos never leave it. The app is not open to everyone yet: if they do not already have it, tell them plainly that compilations are not available to them yet and offer a data film instead; if they will get it later, you can write down what they want so the app shows it when they open it.",
         then: "When they have the app, pass have_app: true and continue with suggest_next_step." });
     }
     if (k.folders_named === undefined) {

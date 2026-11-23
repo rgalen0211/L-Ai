@@ -49,7 +49,7 @@ test('a county dataset: the record is returned whole, with years, area changes, 
   assert.match(r.text, /Changes to the areas: \d+ declared/);
   assert.match(r.text, /ct_planning_regions from 2024/);
   assert.match(r.text, /Measures: Per capita personal income/);
-  assert.match(r.text, /Views it can be drawn as: map/);
+  assert.match(r.text, /Views the engine can draw it as: map/);
   assert.match(r.text, /Method breaks: \d+/);
 });
 

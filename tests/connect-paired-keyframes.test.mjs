@@ -30,7 +30,7 @@ test('the connector\'s own paired starter is refused by set_story in words, once
   const r = await call('set_story', { project_id: id, story });
   assert.equal(r.refused, true, r.text); assert.equal(r.code, 'checks_failed'); assert.equal(r.data.saved, false);
   assert.match(r.text, /Clip 2 is a paired view/); assert.match(r.text, /keyframes_per_year/);
-  assert.match(r.data.errors[0].message, /map, bars or line/);                // what to do instead, in the sentence itself (the fix field says it again)
+  assert.match(r.data.errors[0].message, /line view/);                // what to do instead, in the sentence itself (the fix field says it again)
   assert.equal(r.data.errors.length, 1, 'said once');
   assert.equal(r.data.errors[0].path, '/sequence/clips/1/settings/keyframes_per_year');
 });
