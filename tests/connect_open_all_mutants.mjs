@@ -29,6 +29,8 @@ const mutants = [
   ['the rollback leaves the flag column behind', RB, 'alter table public.connect_flags drop column open_to_all;\n', ''],
   ['the ON step turns it off', ON, 'set open_to_all = true', 'set open_to_all = false'],
   ['the OFF step leaves it on', OFF, 'set open_to_all = false', 'set open_to_all = true'],
+  ['the check reads the flag column directly again (it errors BEFORE the migration, where the column does not exist)', CHK, "(to_jsonb(f) ->> 'open_to_all')::boolean from public.connect_flags f where f.id", "open_to_all from public.connect_flags where id"],
+  ['the check no longer says the migration has not run when the column is missing', CHK, "'NOT THERE YET: the migration has not run'", "'OFF: only the invited list (the state right after the migration)'"],
   ['the check no longer looks for the administrator exclusion', CHK, "         and pg_get_functiondef(to_regprocedure('ryagram_private.connect_person_ok(uuid)')) like '%app_admins%'\n", ''],
 ];
 

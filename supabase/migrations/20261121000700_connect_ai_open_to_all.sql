@@ -11,7 +11,7 @@
 --       an administrator and a worker are never allowed, open or not. With the flag off it is exactly the old rule.
 --   (4) admin_connect_set_open(boolean): an administrator's own session flips it (mirror of admin_connect_set_enabled). The live steps also flip it from the SQL Editor (live-steps/36 and 37).
 -- WHAT IT DOES NOT TOUCH: tokens, grants, scopes, rate limits, the consent page's own words (an administrator keeps the line "Administrator accounts cannot be connected to an AI assistant.").
--- THE EMERGENCY STOP is unchanged: admin_connect_revoke_all() ends every token and grant; admin_connect_set_enabled(false) refuses everything. Undo of this file: rollbacks/20261121000700_connect_ai_open_to_all_rollback.sql.
+-- THE EMERGENCY STOP is unchanged: admin_connect_revoke_all() (from an administrator's app session; from the SQL Editor use the two statements in live-steps/37_connect_open_OFF.sql or connect-live/98_end_all_connections.sql) ends every token and grant; admin_connect_set_enabled(false) refuses everything. Undo of this file: rollbacks/20261121000700_connect_ai_open_to_all_rollback.sql.
 -- Needs: 20261018000100_connect_ai.sql. Tested: tests/connect-open-all.test.mjs (reads this file), supabase/tests/test_connect_open.py (a local Postgres; NOT RUN yet, see its header).
 
 begin;
