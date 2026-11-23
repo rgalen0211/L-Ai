@@ -62,13 +62,13 @@ test('LINKS: every internal link resolves to a file in the repo; the page links 
 test('FACTS: each factual sentence is tied to its source string in the code', () => {
   const lib = read('assets/app-library.js'), film = read('assets/film.js'), cfg = read('assets/ryagram-config.js');
   // "Every film carries the label ..." and "You see it on the page where you collect your film."
-  assert.match(text, /Every film carries the label "AI-assisted \(Ryagram\)"\./);
-  assert.match(text, /You see it on the page where you collect your film\./);
+  assert.match(text, /Every finished film carries the label "AI-assisted \(Ryagram\)" in the video file's details and on the page where you collect it\. Previews and contact sheets are not labelled\./);
+  assert.doesNotMatch(text, /Every film carries the label/);
   assert.ok(lib.includes("const AI_LABEL = 'AI-assisted (Ryagram)';") && film.includes("const AI_LABEL = 'AI-assisted (Ryagram)';"));
   assert.ok(lib.includes('`${AI_LABEL}. This film is kept for 30 days, then deleted.'), 'the delivery page prints the label');
   assert.ok(lib.includes("h('h1', { tabindex: '-1' }, 'Your film')"));
   // "A film lists what it is made from, with the publisher of each source."
-  assert.match(text, /A film lists what it is made from, with the publisher of each source\./);
+  assert.match(text, /Your project page lists what the film is made from, with the publisher of each source\./);
   assert.ok(lib.includes("h('h2', { id: 'sources-title' }, 'What this film is made from')"));
   assert.ok(lib.includes('one card per source with its publisher'));
   assert.ok(film.includes("h('a', { href: '#sources' }, 'View sources')"), 'the public film page (off in the preview) uses View sources');
