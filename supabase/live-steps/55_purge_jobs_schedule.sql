@@ -3,7 +3,7 @@
 --   purge-partial-uploads  every hour at :30  removes the files (contact sheets, previews) left by a job that FAILED or was CANCELLED, 24 hours after it ended: this one matters for the free preview even with uploads off
 -- Each call carries its OWN per-job secret from the Vault, never the service-role key (pg_net keeps every scheduled call where every database login can read it).
 -- It REFUSES BY ITSELF (nothing is scheduled) when a Vault secret is missing or short: a job that reads a missing secret would call the function with no key and be refused every hour without anyone noticing.
--- Running it again replaces the two jobs with the same text (cron.schedule with an existing name replaces that job). Undo: live-steps/56_purge_jobs_UNDO.sql.
+-- Running it again replaces the two jobs with the same text (cron.schedule with an existing name replaces that job). Undo: live-steps/57_purge_jobs_UNDO.sql.
 do $do$
 begin
   if not coalesce((select bool_and(length(s.decrypted_secret) >= 32) from vault.decrypted_secrets s where s.name = 'cron_purge_uploads'), false)
