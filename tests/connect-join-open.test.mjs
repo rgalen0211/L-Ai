@@ -19,9 +19,16 @@ test('the flag is OFF by default and not null, on the one settings row; the migr
   assert.match(MIG, / alter table public\.ops_settings add column join_open boolean not null default false; /);
   assert.ok(!/join_open\s*=\s*true/.test(MIG), 'no update that turns it on');
   assert.match(MIG, / select ryagram_private\.gate_apply\(\); commit;$/);
-  assert.ok(!/\b(grant|drop) /i.test(MIG), 'no grant and no drop: join_reserve keeps its owner and grants through create or replace');
+  assert.ok(!/\bdrop /i.test(MIG), 'no drop');
+  assert.deepEqual(MIG.match(/\bgrant [^;]*;/gi), ['grant execute on function public.join_release(text, text) to service_role;'], 'the only grant is the service role on the NEW join_release: join_reserve keeps its owner and grants through create or replace');
   const revokes = (MIG.match(/revoke [^;]*;/g) || []).map((x) => x.replace(/^revoke (all|execute) on (table |function )?/, '').split(' ')[0]);
-  assert.deepEqual(revokes, ['public.account_adult_confirmation', 'ryagram_private.account_adult_new()'], 'the only revokes are on the two new objects');
+  assert.deepEqual(revokes, ['public.account_adult_confirmation', 'ryagram_private.account_adult_new()', 'public.join_release(text,'], 'the only revokes are on the three new objects');
+  const rel = fn(MIG, 'public.join_release');
+  assert.match(rel, /security definer set search_path = ''/);
+  assert.match(rel, /pg_advisory_xact_lock\(hashtextextended\('ryagram-join', 0\)\)/, 'takes turns with join_reserve');
+  assert.match(rel, /order by a\.at desc limit 1/, 'gives back ONE try, the newest');
+  assert.match(rel, /a\.at > now\(\) - interval '10 minutes'/, 'only a try made in the last 10 minutes: the one just counted');
+  assert.match(MIG, /revoke execute on function public\.join_release\(text, text\) from public, anon, authenticated;/);
 });
 
 test('join_reserve is the 20261106000100 function plus exactly one changed condition: with the flag taken out it is the old function character for character', () => {
@@ -55,8 +62,8 @@ test('ONLY live step 47 turns it on and 48 turns it off; no other SQL file in th
 
 test('the check step (46) names every column, looks at the flag, the function text, the grants and the settings row, and says which way the flag is', () => {
   const c = flat(read('supabase/live-steps/46_join_open_check.sql'));
-  assert.equal((c.match(/union all select/g) || []).length, 5, 'six rows');
-  for (const part of ["column_name = 'join_open' and is_nullable = 'NO'", "like '%join_open%'", "like '%waiting_on()%'", "has_function_privilege('service_role'", "not has_function_privilege('authenticated'", "not has_function_privilege('anon'", "like '%pg_advisory_xact_lock%'", "like '%>= 200%'", "has_table_privilege('anon', 'public.ops_settings', 'select')", "has_table_privilege('service_role', 'public.ops_settings', 'update')", "CLOSED by this flag", "the brake, step 20", "to_regclass('public.account_adult_confirmation') is not null", "has_table_privilege('authenticated', 'public.account_adult_confirmation', 'select')", "t.tgname = 'account_adult_new_trg'"]) assert.ok(c.includes(part), part);
+  assert.equal((c.match(/union all select/g) || []).length, 6, 'seven rows');
+  for (const part of ["column_name = 'join_open' and is_nullable = 'NO'", "like '%join_open%'", "like '%waiting_on()%'", "has_function_privilege('service_role', to_regprocedure('public.join_reserve(text,text)')", "not has_function_privilege('authenticated', to_regprocedure('public.join_reserve(text,text)')", "not has_function_privilege('anon', to_regprocedure('public.join_reserve(text,text)')", "like '%pg_advisory_xact_lock%'", "like '%>= 200%'", "to_regprocedure('public.join_release(text,text)') is not null", "has_table_privilege('anon', 'public.ops_settings', 'select')", "has_table_privilege('service_role', 'public.ops_settings', 'update')", "CLOSED by this flag", "the brake, step 20", "to_regclass('public.account_adult_confirmation') is not null", "has_table_privilege('authenticated', 'public.account_adult_confirmation', 'select')", "t.tgname = 'account_adult_new_trg'"]) assert.ok(c.includes(part), part);
 });
 
 test('nothing else in the repo redefines join_reserve after the hardening except this file (so the flag cannot be lost to a later migration)', () => {

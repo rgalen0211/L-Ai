@@ -153,11 +153,36 @@ class JoinOpen(core.Base):
         for on in (False, True):
             self.flag(on)
             rows = self.d().execute(text).fetchall()
-            self.assertEqual(len(rows), 6)
+            self.assertEqual(len(rows), 7)
             self.assertTrue(all(r[1] is True for r in rows), rows)
             self.assertIn("OPEN" if on else "CLOSED", rows[-1][0])
         self.waiting(True)
         self.assertIn("waiting list", self.d().execute(text).fetchall()[-1][0], "with the brake on the last row says so")
+
+    def test_a_failed_email_send_gives_the_try_back_and_only_that_one(self):
+        """11-23 (CC1's audit of the email path): the join function calls join_release after a failed send. It deletes the ONE newest try of this caller and address, so honest retries on a launch morning are not locked out
+        (3 a day per address), and it never touches another address's tries, another caller's, or older ones. Service role only."""
+        self.flag(True)
+        rel = lambda mail, ip="ip1": self.db.as_("service").one("select public.join_release(%s, %s)", mail, ip)
+        count = lambda mail=None: self.d().execute("select count(*) from public.join_attempts" + ("" if mail is None else " where email_hash = encode(sha256(convert_to('ryagram-join:' || %s, 'UTF8')), 'hex')"), () if mail is None else (mail,)).fetchone()[0]
+        for _ in range(3):
+            self.assertEqual(self.join("a@example.com"), {"ok": True})
+        self.assertEqual(self.join("a@example.com"), {"ok": False, "reason": "throttled"}, "three tries an address a day")
+        rel("a@example.com")
+        self.assertEqual(count("a@example.com"), 2, "one try given back, only one")
+        self.assertEqual(self.join("a@example.com"), {"ok": True}, "and the person can try again")
+        self.assertEqual(self.join("b@example.com", "ip2"), {"ok": True})
+        rel("a@example.com", "ip2")                                                              # a different caller: nothing of a@ with ip1 is touched
+        self.assertEqual(count("a@example.com"), 3)
+        rel("b@example.com", "ip1")                                                              # same address, other caller: untouched
+        self.assertEqual(count("b@example.com"), 1)
+        self.d().execute("update public.join_attempts set at = now() - interval '1 hour'")      # older than 10 minutes: not given back
+        rel("a@example.com")
+        self.assertEqual(count("a@example.com"), 3)
+        rel("nobody@example.com")                                                                # no try on record: nothing happens, no error
+        for who in ("anon", STRANGER):
+            with self.assertRaises(psycopg.Error, msg=str(who)):
+                self.db.as_(who).one("select public.join_release('a@example.com', 'ip1')")
 
     def test_the_rollback_puts_the_old_function_back_and_drops_the_flag(self):
         self.flag(True)
@@ -168,6 +193,7 @@ class JoinOpen(core.Base):
         self.assertEqual(self.d().execute("select count(*) from information_schema.columns where table_name = 'ops_settings' and column_name = 'join_open'").fetchone()[0], 0)
         rows = self.d().execute(CHK.read_text(encoding="utf-8")).fetchall()
         self.assertEqual([r[1] for r in rows[:2]], [False, False], "after the undo the check answers false, never an error")
+        self.assertIsNone(self.d().execute("select to_regprocedure('public.join_release(text,text)')").fetchone()[0], "the release function is gone")
         self.assertIsNone(self.d().execute("select to_regclass('public.account_adult_confirmation')").fetchone()[0], "the 18+ table is gone")
         self.assertEqual(self.d().execute("select count(*) from pg_trigger where tgname = 'account_adult_new_trg'").fetchone()[0], 0)
         self.assertIsNone(self.d().execute("select to_regprocedure('ryagram_private.account_adult_new()')").fetchone()[0])

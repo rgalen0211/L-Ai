@@ -2,8 +2,9 @@
 // the account exists once they follow its link and choose a password. The account starts on the WAITING list (the database trigger), so the link opens nothing but the waiting page.
 // Tested in tests/waiting-gate.test.mjs; index.ts wires Supabase.
 //
-// The answer is the SAME whether or not the address already has an account (no way to test which emails are signed up), and also when Supabase Auth cannot send the email just now
-// (its own hourly allowance can run out): an error that only unknown addresses would hit must not tell a stranger which addresses are signed up. The failure is logged, not shown.
+// The answer is the SAME whether or not the address already has an account (no way to test which emails are signed up): email_exists answers 200 as if sent.
+// 11-23 (CC1's audit, GAMES agreeing): when Supabase Auth cannot send the email just now (SMTP down, or its hourly allowance run out on launch morning) the person is TOLD so, 503 with plain words,
+// and the try they spent is given back (release), so honest retries are not locked out for the day. This leaks only that a send was attempted for an address with no account, which redeem-invite already accepts.
 
 export interface Deps {
   allowedOrigins: string[];
@@ -12,12 +13,17 @@ export interface Deps {
   // Supabase Auth's admin invite. Throws with .code "email_exists" when the address already has an account. `data` becomes the new account's user metadata (the 18+ confirmation, which a database
   // trigger copies into public.account_adult_confirmation the moment the account is made).
   invite(email: string, redirectTo: string, data: { adult_confirmed: true }): Promise<void>;
+  // Gives back the try that reserve counted, after a failed send. Best effort: a failure here is logged and never changes the answer.
+  release?(email: string, ipHash: string): Promise<void>;
 }
 
 export const ADULT_WORDS = "Confirm that you are 18 or older to make an account.";
 // What a person reads when sign-up is not open (the server flag join_open is OFF, or the brake is on). There is no waitlist to point to any more (11-22: the page that ships with open sign-up has none),
 // so the words only say to try again later. The page shows this sentence as it comes (assets/app-auth.js, a 409 is "not open yet").
 export const NOT_OPEN_WORDS = "Making an account is not open yet. Please try again later.";
+
+// What a person reads when the email could not be sent just now (not a refusal: nothing is wrong with their address). No waitlist, no invite, no person to write to.
+export const SEND_FAILED_WORDS = "We couldn\u2019t send the email just now. Please try again in a few minutes.";
 
 export const SENT = "If that email can join, a link to finish making your account is on its way. It works once. If it has not come in a few minutes, try again later. Already have an account? Sign in instead.";
 
@@ -51,7 +57,8 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
   const ip = (req.headers.get("cf-connecting-ip") ?? "").trim() || hops[hops.length - 1] || "unknown";
   let r;
-  try { r = await deps.reserve(email, await sha256Hex(`ryagram-join:${ip}`)); }
+  const ipHash = await sha256Hex(`ryagram-join:${ip}`);
+  try { r = await deps.reserve(email, ipHash); }
   catch (e) { console.error(`join reserve: ${(e as Error).message}`); return reply(500, { error: "Something went wrong. Try again in a minute." }); }
   if (!r.ok) {
     if (r.reason === "throttled") return reply(429, { error: "Too many tries. Wait a while, then try again." });
@@ -63,7 +70,9 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     await deps.invite(email, `${deps.siteUrl}/app/`, { adult_confirmed: true });
     return reply(200, { message: SENT });
   } catch (e) {
-    if ((e as { code?: string }).code !== "email_exists") console.error(`join invite: ${(e as Error).message}`);       // logged, never shown
-    return reply(200, { message: SENT });                                                                          // the same answer in every case
+    if ((e as { code?: string }).code === "email_exists") return reply(200, { message: SENT });                    // the same answer as a sent mail (no probing of which addresses have accounts)
+    console.error(`join invite: ${(e as Error).message}`);                                                         // logged
+    try { await deps.release?.(email, ipHash); } catch (re) { console.error(`join release: ${(re as Error).message}`); }   // the try is given back; if that fails the answer is the same
+    return reply(503, { error: SEND_FAILED_WORDS });                                                               // the person is told it did not go
   }
 }

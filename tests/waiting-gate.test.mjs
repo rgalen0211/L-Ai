@@ -189,10 +189,9 @@ test('approve-waiting: the email has a way out for someone whose address another
 const joinDeps = (over = {}) => ({ allowedOrigins: [ORIGIN], siteUrl: ORIGIN, reserve: async () => ({ ok: true }), invite: async () => {}, ...over });
 const anon = (body, extra = {}) => new Request('https://x.test/fn', { method: 'POST', headers: { origin: ORIGIN, 'content-type': 'application/json', ...extra }, body: JSON.stringify({ adult_confirmed: true, ...body }) });   // the page always sends the 18+ box (tests/connect-join-adult.test.mjs covers it missing)
 
-test('join: a mail failure (the Auth services own hourly email allowance run out) gives the SAME answer as a known and an unknown address, so it tells a stranger nothing', async () => {
+test('join: a known address gives the SAME answer as an unknown one, so it tells a stranger nothing (a real send failure is told plainly: tests/connect-join-sendfail.test.mjs)', async () => {
   const bodies = [];
-  for (const invite of [async () => {}, async () => { throw Object.assign(new Error('registered'), { code: 'email_exists' }); },
-                        async () => { throw Object.assign(new Error('rate limit'), { code: 'over_email_send_rate_limit' }); }, async () => { throw new Error('smtp'); }]) {
+  for (const invite of [async () => {}, async () => { throw Object.assign(new Error('registered'), { code: 'email_exists' }); }]) {
     const r = await join(anon({ email: 'a@example.test' }), joinDeps({ invite }));
     assert.equal(r.status, 200);
     bodies.push(await r.json());
