@@ -86,7 +86,7 @@ class JoinOpen(core.Base):
             self.assertTrue(self.join("same@example.com", f"ipB{i}")["ok"])
         self.assertEqual(self.join("SAME@example.com", "ipC"), {"ok": False, "reason": "throttled"}, "the 4th for one address in a day")
         self.d().execute("insert into public.join_attempts (ip_hash, email_hash) select 'bulk' || g, repeat('a', 64) from generate_series(1, 200) g")
-        self.assertEqual(self.join("z@example.com", "ipD"), {"ok": False, "reason": "throttled"}, "200 a day overall")
+        self.assertEqual(self.join("z@example.com", "ipD"), {"ok": False, "reason": "full"}, "200 in any 24 hours overall: the day is FULL (its own answer, nobody blamed)")
 
     def test_who_can_run_it_and_who_can_touch_the_flag(self):
         for who in ("anon", STRANGER):
@@ -148,12 +148,39 @@ class JoinOpen(core.Base):
         self.d().execute("alter table auth.users drop column raw_user_meta_data")
         self.assertEqual(self.d().execute("insert into auth.users (id, email) values (%s, 'nometa@example.com') returning 1", (STRANGER2,)).fetchone()[0], 1, "not even a missing metadata column stops a sign-up")
 
+    def test_the_daily_size_is_a_setting_with_default_200_and_zero_shuts_sign_up(self):
+        """CC1's ruling 11-23: ops_settings.join_daily_max (default 200). The overall size of sign-up in any 24 hours; a full day answers 'full', checked BEFORE the per-caller limits so nobody is told they tried too often."""
+        self.flag(True)
+        self.assertEqual(self.d().execute("select join_daily_max from public.ops_settings").fetchone()[0], 200, "the default is the number that was always there")
+        self.d().execute("update public.ops_settings set join_daily_max = 3")
+        for i in range(3):
+            self.assertEqual(self.join(f"s{i}@example.com", f"ip{i}"), {"ok": True})
+        self.assertEqual(self.join("s9@example.com", "ip9"), {"ok": False, "reason": "full"}, "the 4th in the day with a size of 3")
+        self.assertEqual(self.join("s0@example.com", "ip0"), {"ok": False, "reason": "full"}, "a repeat caller is told the day is full too, never that they tried too often")
+        self.d().execute("update public.ops_settings set join_daily_max = 4")
+        self.assertEqual(self.join("s9@example.com", "ip9"), {"ok": True}, "raising the number lets the next one in at once")
+        self.d().execute("update public.ops_settings set join_daily_max = 0")
+        self.assertEqual(self.join("t@example.com", "ipT"), {"ok": False, "reason": "full"}, "0 shuts sign-up for everyone")
+        self.d().execute("update public.join_attempts set at = now() - interval '25 hours'")
+        self.d().execute("update public.ops_settings set join_daily_max = 5")
+        self.assertEqual(self.join("t@example.com", "ipT"), {"ok": True}, "attempts older than 24 hours do not count")
+        with self.assertRaises(psycopg.Error):
+            self.d().execute("update public.ops_settings set join_daily_max = -1")
+        for who in ("anon", STRANGER, "service"):
+            with self.assertRaises(psycopg.Error):
+                self.db.as_(who).one("select join_daily_max from public.ops_settings")
+            with self.assertRaises(psycopg.Error):
+                self.db.as_(who).one("update public.ops_settings set join_daily_max = 5000 returning 1")
+        self.waiting(False)
+        self.flag(False)
+        self.assertEqual(self.join("u@example.com", "ipU"), {"ok": False, "reason": "off"}, "closed stays 'off' whatever the size")
+
     def test_the_check_step_answers_true_on_every_row_with_the_flag_off_and_on(self):
         text = CHK.read_text(encoding="utf-8")
         for on in (False, True):
             self.flag(on)
             rows = self.d().execute(text).fetchall()
-            self.assertEqual(len(rows), 7)
+            self.assertEqual(len(rows), 8)
             self.assertTrue(all(r[1] is True for r in rows), rows)
             self.assertIn("OPEN" if on else "CLOSED", rows[-1][0])
         self.waiting(True)
@@ -185,8 +212,8 @@ class JoinOpen(core.Base):
                 self.db.as_(who).one("select public.join_release('a@example.com', 'ip1')")
 
     def test_the_stuck_redemption_check_lists_a_redemption_whose_mail_went_out_but_was_never_recorded_and_its_repair_works(self):
-        """GAMES' review 11-23 of redeem-invite: if the mail went out but invite_sent kept failing, the redemption stays 'pending' while the person has an account. Live step 52 lists those (read-only) with the repair statement."""
-        chk = (core.ROOT / "live-steps" / "52_stuck_invite_redemptions_check.sql").read_text(encoding="utf-8")
+        """GAMES' review 11-23 of redeem-invite: if the mail went out but invite_sent kept failing, the redemption stays 'pending' while the person has an account. Live step 53 lists those (read-only) with the repair statement."""
+        chk = (core.ROOT / "live-steps" / "53_stuck_invite_redemptions_check.sql").read_text(encoding="utf-8")
         self.d().execute("insert into public.invite_codes (code_hash, label, max_uses, expires_at) values (repeat('a', 64), 'test', 5, now() + interval '1 day')")
         self.waiting(False)
         self.signs_up(STRANGER, "stuck@example.com", {"adult_confirmed": "true", "adult_source": "invite"})
@@ -206,6 +233,35 @@ class JoinOpen(core.Base):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][1], "0", "nothing stuck after the repair")
 
+    def test_the_stuck_redemption_check_never_lists_a_second_row_an_old_account_or_an_email_already_sent(self):
+        """GEO's review 11-23 (two MEDIUM): invite_sent grants the code's credits every time it runs on a pending row, and activates whatever account the email has. So the check lists only the NEWEST pending row of an email,
+        leaves out an email that already has a 'sent' redemption, and leaves out an account that existed BEFORE the redemption (not the person just invited)."""
+        chk = (core.ROOT / "live-steps" / "53_stuck_invite_redemptions_check.sql").read_text(encoding="utf-8")
+        self.d().execute("insert into public.invite_codes (code_hash, label, max_uses, expires_at) values (repeat('a', 64), 'test', 9, now() + interval '1 day')")
+        self.waiting(False)
+        ins = "insert into public.invite_redemptions (code_hash, email, status, created_at) values (repeat('a', 64), %s, %s, now() - make_interval(mins => %s))"
+        # 1. two pending rows for one email, both old: only the newest is listed (one repair = one grant)
+        self.signs_up(STRANGER, "twice@example.com", {"adult_confirmed": "true", "adult_source": "invite"})
+        self.d().execute(ins, ("twice@example.com", "pending", 60))
+        self.d().execute(ins, ("twice@example.com", "pending", 30))
+        # 2. an older 'sent' row plus a pending one: nothing to repair, a repair would grant a second time
+        self.signs_up(STRANGER2, "sentbefore@example.com", {"adult_confirmed": "true", "adult_source": "invite"})
+        self.d().execute(ins, ("sentbefore@example.com", "sent", 90))
+        self.d().execute(ins, ("sentbefore@example.com", "pending", 40))
+        # 3. an account that existed BEFORE the redemption (the redeem-invite release failed after email_exists): not the person just invited
+        self.d().execute("insert into auth.users (id, email, created_at) values (%s, 'old@example.com', now() - interval '3 days')", (str(uuid.UUID(int=703)),))
+        self.d().execute(ins, ("old@example.com", "pending", 50))
+        rows = self.d().execute(chk).fetchall()
+        self.assertEqual(len(rows), 2, rows)
+        self.assertEqual(rows[0][1], "1", "one email is stuck: the one with two pending rows")
+        self.assertEqual(rows[1][2], "twice@example.com")
+        newest = self.d().execute("select id from public.invite_redemptions where email = 'twice@example.com' order by created_at desc limit 1").fetchone()[0]
+        self.assertEqual(rows[1][1], str(newest), "the NEWEST pending row is the one listed")
+        self.d().execute(rows[1][5])
+        self.assertEqual(self.d().execute("select count(*) from public.invite_redemptions where email = 'twice@example.com' and status = 'sent'").fetchone()[0], 1)
+        rows = self.d().execute(chk).fetchall()
+        self.assertEqual(rows[0][1], "0", "after the repair the older pending row is not listed either (the email now has a sent redemption)")
+
     def test_the_rollback_puts_the_old_function_back_and_drops_the_flag(self):
         self.flag(True)
         self.d().execute(RB.read_text(encoding="utf-8"))
@@ -215,6 +271,7 @@ class JoinOpen(core.Base):
         self.assertEqual(self.d().execute("select count(*) from information_schema.columns where table_name = 'ops_settings' and column_name = 'join_open'").fetchone()[0], 0)
         rows = self.d().execute(CHK.read_text(encoding="utf-8")).fetchall()
         self.assertEqual([r[1] for r in rows[:2]], [False, False], "after the undo the check answers false, never an error")
+        self.assertEqual(self.d().execute("select count(*) from information_schema.columns where table_name = 'ops_settings' and column_name = 'join_daily_max'").fetchone()[0], 0, "the daily size column is gone")
         self.assertIsNone(self.d().execute("select to_regprocedure('public.join_release(text,text)')").fetchone()[0], "the release function is gone")
         self.assertIsNone(self.d().execute("select to_regclass('public.account_adult_confirmation')").fetchone()[0], "the 18+ table is gone")
         self.assertEqual(self.d().execute("select count(*) from pg_trigger where tgname = 'account_adult_new_trg'").fetchone()[0], 0)
