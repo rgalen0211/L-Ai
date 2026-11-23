@@ -104,7 +104,8 @@ class Account(core.Base):
         ds = self.dataset()
         self.admin("update versions set dataset_id = %s where id = %s returning 1", ds, vid)
         self.admin("insert into support_requests (owner_id, email, topic, message) values (%s, 'ryan@x', 'other', 'Hello there.') returning 1", RYAN)
-        self.admin("insert into funnel_events (event, user_id) values ('contact_sheet', %s) returning 1", RYAN)
+        # the finished sheet already wrote its page-visit row through the funnel trigger (CC1 08:22: inserting it again broke funnel_events_once)
+        self.assertEqual(self.admin("select count(*) from funnel_events where user_id = %s and event = 'contact_sheet'", RYAN), 1)
         check = self.check()
         self.assertEqual((check["active_jobs"], check["has_credit_history"]), (0, False))          # the free path, not the paid one
         self.assertEqual(len(check["storage_paths"]), 2)                                             # the sheet and the preview
