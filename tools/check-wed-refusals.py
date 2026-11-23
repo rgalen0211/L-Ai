@@ -116,6 +116,20 @@ def main():
                 before = films_on_home('')
                 check(titles == before + 1, f'[{width}] builder: exactly one new film after the refusal ({titles} vs {before} on a fresh mock)')
 
+                # a BLOCKED film in the builder: no Open link (its page would be refused again), Make hidden, and 'Choose another film type' goes to that step
+                make = builder_make('&viewnotready')
+                page.wait_for_function("w => document.body.innerText.includes(w)", arg=VIEW, timeout=20000)
+                page.wait_for_timeout(400)
+                page.screenshot(path=str(OUT / f'builder-viewnotready-{width}.png'), full_page=True)
+                check(page.locator('main a', has_text='Open the film').count() == 0, f'[{width}] builder, blocked film: no "Open the film" link')
+                check(make.is_hidden(), f'[{width}] builder, blocked film: Make is hidden')
+                other = page.get_by_role('button', name='Choose another film type')
+                check(other.count() == 1, f'[{width}] builder, blocked film: "Choose another film type" is offered')
+                other.click()
+                page.wait_for_timeout(500)
+                current = page.locator('.builder-steps li.is-current').inner_text().strip()
+                check('Film type' in current, f'[{width}] builder, blocked film: the button goes to the Film type step ({current!r})')
+
                 # PLANTED FAULT: the same press without the refusal leaves the builder for the film, so the checks above are not blind
                 builder_make('')
                 page.wait_for_function("() => /^#\\/v\\//.test(location.hash)", timeout=20000)

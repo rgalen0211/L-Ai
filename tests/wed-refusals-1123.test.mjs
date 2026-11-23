@@ -39,6 +39,12 @@ test('the builder: after a refused submit the project exists, so Make is hidden 
   const click = b.slice(b.indexOf("if (!sample) make.addEventListener('click'"), b.indexOf('        check();\n'));
   assert.match(b, /\n        let madeId = null;[^\n]*\n        if \(sample\) make\.hidden = true;\n        if \(!sample\) make\.addEventListener\('click'/, 'the made project is remembered across presses');
   assert.match(click, /error\.append\(' ', h\('a', \{ href: `#\/v\/\$\{made\.version\.id\}` \}, 'Open the film'\), ' and make its contact sheet there\.'\);/);
+  // a BLOCKED film: no Open link (its page would be refused again every time), the way on is another film type here (GAMES 11:27 MEDIUM)
+  const blocked = click.slice(click.indexOf("if (/^This film is not available yet\\./.test("), click.indexOf('} else {', click.indexOf("if (/^This film is not available yet\\./.test(")));
+  assert.ok(blocked.length > 0, 'the blocked refusal has its own branch');
+  assert.match(blocked, /'Choose another film type'/);
+  assert.match(blocked, /go\(STEPS\.findIndex\(\(\[id\]\) => id === 'type'\)\)/);
+  assert.doesNotMatch(blocked, /Open the film/);
   assert.match(click, /madeId = made\.version\.id;/);
   assert.match(click, /\n          if \(madeId\) make\.hidden = true;\n        \}\);/, 'Make hides AFTER busy() has turned it back on');
   assert.ok(click.indexOf('if (madeId) make.hidden = true;') > click.lastIndexOf('await busy(make'), 'after the busy block');

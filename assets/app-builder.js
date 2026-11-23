@@ -341,8 +341,13 @@
               location.hash = `#/v/${made.version.id}`;
             } catch (err) {
               showError(error, err);
-              if (made) {                                                                                  // the project exists; the person can carry on there
-                error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), ' and make its contact sheet there.');
+              if (made) {                                                                                  // the project exists
+                if (/^This film is not available yet\./.test(String(err && err.message || ''))) {
+                  // a blocked film (20261123000300): its own page would be refused again every time, so the way on is another film type here (GAMES 11:27)
+                  error.append(' ', h('button', { class: 'button secondary small', type: 'button', onclick: () => go(STEPS.findIndex(([id]) => id === 'type')) }, 'Choose another film type'));
+                } else {
+                  error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), ' and make its contact sheet there.');      // the person can carry on there
+                }
                 madeId = made.version.id;
               }
             }
