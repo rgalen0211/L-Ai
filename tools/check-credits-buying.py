@@ -120,7 +120,7 @@ def main():
                 s = page.evaluate(STATE)
                 check(s['buyLinks'] == 1, f'[{width}] OPEN home: one Buy credits link')
                 # a render that needs more credits than the person has: closed says so plainly, open links to Credits
-                for query, want in (('&buyingclosed&credits=3', 'closed'), ('&credits=3', 'open')):
+                for query, want in (('&buyingclosed&credits=3', 'closed'), ('&credits=3', 'open'), ('&buyingclosed&credits=8', 'welcome8')):
                     page.goto(f'{BASE}/app/?mock{query}#/', wait_until='load')
                     page.wait_for_selector('.film-grid a, .film-grid button', timeout=20000)
                     page.locator('.film-grid h3 a').first.click()
@@ -143,7 +143,17 @@ def main():
                     final_title = page.get_by_role('button', name='Render final film').first.get_attribute('title') or ''
                     said = 'Buying credits is not open yet.' in body or 'Buying credits is not open yet.' in final_title
                     linked = page.locator('main a[href="#/credits"]').count() > 0
-                    if want == 'closed':
+                    if want == 'welcome8':
+                        # Q679 B: the strip reads THIS film's own cost against the 8 welcome credits (6 or 8: it can be made; 10: it cannot, and the page says why and the next step)
+                        flat = ' '.join(body.split())
+                        import re as _re
+                        uses = _re.search(r'The full film uses (\d+) credits; you have 8 credits\.', flat)
+                        cant = _re.search(r'The full film for this film type costs (\d+) credits and you have 8 credits, so it cannot be made yet\. Buying credits is not open yet\.', flat)
+                        check(bool(uses) != bool(cant), f'[{width}] 8 credits: the strip says either what the film uses or that it cannot be made yet ({(uses or cant) and (uses or cant).group(0)})')
+                        if uses: check(int(uses.group(1)) <= 8 and 'cannot be made' not in flat, f'[{width}] 8 credits: a film that costs {uses.group(1)} is offered')
+                        if cant: check(int(cant.group(1)) > 8 and 'costs ' + cant.group(1) + ' credits and you have 8 credits' in final_title + ' ' + flat, f'[{width}] 8 credits: a film that costs {cant.group(1)} is refused with its reason; the final button says {final_title!r}')
+                        check('Not enough credits' not in flat and '0 credits' not in flat.replace('10 credits', ''), f'[{width}] 8 credits: no raw refusal, no "0 credits"')
+                    elif want == 'closed':
                         check(said and not linked, f'[{width}] CLOSED, short of credits: says buying is not open yet, no link to checkout (said={said}, link={linked})')
                     else:
                         check(not said, f'[{width}] OPEN, short of credits: no closed line (link={linked})')
