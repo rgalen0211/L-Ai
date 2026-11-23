@@ -1,7 +1,7 @@
 """The Wednesday live step GEO owns (LAUNCH-LIVE-STEPS section 00, step 3a), on a local Postgres with every migration. GEO 2026-11-23.
 
   * live-steps/52_join_daily_max_set.sql, run part by part as Ryan will: part 1 shows 200 and the flag; part 2 with Ryan's number
-    sets it and join_reserve then answers 'full' past that number (and not before); part 3 shows the number; part 2 unchanged
+    sets it and join_reserve then answers 'full' past that number (and not before; a repeat of the same address takes no second place); part 3 shows the number; part 2 unchanged
     (the undo) puts 200 back and the next stranger is let in again. The file's part 2 as shipped changes nothing.
 Run from the repo root:
     pgvenv/Scripts/python -m unittest supabase/tests/test_wed_live_steps.py -v
@@ -44,6 +44,7 @@ class WedLiveSteps(core.Base):
         self.d().execute(p2.replace("= 200;", "= 2;"))                          # Ryan types his number
         self.assertEqual(self.d().execute(p3).fetchall(), [(2,)], "AFTER shows his number")
         self.assertEqual(self.join("a@example.com", "ipA"), {"ok": True})
+        self.assertEqual(self.join("a@example.com", "ipA2"), {"ok": True}, "the same person pressing Send again takes no second place (people, not tries)")
         self.assertEqual(self.join("b@example.com", "ipB"), {"ok": True})
         self.assertEqual(self.join("c@example.com", "ipC"), {"ok": False, "reason": "full"}, "the 3rd try with a size of 2")
         self.d().execute(p2)                                                     # the undo
