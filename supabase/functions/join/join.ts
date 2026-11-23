@@ -25,6 +25,9 @@ export const NOT_OPEN_WORDS = "Making an account is not open yet. Please try aga
 // What a person reads when the email could not be sent just now (not a refusal: nothing is wrong with their address). No waitlist, no invite, no person to write to.
 export const SEND_FAILED_WORDS = "We couldn\u2019t send the email just now. Please try again in a few minutes.";
 
+// An address that Auth itself refuses (a shape the reserve check lets through, such as a@b..cc): the person is told to check it, and the try is NOT given back (a refusal is not a send failure: it must stay counted).
+export const BAD_ADDRESS_WORDS = "Enter a valid email address.";
+
 export const SENT = "If that email can join, a link to finish making your account is on its way. It works once. If it has not come in a few minutes, try again later. Already have an account? Sign in instead.";
 
 async function sha256Hex(text: string): Promise<string> {
@@ -72,6 +75,8 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   } catch (e) {
     if ((e as { code?: string }).code === "email_exists") return reply(200, { message: SENT });                    // the same answer as a sent mail (no probing of which addresses have accounts)
     console.error(`join invite: ${(e as Error).message}`);                                                         // logged
+    const code = (e as { code?: string }).code;
+    if (code === "validation_failed" || code === "email_address_invalid") return reply(400, { error: BAD_ADDRESS_WORDS });   // not a send failure: nothing is given back
     try { await deps.release?.(email, ipHash); } catch (re) { console.error(`join release: ${(re as Error).message}`); }   // the try is given back; if that fails the answer is the same
     return reply(503, { error: SEND_FAILED_WORDS });                                                               // the person is told it did not go
   }

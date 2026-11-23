@@ -6,7 +6,8 @@
 // Runs the real handler with fake dependencies; talks to nothing. Must-fails: tests/connect_join_sendfail_mutants.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handle as join, SEND_FAILED_WORDS, SENT } from '../supabase/functions/join/join.ts';
+import fs from 'node:fs';
+import { handle as join, SEND_FAILED_WORDS, SENT, BAD_ADDRESS_WORDS } from '../supabase/functions/join/join.ts';
 
 const ORIGIN = 'https://uselai.com';
 const WRONG = /waitlist|wait list|waiting list|invite|invitation|ask Ryan|email us|ryagram@/i;
@@ -68,4 +69,26 @@ test('a release that fails, or no release at all, never changes the answer', asy
   const rn = await join(post(), none.deps);
   assert.equal(rn.status, 503);
   assert.equal((await rn.json()).error, SEND_FAILED_WORDS);
+});
+
+test('an address that Auth itself refuses is told so (400) and its try is NOT given back: a refusal is not a send failure', async () => {
+  for (const code of ['validation_failed', 'email_address_invalid']) {
+    const { deps, seen } = make(fails(code, 'Unable to validate email address'));
+    const r = await join(post('a@b..cc'), deps);
+    assert.equal(r.status, 400, code);
+    assert.equal((await r.json()).error, BAD_ADDRESS_WORDS);
+    assert.equal(seen.release.length, 0, 'nothing is given back: it stays counted, so it cannot be used to get past the limits');
+  }
+  assert.ok(!WRONG.test(BAD_ADDRESS_WORDS));
+});
+
+test('index.ts wires the release to the database function by its real name and argument names, passes Auth\'s status on, and maps email_exists both ways', () => {
+  const src = fs.readFileSync(new URL('../supabase/functions/join/index.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(src, /service\.rpc\("join_release", \{ p_email: email, p_ip_hash: ipHash \}\)/);
+  assert.match(src, /async release\(email, ipHash\) \{/);
+  assert.match(src, /service\.rpc\("join_reserve", \{ p_email: email, p_ip_hash: ipHash \}\)/);
+  assert.match(src, /error\.code === "email_exists" \|\| \/already \(been \)\?registered\/i\.test\(error\.message\)/);
+  assert.match(src, /code: exists \? "email_exists" : error\.code, status: error\.status/);
+  const sql = fs.readFileSync(new URL('../supabase/migrations/20261121000800_join_open.sql', import.meta.url), 'utf8');
+  assert.match(sql, /create or replace function public\.join_release\(p_email text, p_ip_hash text\) returns void/, 'the SQL function has the name and the argument names index.ts sends, and can be applied twice');
 });

@@ -65,7 +65,7 @@ end $$;
 
 -- 11-23 (CC1's audit of the email path): when the join function cannot send the email (SMTP down, Auth's hourly email allowance used up) it tells the person so and calls join_release, which gives back the ONE try
 -- join_reserve just counted for this caller and address (the newest, within the last 10 minutes). Otherwise three honest retries on a launch morning would lock a stranger out for the day. Service role only, like join_reserve.
-create function public.join_release(p_email text, p_ip_hash text) returns void
+create or replace function public.join_release(p_email text, p_ip_hash text) returns void
 language plpgsql security definer set search_path = '' as $$
 declare eh text := encode(sha256(convert_to('ryagram-join:' || lower(btrim(coalesce(p_email, ''))), 'UTF8')), 'hex');
 begin
