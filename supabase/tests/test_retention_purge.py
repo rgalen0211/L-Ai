@@ -136,6 +136,19 @@ class Purge(core.Base):
         self.assertEqual(self.admin("select count(*) from public.join_attempts where ip_hash = 'old'"), 1, "the old function does not touch it")
         self.assertIn("applications", r)
 
+    def test_CONNECT_the_older_retention_undo_refuses_while_the_join_attempts_purge_is_applied_and_works_after_its_own_undo(self):
+        """GEO 11:2x undo audit: undoing 20261121000400 while 20261123000400 is applied would quietly put back a purge that no longer deletes join and invite-guess records. The older undo refuses by itself; after the newer undo it runs."""
+        older = (core.ROOT / "rollbacks" / "20261121000400_retention_outbox_support_rollback.sql").read_text(encoding="utf-8")
+        newer = (core.ROOT / "rollbacks" / "20261123000400_retention_join_attempts_rollback.sql").read_text(encoding="utf-8")
+        with self.assertRaises(psycopg.Error) as cm:
+            self.db.as_(None).c.execute(older)
+        self.assertIn("Undo 20261123000400 first", str(cm.exception))
+        self.db.c.execute("rollback")                  # the refused file had opened its own transaction (begin;) and the error left it open
+        self.assertIn("join_attempts", self.admin("select pg_get_functiondef('public.retention_purge()'::regprocedure)"), "the refused undo left the newer function in place")
+        self.db.as_(None).c.execute(newer)
+        self.db.as_(None).c.execute(older)
+        self.assertNotIn("join_attempts", self.admin("select pg_get_functiondef('public.retention_purge()'::regprocedure)"))
+
     def test_nothing_due_deletes_nothing(self):
         self.app(1, 11)
         r = self.svc().one("select retention_purge()")
