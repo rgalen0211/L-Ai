@@ -46,7 +46,7 @@ import test_pipe1_orders as p1  # noqa: E402
 
 RYAN, OTHER, WORKER = core.RYAN, core.OTHER, core.WORKER
 CAP_WORDS = "You have 2 films waiting. You can start another when one is done."
-VIEW_WORDS = "This film is not available yet. Please pick another view."
+VIEW_WORDS = "This film is not available yet. Please pick another view. A line view always works."   # CONNECT 13:37: name a view that works (line is on no dataset's block list)
 RB300 = core.ROOT / "rollbacks" / "20261123000300_blocked_story_views_rollback.sql"
 RB200 = core.ROOT / "rollbacks" / "20261123000200_queue_cap_per_owner_rollback.sql"
 BLOCK_JSON = core.ROOT.parent / "tools" / "data" / "engine-catalog-block-list-1123.json"
@@ -309,6 +309,8 @@ class QueueCapBlockedViews(unittest.TestCase):
         got = sorted(self.db.as_(None).all("select dataset, view from ryagram_private.blocked_story_views"))
         self.assertEqual(got, want_pairs)
         self.assertEqual(len(got), 58, "ENGINE's final v2 (ENGINE 09:55, sha256 c5a11028...)")
+        # the refusal says 'A line view always works.' (CONNECT 13:37): true only while no dataset has line on its block list
+        self.assertNotIn("line", {v for _d, v in want_pairs}, "a line view is blocked somewhere: the refusal's words would be false")
 
     # ---------------------------------------------------------------- ROLLBACKS
     def test_rollbacks_in_order(self):

@@ -104,7 +104,7 @@ create function ryagram_private.blocked_view_check(p_story jsonb) returns void
 language plpgsql set search_path = '' as $$
 begin
   if ryagram_private.blocked_view_in(p_story) is not null then
-    raise exception 'This film is not available yet. Please pick another view.' using errcode = 'PTVEW';
+    raise exception 'This film is not available yet. Please pick another view. A line view always works.' using errcode = 'PTVEW';
   end if;
 end $$;
 
