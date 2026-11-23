@@ -85,8 +85,8 @@ class JoinOpen(core.Base):
         for i in range(3):
             self.assertTrue(self.join("same@example.com", f"ipB{i}")["ok"])
         self.assertEqual(self.join("SAME@example.com", "ipC"), {"ok": False, "reason": "throttled"}, "the 4th for one address in a day")
-        self.d().execute("insert into public.join_attempts (ip_hash, email_hash) select 'bulk' || g, repeat('a', 64) from generate_series(1, 200) g")
-        self.assertEqual(self.join("z@example.com", "ipD"), {"ok": False, "reason": "full"}, "200 in any 24 hours overall: the day is FULL (its own answer, nobody blamed)")
+        self.d().execute("insert into public.join_attempts (ip_hash, email_hash) select 'bulk' || g, encode(sha256(convert_to('bulk' || g, 'UTF8')), 'hex') from generate_series(1, 200) g")
+        self.assertEqual(self.join("z@example.com", "ipD"), {"ok": False, "reason": "full"}, "200 different addresses in any 24 hours: the day is FULL (its own answer, nobody blamed)")
 
     def test_who_can_run_it_and_who_can_touch_the_flag(self):
         for who in ("anon", STRANGER):
@@ -174,6 +174,17 @@ class JoinOpen(core.Base):
         self.waiting(False)
         self.flag(False)
         self.assertEqual(self.join("u@example.com", "ipU"), {"ok": False, "reason": "off"}, "closed stays 'off' whatever the size")
+
+    def test_the_daily_size_counts_people_not_tries(self):
+        """GAMES 09:21: Ryan thinks in people. The same address pressing Send again, and the step-5 test join, use one place, not three."""
+        self.flag(True)
+        self.d().execute("update public.ops_settings set join_daily_max = 3")
+        for i in range(3):
+            self.assertEqual(self.join("same@example.com", f"ipS{i}"), {"ok": True})
+        self.assertEqual(self.join("same@example.com", "ipS9"), {"ok": False, "reason": "throttled"}, "the per-address limit of 3 a day still bites (its own words)")
+        self.assertEqual(self.join("b@example.com", "ipB"), {"ok": True}, "three tries from ONE person took one place of 3")
+        self.assertEqual(self.join("c@example.com", "ipC"), {"ok": True})
+        self.assertEqual(self.join("d@example.com", "ipD"), {"ok": False, "reason": "full"}, "the 4th person")
 
     def test_the_check_step_answers_true_on_every_row_with_the_flag_off_and_on(self):
         text = CHK.read_text(encoding="utf-8")
