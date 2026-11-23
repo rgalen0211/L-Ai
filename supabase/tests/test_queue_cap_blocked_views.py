@@ -69,6 +69,7 @@ class QueueCapBlockedViews(unittest.TestCase):
     def setUp(self):
         credits.Ledger.setUp(self)
         self.admin("update ops_settings set auto_render = false returning 1")
+        self.admin("update ops_settings set queue_cap_per_owner = 2 returning 1")      # the live default (the shared templates raise it to 50)
     admin, denied, grant, version, submit, settle = (credits.Ledger.admin, credits.Ledger.denied, credits.Ledger.grant,
                                                      credits.Ledger.version, credits.Ledger.submit, credits.Ledger.settle)
     order, claim, stages, stage_job = p1.Orders.order, p1.Orders.claim, p1.Orders.stages, p1.Orders.stage_job
@@ -387,9 +388,35 @@ class QueueCapBlockedViews(unittest.TestCase):
 import test_connect as tc  # noqa: E402
 
 
+class SharedTemplatesRaiseTheCap(unittest.TestCase):
+    """CC1 12:00: every shared test template (test_2a_core's and test_2b_credits') starts with queue_cap_per_owner = 50, so suites that
+    queue many jobs for one owner to test other things (CONNECT's free-preview test, test_2a_core's three in a row) are not refused;
+    the live default (the column default) stays 2."""
+
+    def test_the_credits_template(self):
+        credits.Ledger.setUp(self)
+        try:
+            self.assertEqual(self.db.as_(None).one("select queue_cap_per_owner from ops_settings"), 50)
+            self.assertEqual(self.db.as_(None).one("select column_default from information_schema.columns where table_name = 'ops_settings' "
+                                                   "and column_name = 'queue_cap_per_owner'"), "2", "the live default is unchanged")
+        finally:
+            credits.Ledger.tearDown(self)
+
+    def test_the_core_template(self):
+        core.Base.setUp(self)
+        try:
+            self.assertEqual(self.db.as_(None).one("select queue_cap_per_owner from ops_settings"), 50)
+        finally:
+            self.db.c.close()
+
+
 class ThroughTheConnector(tc.Connect):
     """An AI's make_contact_sheet is public.connect_submit_job, which calls public.submit_job as the owner: so it meets the wrapper.
     Only this one test runs here (test_connect's own tests are switched off below; they run in test_connect.py)."""
+
+    def setUp(self):
+        super().setUp()
+        self.db.as_(None).c.execute("update public.ops_settings set queue_cap_per_owner = 2")    # the live default (the template raises it)
 
     def test_the_connector_meets_the_cap_and_the_block(self):
         _, a, _ = self.connect(tc.ALICE)

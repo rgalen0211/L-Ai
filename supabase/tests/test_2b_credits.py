@@ -48,6 +48,7 @@ def setUpModule():
         # PIPE-1: these suites test the 2A/2B mechanics, written before render orders, where a final is claimable at once --
         # the auto_render ON behaviour. test_pipe1_orders.py sets it OFF (the live default) and covers Ryan's queue.
         c.execute("update public.ops_settings set auto_render = true, default_credits_per_day = 100000")   # and no daily cap
+        core.raise_queue_cap(c)                                                                     # the cap is tested in test_queue_cap_blocked_views.py
         c.execute("insert into public.credit_dataset_shapes (dataset, shape, noted_by) values "
                   "('test_standard', 'standard', 'test'), ('test_path', 'path', 'test'), ('test_flows', 'flows', 'test')")
 
@@ -247,9 +248,7 @@ class Ledger(unittest.TestCase):
                 self.final("line", dataset=dataset)                          # the view name doesn't matter
             self.assertIn(message, str(err.exception), dataset)
             vid = self.version("line", dataset=dataset)                      # sheets and previews still work
-            pv = self.submit(vid, "preview")
-            self.assertEqual(self.admin("select credits_quoted from jobs where id = %s", pv), 0)
-            self.settle(pv, "complete")                                      # done, so the next one is not held by the queue cap (20261123000200)
+            self.assertEqual(self.admin("select credits_quoted from jobs where id = %s", self.submit(vid, "preview")), 0)
         self.assertEqual(self.available(), 100)                              # nothing was held
         self.assertEqual(self.admin("select count(*) from jobs where job_type = 'final_render'"), 0)
         vid = self.version("line", dataset="test_path")
