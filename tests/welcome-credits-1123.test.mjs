@@ -68,10 +68,10 @@ test('FINAL-FILM BUTTON and the strip, by the film\'s OWN cost: credits 0, 2, 6,
         assert.ok(a.reason.startsWith(`This film type costs ${cost} credits and you have ${have === 1 ? '1 credit' : `${have} credit${have === 1 ? '' : 's'}`}.`), a.reason);
         assert.ok(a.reason.includes('Buying credits is not open yet.'), 'the next step: buying is closed');
         assert.doesNotMatch(a.reason, /Not enough credits/);
-        const best = Math.max(0, ...TABLE.map(r => r.credits).filter(c => c <= have && c < cost));      // the dearest film type the balance really covers
-        const fits = best > 0;
-        assert.equal(a.reason.includes('A film type that costs'), fits, `${have} against ${cost}: the "would fit" hint shows only when a cheaper type is covered`);
-        if (fits) assert.ok(a.reason.endsWith(`A film type that costs ${best} credits would fit. Choose another film type in the builder.`), a.reason);
+        const fits = have >= 6;      // the cheapest film type costs 6: the hint shows only when the balance covers it
+        assert.equal(a.reason.includes('A cheaper film type would fit.'), fits, `${have} against ${cost}: the "would fit" hint shows only when the cheapest type is covered`);
+        if (fits) assert.ok(a.reason.endsWith(' A cheaper film type would fit. Choose another film type in the builder.'), a.reason);
+        assert.doesNotMatch(a.reason, /costs \d+ credits would fit/);
         assert.doesNotMatch(a.reason, /or less/);
         assert.equal(C.filmVsBalance(q, true), ` The full film for this film type costs ${cost} credits and you have ${have} credit${have === 1 ? '' : 's'}, so it cannot be made yet.`.replace(`${have} credit${have === 1 ? '' : 's'},`, `${have} credit${have === 1 ? '' : 's'},`));
       } else {
@@ -80,14 +80,14 @@ test('FINAL-FILM BUTTON and the strip, by the film\'s OWN cost: credits 0, 2, 6,
     }
   }
   // the headline cases, word for word
-  assert.equal(C.affordable(quote(10, 8), closed).reason, 'This film type costs 10 credits and you have 8 credits. Buying credits is not open yet. A film type that costs 8 credits would fit. Choose another film type in the builder.');
+  assert.equal(C.affordable(quote(10, 8), closed).reason, 'This film type costs 10 credits and you have 8 credits. Buying credits is not open yet. A cheaper film type would fit. Choose another film type in the builder.');
   assert.equal(C.affordable(quote(8, 8), closed).ok, true);
   assert.equal(C.affordable(quote(6, 8), closed).ok, true);
   assert.equal(C.filmVsBalance(quote(8, 8), false), ' The full film uses 8 credits; you have 8 credits.');
   assert.equal(C.filmVsBalance(quote(6, 8), false), ' The full film uses 6 credits; you have 8 credits.');
   assert.equal(C.filmVsBalance(quote(10, 8), true), ' The full film for this film type costs 10 credits and you have 8 credits, so it cannot be made yet.');
   // buying open: no "not open" sentence; a previous caller without rows keeps the old words for contact sheets and previews
-  assert.equal(C.affordable(quote(10, 8), { rows: TABLE, closed: false }).reason, 'This film type costs 10 credits and you have 8 credits. A film type that costs 8 credits would fit. Choose another film type in the builder.');
+  assert.equal(C.affordable(quote(10, 8), { rows: TABLE, closed: false }).reason, 'This film type costs 10 credits and you have 8 credits. A cheaper film type would fit. Choose another film type in the builder.');
   assert.equal(C.affordable({ price_code: 'preview_extra', credits: 1, available: 0 }).reason, 'This needs 1 credit and you have 0 credits.');
   assert.equal(C.affordable({ price_code: 'final_map', credits: 8, available: 2 }, { rows: [], closed: true }).reason, 'This film type costs 8 credits and you have 2 credits. Buying credits is not open yet.');
 });
@@ -120,26 +120,46 @@ test('HELP: the one swappable Q&A entry says 8 welcome credits and what they cov
   assert.equal((lib.match(/you get 8 welcome credits/g) || []).length, 1, 'one definition in the library');
 });
 
-test('THE HINT names a price a film type really has, and where to change it: balances 0, 2, 6, 7, 8, 9, 10 (the old words said "8 credits or less" and named a price no type has at 7)', () => {
+test('THE HINT names no price (a dataset may not offer it) and says where to change it: balances 0, 2, 5, 6, 7, 8, 9, 10, buying closed and open', () => {
   const where = ' Choose another film type in the builder.';
+  const SAY = ' A cheaper film type would fit.' + where;
   const hint = (cost, have) => C.fitsLine(quote(cost, have), TABLE);
-  // a 10-credit film type: 0 and 2 fit nothing (no hint), 6 and 7 fit the 6 type, 8 and 9 fit the 8 type, 10 covers it (no hint: nothing is short)
-  assert.equal(hint(10, 0), '');
-  assert.equal(hint(10, 2), '');
-  assert.equal(hint(10, 6), ' A film type that costs 6 credits would fit.' + where);
-  assert.equal(hint(10, 7), ' A film type that costs 6 credits would fit.' + where, 'at 7 the real price is 6, not 7');
-  assert.equal(hint(10, 8), ' A film type that costs 8 credits would fit.' + where);
-  assert.equal(hint(10, 9), ' A film type that costs 8 credits would fit.' + where, 'at 9 the real price is 8, not 9');
+  for (const cost of [8, 10]) {
+    for (const have of [0, 2, 5, 6, 7, 8, 9, 10]) {
+      const short = have < cost;
+      const h = hint(cost, have);
+      assert.equal(h, short && have >= 6 ? SAY : '', `${cost}-credit type, ${have} credits`);
+      assert.doesNotMatch(h, /\d/, 'the hint names no number');
+      for (const closed of [true, false]) {
+        const a = C.affordable(quote(cost, have), { rows: TABLE, closed });
+        assert.equal(a.ok, !short);
+        if (short) assert.equal(a.reason, `This film type costs ${cost} credits and you have ${have} credit${have === 1 ? '' : 's'}.${closed ? ' Buying credits is not open yet.' : ''}${h}`, `${cost}/${have}/${closed ? 'closed' : 'open'}`);
+      }
+    }
+  }
+  // the cheapest type (6) is never short of itself and nothing is cheaper
+  assert.equal(hint(6, 5), '');
+  assert.equal(hint(6, 0), '');
   assert.equal(C.affordable(quote(10, 10), { rows: TABLE, closed: true }).ok, true, 'a 10-credit balance covers a 10-credit type: not short, no hint');
-  // an 8-credit film type short of credit: only the 6 type is cheaper
-  assert.equal(hint(8, 7), ' A film type that costs 6 credits would fit.' + where);
-  assert.equal(hint(8, 5), '');
-  assert.equal(hint(6, 5), '', 'nothing is cheaper than the cheapest type');
-  // the same words reach the final-film button title (affordable().reason), closed and open
-  assert.equal(C.affordable(quote(10, 7), { rows: TABLE, closed: true }).reason, 'This film type costs 10 credits and you have 7 credits. Buying credits is not open yet. A film type that costs 6 credits would fit.' + where);
-  assert.equal(C.affordable(quote(10, 9), { rows: TABLE, closed: false }).reason, 'This film type costs 10 credits and you have 9 credits. A film type that costs 8 credits would fit.' + where);
+  assert.equal(hint(10, 7), SAY, 'at 7 and 9 no price is named either');
+  assert.equal(hint(10, 9), SAY);
+  assert.equal(C.affordable(quote(10, 7), { rows: TABLE, closed: true }).reason, 'This film type costs 10 credits and you have 7 credits. Buying credits is not open yet.' + SAY);
+  assert.equal(C.affordable(quote(10, 5), { rows: TABLE, closed: true }).reason, 'This film type costs 10 credits and you have 5 credits. Buying credits is not open yet.', 'below the cheapest price: no hint');
   assert.equal(C.affordable(quote(10, 2), { rows: TABLE, closed: true }).reason, 'This film type costs 10 credits and you have 2 credits. Buying credits is not open yet.', 'no type fits: no hint, as before');
   assert.equal(C.affordable(quote(10, 0), { rows: TABLE, closed: true }).reason, 'This film type costs 10 credits and you have 0 credits. Buying credits is not open yet.');
+  assert.equal(C.fitsLine(quote(10, 8), []), '', 'no price rows read: no hint');
+  // a ['bars', 'line'] dataset (cbp_mining_share_state, cbp_suppression: Bars 10, Line 6, no 8-credit type) at 8 credits: never "8 credits", says a cheaper type would fit
+  const mining = C.affordable({ price_code: 'final_paired', credits: 10, free_preview: false, available: 8 }, { rows: TABLE, closed: true }).reason;
+  assert.doesNotMatch(mining.slice(mining.indexOf('Buying credits')), /8 credits/);
+  assert.ok(mining.endsWith('A cheaper film type would fit. Choose another film type in the builder.'), mining);
+  // every dataset the builder offers keeps a line view, the cheapest price: so the hint is true for all of them (the block list never removes 'line')
+  const block = JSON.parse(read('tools/data/engine-catalog-block-list-1123.json'));
+  for (const [id, views] of Object.entries(block)) assert.ok(!views.includes('line'), `${id}: line is never blocked`);
+  const cat = {}; new Function('window', read('assets/app-catalog-data.js'))(cat);
+  const usable = cat.ryagramCatalogData.entries.filter(e => e.status === 'usable' || cat.ryagramCatalogData.allow.includes(e.id));
+  assert.ok(usable.length >= 24);
+  for (const e of usable) assert.ok((e.views || []).includes('line'), `${e.id} offers a line view`);
+  assert.equal(Math.min(...TABLE.map(r => r.credits)), 6, 'line is the cheapest price');
   // the step it points at exists under that name
   assert.match(read('assets/app-builder.js'), /\['type', 'Film type'\]/);
 });
