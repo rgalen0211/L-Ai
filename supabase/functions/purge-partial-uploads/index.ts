@@ -3,7 +3,7 @@
 // gives every Edge Function; it only ever calls partial_uploads_due and mark_uploads_deleted,
 // and removes exactly the Storage paths the database lists. It takes no input.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
-import { reply, whoCalls } from "../_shared/ops_mail.ts";
+import { json, reply, whoCalls } from "../_shared/ops_mail.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
 const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
@@ -36,5 +36,7 @@ serve(async (req) => {
     const { data: count } = await db.rpc("mark_uploads_deleted", { p_artifact_ids: ids });
     removed += count ?? 0;
   }
+  // The scheduler (caller "job") gets ok:true plus this function's NAME, so live step 56 can tell this job's 200 from every other cron job's (no count, no file; a function name is no secret).
+  if (caller === "job") return json(200, { ok: true, fn: "purge-partial-uploads" });
   return reply(caller, 200, { due: due?.length ?? 0, removed });
 });

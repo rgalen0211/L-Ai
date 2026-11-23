@@ -5,7 +5,7 @@
 // the service-role key; see supabase/README.md "Hands-off operations" step 3). It takes no input and removes exactly the Storage
 // paths the database lists. The database marks a file removed only when Storage no longer has it, so a failed
 // delete is simply retried on the next run.
-import { reply, whoCalls } from "../_shared/ops_mail.ts";
+import { json, reply, whoCalls } from "../_shared/ops_mail.ts";
 
 export interface Deps {
   serviceKey: string;
@@ -62,6 +62,9 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
         films = { films_error: true };
       }
     }
+    // The scheduler (caller "job") is only told ok:true, which every cron job's reply says, so live step 56 could not tell this job's 200 from ops-tick's. A fixed NAME of the function (no count, no file) is added for it:
+    // pg_net keeps each reply where every database login can read it, and a function name is no secret.
+    if (caller === "job") return json(200, { ok: true, fn: "purge-uploads" });
     return reply(caller, 200, { due: due.length, removed, ...(films ?? {}) });
   } catch (err) {
     console.error(`purge-uploads ${step}: ${(err as Error).message}`);
