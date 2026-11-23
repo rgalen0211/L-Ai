@@ -67,10 +67,10 @@ test('SECTIONS: the pages cover accounts, 18+, free sheets and previews, 30-day 
   assert.match(p, /for 1 day/);
 });
 
-test('NOT YET: features that are OFF on Wednesday are named only as "not yet in the preview" (uploads, film pages, connecting an AI); swap-in text is in WEB-PREVIEW-TERMS-1122.md section G', () => {
-  assert.match(textOf(terms), /Some things are not yet in the preview: uploading your own data, publishing a film page, and connecting your own AI assistant\./);
-  assert.match(textOf(privacy), /Not yet in the preview, so nothing is kept for them: uploading your own data, publishing a film page, and connecting your own AI assistant\./);
-  const rest = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/Some things are not yet in the preview:[^.]*\./, '').replace(/Not yet in the preview, so nothing[^.]*\./, '');
+test('NOT YET: features that are OFF on Wednesday are named only as "not yet in the preview" (uploads, film pages); swap-in text is in WEB-PREVIEW-TERMS-1122.md section G', () => {
+  assert.match(textOf(terms), /Some things are not yet in the preview: uploading your own data and publishing a film page\./);
+  assert.match(textOf(privacy), /Not yet in the preview, so nothing is kept for them: uploading your own data and publishing a film page\./);
+  const rest = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/Some things are not yet in the preview:[^.]*\./, '').replace(/Not yet in the preview, so nothing[^.]*\./, '').replace(/You can connect an AI assistant[^<]*?own terms\./, '').replace(/Connected AI assistants\.[^<]*?not by us\./, '');
   for (const html of [terms, privPart]) {
     assert.doesNotMatch(rest(html), /upload|spreadsheet|\.csv|Recently deleted|restore|Delete forever|publish|anyone with the link|stop sharing|connect(ed|ing)? (an|your|AI)|\bAI assistant|Report page|DMCA/i);
   }

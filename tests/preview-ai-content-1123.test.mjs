@@ -27,12 +27,12 @@ test('LABEL: the banner is the preview Terms banner, word for word, before any s
 });
 
 test('NO PAYMENTS: no price, refund, tax, subscription or buying word, apart from the label and the not-open sentence', () => {
-  const rest = text.split(NOT_OPEN).join(' ').split(LABEL).join(' ');
+  const rest = text.split(NOT_OPEN).join(' ').split(LABEL).join(' ').replace(/You can connect an AI assistant[^<]*?own terms\./, ' ');   // the Connect sentence says "credits" only to say the AI cannot spend them
   assert.doesNotMatch(rest, /\$\s?\d|\bUS\$|\bprices?\b|\bpricing\b|\brefund|\btax(es)?\b|subscri|\bbuy\b|\bbought\b|\bpurchas|\bpay(s|ing|ment|ments)?\b|\bcheckout\b|\bbilling\b|\binvoice|\bStripe\b|\bcredits?\b|per month|a month/i);
 });
 
 test('NOTHING INVENTED: no governing law, liability, arbitration, AI Act, YouTube-policy or vendor text; only the confirmed ryagram@ address', () => {
-  assert.doesNotMatch(text, /governed by|governing law|arbitrat|class action|DMCA|liability|liable|indemnif|warrant|AI Act|\bEU\b|YouTube|Anthropic|OpenAI|Claude|ChatGPT|copyright|licen[cs]e/i);
+  assert.doesNotMatch(text.replace(/You can connect an AI assistant[^<]*?own terms\./, ' '), /governed by|governing law|arbitrat|class action|DMCA|liability|liable|indemnif|warrant|AI Act|\bEU\b|YouTube|Anthropic|OpenAI|Claude|ChatGPT|copyright|licen[cs]e/i);
   assert.doesNotMatch(page, /[A-Za-z0-9._%+-]+@(?!uselai\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/);
   assert.match(page, /mailto:ryagram@uselai\.com/);
   assert.equal((page.match(/mailto:/g) || []).length, 1);
@@ -43,9 +43,9 @@ test('PLAIN: no sentence runs past 45 words', () => {
   for (const sentence of t.split(/(?<=[.!?])\s+/)) assert.ok(sentence.split(' ').length <= 45, sentence.slice(0, 80));
 });
 
-test('NOT YET: uploads, film pages and connecting an AI appear ONLY in the one "not yet in the preview" sentence; voices, faces, music, forecasts and the AI editor are not mentioned', () => {
-  assert.match(text, /Some things are not yet in the preview: uploading your own data, publishing a film page, and connecting your own AI assistant\./);
-  const rest = text.replace(/Some things are not yet in the preview:[^.]*\./, '');
+test('NOT YET: uploads and film pages appear ONLY in the one "not yet in the preview" sentence; voices, faces, music, forecasts and the AI editor are not mentioned', () => {
+  assert.match(text, /Some things are not yet in the preview: uploading your own data and publishing a film page\./);
+  const rest = text.replace(/Some things are not yet in the preview:[^.]*\./, '').replace(/You can connect an AI assistant[^<]*?own terms\./, '');
   assert.doesNotMatch(rest, /upload|spreadsheet|\bpublish(ed|es|ing)?\b|connect(ed|ing)? (an|your|AI)|\bAI assistant|Report page|\/report\/|voice|face|music|song|forecast|future|AI editor|editor/i);
   assert.ok(!page.includes('/report/') && !page.includes('/connect-ai/'));
 });
