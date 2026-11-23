@@ -40,6 +40,7 @@ class WedLiveSteps(core.Base):
         self.assertEqual(self.d().execute(p1).fetchall(), [(200, False)], "BEFORE: the default, sign-up still closed")
         self.d().execute(p2)                                                     # unchanged = no change
         self.assertEqual(self.d().execute(p3).fetchall(), [(200,)])
+        self.assertEqual(self.d().execute("select join_open, waiting_accounts from public.ops_settings").fetchall(), [(False, False)], "part 2 touches nothing but the size: it never opens sign-up or moves the waiting switch")
         self.d().execute("update public.ops_settings set join_open = true")     # live step 47
         self.d().execute(p2.replace("= 200;", "= 2;"))                          # Ryan types his number
         self.assertEqual(self.d().execute(p3).fetchall(), [(2,)], "AFTER shows his number")
