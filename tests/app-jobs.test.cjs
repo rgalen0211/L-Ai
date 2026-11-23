@@ -154,8 +154,8 @@ test('ROUGH SPOT: a job reserved for the person’s own computer says so, even w
   const q = { state: 'queued', attempt: 1, run_on: 'owner_local' };
   assert.match(J.progressNote(q, 1), /^Waiting for your computer to pick it up\./);               // the job itself says owner_local: no 'Next in line'
   assert.match(J.progressNote(q, 1, { tester: true, computers: 0 }), /^Waiting for your computer\. No computer is signed in/);
-  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1), 'Next in line. We make one film at a time. At busy times yours may take a few hours.');   // the site’s own machine: the ordinary line
-  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1, { tester: true, computers: 1 }), 'Next in line. We make one film at a time. At busy times yours may take a few hours.');   // the job’s own place wins over the account
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1), 'Next in line. We make one film at a time.');   // the site’s own machine: the ordinary line
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1, { tester: true, computers: 1 }), 'Next in line. We make one film at a time.');   // the job’s own place wins over the account
   assert.equal(J.typeLabel('film_bundle'), 'Film files');
   assert.equal(J.typeLabel('some_new_kind'), 'Some new kind');                                      // an unknown type is spoken, never shown raw
   assert.equal(J.typeLabel('final_render'), 'Final render');

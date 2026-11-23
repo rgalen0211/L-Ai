@@ -43,7 +43,7 @@ window.ryagramConfig = Object.freeze({
   passwordReset: true,
   // Offer the "Industry" template (CBP sector-share bar races, 1998-2023). Turn on only once the
   // worker's dataset allowlist includes the cbp_*_share_state datasets (WORKER-SETUP.ps1).
-  // DO NOT TURN ON until the sector list loses the 11 sector bars the engine refuses (ENGINE-CATALOG-BLOCK-LIST-1123.json), or switch it to map/line.
+  // DO NOT TURN ON as it stands: this is a Bars template and the engine refuses Bars for 11 of its 18 sector datasets; only 7 keep bars (mining, manufacturing, transportation, information, real estate, education, health care). It also refuses the Map for arts, finance and mining. Line is open for all 18 and Map for the other 15 (ENGINE-CATALOG-BLOCK-LIST-1123-v2.json): change its view to line, or cut the list to those 7, before turning it on.
   industryTemplate: false,
   // Show "Have an invite code?" on sign-in. Turn on only once custom SMTP is set, the invite email
   // template points at /app/?invite={{ .TokenHash }}, and redeem-invite is deployed

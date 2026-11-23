@@ -6,7 +6,7 @@
   const EDITABLE = ['draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render'];
   const STATE_LABELS = {
     draft: 'Draft', sampling: 'Sampling', previewing: 'Previewing',
-    editorial_action_required: 'Needs a decision', ready_to_render: 'Ready to render',
+    editorial_action_required: 'Stopped', ready_to_render: 'Ready to render',
     queued: 'Queued', rendering: 'Rendering', validating: 'Checking', uploading: 'Uploading',
     complete: 'Complete', failed: 'Failed', archived: 'Archived', non_restorable: 'Can’t be rebuilt'
   };
@@ -163,9 +163,10 @@
       let view;
       try {
         let m;
-        if (await waitingGate()) {                                                // a WAITING account sees one page whatever the address says (the server is the real gate)
+        const gate = {};                                                          // this call's own answer: a route change during the pause cannot hand it to another call
+        if (await waitingGate(gate)) {                                            // a WAITING account sees one page whatever the address says (the server is the real gate)
           const email = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
-          view = gateUnknown ? waitingUi().unknownView() : await waitingUi().waitingView(email, () => { activeSeen = true; document.body.classList.remove('is-waiting'); if (location.hash === '#/' || location.hash === '') route(); else location.hash = '#/'; });
+          view = gate.unknown ? waitingUi().unknownView() : await waitingUi().waitingView(email, () => { activeSeen = true; document.body.classList.remove('is-waiting'); if (location.hash === '#/' || location.hash === '') route(); else location.hash = '#/'; });
         } else if (hash === '#/waiting') { location.replace('#/'); return; }
         // The plain library address goes to the door only for an invited account with no AI connected and no 'Not now' in the last 7 days; any failure shows the library.
         else if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
@@ -340,12 +341,11 @@
     let waitingCache = null;
     const waitingUi = () => waitingCache || (waitingCache = window.ryagramWaiting.create({ h, data, busy, showError, errorLine }));
     let activeSeen = false;                                                      // 'active' is remembered for this sign-in; anything else is asked again on the next page
-    let gateUnknown = false;                                                     // my_access failed twice: the page says it could not check (no list claim), still closed
-    async function waitingGate() {
+    async function waitingGate(gate) {                                           // gate.unknown: my_access failed twice, so the page says it could not check (no list claim), still closed; one object per route() call, never shared
       if (!waitingOn() || !window.ryagramWaiting) return false;
       if (activeSeen) return false;
       const access = await window.ryagramWaiting.checkAccess(() => data.myAccess());     // one retry after a short pause; 'unknown' if it fails twice (fail closed, but not 'waiting')
-      gateUnknown = access === 'unknown';
+      gate.unknown = access === 'unknown';
       document.body.classList.toggle('is-waiting', access !== 'active');
       if (access === 'active') activeSeen = true;
       return window.ryagramWaiting.pageFor(access, location.hash) === 'waiting';

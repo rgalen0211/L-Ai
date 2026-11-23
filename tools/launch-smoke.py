@@ -177,6 +177,8 @@ def check_pages(run, pw_browser, base):
                     on = bool(page.evaluate('!!(window.ryagramConfig && window.ryagramConfig.creatorBeta === true)'))
                     shown = page.locator(CREATOR_SECTION).is_visible()
                     run.check('pages', f'{label}: the Creator beta section is {"shown" if on else "hidden"} (creatorBeta is {"on" if on else "off"})', shown == on, f'section visible={shown}', required)
+                    hero_button = page.locator('.rg-hero-cta a.rg-btn')       # the header also says 'Create an account': check the hero's own button
+                    run.check('pages', f'{label}: the hero button itself says "{CREATOR_CTA}"', hero_button.count() == 1 and hero_button.first.inner_text().strip() == CREATOR_CTA, 'the hero has no such button', required)
                     for t in ('Email to request an invite', 'Join the creator beta'):
                         run.check('pages', f'{label}: the hero does not say "{t}"', t not in page.locator('.rg-hero-cta').inner_text(), 'old hero words', required)
                 for t in must:

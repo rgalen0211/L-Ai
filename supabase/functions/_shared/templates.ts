@@ -50,6 +50,8 @@ export const TEMPLATES = [
     headline: "The states with the highest adult obesity",
     datasets: ["state_obesity_fastfood"], settings: { line_top_n: 6 }, confirmed: true },
   { id: "sector", view: "bars", label: "Industry", blurb: "Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.",
+    // No flag here on purpose: the site hides this template with ryagramConfig.industryTemplate (off). Its bars are refused by the engine for 11 of these 18 datasets
+    // (tools/data/engine-catalog-block-list-1123.json, v2), so the server must not be taught to build it as it stands: change its view or its list first.
     style: { bars: { swap_seconds: 0.5 } } as Record<string, unknown>, hold: 3,
     datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10, axis: "fixed" }, confirmed: false },
 ];

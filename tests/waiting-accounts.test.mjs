@@ -67,10 +67,10 @@ test('the waiting list: only a confirmed address gets an Approve button; the ops
 
 test('router belt: the waiting gate runs BEFORE every route test, and the admin list needs isAppAdmin', () => {
   const lib = read('assets/app-library.js');
-  const gate = lib.indexOf('if (await waitingGate())'), firstRoute = lib.indexOf('hash.match(new RegExp(`^#/p/'), start = lib.indexOf('async function route()');
+  const gate = lib.indexOf('if (await waitingGate(gate))'), firstRoute = lib.indexOf('hash.match(new RegExp(`^#/p/'), start = lib.indexOf('async function route()');
   assert.ok(start > 0 && gate > start && gate < firstRoute, 'waitingGate is called before any page is chosen');
   const routeBody = lib.slice(start, lib.indexOf('async function delayedNotice()'));
-  const afterGate = routeBody.slice(routeBody.indexOf('if (await waitingGate())'));
+  const afterGate = routeBody.slice(routeBody.indexOf('if (await waitingGate(gate))'));
   assert.equal((afterGate.match(/\n        if /g) || []).length, 0, 'one chain: no second "if" that could overwrite the waiting page');
   assert.match(lib, /waitingOn\(\) && hash === '#\/admin\/waiting' && await data\.isAppAdmin\(\)/);
   assert.match(lib, /checkAccess\(\(\) => data\.myAccess\(\)\)/);          // fail closed: a failed check never opens the app (wed-v3-1123 tests the words)

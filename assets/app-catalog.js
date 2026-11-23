@@ -34,7 +34,7 @@
   // What contact sheets have shown for the exact story the catalog builds (engine main 56f652e,
   // 2026-10-04). A view that fails the engine's own checks is not offered: it would stop at the gate.
   // Add to this list from a measured sheet, never from a guess. 2026-11-23: the engine's own checks ran on every catalog film (proposals/ENGINE-CATALOG-BLOCK-LIST-1123.json,
-  // kept as tests/fixtures/engine-catalog-block-list-1123.json): 18 failed a check and 2 county bars did not finish, so they are blocked until the engine fixes them and a sheet passes.
+  // kept as tools/data/engine-catalog-block-list-1123.json (v2)): 18 failed a check and 2 county bars did not finish, so they are blocked until the engine fixes them and a sheet passes.
   const MEASURED = {
     ok: { cbp_suppression: ['line'] },
     blocked: {

@@ -17,13 +17,15 @@ const panel = lib.slice(lib.indexOf('function jobsPanel('), lib.indexOf("window.
 const T20OLD = 'Number 20 in line. We make one film at a time. At about 5 minutes for each film ahead of yours, that is about 1 hour 35 minutes, and it may take longer.';   // the old count: (position - 1) x 5, which left out the film running now and said when yours starts as if it were when it is ready
 test('HIGH 2 queue line: a contact sheet behind a line says about 5 minutes for each film ahead, "about", and "may take longer"; no promise', () => {
   const sheet = n => J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, n);
-  const check = s => assert.equal(s, 'Number 20 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour 40 minutes and takes about 5 more, and it may take longer. With this many ahead of yours, it may take a few hours or more.');
+  const check = s => assert.equal(s, 'Number 20 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour 40 minutes and takes about 5 more, and it may take longer.');
   check(sheet(20));
   goesRed(check, 'Number 20 in line.');
   goesRed(check, T20OLD);
-  assert.equal(sheet(2), 'Number 2 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 10 minutes and takes about 5 more, and it may take longer. At busy times yours may take a few hours.');
-  assert.equal(sheet(12), 'Number 12 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour and takes about 5 more, and it may take longer. With this many ahead of yours, it may take a few hours or more.');
-  assert.equal(sheet(1), 'Next in line. We make one film at a time. At busy times yours may take a few hours.', 'nothing ahead: no estimate');
+  assert.equal(sheet(2), 'Number 2 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 10 minutes and takes about 5 more, and it may take longer.');
+  assert.equal(sheet(12), 'Number 12 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour and takes about 5 more, and it may take longer.');
+  assert.equal(sheet(1), 'Next in line. We make one film at a time.', 'nothing ahead: no estimate');
+  for (const n of [2, 3, 7, 8, 12, 20]) assert.doesNotMatch(sheet(n), /few hours/, `a contact sheet that shows a number never also says hours (${n})`);
+  goesRed(s => assert.doesNotMatch(s, /few hours/), 'Number 2 in line. ... At busy times yours may take a few hours.');
   assert.equal(sheet(0), 'Waiting in line. We make one film at a time. At busy times yours may take a few hours.', 'position unknown: no number invented');
 });
 
@@ -33,6 +35,9 @@ test('HIGH 2 queue line: a preview or a final render (no defensible time) gets n
     assert.equal(s, 'Number 20 in line. We make one film at a time. Each film ahead of yours takes a few minutes. With this many ahead of yours, it may take a few hours or more.');
     assert.doesNotMatch(s, /\d+ minutes|\d+ hour/);
   }
+  // the switch is at 6 films AHEAD: position 7 (six ahead) keeps the busy-times line, position 8 (seven ahead) says hours or more
+  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'preview' }, 7), /At busy times yours may take a few hours\.$/);
+  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'preview' }, 8), /With this many ahead of yours, it may take a few hours or more\.$/);
   assert.match(J.progressNote({ state: 'queued', attempt: 2, job_type: 'contact_sheet' }, 3), /This was put back in line after a problem on our side\.$/, 'the retry sentence is kept');
 });
 

@@ -16,7 +16,7 @@
   };
   const STATE_LABELS = {
     queued: 'Queued', claimed: 'Starting', running: 'Rendering', validating: 'Checking', uploading: 'Uploading',
-    complete: 'Complete', failed: 'Failed', editorial_action_required: 'Stopped by our checks', cancelled: 'Cancelled'
+    complete: 'Complete', failed: 'Failed', editorial_action_required: 'Stopped', cancelled: 'Cancelled'
   };
 
   const isActive = job => ACTIVE.includes(job.state);
@@ -154,18 +154,18 @@
   // may be a preview or a final render. Any other kind of job says only that each film ahead takes a few minutes (WORKER's preview timings disagree: 2 min 23 s measured, 5 to 7 min in the features list).
   const ONE_AT_A_TIME = 'We make one film at a time.';
   const BUSY_HOURS = 'At busy times yours may take a few hours.';                                                       // WORKER: one PC, one job at a time: a big sign-up morning is hours, whatever the job type
-  const MANY_AHEAD = 'With this many ahead of yours, it may take a few hours or more.';                                // beyond 6 films ahead (30 minutes at 5 each) the estimate can only be longer
+  const MANY_AHEAD = 'With this many ahead of yours, it may take a few hours or more.';                                // beyond 6 films ahead (position 8 and up; position 7 = 6 ahead = 30 minutes at 5 each) the estimate can only be longer
   const waitWords = minutes => { const h = Math.floor(minutes / 60), m = minutes % 60; return h ? `${h} hour${h === 1 ? '' : 's'}${m ? ` ${m} minutes` : ''}` : `${m} minutes`; };
   function queueWait(job, position) {
-    const hours = position > 6 ? MANY_AHEAD : BUSY_HOURS;
-    if (job.job_type !== 'contact_sheet') return `${ONE_AT_A_TIME} Each film ahead of yours takes a few minutes. ${hours}`;
-    return `${ONE_AT_A_TIME} It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about ${waitWords(position * 5)} and takes about 5 more, and it may take longer. ${hours}`;      // position = 1 + the films queued ahead (queue_position, 2a_core.sql), and the film the machine is making NOW is not counted: position x 5 covers it plus the ones ahead, up to when yours STARTS
+    // The hours sentence is said only where NO number is shown ('Waiting in line') and for a job with no measured time: beside 'yours starts in about 10 minutes' it contradicted itself.
+    if (job.job_type !== 'contact_sheet') return `${ONE_AT_A_TIME} Each film ahead of yours takes a few minutes. ${position > 7 ? MANY_AHEAD : BUSY_HOURS}`;
+    return `${ONE_AT_A_TIME} It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about ${waitWords(position * 5)} and takes about 5 more, and it may take longer.`;      // position = 1 + the films queued ahead (queue_position, 2a_core.sql), and the film the machine is making NOW is not counted: position x 5 covers it plus the ones ahead, up to when yours STARTS
   }
   function progressNote(job, queuePosition, own) {
     const ownComputer = job.run_on ? job.run_on === 'owner_local' : !!(own && own.tester === true);
     if (job.state === 'queued' && ownComputer && !job.cancel_requested) return own && own.computers === 0 ? WAITING_FOR_COMPUTER : WAITING_FOR_COMPUTER_PICKUP;
     if (job.state === 'queued') {
-      const place = queuePosition ? (queuePosition === 1 ? `Next in line. ${ONE_AT_A_TIME} ${BUSY_HOURS}` : `Number ${queuePosition} in line. ${queueWait(job, queuePosition)}`) : `Waiting in line. ${ONE_AT_A_TIME} ${BUSY_HOURS}`;
+      const place = queuePosition ? (queuePosition === 1 ? `Next in line. ${ONE_AT_A_TIME}` : `Number ${queuePosition} in line. ${queueWait(job, queuePosition)}`) : `Waiting in line. ${ONE_AT_A_TIME} ${BUSY_HOURS}`;
       return job.attempt > 1 ? `${place} This was put back in line after a problem on our side.` : place;
     }
     if (job.cancel_requested) return 'Stopping…';
@@ -321,7 +321,7 @@
 
   // Render orders (a full render is requested, then waits for approval, renders and is delivered).
   const ORDER_WORDS = { running: 'Rendering', awaiting_approval: 'Waiting for approval', delivered: 'Delivered', previewed: 'Previewed', failed: 'Failed', declined: 'Not approved',
-                        cancelled: 'Cancelled', expired: 'Expired', editorial_action_required: 'Stopped by a check' };
+                        cancelled: 'Cancelled', expired: 'Expired', editorial_action_required: 'Stopped' };
   // The Credits page's own switch (app-library.js buyingOn: credits + payments + buyingOpen, open in mock mode unless ?buyingclosed), read here from the same config so this file needs nothing from app-library.js.
   const buyingOpen = () => {
     const cfg = window.ryagramConfig, mock = !!window.ryagramMock;

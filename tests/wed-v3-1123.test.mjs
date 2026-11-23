@@ -81,8 +81,9 @@ test('M4 the page for "unknown" says it could not check and to reload, with no l
   assert.deepEqual({ ...W.UNKNOWN_WORDS }, { title: 'We could not check your account just now.', line: 'Reload the page.' });
   const lib = read('assets/app-library.js');
   assert.match(lib, /checkAccess\(\(\) => data\.myAccess\(\)\)/);
-  assert.match(lib, /gateUnknown = access === 'unknown';/);
-  assert.match(lib, /view = gateUnknown \? waitingUi\(\)\.unknownView\(\) : await waitingUi\(\)\.waitingView\(/);
+  assert.match(lib, /gate\.unknown = access === 'unknown';/);
+  assert.match(lib, /view = gate\.unknown \? waitingUi\(\)\.unknownView\(\) : await waitingUi\(\)\.waitingView\(/);
+  assert.doesNotMatch(lib, /gateUnknown/, 'no shared variable: the answer belongs to one call');
   assert.doesNotMatch(lib, /catch \{ \/\* fail closed: the waiting page \*\/ \}/);
   const src = read('assets/app-waiting.js');
   const unknown = src.match(/function unknownView\(\) \{[\s\S]*?\n    \}/)[0];
@@ -124,17 +125,20 @@ test('LOW download-my-data: the spreadsheet words appear only when uploads are o
 const J = (() => { const win = {}; vm.runInNewContext(read('assets/app-jobs.js'), { window: win }); return win.ryagramJobs; })();
 const HOURS = /At busy times yours may take a few hours\.|it may take a few hours or more\./;
 
-test('queue: every waiting job, from position 1 and with no position, says one at a time and that busy times can take hours; a contact sheet keeps its 5 minute sentence for 2 and up', () => {
+test('queue: every waiting job says one at a time; the hours line is said only with no number shown and for a job with no measured time, never beside a number or to the person who is next', () => {
   for (const type of ['contact_sheet', 'preview', 'final_render', undefined]) {
     for (const pos of [0, 1, 2, 3, 7, 20]) {
       const s = J.progressNote({ state: 'queued', attempt: 1, job_type: type }, pos);
       assert.match(s, /We make one film at a time\./, `${type}/${pos}`);
-      assert.match(s, HOURS, `${type}/${pos}`);
+      const wantsHours = pos === 0 || (pos >= 2 && type !== 'contact_sheet');
+      if (wantsHours) assert.match(s, HOURS, `${type}/${pos}`); else assert.doesNotMatch(s, HOURS, `${type}/${pos}`);
       assert.doesNotMatch(s, /The machine|render machine/, `${type}/${pos}`);
     }
   }
   assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 2), /about 5 minutes for each film ahead of yours/);
-  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 7), /With this many ahead of yours, it may take a few hours or more\./);
+  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 2), /and it may take longer\.$/);
+  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'preview' }, 8), /With this many ahead of yours, it may take a few hours or more\./);
+  assert.doesNotMatch(J.progressNote({ state: 'queued', attempt: 1, job_type: 'preview' }, 7), /With this many/, 'position 7 is six ahead: not beyond six');
   assert.doesNotMatch(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 3), /With this many/);
 });
 
@@ -152,7 +156,7 @@ test('words a stranger should not read: no attempt counts, no "tried N times", n
     assert.equal(s, 'We had a problem on our side, not with your story. You can try again. If it keeps happening, open “Get help with this”.');
     assert.doesNotMatch(s, /tried|attempt|engine|process|render machine|mock/i);
   }
-  assert.equal(J.progressNote({ state: 'queued', attempt: 2 }, 1), 'Next in line. We make one film at a time. At busy times yours may take a few hours. This was put back in line after a problem on our side.');
+  assert.equal(J.progressNote({ state: 'queued', attempt: 2 }, 1), 'Next in line. We make one film at a time. This was put back in line after a problem on our side.');
   assert.doesNotMatch(J.progressNote({ state: 'queued', attempt: 2 }, 3), /attempt|Retrying|render-machine/);
   // an unrecognised class does not show the worker's words either; a story problem (checks, invalid input) still shows the plain reason the person can act on
   assert.doesNotMatch(J.problem({ state: 'failed', error_class: 'weird', error_detail: MOCK }), /engine process/);
@@ -168,7 +172,7 @@ test('contact sheet words: a failed sheet says a new contact sheet, a sheet time
   assert.doesNotMatch(slow('contact_sheet'), /preview window/); assert.match(slow('contact_sheet'), /shorten the film first\.$/);
   assert.doesNotMatch(slow('final_render'), /preview window/);
   assert.match(slow('preview'), /shorten the film or the preview window first\.$/);
-  assert.equal(J.STATE_LABELS.editorial_action_required, 'Stopped by our checks');
+  assert.equal(J.STATE_LABELS.editorial_action_required, 'Stopped');          // it also covers 'the checks did not run': the label names no cause, the note does
   assert.equal(J.STATE_LABELS.claimed, 'Starting'); assert.equal(J.STATE_LABELS.running, 'Rendering');
   assert.match(read('assets/app-library.js'), /window\.ryagramJobs\.STATE_LABELS\[j\.state\] \|\| STATE_LABELS\[j\.state\] \|\| j\.state/);
 });
