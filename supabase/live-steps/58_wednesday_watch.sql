@@ -57,9 +57,9 @@ select 10, 'full films waiting for YOUR approval (#/admin/renders)',
        'any is waiting: approve or refuse it on #/admin/renders (with 8 welcome credits a stranger can ask for one; the first full film on the live render PC is untested, Q636)'
 union all
 select 11, 'account deletions waiting for YOU to close by hand',
-       (select count(*) from public.account_deletion_requests)::text || ' waiting; oldest asked '
-         || coalesce((select round(extract(epoch from now() - min(requested_at)) / 3600)::text from public.account_deletion_requests), '0') || ' h ago',
-       'any is waiting: their login is already blocked and their files gone; close the account by hand (CONNECT 15:59: with 8 welcome credits every verified stranger has credit history, so closing such an account is a request, not automatic)'
+       (select count(*) from public.account_deletion_requests where closed_at is null)::text || ' waiting; oldest asked '
+         || coalesce((select round(extract(epoch from now() - min(requested_at)) / 3600)::text from public.account_deletion_requests where closed_at is null), '0') || ' h ago',
+       'any is waiting: their login is already blocked and their files gone; close it with live step 64 (CONNECT 15:59: with 8 welcome credits every verified stranger has credit history, so closing such an account is a request, not automatic)'
 union all
 select 12, 'verified sign-ups in the last 24 hours that got NO welcome credits',
        (select count(*) from auth.users u
