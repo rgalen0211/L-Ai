@@ -36,7 +36,7 @@ test('PRIVACY says what is kept for a connection, and each clause is what the co
   assert.match(t, /log of what it asked us to do for 30 days: the name of the action, whether it worked, a short code, the credits used and the time, but no story text and no tokens\./);
   assert.match(t, /The log also holds an identifier for the AI app and a count of its failed checks\./);
   // what it asked Ryagram to PREPARE is kept elsewhere than the call log (GAMES 11-23 MEDIUM): each clause is pinned to the migration and the tool text
-  assert.match(t, /What it asked Ryagram to prepare for you is kept too\. Download requests \(the web address, its reason, a folder name and a small receipt\) are kept until you delete your account\. Compilation requests and the live editor's draft stay until you delete their project or your account\. A compilation's track list is dropped 24 hours after you last open the editor, and the editor's edit log is kept for 7 days\. Your chat/);
+  assert.match(t, /What it asked Ryagram to prepare for you is kept too\. Download requests \(the web address, its reason, a folder name and a small receipt\) are kept until you delete your account\. Compilation requests and the live editor's draft stay until you delete their project or your account\. A compilation's track list is dropped within 2 days after you last open the editor, and the editor's edit log is kept for up to 8 days\. Your chat/);
   const dl = read('supabase/migrations/20261027000500_download_plans.sql');
   assert.match(dl, /owner_id uuid not null references auth\.users \(id\) on delete cascade,\s+request jsonb[\s\S]*host text[\s\S]*receipt jsonb/);   // address+reason+folder in request, receipt; gone with the account
   assert.doesNotMatch(dl, /delete from public\.download_plans/);                                                                       // and nothing purges it earlier
@@ -47,7 +47,9 @@ test('PRIVACY says what is kept for a connection, and each clause is what the co
   assert.match(ed, /create table public\.edit_drafts \(\s+project_id uuid not null references public\.projects \(id\) on delete cascade/);
   assert.match(ed, /coalesce\(editor_seen_at, updated_at\) < now\(\) - interval '24 hours'/);                                              // the compilation track list
   assert.match(ed, /delete from public\.edit_ops where created_at < now\(\) - interval '7 days'/);                                       // the edit log
-  assert.match(read('supabase/migrations/20261120000100_connect_purge_edit.sql'), /edit_purge/);                                         // the daily purge calls it
+  // the daily purge calls edit_purge, so 24 hours means 24 to 48 hours and 7 days means 7 to 8 days: the page says 'within 2 days' and 'up to 8 days'
+  assert.match(read('supabase/migrations/20261018000100_connect_ai.sql'), /Run daily by the same schedule as the other purges/);
+  assert.match(read('supabase/migrations/20261120000100_connect_purge_edit.sql'), /execute 'select ryagram_private\.edit_purge\(\)'/);
   const tools = read('supabase/functions/connect-core/tools.ts');
   const defLine = n => (tools.match(new RegExp(`name: "${n}"[^\n]*`)) || [''])[0];
   for (const n of ['request_download', 'list_my_downloads', 'set_compilation_request']) { assert.match(defLine(n), /name:/, n); assert.doesNotMatch(defLine(n), /listed: false/, `${n} is offered`); }
@@ -74,6 +76,13 @@ test('THE LIMITS are what the connector does: no spend, no full render, no publi
   const names = [...(tools + read('supabase/functions/connect-core/editor_tools.ts')).matchAll(/^\s*name: "([a-z_]+)"/gm)].map(m => m[1]);
   assert.ok(names.length > 20);
   for (const n of names) assert.doesNotMatch(n, /publish|delete_account|delete_project|account_delete|close_account|spend|pay|buy/, n);
+  // (D) the guide's delete sentence: no tool deletes an account or a film; set_story replaces a saved story; the editor's deletes are drafts with undo_my_changes
+  assert.ok(text(guide).includes("It cannot delete your account or your films; it can replace a film's saved story."));
+  assert.doesNotMatch(text(guide), /delete anything/);
+  for (const n of names) assert.doesNotMatch(n, /delete|remove|drop|erase|clear/, n);
+  assert.match(tools, /name: "set_story"[^\n]*destructive: true/);
+  assert.match(tools, /saves it as the project's working version/);
+  assert.match(tools, /name: "undo_my_changes"/);
   assert.match(read('assets/app-connect.js'), /'Your AI acts as your Ryagram account\.', 'It cannot spend your credits\.', 'You can disconnect it any time: Account, then Connected AIs\.'/);
 });
 
