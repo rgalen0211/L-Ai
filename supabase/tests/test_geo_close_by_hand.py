@@ -28,6 +28,7 @@ import test_2b_credits as credits  # noqa: E402
 RYAN, OTHER = core.RYAN, core.OTHER
 STEP64 = core.ROOT / "live-steps" / "64_account_close_by_hand.sql"
 STEP58 = core.ROOT / "live-steps" / "58_wednesday_watch.sql"
+MIG = core.ROOT / "migrations" / "20261123000700_account_close_by_hand.sql"
 RB = core.ROOT / "rollbacks" / "20261123000700_account_close_by_hand_rollback.sql"
 STANDINS = """
 alter table auth.users add column if not exists phone text, add column if not exists encrypted_password text,
@@ -114,6 +115,13 @@ class CloseByHand(unittest.TestCase):
         self.d().execute(RB.read_text(encoding="utf-8"))
         self.assertIsNone(self.one("select to_regprocedure('public.account_close_by_hand(uuid)')"))
         self.assertEqual(self.one("select count(*) from information_schema.columns where table_name = 'account_deletion_requests' and column_name = 'closed_at'"), 0)
+        # hosted Supabase grants every new public function to anon, authenticated AND service_role by default (the stub does not);
+        # re-applied under that default, the migration's own revoke must still leave the database owner as the only caller
+        self.d().execute("alter default privileges in schema public grant execute on functions to anon, authenticated, service_role")
+        self.d().execute(MIG.read_text(encoding="utf-8"))
+        for role in ("anon", "authenticated", "service_role"):
+            with self.subTest(role=role):
+                self.assertFalse(self.one("select has_function_privilege(%s, 'public.account_close_by_hand(uuid)', 'execute')", role))
 
 
 if __name__ == "__main__":
