@@ -60,7 +60,7 @@ def main():
             p.wait_for_function("() => /in line/.test((document.querySelector('.job-list') || {}).textContent || '')", timeout=20000)
             txt = p.inner_text('.job-list')
             print('queue line:', repr(txt))
-            check('Number 4 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 20 minutes and takes about 5 more, and it may take longer.' in txt and 'few hours' not in txt, '1. the waiting contact sheet reads its place, the estimate and "may take longer", and no hours sentence beside the number')
+            check('Number 4 in line. We make one film at a time. It may be working on another film right now. Yours starts in about 20 minutes and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer.' in txt and 'few hours' not in txt, '1. the waiting contact sheet reads its place, the estimate and "may take longer", and no hours sentence beside the number')
             # the banner comes by itself, then goes
             check(p.evaluate("!document.querySelector('.delayed-notice')"), '2. no banner while rendering is fine')
             p.evaluate("window.__delayed = true")

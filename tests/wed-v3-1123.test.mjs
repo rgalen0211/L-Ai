@@ -123,27 +123,23 @@ test('LOW download-my-data: the spreadsheet words appear only when uploads are o
 
 // ---- jobs words (FACES 09:47 and CC1): a stranger reads true plain words about the wait and about problems ---------------------------------------------
 const J = (() => { const win = {}; vm.runInNewContext(read('assets/app-jobs.js'), { window: win }); return win.ryagramJobs; })();
-const HOURS = /At busy times yours may take a few hours\.|it may take a few hours or more\./;
+const HOURS = /At busy times yours may take hours, or more than a day when many people join at once./;
 
 test('queue: every waiting job says one at a time; the hours line is said only with no number shown and for a job with no measured time, never beside a number or to the person who is next', () => {
   for (const type of ['contact_sheet', 'preview', 'final_render', undefined]) {
     for (const pos of [0, 1, 2, 3, 7, 20]) {
       const s = J.progressNote({ state: 'queued', attempt: 1, job_type: type }, pos);
       assert.match(s, /We make one film at a time\./, `${type}/${pos}`);
-      const wantsHours = pos === 0 || (pos >= 2 && type !== 'contact_sheet');
+      const wantsHours = pos === 0;      // only where NO place is known: every known place now gets its own band (queue-words-1123 pins them)
       if (wantsHours) assert.match(s, HOURS, `${type}/${pos}`); else assert.doesNotMatch(s, HOURS, `${type}/${pos}`);
       assert.doesNotMatch(s, /The machine|render machine/, `${type}/${pos}`);
     }
   }
-  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 2), /about 5 minutes for each film ahead of yours/);
-  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 2), /and it may take longer\.$/);
-  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'preview' }, 8), /With this many ahead of yours, it may take a few hours or more\./);
-  assert.doesNotMatch(J.progressNote({ state: 'queued', attempt: 1, job_type: 'preview' }, 7), /With this many/, 'position 7 is six ahead: not beyond six');
-  assert.doesNotMatch(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 3), /With this many/);
+  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 2), /so it may take longer. Your place can move back/);
 });
 
 test('Help "Why is my film still Queued?" says it can be hours at busy times, on both Help pages', () => {
-  const A = 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A full film is checked by a person before it starts, which can take longer. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours.';
+  const A = 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour, so a long line can mean hours, or a day or more when many people join at once, such as a launch day. A full film is checked by a person before it starts; when an earlier one is approved, your place in line can move back. The Render panel shows your place in line. You can have 2 films waiting at once. We do not send an email when a film is ready, so come back to this page to check.';
   assert.ok(read('help/index.html').includes(A));
   assert.ok(read('assets/app-library.js').includes(A));
 });
@@ -156,7 +152,7 @@ test('words a stranger should not read: no attempt counts, no "tried N times", n
     assert.equal(s, 'We had a problem on our side, not with your story. You can try again. If it keeps happening, open “Get help with this”.');
     assert.doesNotMatch(s, /tried|attempt|engine|process|render machine|mock/i);
   }
-  assert.equal(J.progressNote({ state: 'queued', attempt: 2 }, 1), 'Next in line. We make one film at a time. This was put back in line after a problem on our side.');
+  assert.equal(J.progressNote({ state: 'queued', attempt: 2 }, 1), 'Next in line. We make one film at a time. It starts when the film being made now finishes, which can take up to about half an hour. This was put back in line after a problem on our side.');
   assert.doesNotMatch(J.progressNote({ state: 'queued', attempt: 2 }, 3), /attempt|Retrying|render-machine/);
   // an unrecognised class does not show the worker's words either; a story problem (checks, invalid input) still shows the plain reason the person can act on
   assert.doesNotMatch(J.problem({ state: 'failed', error_class: 'weird', error_detail: MOCK }), /engine process/);

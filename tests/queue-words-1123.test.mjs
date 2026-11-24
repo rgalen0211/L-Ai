@@ -14,31 +14,47 @@ const goesRed = (check, oldText) => assert.throws(() => check(oldText), undefine
 const lib = read('assets/app-library.js');
 const panel = lib.slice(lib.indexOf('function jobsPanel('), lib.indexOf("window.addEventListener('hashchange', route)"));
 
-const T20OLD = 'Number 20 in line. We make one film at a time. At about 5 minutes for each film ahead of yours, that is about 1 hour 35 minutes, and it may take longer.';   // the old count: (position - 1) x 5, which left out the film running now and said when yours starts as if it were when it is ready
-test('HIGH 2 queue line: a contact sheet behind a line says about 5 minutes for each film ahead, "about", and "may take longer"; no promise', () => {
-  const sheet = n => J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, n);
-  const check = s => assert.equal(s, 'Number 20 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour 40 minutes and takes about 5 more, and it may take longer.');
-  check(sheet(20));
-  goesRed(check, 'Number 20 in line.');
+const T20OLD = 'Number 20 in line. We make one film at a time. At about 5 minutes for each film ahead of yours, that is about 1 hour 35 minutes, and it may take longer.';   // the old count: (position - 1) x 5
+const ONE = 'We make one film at a time.';
+const MOVE = 'Your place can move back when we approve a full film someone asked for earlier.';
+const HALF = 'A full film ahead of yours can take up to half an hour, so it may take longer.';
+const FULL = 'A full film takes up to about half an hour once it starts';
+// WEB 11-24, public launch (FACES 09:33 bands, GAMES 09:33, CC1 09:33): a stranger in a line of any length reads a wait that is true. Measured: sheet about 4.5 min, preview about 4.7, an approved full film about 17 min and up to about 30.
+test('PUBLIC QUEUE: a contact sheet or preview, places 2 to 24: minutes with "about", the full-film caveat and the move-back sentence', () => {
+  for (const type of ['contact_sheet', 'preview']) {
+    const n = p => J.progressNote({ state: 'queued', attempt: 1, job_type: type }, p);
+    assert.equal(n(20), `Number 20 in line. ${ONE} It may be working on another film right now. Yours starts in about 1 hour 40 minutes and takes about 5 more. ${HALF} ${MOVE}`);
+    assert.equal(n(2), `Number 2 in line. ${ONE} It may be working on another film right now. Yours starts in about 10 minutes and takes about 5 more. ${HALF} ${MOVE}`);
+    assert.equal(n(12), `Number 12 in line. ${ONE} It may be working on another film right now. Yours starts in about 1 hour and takes about 5 more. ${HALF} ${MOVE}`);
+    assert.equal(n(24), `Number 24 in line. ${ONE} It may be working on another film right now. Yours starts in about 2 hours and takes about 5 more. ${HALF} ${MOVE}`);
+  }
+  const check = s => { assert.match(s, /so it may take longer./); assert.match(s, /Your place can move back/); assert.doesNotMatch(s, /at least/i); };
+  check(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 8));
   goesRed(check, T20OLD);
-  assert.equal(sheet(2), 'Number 2 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 10 minutes and takes about 5 more, and it may take longer.');
-  assert.equal(sheet(12), 'Number 12 in line. We make one film at a time. It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about 1 hour and takes about 5 more, and it may take longer.');
-  assert.equal(sheet(1), 'Next in line. We make one film at a time.', 'nothing ahead: no estimate');
-  for (const n of [2, 3, 7, 8, 12, 20]) assert.doesNotMatch(sheet(n), /few hours/, `a contact sheet that shows a number never also says hours (${n})`);
-  goesRed(s => assert.doesNotMatch(s, /few hours/), 'Number 2 in line. ... At busy times yours may take a few hours.');
-  assert.equal(sheet(0), 'Waiting in line. We make one film at a time. At busy times yours may take a few hours.', 'position unknown: no number invented');
 });
 
-test('HIGH 2 queue line: a preview or a final render (no defensible time) gets no number, only the plain line', () => {
-  for (const t of ['preview', 'final_render', undefined]) {
-    const s = J.progressNote({ state: 'queued', attempt: 1, job_type: t }, 20);
-    assert.equal(s, 'Number 20 in line. We make one film at a time. Each film ahead of yours takes a few minutes. With this many ahead of yours, it may take a few hours or more.');
-    assert.doesNotMatch(s, /\d+ minutes|\d+ hour/);
+test('PUBLIC QUEUE: places 25 to 149 say whole hours (rounded up), never hours-and-minutes; 150 and more say a day or more and that the place is kept', () => {
+  const n = (p, t = 'contact_sheet') => J.progressNote({ state: 'queued', attempt: 1, job_type: t }, p);
+  assert.equal(n(25), `Number 25 in line. ${ONE} Yours starts in about 3 hours, maybe more if full films are ahead of yours. ${MOVE}`);
+  assert.equal(n(60, 'preview'), `Number 60 in line. ${ONE} Yours starts in about 5 hours, maybe more if full films are ahead of yours. ${MOVE}`);
+  assert.equal(n(149), `Number 149 in line. ${ONE} Yours starts in about 13 hours, maybe more if full films are ahead of yours. ${MOVE}`);
+  const LONG = (p) => `Number ${p} in line. ${ONE} The line is very long right now. Yours may take a day or more. You can close this page and come back; your film keeps its place in line while the render machine is running.`;
+  for (const t of ['contact_sheet', 'preview', 'final_render', undefined]) {
+    assert.equal(n(150, t), LONG(150));
+    assert.equal(n(1000, t), LONG(1000));
   }
-  // the switch is at 6 films AHEAD: position 7 (six ahead) keeps the busy-times line, position 8 (seven ahead) says hours or more
-  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'preview' }, 7), /At busy times yours may take a few hours\.$/);
-  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'preview' }, 8), /With this many ahead of yours, it may take a few hours or more\.$/);
-  assert.match(J.progressNote({ state: 'queued', attempt: 2, job_type: 'contact_sheet' }, 3), /This was put back in line after a problem on our side\.$/, 'the retry sentence is kept');
+  for (const p of [25, 40, 100, 149, 150, 400]) assert.doesNotMatch(n(p), /d+ hours? d+ minutes|83 hours/, 'no hours-and-minutes number in a long line');
+  assert.match(J.progressNote({ state: 'queued', attempt: 2, job_type: 'contact_sheet' }, 3), /This was put back in line after a problem on our side.$/, 'the retry sentence is kept');
+});
+
+test('PUBLIC QUEUE: a full film names its own length, not "a few minutes" per film; next in line says it starts when the film being made now finishes; position unknown invents no number', () => {
+  const n = p => J.progressNote({ state: 'queued', attempt: 1, job_type: 'final_render' }, p);
+  assert.equal(n(2), `Number 2 in line. ${ONE} ${FULL}, so yours may start after a few films, not a few minutes. ${MOVE}`);
+  assert.equal(n(24), `Number 24 in line. ${ONE} ${FULL}, so yours may start after a few films, not a few minutes. ${MOVE}`);
+  assert.equal(n(25), `Number 25 in line. ${ONE} ${FULL}, and a sheet or preview ahead of yours takes a few minutes, so it may be hours with this many ahead. ${MOVE}`);
+  assert.doesNotMatch(n(30), /Each film ahead of yours takes a few minutes/);
+  for (const t of ['contact_sheet', 'preview', 'final_render']) assert.equal(J.progressNote({ state: 'queued', attempt: 1, job_type: t }, 1), `Next in line. ${ONE} It starts when the film being made now finishes, which can take up to about half an hour.`);
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 0), `Waiting in line. ${ONE} At busy times yours may take hours, or more than a day when many people join at once.`, 'position unknown: no number invented');
 });
 
 test('HIGH 2 Help, the banner and the in-app help no longer say "If it waits more than an hour we stop it" (expire_stale_queue acts only when rendering is delayed and every worker has been silent the whole timeout)', () => {

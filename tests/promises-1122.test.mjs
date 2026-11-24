@@ -49,10 +49,10 @@ test('F3: a retry says "attempt 2 of 2": the database retries a job once (attemp
   const sql = read('supabase/migrations/20261017000600_pipe1_orders.sql');
   assert.match(sql, /check \(attempt between 1 and 2\)/);
   assert.match(sql, /lost\.attempt < 2 then 'queued'/);
-  const check = note => assert.match(note, /^Next in line\. We make one film at a time\. This was put back in line after a problem on our side\.$/);
+  const check = note => assert.match(note, /^Next in line\. We make one film at a time. It starts when the film being made now finishes, which can take up to about half an hour. This was put back in line after a problem on our side\.$/);
   check(J.progressNote({ state: 'queued', attempt: 2 }, 1));
   goesRed(check, 'Next in line. Retrying once after a render-machine problem (attempt 2 of 2).');
-  assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 1), 'Next in line. We make one film at a time.');
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 1), 'Next in line. We make one film at a time. It starts when the film being made now finishes, which can take up to about half an hour.');
 });
 
 test('GAMES help: the live editor answer does not say nothing is sent; it says no credits are used and a change can be undone', () => {

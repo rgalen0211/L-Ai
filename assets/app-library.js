@@ -286,7 +286,7 @@
         { id: 'write', label: 'Write to us', el: h('div', {}, form, done) },
         { id: 'films', label: 'Films and credits', el: answers(
           qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them. Otherwise a waiting film keeps its place in line.'),
-          qa('Why is my film still "Queued"?', 'We make one film at a time, oldest first. Yours starts when the ones ahead of it finish. A full film is checked by a person before it starts, which can take longer. A contact sheet usually takes about 5 minutes, but at busy times yours may take a few hours. The Render panel shows your place in line. You can have 2 films waiting at once.'),
+          qa('Why is my film still "Queued"?', 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour, so a long line can mean hours, or a day or more when many people join at once, such as a launch day. A full film is checked by a person before it starts; when an earlier one is approved, your place in line can move back. The Render panel shows your place in line. You can have 2 films waiting at once. We do not send an email when a film is ready, so come back to this page to check.'),
           qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits (a failed free preview still counts toward your free ones).'),
           qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.'),
           qa('Why can\u2019t I make a full film? How do I get credits?', WELCOME_LINE + ' A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' ' + FILM_COST_CLOSED + ' Buying credits is not open yet.'))) },
@@ -1816,7 +1816,7 @@
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
           finalNote, finalButton),
-        h('p', { class: 'form-note run-timing' }, 'Jobs keep running if you leave this page.'));
+        h('p', { class: 'form-note run-timing' }, 'Jobs keep running if you leave this page. We do not send an email when a film is ready, so come back to this page to check.'));
 
       async function submit(button, type, params, ladder) {
         error.hidden = true;

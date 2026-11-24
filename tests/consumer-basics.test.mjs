@@ -87,7 +87,7 @@ test('FOOTER (Ryan Q26, 2026-10-18): the app footer says "Contact: ryagram@usela
 
 test('DELIVERY LINK SURVIVES A FINISHED RENDER (found by tools/check-delivery-e2e.py): the order box sits outside the run controls, which are hidden once a version is complete', () => {
   const lib = read('assets/app-library.js');
-  const controls = lib.slice(lib.indexOf("const controls = h('div', { class: 'run-controls' },"), lib.indexOf("'Jobs keep running if you leave this page.'"));
+  const controls = lib.slice(lib.indexOf("const controls = h('div', { class: 'run-controls' },"), lib.indexOf("'Jobs keep running if you leave this page. We do not send"));
   assert.ok(!controls.includes('orderBox'), 'orderBox inside the run controls would be hidden with them');
   assert.ok(lib.includes('controls, orderBox, balanceNote, lockedNote, error);'));
 });

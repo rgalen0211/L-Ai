@@ -161,19 +161,29 @@
   // minutes'; WORKER's live run 11-17 took 3 min 52 s), so only a contact sheet gets a number: 5 minutes for each film ahead, said as 'about', never a promise, with 'may take longer' because a film ahead
   // may be a preview or a final render. Any other kind of job says only that each film ahead takes a few minutes (WORKER's preview timings disagree: 2 min 23 s measured, 5 to 7 min in the features list).
   const ONE_AT_A_TIME = 'We make one film at a time.';
-  const BUSY_HOURS = 'At busy times yours may take a few hours.';                                                       // WORKER: one PC, one job at a time: a big sign-up morning is hours, whatever the job type
-  const MANY_AHEAD = 'With this many ahead of yours, it may take a few hours or more.';                                // beyond 6 films ahead (position 8 and up; position 7 = 6 ahead = 30 minutes at 5 each) the estimate can only be longer
+  const BUSY_HOURS = 'At busy times yours may take hours, or more than a day when many people join at once.';        // position unknown: no number invented (WEB 11-24, public launch: one PC, one job at a time)
+  const NEXT_UP = 'It starts when the film being made now finishes, which can take up to about half an hour.';
+  const MOVE_BACK = 'Your place can move back when we approve a full film someone asked for earlier.';
+  const FULL_FILM = 'A full film takes up to about half an hour once it starts';
+  // Measured times (WORKER, Monday live): a contact sheet about 4.5 minutes, a preview about 4.7, an approved full film about 17 minutes and up to about 30 (ENGINE, one renderer).
+  // Bands by place in line (P = 1 + the films queued ahead; the film made NOW is not counted). Short line: minutes. Longer: whole hours, never 'hours and minutes'. Very long: a day or more.
+  const hoursUp = minutes => { const h = Math.ceil(minutes / 60); return h + (h === 1 ? ' hour' : ' hours'); };
   const waitWords = minutes => { const h = Math.floor(minutes / 60), m = minutes % 60; return h ? `${h} hour${h === 1 ? '' : 's'}${m ? ` ${m} minutes` : ''}` : `${m} minutes`; };
   function queueWait(job, position) {
-    // The hours sentence is said only where NO number is shown ('Waiting in line') and for a job with no measured time: beside 'yours starts in about 10 minutes' it contradicted itself.
-    if (job.job_type !== 'contact_sheet') return `${ONE_AT_A_TIME} Each film ahead of yours takes a few minutes. ${position > 7 ? MANY_AHEAD : BUSY_HOURS}`;
-    return `${ONE_AT_A_TIME} It may be working on another film right now. At about 5 minutes for each film ahead of yours, yours starts in about ${waitWords(position * 5)} and takes about 5 more, and it may take longer.`;      // position = 1 + the films queued ahead (queue_position, 2a_core.sql), and the film the machine is making NOW is not counted: position x 5 covers it plus the ones ahead, up to when yours STARTS
+    if (position >= 150) return `${ONE_AT_A_TIME} The line is very long right now. Yours may take a day or more. You can close this page and come back; your film keeps its place in line while the render machine is running.`;
+    if (job.job_type === 'final_render') {
+      return position >= 25
+        ? `${ONE_AT_A_TIME} ${FULL_FILM}, and a sheet or preview ahead of yours takes a few minutes, so it may be hours with this many ahead. ${MOVE_BACK}`
+        : `${ONE_AT_A_TIME} ${FULL_FILM}, so yours may start after a few films, not a few minutes. ${MOVE_BACK}`;
+    }
+    if (position >= 25) return `${ONE_AT_A_TIME} Yours starts in about ${hoursUp(position * 5)}, maybe more if full films are ahead of yours. ${MOVE_BACK}`;
+    return `${ONE_AT_A_TIME} It may be working on another film right now. Yours starts in about ${waitWords(position * 5)} and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer. ${MOVE_BACK}`;
   }
   function progressNote(job, queuePosition, own) {
     const ownComputer = job.run_on ? job.run_on === 'owner_local' : !!(own && own.tester === true);
     if (job.state === 'queued' && ownComputer && !job.cancel_requested) return own && own.computers === 0 ? WAITING_FOR_COMPUTER : WAITING_FOR_COMPUTER_PICKUP;
     if (job.state === 'queued') {
-      const place = queuePosition ? (queuePosition === 1 ? `Next in line. ${ONE_AT_A_TIME}` : `Number ${queuePosition} in line. ${queueWait(job, queuePosition)}`) : `Waiting in line. ${ONE_AT_A_TIME} ${BUSY_HOURS}`;
+      const place = queuePosition ? (queuePosition === 1 ? `Next in line. ${ONE_AT_A_TIME} ${NEXT_UP}` : `Number ${queuePosition} in line. ${queueWait(job, queuePosition)}`) : `Waiting in line. ${ONE_AT_A_TIME} ${BUSY_HOURS}`;
       return job.attempt > 1 ? `${place} This was put back in line after a problem on our side.` : place;
     }
     if (job.cancel_requested) return 'Stopping…';
