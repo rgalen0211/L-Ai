@@ -236,12 +236,12 @@ show the generic Ryagram card), and the owner's choice to show uploaded data.
 1. **Authentication → URL Configuration:** Site URL `https://uselai.com`; add
    `https://uselai.com/app/` to Redirect URLs.
 2. **Authentication → Emails → Reset password:** replace the link in the template with
-   `<a href="{{ .SiteURL }}/app/?reset={{ .TokenHash }}">Choose a new password</a>`. The app checks
+   `<a href="{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&amp;type=recovery">Choose a new password</a>` (the file is `supabase/email-templates/reset-password.html`; links already sent as `/app/?reset=...` still work). The app checks
    that token itself (`verifyOtp`), so the link works in any browser, and it removes the token from
    the address bar at once. Supabase's default link would put tokens in the `#`, where /app/'s own
    page addresses live.
-3. **Authentication → Policies/Providers → Email:** set the minimum password length to 10 (the
-   app asks for 10).
+3. **Authentication → Policies/Providers → Email:** set the minimum password length to 12 (the
+   app asks for 12).
 4. **Emails to anyone but you need your own email sender:** see "Email sender" below. Supabase's
    built-in sender only delivers to the project's team members, a few per hour. Until then, reset
    links reach only your own address.

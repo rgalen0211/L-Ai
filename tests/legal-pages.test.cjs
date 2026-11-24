@@ -18,7 +18,7 @@ const hasPython = py.status === 0;
 
 test('DRAFTS: both are marked as drafts for Ryan, noindex, with the draft stylesheet, and the policy still names L\'Ai, LLC as the operator', () => {
   for (const html of [terms, privacy]) {
-    assert.match(html, /<div class="draft-banner" role="note"><strong>DRAFT FOR RYAN'S APPROVAL\. Not published\.<\/strong>/);
+    assert.match(html, /<div class="draft-banner" role="note"><strong>SUPERSEDED DRAFT. Not the current text.<\/strong>/);
     assert.match(html, /<meta name="robots" content="noindex, nofollow">/);
     assert.match(html, /<link rel="stylesheet" href="\/assets\/legal-draft\.css">/);
     assert.match(html, /operated by L'Ai, LLC/);

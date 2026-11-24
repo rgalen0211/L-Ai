@@ -23,8 +23,8 @@ window.ryagramConfig = Object.freeze({
   // While Stripe runs with test keys, the Credits page says so and names the test card.
   stripeTestMode: true,
   // BUYING OPEN: whether the app offers any Buy / Subscribe button (the Credits page's buttons, the home "Buy credits" link, the "Buy credits" link under a render that needs more credits).
-  // Off (false) while live payments are off: a stranger at the free preview is never shown a test-card checkout; Credits shows the balance, what credits are for and the packs and plans
-  // WITHOUT buttons, and says buying is not open yet. OWNER DECISION: the open sign-up flip does NOT touch this switch (Ryan's 11:30 decisions, 2026-11-21: sign-up OPEN at launch,
+  // Off (false) while live payments are off: a stranger at the free preview is never shown a test-card checkout; Credits shows the balance, what credits are for, with NO packs, plans or prices
+  // and no buttons (the page asks the server for no offers while this is false), and says buying is not open yet. OWNER DECISION: the open sign-up flip does NOT touch this switch (Ryan's 11:30 decisions, 2026-11-21: sign-up OPEN at launch,
   // live payments stay OFF until Ohio answers the tax question; proposals/WEB-SIGNUP-FLIP-1121.md item 9). It stays false at the sign-up launch and flips to true only when live payments are on
   // (live_ok / live Stripe) and Ryan says so, a separate decision after Ohio. Mock mode and tests turn it on themselves (tests/fake-supabase.js seeds, ?buyingclosed shows the closed page in mock).
   buyingOpen: false,
@@ -120,7 +120,7 @@ window.ryagramConfig = Object.freeze({
   // The Geographic Intelligence demo page (/geo-demo/; NEXT-WEB 198): shaded areas, markers, a clicked site, a ring and labelled counts, on SYNTHETIC data only. Draft words for Ryan. OFF until he has seen it.
   geoDemo: false,
   // Open sign-up (Ryan 11-21 11:30; LAUNCH-WED-1125 row 1): this switch SHOWS "Create an account" (sign-in page, /ryagram/) and runs the join call. TRUE on branch web-signup-open-1122, for the Wed 11-25 push ONLY AFTER the server half is on:
-  // join_open ON and waiting_accounts OFF (a new account is then ACTIVE at once; welcome credits are not granted, Q679 A; an invite code still grants its own). With waiting_accounts ON (the brake) the same page makes a WAITING
+  // join_open ON and waiting_accounts OFF (a new account is then ACTIVE at once; the person gets 8 welcome credits when they confirm their email, once per email address, Q679 B; an invite code gives its own credits instead). With waiting_accounts ON (the brake) the same page makes a WAITING
   // account that sees "You are on the list" (pages: waiting screen, #/admin/waiting). If the server is not open the form says "not open yet". Push this value only after the join test with a new address passes. Set false to hide the Create link.
   waitingAccounts: true,
   // On the geo demo page, a file chooser that loads the PRIVATE real-data file from the person's own computer (NEXT-WEB 204; OpenStreetMap data, attorney rows open). Needs geoDemo. Nothing is uploaded or stored. OFF.
