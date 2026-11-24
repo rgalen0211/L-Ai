@@ -75,14 +75,14 @@ class QueueBrakeStep(unittest.TestCase):
         self.assertEqual(self.read(), {
             "queue brake": "off",
             "jobs waiting for the render PC": "0 waiting: 0 sheets, 0 previews, 0 full films",
-            "oldest waiting job made": "none waiting",
+            "longest wait in line (since it joined)": "none waiting",
             "render PC last checked in": "never"})
 
     def test_part_1_counts_the_line(self):
         self.submit(self.version(), "contact_sheet")
         self.submit(self.version(), "contact_sheet")
         claimed = self.submit(self.version(who=OTHER), "contact_sheet", who=OTHER)
-        self.admin("update jobs set created_at = now() - interval '50 minutes' where id = %s returning 1",
+        self.admin("update jobs set created_at = now() - interval '50 minutes', queued_at = now() - interval '50 minutes' where id = %s returning 1",
                    self.submit(self.version(who=OTHER), "contact_sheet", who=OTHER))
         self.admin("update jobs set state = 'claimed' where id = %s returning 1", claimed)
         local = self.submit(self.version(), "contact_sheet")
@@ -92,8 +92,14 @@ class QueueBrakeStep(unittest.TestCase):
         self.admin("update workers set last_seen_at = now() - interval '2 minutes' where user_id = %s returning 1", WORKER)
         r = self.read()
         self.assertEqual(r["jobs waiting for the render PC"], "3 waiting: 3 sheets, 0 previews, 0 full films", "claimed and own-computer jobs left out")
-        self.assertEqual(r["oldest waiting job made"], "50 min ago")
+        self.assertEqual(r["longest wait in line (since it joined)"], "50 min")
         self.assertEqual(r["render PC last checked in"], "2 min ago")
+
+    def test_an_approved_full_film_asked_for_long_ago_does_not_read_as_a_long_wait(self):
+        # GAMES 10:51: approval sets queued_at (pipe1_orders.sql:1056) but keeps created_at, the time the film was ASKED for
+        jid = self.submit(self.version(), "contact_sheet")
+        self.admin("update jobs set created_at = now() - interval '120 minutes', queued_at = now() - interval '5 minutes' where id = %s returning 1", jid)
+        self.assertEqual(self.read()["longest wait in line (since it joined)"], "5 min", "the wait counts from joining the line, not from asking")
 
     def test_part_2_sets_25_and_the_26th_is_refused_then_part_3_takes_it_off(self):
         self.admin("update ops_settings set queue_cap_per_owner = 50 returning 1")
