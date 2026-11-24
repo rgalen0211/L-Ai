@@ -65,6 +65,10 @@ def main():
                 ctx = b.new_context(viewport={'width': width, 'height': height}, has_touch=width < 500)
 
                 def route(r):
+                    if r.request.url.startswith(BASE) and '/assets/ryagram-config.js' in r.request.url:
+                        # the opening branch ships buyingOpen true; these checks are about the CLOSED page, so they serve the config closed (web-buying-flip-1124)
+                        r.fulfill(body=(ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8').replace('buyingOpen: true,', 'buyingOpen: false,'), content_type='text/javascript')
+                        return
                     if r.request.url.startswith(BASE):
                         r.continue_()
                     else:

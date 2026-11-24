@@ -18,16 +18,15 @@ window.ryagramConfig = Object.freeze({
   credits: true,
   // Show the Credits page (packs and plans through Stripe Checkout). Turn on only once the
   // stripe-checkout and stripe-webhook functions are deployed (supabase/README.md, "Stripe").
-  // STRIPE TEST WINDOW: see credits above. stripeTestMode below must stay true; tests/stripe-test-window.test.cjs enforces it.
+  // STRIPE TEST WINDOW: see credits above. stripeTestMode below is false only on the opening branch, together with buyingOpen true; tests/stripe-test-window.test.cjs enforces the pairing.
   payments: true,
-  // While Stripe runs with test keys, the Credits page says so and names the test card.
-  stripeTestMode: true,
+  // While Stripe runs with TEST keys this is true and the Credits page says so and names the test card. FALSE on the opening branch (live keys): no test text.
+  stripeTestMode: false,
   // BUYING OPEN: whether the app offers any Buy / Subscribe button (the Credits page's buttons, the home "Buy credits" link, the "Buy credits" link under a render that needs more credits).
-  // Off (false) while live payments are off: a stranger at the free preview is never shown a test-card checkout; Credits shows the balance, what credits are for and the packs and plans
-  // WITHOUT buttons, and says buying is not open yet. OWNER DECISION: the open sign-up flip does NOT touch this switch (Ryan's 11:30 decisions, 2026-11-21: sign-up OPEN at launch,
-  // live payments stay OFF until Ohio answers the tax question; proposals/WEB-SIGNUP-FLIP-1121.md item 9). It stays false at the sign-up launch and flips to true only when live payments are on
-  // (live_ok / live Stripe) and Ryan says so, a separate decision after Ohio. Mock mode and tests turn it on themselves (tests/fake-supabase.js seeds, ?buyingclosed shows the closed page in mock).
-  buyingOpen: false,
+  // THIS BRANCH OPENS BUYING (web-buying-flip-1124, WEB 11-24): true, with stripeTestMode false (no test-card text). Push it ONLY after Ryan's live step 69 (live price ids, live keys, stripe_settings.live_ok,
+  // an admin test purchase and refund) and the lawyer's review of the payment terms; the Wednesday head ships buyingOpen false. Closed (false): Credits shows the balance and what credits are for,
+  // no packs, plans, prices or buttons, and says buying is not open yet (CC1 ruling 11-23 08:34). Mock mode and tests turn it on themselves (tests/fake-supabase.js seeds, ?buyingclosed shows the closed page in mock).
+  buyingOpen: true,
   // Show "Public page" on finished films in /app/. Turn on only once the film-page function is
   // deployed and its SQL applied (supabase/README.md, "Public film pages").
   filmPages: false,

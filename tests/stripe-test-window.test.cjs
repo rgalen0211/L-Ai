@@ -10,8 +10,10 @@ const vm = require('node:vm');
 const cfgSource = fs.readFileSync(path.join(__dirname, '../assets/ryagram-config.js'), 'utf8');
 const cfg = (() => { const window = {}; vm.runInNewContext(cfgSource, { window }); return window.ryagramConfig; })();
 
-test('TEST WINDOW: payments are never on unless the Credits page also says it is test mode', () => {
-  if (cfg.payments === true) assert.equal(cfg.stripeTestMode, true, 'payments are on but stripeTestMode is not true: that would show real-money Checkout');
+test('TEST WINDOW: stripeTestMode false (live keys, no test-card text) only ever together with buyingOpen true, and the reverse', () => {
+  // web-buying-flip-1124 is the opening: both change in the one commit. Test keys keep stripeTestMode true and buyingOpen false (the Wednesday head).
+  assert.equal(cfg.stripeTestMode === false, cfg.buyingOpen === true, 'stripeTestMode false and buyingOpen true are one switch: never one without the other');
+  if (cfg.payments === true && cfg.stripeTestMode === false) assert.equal(cfg.buyingOpen, true);
 });
 
 test('TEST WINDOW: payments need credits (the Credits page lives inside credits), and credits alone is allowed', () => {
@@ -20,9 +22,9 @@ test('TEST WINDOW: payments need credits (the Credits page lives inside credits)
   assert.equal(typeof cfg.payments, 'boolean');
 });
 
-test('TEST WINDOW: stripeTestMode stays true in this file (going live is a separate, typed decision)', () => {
-  assert.equal(cfg.stripeTestMode, true);
-  assert.match(cfgSource, /stripeTestMode: true,/);
+test('TEST WINDOW: on the opening branch stripeTestMode is false in this file (going live is Ryan’s typed step 69; the Wednesday head keeps it true)', () => {
+  assert.equal(cfg.stripeTestMode, false);
+  assert.match(cfgSource, /stripeTestMode: false,/);
 });
 
 test('TEST WINDOW: the checkout function still refuses live keys and the database still refuses live events until live_ok', () => {

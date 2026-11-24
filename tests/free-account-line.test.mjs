@@ -69,15 +69,15 @@ test('the words follow the Credits page switch (credits + payments + buyingOpen)
   assert.ok(!/not open yet/.test(OPEN) && /Credits pay for full films\.$/.test(OPEN));
 });
 
-test('the shipped config (buyingOpen false) gives the closed wording, and every marked element is filled', () => {
+test('the shipped config on the opening branch (buyingOpen true) gives the open wording, and every marked element is filled', () => {
   const cfgWin = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: cfgWin });
   const el = { textContent: 'stale' };
   const win = { ryagramConfig: cfgWin.ryagramConfig };
   vm.runInNewContext(read('assets/free-account-line.js'), { window: win, document: { querySelectorAll: () => [el] } });
-  assert.equal(el.textContent, CLOSED);
-  const open = { textContent: '' };
-  vm.runInNewContext(read('assets/free-account-line.js'), { window: { ryagramConfig: { ...cfgWin.ryagramConfig, buyingOpen: true } }, document: { querySelectorAll: () => [open] } });
-  assert.equal(open.textContent, OPEN);
+  assert.equal(el.textContent, OPEN);
+  const closed = { textContent: '' };
+  vm.runInNewContext(read('assets/free-account-line.js'), { window: { ryagramConfig: { ...cfgWin.ryagramConfig, buyingOpen: false } }, document: { querySelectorAll: () => [closed] } });
+  assert.equal(closed.textContent, CLOSED);
 });
 
 test('the same switch as app-library.js buyingOn: the library still ties it to credits + payments + buyingOpen', () => {

@@ -20,9 +20,9 @@ test('LAUNCH FLAGS: the switches that are not part of the block stay off', () =>
   for (const k of ['aiEditor', 'uploads', 'filmPages', 'seeYourCounty', 'industryTemplate', 'catalog', 'catalogComingSoon']) assert.equal(cfg[k], false, k);
 });
 
-test('LAUNCH FLAGS: payments can only ever be on together with credits and Stripe TEST mode', () => {
-  if (cfg.payments === true) { assert.equal(cfg.credits, true); assert.equal(cfg.stripeTestMode, true); }
-  assert.equal(cfg.stripeTestMode, true);
+test('LAUNCH FLAGS: payments need credits; test mode and buying open are one pair (opening branch: live, open)', () => {
+  if (cfg.payments === true) assert.equal(cfg.credits, true);
+  assert.equal(cfg.stripeTestMode === false, cfg.buyingOpen === true);
 });
 
 test('LAUNCH FLAGS: the config is still public-safe (a publishable key, no secret)', () => {

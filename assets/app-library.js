@@ -1091,7 +1091,7 @@
         askError,
         h('p', {}, continueButton, ' ', h('button', { class: 'button secondary', type: 'button', onclick: () => { askBox.hidden = true; pending = null; } }, 'Cancel')));
       const askFirst = code => { pending = code; askError.hidden = true; askBox.hidden = false; if (askTitle.focus) askTitle.focus(); };
-      const planNote = `Unused plan credits carry over, up to two months’ worth.${current || plan ? ' Cancel any time from Manage plan.' : ''}`;      // no Manage plan button without a plan: no sentence that points at it
+      const planNote = `A plan balance holds up to two months of credits; the rest expires at renewal.${current || plan ? ' Cancel any time from Manage plan.' : ''}`;      // no Manage plan button without a plan: no sentence that points at it
       const open = buyingOn();
       const offerItem = p => {
         const blocked = p.monthly && C.hasPlan(plan);
@@ -1105,7 +1105,7 @@
       const packs = offers.filter(p => !p.monthly), plans = offers.filter(p => p.monthly);
       const testMode = !open ? null : window.ryagramMock
         ? 'Mock mode: nothing goes to Stripe, and buying adds the credits at once.'
-        : window.ryagramConfig?.stripeTestMode !== false
+        : window.ryagramConfig?.stripeTestMode === true
           ? 'Test mode: no real money moves. Use the card 4242 4242 4242 4242 with any future date and any CVC.' : null;
       return [
         h('a', { href: '#/', class: 'back' }, '← All projects'),
