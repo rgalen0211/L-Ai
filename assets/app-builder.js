@@ -26,7 +26,7 @@
     { id: 'work', label: 'Work', blurb: 'Unemployment, state by state, 2019 to 2022.', dataset: 'bls_state_unemployment', film_type: 'line', title: 'State unemployment rate, 2019 to 2022', start: '2019-01', end: '2022-12' }
   ];
   const readyMade = catalog => READY_MADE.filter(r => (catalog || []).some(d => d.id === r.dataset));
-  const FILE_NOTE = 'The contact sheet is a grid of still frames to check the film. It usually takes about 4 to 5 minutes and is free; you decide what to do after you have seen it.';
+  const FILE_NOTE = 'The contact sheet is a grid of still frames to check the film. It takes about 5 minutes once started and is free; you decide what to do after you have seen it.';
   // One tip per step, for the tutorial: what the step decides and what it never changes.
   const TIPS = {
     dataset: 'Tip: every dataset shows its source and licence before you use it. A ready-made start fills in every step for you.',

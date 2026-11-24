@@ -1816,7 +1816,7 @@
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
           finalNote, finalButton),
-        h('p', { class: 'form-note run-timing' }, 'Jobs run if you leave. We send no email.'));
+        h('p', { class: 'form-note run-timing' }, 'Jobs run if you leave. No email: check back here.'));
 
       async function submit(button, type, params, ladder) {
         error.hidden = true;
@@ -2100,7 +2100,7 @@
       const el = h('section', { class: 'jobs-panel', 'aria-labelledby': 'jobs-title' },
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
-        h('p', { class: 'form-note' }, 'A contact sheet is a grid of still frames to check the look. It usually takes about 4 to 5 minutes. A preview is a short clip. The final film is the full render.'),
+        h('p', { class: 'form-note' }, 'A contact sheet is a grid of still frames to check the look. It takes about 5 minutes once it starts. A preview is a short clip. The final film is the full render.'),
         nextStrip, controls, orderBox, balanceNote, lockedNote, error);
       // the job list is its OWN section (the Jobs tab) and scrolls inside its own panel; a status stuck on a hidden tab is refreshed the moment the page is visible again
       const listPanel = h('section', { class: 'jobs-list-panel', 'aria-labelledby': 'jobs-list-title' },
