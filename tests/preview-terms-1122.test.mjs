@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -160,4 +161,15 @@ test('WEB 11-23 (BUILDER second review): who reads requests, steps recorded, inv
   assert.doesNotMatch(terms + privacy, /WEB 11-22|proposals\/|<!--/);
   // the placeholders stay until Ryan supplies the address and the Connect wording
   assert.match(t, /\[Mailing address: to be added before launch\]/);
+});
+
+// OPENING GUARD (GAMES 11-24 11:25): the day buyingOpen is true, the Terms and Privacy must NOT still say payments are not open, and they must have their payment sections.
+// On the Wednesday head buyingOpen is false and this passes. On web-buying-flip-1124 it is RED until the lawyer-reviewed payment text (proposals/WEB-PAYMENT-TERMS-DRAFT-1124.md) is on both pages: flip and Terms go in ONE push.
+test('OPENING GUARD: with buyingOpen true neither page says buying is not open, and both carry a payments section (red on the opening branch until the reviewed payment text lands)', () => {
+  const cfgWin = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: cfgWin });
+  if (cfgWin.ryagramConfig.buyingOpen !== true) return;
+  for (const [name, html] of [['terms', terms], ['privacy', privacy]]) {
+    assert.doesNotMatch(textOf(html), /not open yet|will be replaced before any payment/i, `${name} still says payments are not open`);
+    assert.match(textOf(html), /Stripe/, `${name} has no payments text`);
+  }
 });
