@@ -1085,7 +1085,7 @@
       const askTitle = h('h2', { id: 'use-ask-title', tabindex: '-1' }, 'Before you pay');
       const askBox = h('section', { class: 'use-ask', hidden: true, 'aria-labelledby': 'use-ask-title' },
         askTitle,
-        h('p', { class: 'form-intro' }, 'We need two answers so we can charge the right tax, now or when you use your credits. We ask again the next time you buy.'),
+        h('p', { class: 'form-intro' }, 'We need two answers to work out sales tax. Ohio sales tax applies only to business use in Ohio: a monthly plan shows any tax at checkout, and credit packs have none at checkout. We ask again the next time you buy.'),
         h('fieldset', {}, h('legend', {}, 'Do you use Ryagram for business or personal use?'), useRadio('business', 'Business'), useRadio('personal', 'Personal')),
         h('p', {}, h('label', { for: 'use-country' }, 'Where do you use it? '), countrySelect), stateRow, zipRow,
         askError,
@@ -1131,7 +1131,7 @@
         offers.length || !open ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
         open ? askBox : null,
-        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.') : null
+        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe; Ryagram never sees your card. Sales tax is added where the law requires it.') : null
       ];
     }
 
