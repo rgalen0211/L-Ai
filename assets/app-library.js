@@ -1131,7 +1131,7 @@
         offers.length || !open ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
         open ? askBox : null,
-        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe; Ryagram never sees your card. Sales tax is added where the law requires it.') : null
+        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe; Ryagram never sees your card. Ohio sales tax is added where it applies.') : null
       ];
     }
 

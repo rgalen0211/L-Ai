@@ -169,7 +169,7 @@ test('OPENING GUARD: with buyingOpen true neither page says buying is not open, 
   const cfgWin = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: cfgWin });
   if (cfgWin.ryagramConfig.buyingOpen !== true) return;
   for (const [name, html] of [['terms', terms], ['privacy', privacy]]) {
-    assert.doesNotMatch(textOf(html), /not open yet|will be replaced before any payment/i, `${name} still says payments are not open`);
+    assert.doesNotMatch(textOf(html), /not open yet|no payments|will be replaced before any payment/i, `${name} still says payments are not open`);
     assert.match(textOf(html), /Stripe/, `${name} has no payments text`);
   }
 });
