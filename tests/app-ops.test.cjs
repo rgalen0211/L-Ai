@@ -20,8 +20,7 @@ test('the delayed notice shows only when rendering is delayed, says when it last
   const t = O.bannerText({ rendering: 'delayed', last_check_in: '2026-10-10T18:02:00Z' }, 'UTC');
   assert.match(t, /^Rendering is delayed\./);
   assert.match(t, /last checked in at 6:02 PM/);
-  assert.match(t, /If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them\.$/);
-  assert.doesNotMatch(t, /more than an hour/);
+  assert.match(t, /more than an hour we stop it and give your credits back/);
   assert.match(O.bannerText({ rendering: 'delayed', last_check_in: null }), /^Rendering is delayed\. Your film will start/);
 });
 

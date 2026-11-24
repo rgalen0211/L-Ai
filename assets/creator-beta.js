@@ -32,16 +32,19 @@
 
   function say(message) { status.hidden = false; status.textContent = message; status.focus(); }
 
-  // WHILE THE FORM IS OFF (Ryan, 2026-10-17; reworded 2026-11-23 for open sign-up): the Creator beta section and its nav link ship hidden
-  // in ryagram/index.html and are shown only when creatorBeta is true. The hero button is "Create an account" and is never touched here.
+  // WHILE THE FORM IS OFF (Ryan, 2026-10-17: the landing ships before the Terms and Privacy pages): no form to fill in for nothing. The hero
+  // button asks for an invite by email, and the form's place says how. Turning creatorBeta on brings both back unchanged.
+  const INVITE_MAIL = `mailto:${CONTACT}?subject=${encodeURIComponent('Ryagram invite request')}`;
   if (config.creatorBeta !== true) {
+    const hero = document.querySelector('.rg-hero-cta a.rg-btn');
+    if (hero) { hero.textContent = 'Email to request an invite'; hero.href = INVITE_MAIL; }
     form.querySelector('.creator-fields').hidden = true;
+    status.hidden = false;
+    status.textContent = '';
+    status.append(`Creator beta applications open soon. To request an invite now, email `,
+      Object.assign(document.createElement('a'), { href: INVITE_MAIL, textContent: CONTACT }), ' with your link and the question you would answer with data.');
     return;
   }
-  const section = document.getElementById('creators');
-  if (section) section.hidden = false;
-  const navLink = document.querySelector('.rg-navlink');
-  if (navLink) navLink.hidden = false;
 
   function done() {
     form.querySelector('.creator-fields').hidden = true;

@@ -146,16 +146,16 @@ test('queue positions count everyone ahead; submit refuses a second job of the s
   assert.deepEqual([await data.queuePosition(a.id), await data.queuePosition(b.id)], [1, 2]);
   await assert.rejects(data.submitJob(version.id, 'preview', { window_s: [0, 10] }), /already in progress/);
   await assert.rejects(data.submitJob(version.id, 'preview', { cmd: 'x' }), /Unknown parameter/);
-  assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 2), 'Number 2 in line. We make one film at a time. Each film ahead of yours takes a few minutes. At busy times yours may take a few hours.');   // no job type: no number, only the plain line (queue-words-1123 has the contact sheet estimate)
-  assert.match(J.progressNote({ state: 'queued', attempt: 2 }, 1), /Next in line\. .*This was put back in line after a problem on our side\./);
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 2), 'Number 2 in line.');
+  assert.match(J.progressNote({ state: 'queued', attempt: 2 }, 1), /Next in line\. Retrying .*attempt 2 of 2/);
 });
 
 test('ROUGH SPOT: a job reserved for the person’s own computer says so, even with no account switch; no raw job type is ever shown', () => {
   const q = { state: 'queued', attempt: 1, run_on: 'owner_local' };
   assert.match(J.progressNote(q, 1), /^Waiting for your computer to pick it up\./);               // the job itself says owner_local: no 'Next in line'
   assert.match(J.progressNote(q, 1, { tester: true, computers: 0 }), /^Waiting for your computer\. No computer is signed in/);
-  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1), 'Next in line. We make one film at a time.');   // the site’s own machine: the ordinary line
-  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1, { tester: true, computers: 1 }), 'Next in line. We make one film at a time.');   // the job’s own place wins over the account
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1), 'Next in line.');   // the site’s own machine: the ordinary line
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1, { tester: true, computers: 1 }), 'Next in line.');   // the job’s own place wins over the account
   assert.equal(J.typeLabel('film_bundle'), 'Film files');
   assert.equal(J.typeLabel('some_new_kind'), 'Some new kind');                                      // an unknown type is spoken, never shown raw
   assert.equal(J.typeLabel('final_render'), 'Final render');
@@ -167,10 +167,10 @@ test('a waiting film says plainly when it waits for a computer, and only when th
   assert.match(J.progressNote(q, 1, { tester: true, computers: 0 }), /^Waiting for your computer\. No computer is signed in .*sign in; the film starts once it is signed in\.$/);
   assert.match(J.progressNote(q, 2, { tester: true, computers: 1 }), /^Waiting for your computer to pick it up\. .*Ryagram app/);   // a computer is signed in: still its own computer, never 'in line'
   assert.match(J.progressNote(q, 2, { tester: true, computers: null }), /^Waiting for your computer to pick it up\./);   // not readable: still its own computer, no claim about sign-in
-  assert.equal(J.progressNote(q, 2, { tester: false, computers: 0 }), 'Number 2 in line. We make one film at a time. Each film ahead of yours takes a few minutes. At busy times yours may take a few hours.');       // not a computer account: the site's own machine, no claim
-  assert.equal(J.progressNote(q, 2), 'Number 2 in line. We make one film at a time. Each film ahead of yours takes a few minutes. At busy times yours may take a few hours.');
+  assert.equal(J.progressNote(q, 2, { tester: false, computers: 0 }), 'Number 2 in line.');       // not a computer account: the site's own machine, no claim
+  assert.equal(J.progressNote(q, 2), 'Number 2 in line.');
   assert.equal(J.progressNote({ state: 'running', progress_note: 'x' }, 0, { tester: true, computers: 0 }), 'x');
-  assert.equal(J.progressNote({ state: 'queued', cancel_requested: true }, 0, { tester: true, computers: 0 }), 'Waiting in line. We make one film at a time. At busy times yours may take a few hours.');   // a cancel in flight: never the computer claim
+  assert.equal(J.progressNote({ state: 'queued', cancel_requested: true }, 0, { tester: true, computers: 0 }), 'Waiting in line.');   // a cancel in flight: never the computer claim
 });
 
 test('Realtime tells the page about changes, and says when it is live', async () => {

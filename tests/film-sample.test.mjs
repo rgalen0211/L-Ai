@@ -104,15 +104,14 @@ test('THE SAMPLE PAGE: title, sample note, poster, "Made with Ryagram · View so
   assert.deepEqual(findAll(r.head, n => n.tag === 'meta').map(n => [n.name, n.content]), [['robots', 'noindex, nofollow']]);
 });
 
-test('"Make your own data film" goes to the sign-up section of /ryagram/ (#waitlist anchor), tagged for counting, in the header and in the page; the line beside it says anyone 18 or older can make a free account (no invitation, no waitlist)', async () => {
+test('"Make your own data film" goes to the WAITLIST while Ryagram is coming soon, tagged for counting, in the header and in the page', async () => {
   const sampleR = await renderPage({ search: '?sample=interstate', sampleJson: sample });
   const live = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
   for (const [r, campaign] of [[sampleR, 'sample_interstate'], [live, SLUG]]) {
     const btn = findAll(r.root, n => n.tag === 'a' && textOf(n) === 'Make your own data film')[0];
     assert.equal(btn.attrs.href, `/ryagram/?utm_source=film_page&utm_medium=referral&utm_campaign=${campaign}#waitlist`);
     assert.equal(r.ctaTop.attrs.href, btn.attrs.href);
-    assert.match(textOf(r.root), /Anyone 18 or older can make a free Ryagram account\. Already have one\? Sign in\./);
-    assert.doesNotMatch(textOf(r.root), /by invitation|Join the waitlist|invite/i);
+    assert.match(textOf(r.root), /opening by invitation\. Join the waitlist/);
   }
 });
 
@@ -174,7 +173,7 @@ test('A FILM MADE FROM THE OWNER\'S UPLOAD names only "the maker\'s own data": n
 
 test('the film page file loads the sample and the page script, under a policy that allows only its own files and the project\'s storage', () => {
   const html = read('film/index.html');
-  assert.match(html, /film\.js\?v=20261122a/);
+  assert.match(html, /film\.js\?v=20261104c/);
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
   assert.match(csp, /script-src 'self'(;|$)/);
   assert.match(csp, /connect-src 'self' https:\/\/jxtkfishqfxuptwjzczz\.supabase\.co/);

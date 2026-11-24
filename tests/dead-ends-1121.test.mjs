@@ -75,8 +75,7 @@ test('ROW 2 COMING SOON: an account that is NOT invited gets a plain line and NO
       const p = await pageOf(id, opt);
       assert.equal(byId(p.view, 'soon-notify').length, 0, `${id}: no button`);
       assert.equal(byId(p.view, 'soon-invited-only').length, 1, `${id}: the honest line`);
-      assert.equal(textOf(byId(p.view, 'soon-invited-only')), 'Sign-up for this is not open to your account yet.');
-      assert.ok(!/invite/i.test(textOf(p.view)), 'no invite word');
+      assert.equal(textOf(byId(p.view, 'soon-invited-only')), 'Sign-up for this is for invited accounts for now.');
       assert.ok(!/Try again/.test(textOf(p.view)), 'no retry promise');
     }
     const inv = await pageOf(id, { invited: true });
@@ -95,16 +94,15 @@ test('ROW 2 AND THE FALLBACK LIST: a non-invited account whose list is empty (th
 });
 
 // ---------------------------------------------------------------------------------------------- ROW 3: the public help entry
-test('ROW 3 HELP FAQ: "How do I connect Claude or ChatGPT?" is true for everyone: it says in its first words what not seeing Connected AIs means (not available on this account; write to us; no "invited for now" and no "we will tell you when it opens", 11-22), BEFORE the steps', () => {
+test('ROW 3 HELP FAQ: "How do I connect Claude or ChatGPT?" is true for everyone: it says in its first words that connecting is for invited accounts for now and what not seeing Connected AIs means, BEFORE the steps', () => {
   const html = read('help/index.html');
   const m = /<details[^>]*data-flag="connectAi"[^>]*><summary>How do I connect Claude or ChatGPT to Ryagram\?<\/summary>\s*<p>([^<]*)<\/p>/.exec(html);
   assert.ok(m, 'the entry is there');
   const first = m[1];
-  assert.match(first, /^You can connect an AI assistant such as Claude or ChatGPT to your account\. If you do not see Connected AIs under Account, it is not available on your account; write to ryagram@uselai\.com\. If you do see it:/);
-  assert.doesNotMatch(first, /invited|for now|we will tell you when it opens/i);
-  assert.ok(first.indexOf('not available on your account') < first.indexOf('open Account, then Connected AIs'), 'the caveat comes before the steps');
+  assert.match(first, /^Connecting an AI is for invited accounts for now\./);
+  assert.match(first, /If you do not see Connected AIs under Account, your account is not invited yet/);
+  assert.ok(first.indexOf('invited') < first.indexOf('open Account, then Connected AIs'), 'the caveat comes before the steps');
   assert.doesNotMatch(first, /^Open Account/);
-  assert.match(first, /^You can connect an AI assistant such as Claude or ChatGPT to your account\./, 'the same sentence as the Terms (Connect-an-AI open to everyone, L5)');
 });
 
 // ---------------------------------------------------------------------------------------------- ROW 4: the live editor's "Start the render"
