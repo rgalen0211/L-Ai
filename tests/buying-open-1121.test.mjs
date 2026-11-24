@@ -131,7 +131,9 @@ test('BEFORE STRIPE: closed = no question anywhere; open = the question is hidde
   const country = byId(view, 'use-country'); country.value = 'US'; country.listeners.change({});
   await click(go); assert.match(err().textContent, /state as two letters/);
   const state = byId(view, 'use-state'); state.value = 'oh'; state.listeners.input({});
-  await click(go); assert.match(err().textContent, /five-digit ZIP/);
+  await click(go); assert.match(err().textContent, /five-digit Ohio ZIP/);
+  const z0 = byId(view, 'use-zip'); z0.value = '90210'; await click(go); assert.match(err().textContent, /Ohio ZIP/); assert.equal(calls.length, 0, 'a California ZIP is not an Ohio ZIP');
+  const s0 = byId(view, 'use-state'); s0.value = 'xx'; s0.listeners.input({}); await click(go); assert.match(err().textContent, /state as two letters/); s0.value = 'oh'; s0.listeners.input({});
   const zip = byId(view, 'use-zip'); zip.value = '43215';
   await click(go);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['pack_starter', { use: 'business', country: 'US', state: 'OH', zip: '43215' }]]);

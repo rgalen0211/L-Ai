@@ -1056,6 +1056,7 @@
       };
       const current = C.planLine(plan);
       // BEFORE STRIPE (CC1 plan 11-24, Ohio sales tax): the first Buy or Subscribe opens this short question; nothing is asked while buying is closed, and the page is no taller until a button is pressed.
+      const US_STATES = 'AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
       const askError = h('p', { class: 'form-note app-error', role: 'alert', hidden: true });
       let pending = null, saved = null, useValue = null;
       const useRadio = (value, label) => { const id = 'use-' + value; return h('label', { class: 'choice', for: id }, h('input', { type: 'radio', name: 'use', value, id, onchange: () => { useValue = value; } }), ' ' + label); };
@@ -1071,8 +1072,8 @@
         const country = countrySelect.value, state = stateInput.value.trim().toUpperCase(), zip = zipInput.value.trim();
         if (!use) return { error: 'Choose business or personal use.' };
         if (!country) return { error: 'Choose where you use Ryagram.' };
-        if (country === 'US' && !/^[A-Z]{2}$/.test(state)) return { error: 'Give your state as two letters, for example OH.' };
-        if (country === 'US' && state === 'OH' && !/^[0-9]{5}$/.test(zip)) return { error: 'Give your five-digit ZIP code.' };
+        if (country === 'US' && !US_STATES.includes(state)) return { error: 'Give your state as two letters, for example OH.' };
+        if (country === 'US' && state === 'OH' && !/^4[3-5][0-9]{3}$/.test(zip)) return { error: 'Give your five-digit Ohio ZIP code, for example 43215.' };
         return { answers: { use, country, ...(country === 'US' ? { state } : {}), ...(country === 'US' && state === 'OH' ? { zip } : {}) } };
       };
       const continueButton = h('button', { class: 'button primary', type: 'button', onclick: event => {
@@ -1084,7 +1085,7 @@
       const askTitle = h('h2', { id: 'use-ask-title', tabindex: '-1' }, 'Before you pay');
       const askBox = h('section', { class: 'use-ask', hidden: true, 'aria-labelledby': 'use-ask-title' },
         askTitle,
-        h('p', { class: 'form-intro' }, 'We need two answers so the right tax is added. We keep them with today’s date, and you can change them next time.'),
+        h('p', { class: 'form-intro' }, 'We need two answers so we can charge the right tax, now or when you use your credits. We ask again the next time you buy.'),
         h('fieldset', {}, h('legend', {}, 'Do you use Ryagram for business or personal use?'), useRadio('business', 'Business'), useRadio('personal', 'Personal')),
         h('p', {}, h('label', { for: 'use-country' }, 'Where do you use it? '), countrySelect), stateRow, zipRow,
         askError,
