@@ -53,9 +53,9 @@ test('the help and report pages are static, allow no inline script or style, and
   assert.match(fs.readFileSync(path.join(root, 'assets/film.js'), 'utf8'), /\/report\/\?film=\$\{slug\}/);
 });
 
-test('the FAQ has its 8 answers and none is hidden (the uploaded-data answer is live: uploadreader is on main)', () => {
+test('the FAQ has its 7 answers and none is hidden (the uploaded-data answer is live: uploadreader is on main)', () => {
   const html = fs.readFileSync(path.join(root, 'help/index.html'), 'utf8');
   assert.match(html, /<details><summary>My own data/);
-  assert.equal((html.match(/<details(?![^>]*data-flag)/g) || []).length, 8);               // the eight answers (the credits one added 11-23) are all shown; entries for what is new in the app carry data-flag and stay hidden until their switch is on (tests/help-flags.test.mjs)
+  assert.equal((html.match(/<details(?![^>]*data-flag)/g) || []).length, 7);               // the seven answers are all shown; entries for what is new in the app carry data-flag and stay hidden until their switch is on (tests/help-flags.test.mjs)
   assert.doesNotMatch(html, /<details(?![^>]*data-flag)[^>]*hidden/);
 });

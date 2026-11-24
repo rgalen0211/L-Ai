@@ -1,4 +1,4 @@
-"""The preview Terms and AI-content pages in real Chrome at desktop and phone: the preview banner, no sideways scroll, the footer links on the app page. Writes screenshots.
+"""The Terms and AI-content placeholder pages in real Chrome at desktop and phone: the DRAFT banner, no sideways scroll, the footer links on the app page. Writes screenshots.
 Not part of the node suite (it needs Chrome).   python tools/check-legal-shells.py [outdir]   (default D:/Ryagram-scratch/WEB/legal-shots)
 """
 import http.server
@@ -50,10 +50,10 @@ def main():
                 errors = []
                 p.on('pageerror', lambda e: errors.append(str(e)))
                 p.on('console', lambda m: errors.append(m.text) if m.type == 'error' and 'status of 404' not in m.text else None)
-                for path, title in (('/terms/', 'Terms of Use'), ('/ai-content/', 'AI content')):
+                for path, title in (('/terms/', 'Terms of Use'), ('/ai-content/', 'AI content labelling')):
                     p.goto(BASE + path, wait_until='load')
                     check(p.inner_text('h1') == title, f'{path} heading')
-                    check('free preview, no payments' in p.inner_text('.shell-banner'), f'{path} banner says free preview, no payments')
+                    check('Pending legal review' in p.inner_text('.shell-banner'), f'{path} banner says pending legal review')
                     check(p.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), f'{path} no sideways scroll')
                     p.screenshot(path=str(OUT / f"{path.strip('/')}-{name}.png"), full_page=True)
                     p.click('footer a[href="/help/"]')

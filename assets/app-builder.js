@@ -18,15 +18,15 @@
     paired: ['Paired', 'Shows two measures of the same places together.']
   };
   // Ready-made starts (NEXT-WEB 132 G3/G4): one click fills dataset, years, film type and title and lands on the Review (Back still works). Each is a view that has been
-  // rendered before (app-templates.js): health as a map, housing and work as lines (housing was a map until 2026-11-23: the engine's checks stop that map, see MEASURED.blocked in app-catalog.js). A start is offered only when its dataset is in the catalog the function returned.
+  // rendered before (app-templates.js): housing and health as maps, work as lines. A start is offered only when its dataset is in the catalog the function returned.
   // Income is not here: no income dataset is listable yet (proposals/WEB-GUIDED-FIRST-FILM-GAPS.md, G4).
   const READY_MADE = [
-    { id: 'housing', label: 'Housing', blurb: 'New homes permitted per 1,000 residents: the top counties as lines, 1990 to 2024.', dataset: 'bps_county_permits', film_type: 'line', title: 'New homes permitted per 1,000 residents, by county', start: '1990', end: '2024' },
+    { id: 'housing', label: 'Housing', blurb: 'Where new homes were permitted, county by county, 1990 to 2024.', dataset: 'bps_county_permits', film_type: 'map', title: 'New homes permitted per 1,000 residents, by county', start: '1990', end: '2024' },
     { id: 'health', label: 'Health', blurb: 'Adult obesity, state by state, 2011 to 2023.', dataset: 'state_obesity_fastfood', film_type: 'map', title: 'Adult obesity by state', start: '2011', end: '2023' },
     { id: 'work', label: 'Work', blurb: 'Unemployment, state by state, 2019 to 2022.', dataset: 'bls_state_unemployment', film_type: 'line', title: 'State unemployment rate, 2019 to 2022', start: '2019-01', end: '2022-12' }
   ];
   const readyMade = catalog => READY_MADE.filter(r => (catalog || []).some(d => d.id === r.dataset));
-  const FILE_NOTE = 'The contact sheet is a grid of still frames to check the film. It takes about 5 minutes once started and is free; you decide what to do after you have seen it.';
+  const FILE_NOTE = 'The contact sheet is a grid of still frames to check the film. It usually takes about 4 to 5 minutes and is free; you decide what to do after you have seen it.';
   // One tip per step, for the tutorial: what the step decides and what it never changes.
   const TIPS = {
     dataset: 'Tip: every dataset shows its source and licence before you use it. A ready-made start fills in every step for you.',
@@ -39,7 +39,7 @@
   };
   const HEADING = 'Tutorial: make a film step by step';
   const SAMPLE_NOTE = 'This is the sample: it walks every step on bundled sample data and makes nothing. No project, no story and no picture are made.';
-  const SAMPLE_ONLY = 'The sample can only check its own ready-made choices. Use “Start the sample again” to put them back, or choose a dataset yourself.';
+  const SAMPLE_ONLY = 'The sample can only check its own ready-made choices. Use “Start the sample again” to put them back, or try your own data.';
 
   // The data the sample walk-through reads: the bundled recording instead of the function. It answers only what was recorded, and refuses any other request in words.
   // A refusal carries `sampleChanges` (what differs from the recording, in words), so the review can say so calmly instead of reporting a problem (NEXT-BUILDER 47).
@@ -213,15 +213,15 @@
           h('div', { class: 'builder-list' }, starts.map(r => { const b = h('button', { type: 'button', class: 'builder-start', 'data-start': r.id }, h('strong', {}, r.label), h('span', { class: 'meta' }, r.blurb)); b.addEventListener('click', () => useStart(r, b)); return b; }))) : null;
         const trySample = sample ? null : h('p', { class: 'form-note builder-sample-link' }, h('a', { href: '#/build/sample' }, 'Try a sample first'), ': it walks every step on bundled sample data and makes nothing.');
         const dataEl = h('div', {}, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, sample
-          ? 'The sample has one dataset. Outside the sample you choose from the whole list; every dataset shows where it comes from and what its licence allows.'
+          ? 'The sample has one dataset. With your own data you choose from the whole list; every dataset shows where it comes from and what its licence allows.'
           : (starts.length ? 'Or choose your own. ' : '') + 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
           filter, h('div', { class: 'scroll-panel dataset-scroll' }, list), sourceHolder);
         const nav = h('div', { class: 'actions-row builder-nav' }, nextBtn);
-        // two sections to flip between (Ryan 11-20: no long pages): the ready-made films, and choosing a dataset
+        // two sections to flip between (Ryan 11-20: no long pages): the ready-made films, and your own data
         if (starts.length && window.ryagramFlip) {
           const flip = window.ryagramFlip.create({ h, label: 'Choose your data', address: false, initial: s.dataset ? 'own' : 'ready', sections: [
             { id: 'ready', label: 'Ready-made films', el: h('div', {}, trySample, ready) },
-            { id: 'own', label: 'Choose a dataset', el: dataEl }] });      // not 'Your own data': that is the upload panel's name, and this tab picks a public dataset (BUILDER 11-23)
+            { id: 'own', label: 'Your own data', el: dataEl }] });
           return [flip.el, nav];
         }
         return [trySample, ready, dataEl, nav];
@@ -314,7 +314,7 @@
               s.problems = {};
               out.replaceChildren(h('div', { class: 'builder-sample-changed', role: 'status' },
                 h('p', { class: 'form-note' }, `The sample has a recorded check only for its own choices, and you changed ${listWords(err.sampleChanges) || 'a choice'}. `,
-                  'Nothing is wrong with your choice: with a dataset you choose, Ryagram checks whatever you pick.'),
+                  'Nothing is wrong with your choice: with your own data, Ryagram checks whatever you pick.'),
                 h('p', { class: 'form-note' }, 'Use “Start the sample again” below to put the sample’s choices back.')));
               return;
             }
@@ -325,7 +325,6 @@
         }
         // The sample makes nothing: in place of the Make button, the way back to its own choices and the way to real data.
         const again = sample ? h('button', { class: 'button secondary', type: 'button', onclick: async () => { await sampleChoices(); compiled = null; s.problems = {}; go(0); } }, 'Start the sample again') : null;
-        let madeId = null;                                                  // the project a refused Make already created (BUILDER 11-23)
         if (sample) make.hidden = true;
         if (!sample) make.addEventListener('click', async () => {
           let finalStory;
@@ -341,27 +340,14 @@
               location.hash = `#/v/${made.version.id}`;
             } catch (err) {
               showError(error, err);
-              if (made) {                                                                                  // the project exists
-                if (/^This film is not available yet\./.test(String(err && err.message || ''))) {
-                  // a blocked film (20261123000300): its own page would be refused again every time, so the way on is another film type here (GAMES 11:27)
-                  error.append(' ', h('button', { class: 'button secondary small', type: 'button', onclick: () => go(STEPS.findIndex(([id]) => id === 'type')) }, 'Choose another film type'));
-                } else if (/^You have \d+ films? waiting\./.test(String(err && err.message || ''))) {
-                  // the 2-films-waiting cap (20261123000200): the sheet cannot be made NOW either, so no promise that it can (FACES 13:03, GAMES 13:03)
-                  error.append(' Your film is saved. ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), '; when one of your waiting films is done, make its contact sheet there.');
-                } else {
-                  error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'), ' and make its contact sheet there.');      // the person can carry on there
-                }
-                madeId = made.version.id;
-              }
+              if (made) error.append(' ', h('a', { href: `#/v/${made.version.id}` }, 'Open the film'));       // the project exists; the person can carry on there
             }
           });
-          // A second press would make ANOTHER project (BUILDER 11-23: with the 2-films-waiting cap this is a normal path): once the project exists, Make stays hidden.
-          if (madeId) make.hidden = true;
         });
         check();
         return [h('h2', { tabindex: '-1' }, 'Review'), out, sourceBox(),
           h('details', { class: 'builder-advanced' }, h('summary', {}, 'Advanced: the story'), h('p', { class: 'form-note' }, 'This is the exact story that will be saved. You can edit it; Ryagram’s checks still run on every render.'), story, storyNote),
-          sample ? h('p', { class: 'form-note builder-sample-note' }, SAMPLE_NOTE, ' ', h('a', { href: '#/build' }, 'Try it with a dataset you choose')) : null,
+          sample ? h('p', { class: 'form-note builder-sample-note' }, SAMPLE_NOTE, ' ', h('a', { href: '#/build' }, 'Try it with your own data')) : null,
           h('div', { class: 'actions-row builder-nav' }, h('button', { class: 'button secondary', type: 'button', onclick: () => go(5) }, 'Back'), sample ? again : make)];
       }
 

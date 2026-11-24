@@ -25,7 +25,7 @@ export async function recordSample() {
 
 // The sample is a PUBLIC file, and the catalog's detail-only text (the full licence, method changes, known gaps, notes) is served only by the function, never shipped
 // (tests/film-compile.test.mjs SERVER ONLY, MED-5). So the recording keeps the short licence and drops the rest; the sample says where the full text is.
-export const SAMPLE_LICENCE = 'The full licence is shown when you choose this dataset outside the sample.';
+export const SAMPLE_LICENCE = 'The full licence is shown when you choose this dataset with your own data.';
 export function publicOnly(rec) {
   rec.dataset.licence = `${rec.dataset.licence_short}. ${SAMPLE_LICENCE}`;
   rec.dataset.methodology_breaks = [];
