@@ -11,7 +11,7 @@ const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').r
 const lib = read('assets/app-library.js');
 
 class El {
-  constructor(tag) { this.tag = tag; this.attrs = {}; this.kids = []; this.className = ''; this.listeners = {}; this._text = null; }
+  constructor(tag) { this.tag = tag; this.attrs = {}; this.kids = []; this.className = ''; this.listeners = {}; this._text = null; this.value = ''; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   getAttribute(k) { return this.attrs[k] ?? null; }
   addEventListener(k, f) { this.listeners[k] = f; }
@@ -29,26 +29,26 @@ const OFFERS = [
   { code: 'sub_creator', credits: 30, price_cents: 2400, monthly: true },
   { code: 'sub_pro', credits: 100, price_cents: 6900, monthly: true }];
 
-async function credits({ config = {}, mock = false, search = '', source = lib, prices = null, plan = null } = {}) {
+async function credits({ config = {}, mock = false, search = '', source = lib, prices = null, plan = null, checkout = null } = {}) {
   const document = { createElement: t => new El(t) };
   const win = { ryagramConfig: { credits: true, payments: true, stripeTestMode: true, ...config } };
   if (mock) win.ryagramMock = {};
   const Cmod = {}; vm.runInNewContext(read('assets/app-credits.js'), { window: Cmod });
   win.ryagramCredits = Cmod.ryagramCredits;
   win.ryagramFlip = { create: ({ sections }) => ({ el: sections.map(s => s.el) }) };
-  const data = { shopOffers: async () => { credits.shopCalls++; return OFFERS; }, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], startCheckout: async () => '#', openBillingPortal: async () => '#',
+  const data = { shopOffers: async () => { credits.shopCalls++; return OFFERS; }, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], startCheckout: async (code, answers) => { if (checkout) checkout.push([code, answers]); return '#'; }, openBillingPortal: async () => '#',
                  filmPrices: async () => prices || [] };
   const a = source.indexOf('  const creditsOn ='), b = source.indexOf('  const BUYING_CLOSED_SHORT'), helpers = source.slice(a, source.indexOf('\n', b));
   const body = source.slice(source.indexOf('    async function creditsView('), source.indexOf('    // --- #/p/<id>'));
   const h0 = source.indexOf('  function h(tag'), hSrc = source.slice(h0, source.indexOf('\n  }\n', h0) + 5);
   const code = `(function (window, document, location, history, setInterval, clearInterval, data) { ${hSrc}
     const errorLine = () => h('p', { class: 'form-note app-error', hidden: true });
-    const showError = () => {}; const busy = async () => {};
+    const showError = () => {}; const busy = async (b, l, fn) => { await fn(); };
     ${helpers}
     ${body}
     return creditsView(undefined, () => {}); })`;
   const fn = vm.runInNewContext(code, { document });
-  const view = await fn(win, document, { search, hash: '#/credits', pathname: '/app/' }, { replaceState() {} }, () => 0, () => {}, data);
+  const view = await fn(win, document, { search, hash: '#/credits', pathname: '/app/', assign() {} }, { replaceState() {} }, () => 0, () => {}, data);
   await new Promise(r => setTimeout(r, 5));
   return view;
 }
@@ -110,6 +110,48 @@ test('NO PRICES ON THE WIRE (CC1 17:48): the closed Credits page makes no shop-o
   assert.equal(credits.shopCalls, 1, 'the planted fault (always ask) is seen by the counter');
 });
 
+// BEFORE STRIPE (CC1 plan 11-24, Ohio sales tax): the first Buy asks business or personal use and where; nothing is asked while buying is closed; the answers ride with the checkout call.
+const click = async el => { el.listeners.click({ currentTarget: el }); await new Promise(r => setTimeout(r, 3)); };
+const byId = (view, id) => elements(view).find(e => e.attrs.id === id);
+const buyButton = view => elements(view).find(e => e.tag === 'button' && /^Buy$/.test(e.textContent));
+test('BEFORE STRIPE: closed = no question anywhere; open = the question is hidden until Buy is pressed, then it names its fields and sends the answers with the checkout call', async () => {
+  const closed = await credits({ config: { buyingOpen: false } });
+  assert.equal(elements(closed).filter(e => e.attrs.id === 'use-ask-title').length, 0, 'closed: no question on the page at all');
+  const calls = [];
+  const view = await credits({ config: { buyingOpen: true }, checkout: calls });
+  const box = elements(view).find(e => e.className === 'use-ask');
+  assert.ok(box && box.attrs.hidden !== undefined && box.hidden !== false, 'the question starts hidden: the page is no taller');
+  await click(buyButton(view));
+  assert.equal(box.hidden, false, 'Buy opens the question');
+  assert.equal(calls.length, 0, 'nothing is sent before the answers');
+  const go = elements(view).find(e => e.tag === 'button' && e.textContent === 'Continue to Stripe');
+  const err = () => elements(view).find(e => e.className === 'form-note app-error' && e.attrs.role === 'alert');
+  await click(go); assert.match(err().textContent, /Choose business or personal use\./);
+  byId(view, 'use-business').listeners.change({}); await click(go); assert.match(err().textContent, /Choose where you use Ryagram\./);
+  const country = byId(view, 'use-country'); country.value = 'US'; country.listeners.change({});
+  await click(go); assert.match(err().textContent, /state as two letters/);
+  const state = byId(view, 'use-state'); state.value = 'oh'; state.listeners.input({});
+  await click(go); assert.match(err().textContent, /five-digit ZIP/);
+  const zip = byId(view, 'use-zip'); zip.value = '43215';
+  await click(go);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['pack_starter', { use: 'business', country: 'US', state: 'OH', zip: '43215' }]]);
+  // the second Buy in the same visit does not ask again
+  await click(buyButton(view));
+  assert.equal(calls.length, 2); assert.equal(calls[1][0], 'pack_starter'); assert.deepEqual(JSON.parse(JSON.stringify(calls[1][1])), JSON.parse(JSON.stringify(calls[0][1])));
+});
+test('BEFORE STRIPE: personal use outside the US sends no state and no ZIP; a US state other than Ohio sends a state and no ZIP', async () => {
+  for (const [country, st, want] of [['OTHER', '', { use: 'personal', country: 'OTHER' }], ['US', 'tx', { use: 'personal', country: 'US', state: 'TX' }]]) {
+    const calls = [];
+    const view = await credits({ config: { buyingOpen: true }, checkout: calls });
+    await click(buyButton(view));
+    byId(view, 'use-personal').listeners.change({});
+    const c = byId(view, 'use-country'); c.value = country; c.listeners.change({});
+    const s = byId(view, 'use-state'); s.value = st; s.listeners.input({});
+    await click(elements(view).find(e => e.tag === 'button' && e.textContent === 'Continue to Stripe'));
+    assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['pack_starter', want]]);
+  }
+});
+
 test('PLANTED FAULT: the open-state markup in the closed state is caught', async () => {
   const faulty = lib.replace('const open = buyingOn();', 'const open = true;');
   assert.notEqual(faulty, lib);
@@ -124,9 +166,9 @@ test('EVERY Buy site is tied to the one switch: no Buy/Subscribe label or #/cred
   const links = lines.filter(l => /'Buy credits'/.test(l));
   assert.equal(links.length, 2, 'the home chip and the render strip are the two Buy credits links');
   for (const l of links) assert.match(l, /buyingOn\(\)/);
-  const at = lib.indexOf('startCheckout(');
+  const at = lib.lastIndexOf('startCheckout(');
   assert.ok(lib.lastIndexOf("!open ? null : h('button'", at) > lib.lastIndexOf('const offerItem', at), 'the checkout button is inside the open-only branch');
-  assert.equal(lib.split('startCheckout(').length, 2, 'one checkout call in the whole library');
+  assert.equal(lib.split('startCheckout(').length, 3, 'two checkout calls in the whole library: Buy after the question was answered, and Continue to Stripe');
   assert.equal((lib.match(/paymentsOn\(\) \? \[/g) || []).length, 0, 'no Buy link is gated by paymentsOn alone any more');
   assert.match(lib, /if \(!can\.ok && !isFinal && paymentsOn\(\) && !buyingOn\(\)\) can\.reason \+= ` \$\{BUYING_CLOSED_SHORT\}`/, 'a preview short of credits says buying is not open yet (a full film says it inside its own reason: affordable(q, { closed }))');
   assert.match(lib, /closed: paymentsOn\(\) && !buyingOn\(\)/);

@@ -1055,6 +1055,41 @@
         });
       };
       const current = C.planLine(plan);
+      // BEFORE STRIPE (CC1 plan 11-24, Ohio sales tax): the first Buy or Subscribe opens this short question; nothing is asked while buying is closed, and the page is no taller until a button is pressed.
+      const askError = h('p', { class: 'form-note app-error', role: 'alert', hidden: true });
+      let pending = null, saved = null, useValue = null;
+      const useRadio = (value, label) => { const id = 'use-' + value; return h('label', { class: 'choice', for: id }, h('input', { type: 'radio', name: 'use', value, id, onchange: () => { useValue = value; } }), ' ' + label); };
+      const countrySelect = h('select', { id: 'use-country', name: 'country', 'aria-label': 'Where you use Ryagram' }, h('option', { value: '' }, 'Choose…'), h('option', { value: 'US' }, 'United States'), h('option', { value: 'OTHER' }, 'Another country'));
+      const stateInput = h('input', { id: 'use-state', name: 'state', maxlength: '2', autocomplete: 'off', 'aria-label': 'State, two letters', placeholder: 'OH' });
+      const zipInput = h('input', { id: 'use-zip', name: 'zip', maxlength: '5', inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'ZIP code', placeholder: '43215' });
+      const stateRow = h('p', { hidden: true }, h('label', { for: 'use-state' }, 'State (two letters) '), stateInput);
+      const zipRow = h('p', { hidden: true }, h('label', { for: 'use-zip' }, 'ZIP code (Ohio) '), zipInput);
+      const showRows = () => { stateRow.hidden = countrySelect.value !== 'US'; zipRow.hidden = stateRow.hidden || stateInput.value.trim().toUpperCase() !== 'OH'; };
+      countrySelect.addEventListener('change', showRows); stateInput.addEventListener('input', showRows);
+      const readAnswers = () => {
+        const use = useValue;
+        const country = countrySelect.value, state = stateInput.value.trim().toUpperCase(), zip = zipInput.value.trim();
+        if (!use) return { error: 'Choose business or personal use.' };
+        if (!country) return { error: 'Choose where you use Ryagram.' };
+        if (country === 'US' && !/^[A-Z]{2}$/.test(state)) return { error: 'Give your state as two letters, for example OH.' };
+        if (country === 'US' && state === 'OH' && !/^[0-9]{5}$/.test(zip)) return { error: 'Give your five-digit ZIP code.' };
+        return { answers: { use, country, ...(country === 'US' ? { state } : {}), ...(country === 'US' && state === 'OH' ? { zip } : {}) } };
+      };
+      const continueButton = h('button', { class: 'button primary', type: 'button', onclick: event => {
+        const r = readAnswers();
+        if (r.error) { askError.textContent = r.error; askError.hidden = false; return; }
+        askError.hidden = true; saved = r.answers;
+        go(event.currentTarget, 'Opening Stripe…', () => data.startCheckout(pending, saved));
+      } }, 'Continue to Stripe');
+      const askTitle = h('h2', { id: 'use-ask-title', tabindex: '-1' }, 'Before you pay');
+      const askBox = h('section', { class: 'use-ask', hidden: true, 'aria-labelledby': 'use-ask-title' },
+        askTitle,
+        h('p', { class: 'form-intro' }, 'We need two answers so the right tax is added. We keep them with today’s date, and you can change them next time.'),
+        h('fieldset', {}, h('legend', {}, 'Do you use Ryagram for business or personal use?'), useRadio('business', 'Business'), useRadio('personal', 'Personal')),
+        h('p', {}, h('label', { for: 'use-country' }, 'Where do you use it? '), countrySelect), stateRow, zipRow,
+        askError,
+        h('p', {}, continueButton, ' ', h('button', { class: 'button secondary', type: 'button', onclick: () => { askBox.hidden = true; pending = null; } }, 'Cancel')));
+      const askFirst = code => { pending = code; askError.hidden = true; askBox.hidden = false; if (askTitle.focus) askTitle.focus(); };
       const planNote = `Unused plan credits carry over, up to two months’ worth.${current || plan ? ' Cancel any time from Manage plan.' : ''}`;      // no Manage plan button without a plan: no sentence that points at it
       const open = buyingOn();
       const offerItem = p => {
@@ -1063,7 +1098,7 @@
           h('strong', {}, C.offerName(p.code)), h('span', { class: 'meta' }, C.offerLine(p)),
           !open ? null : h('button', { class: 'button secondary small', type: 'button', disabled: blocked,
                         title: blocked ? 'You already have a plan. Use Manage plan to change it.' : null,
-                        onclick: event => go(event.currentTarget, 'Opening Stripe…', () => data.startCheckout(p.code)) },
+                        onclick: event => { if (saved) go(event.currentTarget, 'Opening Stripe…', () => data.startCheckout(p.code, saved)); else askFirst(p.code); } },
             p.monthly ? 'Subscribe' : 'Buy'));
       };
       const packs = offers.filter(p => !p.monthly), plans = offers.filter(p => p.monthly);
@@ -1094,6 +1129,7 @@
                         h('p', { class: 'form-note' }, planNote)] : null],
         offers.length || !open ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
+        open ? askBox : null,
         open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.') : null
       ];
     }

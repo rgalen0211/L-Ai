@@ -245,7 +245,8 @@
         return rows.filter(r => order.includes(r.status)).sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status))[0] || null;
       },
       // Both return a Stripe URL to go to; card details are entered only on Stripe's pages.
-      startCheckout(priceCode) { return invokeUrl('stripe-checkout', { price_code: priceCode }, 'Couldn’t start the checkout.'); },
+      // `use` answers (CC1 plan 11-24, Ohio tax): { use: 'business' | 'personal', country: 'US' | 'OTHER', state: two letters (US only), zip: five digits (Ohio only) }. The field names are the ONE place to change if CONNECT's function reads others.
+      startCheckout(priceCode, answers) { return invokeUrl('stripe-checkout', { price_code: priceCode, ...(answers || {}) }, 'Couldn’t start the checkout.'); },
       openBillingPortal() { return invokeUrl('stripe-checkout', { action: 'portal' }, 'Couldn’t open plan settings.'); },
       // The Windows app's invite-only download (CONNECT's app-download function, 2026-10-26): asks for a short-lived link for THIS signed-in account. Returns the answer's body as the function gave it
       // (the card checks it before following anything) or throws an Error carrying the HTTP status, so the card can say a plain sentence for each refusal. Fixed function name: the page never posts to an address it was handed.
