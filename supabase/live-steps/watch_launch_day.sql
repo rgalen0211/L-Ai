@@ -100,6 +100,15 @@ with r(n, what, value, look, when_look, what_you_do) as (
          (select count(*) from public.account_deletion_requests) >= 1,
          'any is waiting',
          'Their login is already blocked and their files gone; close the account by hand as the paper says (never delete the login: the credit record keeps it).'
+  union all
+  select 14, 'the server hands jobs to the render PC: claims switched on, and no sheet, preview or full film paused (public.control)',
+         case when (select claims_enabled from public.control limit 1) then 'claims on' else 'claims OFF' end
+         || '; paused types: ' || coalesce((select nullif(array_to_string(disabled_job_types, ', '), '') from public.control limit 1), 'none')
+         || ' (film_bundle and scene_bundle are paused on purpose since 11-13)',
+         not coalesce((select claims_enabled from public.control limit 1), false)
+           or coalesce((select disabled_job_types && array['contact_sheet', 'preview', 'final_render']::public.job_type[] from public.control limit 1), false),
+         'claims OFF, or contact_sheet, preview or final_render paused',
+         'Then the render PC is fine but is handed nothing (WORKER''s card section B). Nobody is meant to switch this today: tell CC1 at once and do not change it yourself. (The queue brake, step 71, is NOT this: it only refuses NEW sheets and previews.)'
   -- ROW 13 START (watch_launch_day_after_welcome_undo.sql is this file without the lines from here to ROW 13 END)
   union all
   select 13, 'verified sign-ups in the last 24 hours that got NO welcome credits (live step 65)',

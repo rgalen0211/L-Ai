@@ -2,7 +2,7 @@
 
 On a throwaway Postgres built like live AFTER Ryan's sitting (the stub, every migration but A1-A19, the credits ledger as live has it
 (main e947f26a), then A1-A19; plus stand-ins for pg_cron and pg_net, and auth.users.recovery_sent_at as Supabase has it):
-  * a quiet, healthy hour reads 'OK: nothing to do (13 rows checked)';
+  * a quiet, healthy hour reads 'OK: nothing to do (14 rows checked)';
   * each planted fault turns ITS row to LOOK and only that row, and the first row names it (rows 1 to 13, one test each);
   * just under each threshold stays ok (the must-fail margin: a check that only fires far past its line is caught);
   * after the welcome-credits undo drops its table, row 13 says 'not checked' and the paste does not error;
@@ -93,7 +93,7 @@ class Watch(unittest.TestCase):
 
     def assert_ok(self):
         verdict, status, rows = self.run_watch()
-        self.assertEqual(verdict, "OK: nothing to do (13 rows checked)", "\n".join(map(str, rows)))
+        self.assertEqual(verdict, "OK: nothing to do (14 rows checked)", "\n".join(map(str, rows)))
 
     def users(self, k, *, made="now()", confirmed=None):
         for _ in range(k):
@@ -234,7 +234,7 @@ class Watch(unittest.TestCase):
             self.run_watch()                                                          # the main paste needs the table (it says so at its top)
         self.c.rollback() if not self.c.autocommit else None
         rows = self.c.execute(UNDO_WATCH.read_text(encoding="utf-8")).fetchall()
-        self.assertEqual(rows[0][1], "OK: nothing to do (12 rows checked)")
+        self.assertEqual(rows[0][1], "OK: nothing to do (13 rows checked)")
         self.assertNotIn(13, [r[0] for r in rows])
 
     def test_GEO_13c_the_second_file_is_the_first_without_row_13(self):
@@ -244,6 +244,20 @@ class Watch(unittest.TestCase):
         self.assertEqual((len(a), len(b)), (1, 1))
         want = "\n".join(lines[:a[0]] + lines[b[0] + 1:]).replace("LAUNCH-DAY WATCH, ONE PASTE", "LAUNCH-DAY WATCH AFTER A WELCOME-CREDITS UNDO (row 13 left out), ONE PASTE")
         self.assertEqual(UNDO_WATCH.read_text(encoding="utf-8").replace("\r\n", "\n"), want.replace("\r\n", "\n"))
+
+    def test_GEO_14_claims_switched_off(self):
+        self.c.execute("update public.control set claims_enabled = false")
+        self.assert_only(14)
+
+    def test_GEO_14b_a_strangers_job_type_paused(self):
+        self.assertEqual(self.c.execute("select array_to_string(disabled_job_types, ',') from public.control").fetchone()[0], "film_bundle,scene_bundle")
+        self.assert_ok()                                                              # the two bundle types are paused on purpose (migration 20261113000400)
+        self.c.execute("update public.control set disabled_job_types = disabled_job_types || '{preview}'")
+        self.assert_only(14)
+
+    def test_GEO_14c_a_full_film_paused(self):
+        self.c.execute("update public.control set disabled_job_types = '{final_render}'")
+        self.assert_only(14)
 
 
 if __name__ == "__main__":
