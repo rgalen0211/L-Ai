@@ -48,6 +48,7 @@ test('NOTHING INVENTED: no governing law, liability limit, arbitration or DMCA t
     assert.doesNotMatch(textOf(html), /Mailing address|to be added before launch|P\.?O\.? Box|\[/i, 'no mailing address and no placeholder');
     assert.match(textOf(html), /L'Ai, LLC/);
     assert.match(html, /mailto:ryagram@uselai\.com/);
+    assert.match(textOf(html), /Contact: ryagram@uselai.com/, 'the one contact line: Contact: <email>');
   }
   assert.doesNotMatch(terms + privacy, /[A-Za-z0-9._%+-]+@(?!uselai\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/, 'no other email address on the pages');
 });
