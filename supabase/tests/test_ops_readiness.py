@@ -486,7 +486,7 @@ class Ops(core.Base):
         self.assertEqual(status["rendering"], "delayed")
         banner = self.bridge({"kind": "banner", "status": status})["banner"]
         self.assertRegex(banner, r"^Rendering is delayed\. The render machine last checked in at ")
-        self.assertIn("give back any credits held for them", banner)
+        self.assertIn("give your credits back", banner)
         # 2. the tick raises ONE alert; the real ops-tick handler turns it into ONE dry-run message in the REAL ops_outbox
         r, b = self.run_tick()
         self.assertEqual([a["key"] for a in r["new_alerts"]], ["worker_stale"])

@@ -203,7 +203,3 @@ Phase 2 accounts will use Supabase Auth in the same project; `user_id` and
 
 Tests: `node --test tests/analytics.test.cjs tests/workflow-audit.test.cjs tests/ryagram.test.cjs`
 (19 tests).
-
-## Open sign-up switch
-
-Open sign-up (Ryan 11-21; proposals/WEB-SIGNUP-OPEN-1122.md): `waitingAccounts: true` in `assets/ryagram-config.js` is what SHOWS "Create an account" on the sign-in page and on `/ryagram/`, and runs the `join` call. The committed value on branch `web-signup-open-1122` is `true`. Push the site with it only AFTER the server half is on: `join_open` ON and `waiting_accounts` OFF (a new account is then active at once; no welcome credits, Q679 option A). The one-line change to hide Create an account again is `waitingAccounts: false` (then tests/waiting-accounts.test.mjs, tests/switches-off.test.mjs and the page checks must be set back to match). Option B (welcome credits): see assets/free-account-line.js and tests/free-account-line.test.mjs.

@@ -6,15 +6,14 @@ import fs from 'node:fs';
 
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
-test('SIGN-IN: a person with no account is not left at a dead end: the Create an account row (shown by the switch) and help; no invite-only or waitlist words (open sign-up, 11-22)', () => {
+test('SIGN-IN: a person with no invite is not left at a dead end: waitlist, email for an invite, and help', () => {
   const html = read('app/index.html');
   const p = html.slice(html.indexOf('<p class="form-note sign-in-help">'), html.indexOf('</p>', html.indexOf('<p class="form-note sign-in-help">')));
-  assert.doesNotMatch(html.slice(html.indexOf('id="sign-in"'), html.indexOf('id="create-account"')), /invite-only|waitlist|No invite yet|ask for an invite/i, 'the sign-in panel says nothing is invite-only and offers no waitlist');
-  assert.match(html, /<p class="form-intro">Sign in to your Ryagram account\.<\/p>/);
-  assert.match(html, /<p id="create-row" class="form-note" hidden>First time here\? <a href="#\/create-account" id="create-link">Create an account<\/a><\/p>/);
+  assert.match(p, /No invite yet\? <a href="\/ryagram\/#waitlist">Join the waitlist<\/a>/);
   assert.doesNotMatch(p, /mailto:/, 'no new mail address until Ryan has confirmed it receives mail');
+  assert.match(p, /<a href="\/ryagram\/#waitlist">Join the waitlist<\/a> to ask for an invite\./);
   assert.match(p, /Trouble signing in\? <a href="\/help\/">Get help<\/a>/);
-  assert.ok(read('ryagram/index.html').includes('id="waitlist"'), 'the #waitlist anchor the film pages point at still exists');
+  assert.ok(read('ryagram/index.html').includes('id="waitlist"'), 'the waitlist anchor it points at exists');
 });
 
 test('HEADER AND FOOTER: Help and Account are words in the header; Help and Contact are in the app footer', () => {
@@ -76,7 +75,7 @@ test('ROUND 2: back links are comfortable to tap, the first loading line has a s
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.spinner\{animation:none\}\}/);
   const lib = read('assets/app-library.js');
   assert.ok(lib.includes("h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading…'"));
-  assert.ok(lib.includes("'A contact sheet is a grid of still frames to check the look. It takes about 5 minutes once it starts. A preview is a short clip. The final film is the full render.'"));
+  assert.ok(lib.includes("'A contact sheet is a grid of still frames to check the look. It usually takes about 4 to 5 minutes. A preview is a short clip. The final film is the full render.'"));
 });
 
 test('FOOTER (Ryan Q26, 2026-10-18): the app footer says "Contact: ryagram@uselai.com" as one link, between Help and Terms of Use', () => {
@@ -87,7 +86,7 @@ test('FOOTER (Ryan Q26, 2026-10-18): the app footer says "Contact: ryagram@usela
 
 test('DELIVERY LINK SURVIVES A FINISHED RENDER (found by tools/check-delivery-e2e.py): the order box sits outside the run controls, which are hidden once a version is complete', () => {
   const lib = read('assets/app-library.js');
-  const controls = lib.slice(lib.indexOf("const controls = h('div', { class: 'run-controls' },"), lib.indexOf("'Jobs run if you leave. No email: check back here.'"));
+  const controls = lib.slice(lib.indexOf("const controls = h('div', { class: 'run-controls' },"), lib.indexOf("'Jobs keep running if you leave this page.'"));
   assert.ok(!controls.includes('orderBox'), 'orderBox inside the run controls would be hidden with them');
   assert.ok(lib.includes('controls, orderBox, balanceNote, lockedNote, error);'));
 });

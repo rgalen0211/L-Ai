@@ -6,7 +6,7 @@
   const EDITABLE = ['draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render'];
   const STATE_LABELS = {
     draft: 'Draft', sampling: 'Sampling', previewing: 'Previewing',
-    editorial_action_required: 'Stopped', ready_to_render: 'Ready to render',
+    editorial_action_required: 'Needs a decision', ready_to_render: 'Ready to render',
     queued: 'Queued', rendering: 'Rendering', validating: 'Checking', uploading: 'Uploading',
     complete: 'Complete', failed: 'Failed', archived: 'Archived', non_restorable: 'Can’t be rebuilt'
   };
@@ -96,20 +96,6 @@
   const FREE_PREVIEW_RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
   const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE;      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
   const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
-  const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';      // Q679 B (Ryan 11-23 15:46); the same words as assets/free-account-line.js (a test pins both)
-  const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.';      // typed for the Help answer only; the Credits page reads the price table
-  // A film request costs credits. While buying is closed, the way in (the home link, the project page's pointer) shows only to someone whose balance COVERS a request (the same
-  // cost the request page reads): a new account has none and could not buy any, so the link would lead to a send that fails (BUILDER 11-23, the Wednesday first-user audit; the
-  // full cost, not 'any credits', per GAMES/CC1 08:33). A failed read keeps it hidden. Open buying, or credits off, leaves it as it was.
-  const availableOf = rows => (rows || []).reduce((s, r) => s + (r.available || 0), 0);
-  const requestGate = (data, el) => {
-    if (!el || buyingOn() || !creditsOn()) return el;
-    el.hidden = true;
-    Promise.all([data.creditBalances(), data.filmRequestCost()])
-      .then(([rows, cost]) => { if (cost != null && availableOf(rows) >= Number(cost)) el.hidden = false; }).catch(() => {});
-    return el;
-  };
-  const REQUEST_CLOSED = (cost, have) => `A film request costs ${window.ryagramCredits.plural(Number(cost))}; you have ${window.ryagramCredits.plural(have)}. Buying credits is not open yet.`;      // the request page's send, at a balance below the cost while buying is closed (Q679 B: 8 welcome credits are not 10)
 
   // Every admin page that is switched on, in plain words and in groups (the Admin page #/admin, WEB 11-20: the admin tools live on ONE page, not in a menu and not scattered over the user pages).
   const adminPages = () => [
@@ -165,10 +151,9 @@
       let view;
       try {
         let m;
-        const gate = {};                                                          // this call's own answer: a route change during the pause cannot hand it to another call
-        if (await waitingGate(gate)) {                                            // a WAITING account sees one page whatever the address says (the server is the real gate)
+        if (await waitingGate()) {                                                // a WAITING account sees one page whatever the address says (the server is the real gate)
           const email = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
-          view = gate.unknown ? waitingUi().unknownView() : await waitingUi().waitingView(email, () => { activeSeen = true; document.body.classList.remove('is-waiting'); if (location.hash === '#/' || location.hash === '') route(); else location.hash = '#/'; });
+          view = await waitingUi().waitingView(email, () => { activeSeen = true; document.body.classList.remove('is-waiting'); if (location.hash === '#/' || location.hash === '') route(); else location.hash = '#/'; });
         } else if (hash === '#/waiting') { location.replace('#/'); return; }
         // The plain library address goes to the door only for an invited account with no AI connected and no 'Not now' in the last 7 days; any failure shows the library.
         else if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
@@ -209,7 +194,7 @@
              h('p', { class: 'form-intro', role: 'status' }, 'It may belong to a different account, or it may have been removed.'),
              h('a', { class: 'button primary', id: 'not-available-home', href: '#/' }, 'Back to your projects')]
           : [h('h1', { tabindex: '-1' }, 'Something went wrong'),
-             h('p', { class: 'app-error', role: 'alert' }, window.ryagramJobs.plainRefusal(err && err.message)),
+             h('p', { class: 'app-error', role: 'alert' }, err.message),
              h('a', { href: '#/' }, 'Back to your projects')];
       }
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
@@ -235,14 +220,7 @@
 
     async function delayedNotice() {
       const text = window.ryagramOps.bannerText(await data.serviceStatus());
-      return text ? h('p', { class: 'app-status delayed-notice', role: 'status' }, text) : null;
-    }
-    // The same notice, kept current by the Version page's own 10-second read (WEB 11-23): shown when rendering turns delayed while a film waits, removed when it is back. Never a second timer.
-    function setDelayedNotice(text) {
-      const now = root.querySelector('.delayed-notice');
-      if (!text) { if (now) now.remove(); return; }
-      if (now) { if (now.textContent !== text) now.textContent = text; return; }
-      root.prepend(h('p', { class: 'app-status delayed-notice', role: 'status' }, text));
+      return text ? h('p', { class: 'app-status', role: 'status' }, text) : null;
     }
 
     // --- #/help  the help form. Signed-in people's job (from #/help?job=<id>) is attached by the server.
@@ -253,7 +231,7 @@
       const error = errorLine();
       const done = h('p', { class: 'form-note', role: 'status', hidden: true });
       const email = h('input', { id: 'help-email', type: 'email', required: true, maxlength: '200', autocomplete: 'email', value: known });
-      const topics = O.topicsFor(uploadsOn()).map(([id, label]) => h('label', { class: 'choice' },
+      const topics = O.TOPICS.map(([id, label]) => h('label', { class: 'choice' },
         h('input', { type: 'radio', name: 'help-topic', value: id, ...(id === (job ? 'render' : 'other') ? { checked: true } : {}) }), ' ', label));
       const topicValue = () => form.querySelector('input[name="help-topic"]:checked')?.value;
       const message = h('textarea', { id: 'help-message', required: true, rows: '5', maxlength: '4000' });
@@ -280,21 +258,19 @@
           job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
           send, error));
       // the form is the main action and stays on the first screen; the quick answers (the same words as the help pages) sit in two more flip sections (Ryan 11-20: no long pages)
-      const qa = (q, ...a) => h('details', {}, h('summary', {}, q), ...a.map(t => h('p', {}, ...[].concat(t))));      // an answer may be a string or an array of strings and nodes (a link)
-      const answers = (...items) => h('div', { class: 'help-answers' }, h('div', { class: 'scroll-panel' }, ...items.filter(Boolean)));
+      const qa = (q, ...a) => h('details', {}, h('summary', {}, q), ...a.map(t => h('p', {}, t)));
+      const answers = (...items) => h('div', { class: 'help-answers' }, h('div', { class: 'scroll-panel' }, ...items));
       const flip = window.ryagramFlip.create({ h, label: 'Help', address: false, sections: [
         { id: 'write', label: 'Write to us', el: h('div', {}, form, done) },
         { id: 'films', label: 'Films and credits', el: answers(
-          qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them. Otherwise a waiting film keeps its place in line.'),
-          qa('Why is my film still "Queued"?', 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour, so a long line can mean hours, or a day or more when many people join at once, such as a launch day. A full film is checked by a person before it starts; when an earlier one is approved, your place in line can move back. The Render panel shows your place in line. You can have 2 films waiting at once. We do not send an email when a film is ready, so come back to this page to check.'),
-          qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits (a failed free preview still counts toward your free ones).'),
-          qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.'),
-          qa('Why can\u2019t I make a full film? How do I get credits?', WELCOME_LINE + ' A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' ' + FILM_COST_CLOSED + ' Buying credits is not open yet.'))) },
+          qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If it waits more than an hour we stop it and give your credits back.'),
+          qa('Why is my film still "Queued"?', 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. The Render panel shows your place in line.'),
+          qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits.'),
+          qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.')) },
         { id: 'account', label: 'Account and reports', el: answers(
           qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
-          qa('How do I delete my account?', 'Open Account and press Delete my account. Your films, previews and files are removed for good. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.'),
-          qa('How do I report a film?', ['Public film pages are not open yet. To report a film, use the ', h('a', { href: '/report/' }, 'report form'), '. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.']),
-          uploadsOn() ? null : qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, this answer will say how your files are read and deleted. Until then nothing can be uploaded.')) }
+          qa('How do I report a film?', 'Every public film page has a \u201cReport this film\u201d link, or use the report form. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.'),
+          qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, Ryagram will read spreadsheets (CSV and similar files). If a file can\u2019t be read you\u2019ll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.')) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
               h('p', { class: 'form-intro' }, 'Common questions are answered below and in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
@@ -305,7 +281,7 @@
       return h('p', { class: 'form-note app-error', role: 'alert', hidden: true });
     }
     function showError(el, err) {
-      el.textContent = window.ryagramJobs.plainRefusal(err && err.message);
+      el.textContent = err.message;
       el.hidden = false;
     }
     async function busy(button, label, work) {
@@ -345,11 +321,11 @@
     let waitingCache = null;
     const waitingUi = () => waitingCache || (waitingCache = window.ryagramWaiting.create({ h, data, busy, showError, errorLine }));
     let activeSeen = false;                                                      // 'active' is remembered for this sign-in; anything else is asked again on the next page
-    async function waitingGate(gate) {                                           // gate.unknown: my_access failed twice, so the page says it could not check (no list claim), still closed; one object per route() call, never shared
+    async function waitingGate() {
       if (!waitingOn() || !window.ryagramWaiting) return false;
       if (activeSeen) return false;
-      const access = await window.ryagramWaiting.checkAccess(() => data.myAccess());     // one retry after a short pause; 'unknown' if it fails twice (fail closed, but not 'waiting')
-      gate.unknown = access === 'unknown';
+      let access = 'waiting';
+      try { access = window.ryagramWaiting.accessOf(await data.myAccess()); } catch { /* fail closed: the waiting page */ }
       document.body.classList.toggle('is-waiting', access !== 'active');
       if (access === 'active') activeSeen = true;
       return window.ryagramWaiting.pageFor(access, location.hash) === 'waiting';
@@ -418,8 +394,8 @@
       const back = h('div', { class: 'layer back', 'data-parallax': '.16', role: 'img', 'aria-label': 'A map of the United States with interstate highways drawn in blue, from one of our own films' });
       back.style.backgroundImage = 'url(/assets/ryagram-hero-interstate.jpg)';
       const hero = h('section', { class: 'hero', 'aria-labelledby': 'home-h1' }, back, h('div', { class: 'layer glow', 'data-parallax': '.05' }),
-        h('div', { class: 'container' }, h('div', { class: 'copy' }, h('p', { class: 'eyebrow' }, projects.length ? 'Welcome back' : 'Welcome'), h('h1', { tabindex: '-1', class: 'display', id: 'home-h1' }, 'Your projects'),
-          h('p', { class: 'lede' }, projects.length ? 'Welcome back. Pick up a film below, or start a new one.' : 'Start your first film below. The first picture is free.'),      // a brand-new account is not greeted 'back' (BUILDER 11-23)
+        h('div', { class: 'container' }, h('div', { class: 'copy' }, h('p', { class: 'eyebrow' }, 'Welcome back'), h('h1', { tabindex: '-1', class: 'display', id: 'home-h1' }, 'Your projects'),
+          h('p', { class: 'lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
           h('div', { class: 'actions' }, h('a', { class: 'button primary', href: '#/', onclick: ev => { ev.preventDefault(); const t = document.getElementById('start-new'); if (t) { t.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' }); const f = t.querySelector('input'); if (f) f.focus({ preventScroll: true }); } } }, 'Start a new film'), filmsLink ? h('a', { class: 'button', href: '#/films' }, 'See your films') : null))));
       const startCard = h('section', { class: 'ds-start', id: 'start-new', 'aria-labelledby': 'start-card-h' }, h('div', { class: 'container' }, h('div', { class: 'card' }, h('div', { class: 'inner' },
         h('div', {}, h('p', { class: 'eyebrow' }, 'Start'), h('h2', { id: 'start-card-h' }, 'Start a new film'),
@@ -427,11 +403,10 @@
           h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null)),
         h('div', {}, form, startStrip ? [h('div', { class: 'or' }, 'or start from a line'), startStrip] : null)))));
       const quiet = [intakeLink, requestLink, looksLink, help].filter(Boolean);
-      const quietItem = x => (x === requestLink ? requestGate(data, h('li', {}, x)) : h('li', {}, x));      // the request link's whole row hides (no empty bullet) while it cannot be used
       // Ryan 11-20 11:55: no long vertical scroll. The hero, the Start card and the tab row sit on the first screen; the films (in their own scroll panel), the departments and the credits and links are flip sections.
       const filmsSection = h('div', { class: 'home-films' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), h('div', { class: 'scroll-panel' }, list));
       const deptSection = deptCards ? h('div', { class: 'home-depts' }, h('div', { class: 'scroll-panel' }, deptCards)) : null;
-      const moreBits = [credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(quietItem)) : null].filter(Boolean);
+      const moreBits = [credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null].filter(Boolean);
       const moreSection = moreBits.length ? h('div', { class: 'home-more' }, moreBits) : null;
       const flip = window.ryagramFlip.create({ h, label: 'Home', address: false, sections: [
         { id: 'films', label: 'Your films', el: filmsSection },
@@ -497,17 +472,11 @@
       const question = h('textarea', { id: 'rq-question', name: 'question', rows: '4', required: true, minlength: '10', maxlength: '1000', placeholder: 'For example: Did cities that legalized duplexes build more homes within five years?' });
       const notes = h('textarea', { id: 'rq-notes', name: 'notes', rows: '3', maxlength: '1000', placeholder: 'Anything that helps: the years, the places, the data you have in mind' });
       const send = h('button', { class: 'button primary', type: 'submit' }, 'Send request');
-      const closedNote = h('p', { class: 'form-note request-closed', hidden: true }, '');
       const list = h('div', { class: 'request-list' });
-      let short = false;      // buying closed and not enough credits (set by reload): say so, and no send that can only fail
-      send.disabled = !buyingOn() && creditsOn();      // off until reload has read the balance and the cost (CC1 08:34)
       async function reload() {
         const [rows, c, bal] = await Promise.all([data.myFilmRequests().catch(() => []), data.filmRequestCost().catch(() => null), creditsOn() ? data.creditBalances().catch(() => null) : null]);
         cost.textContent = O.requestCostLine(c);
         if (bal) balance.replaceChildren(window.ryagramCredits.balanceLine(bal));
-        short = !buyingOn() && !!bal && c != null && availableOf(bal) < Number(c);
-        send.disabled = short; closedNote.hidden = !short;
-        if (short) closedNote.textContent = REQUEST_CLOSED(c, availableOf(bal));
         list.replaceChildren(rows.length ? h('ul', { class: 'project-list' }, rows.map(r => h('li', {},
           h('strong', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}`), h('span', { class: 'meta' }, ` ${date(r.created_at)}, ${r.credits} credits`),
           h('p', {}, r.question),
@@ -520,7 +489,6 @@
         error.hidden = true; done.hidden = true;
         const problem = O.checkRequest({ question: question.value, notes: notes.value });
         if (problem) { showError(error, new Error(problem)); return; }
-        if (short) return;
         await busy(send, 'Sending\u2026', async () => {
           try {
             const id = await data.requestFilm(question.value.trim(), notes.value.trim());
@@ -530,13 +498,12 @@
             await reload();
           } catch (err) { showError(error, err); }
         });
-        send.disabled = short;      // busy() turns the button back on; a send that spent the last credits leaves it off
       } }, h('label', { for: 'rq-question' }, 'The question you want answered'), question,
            h('label', { for: 'rq-notes' }, 'Notes (optional)'), notes, send, error);
       await reload();
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Request a film'),
-              h('p', { class: 'form-note' }, 'Tell us the question you want data to answer. We make the film and send it back here. Each one is made by hand, so it can take a day or more.'),
-              balance, cost, closedNote, form, done, h('h2', {}, 'Your requests'), list];
+              h('p', { class: 'form-note' }, 'Tell us the question you want data to answer. We make the film and send it back here. This is a private beta, so each one is made by hand.'),
+              balance, cost, form, done, h('h2', {}, 'Your requests'), list];
     }
 
     // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
@@ -965,8 +932,7 @@
       if (desktopOn()) { const computers = await deviceUi().computersSection(); if (computers) sections.push(computers); }          // null for an account that is not a tester and has no computer
       if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
-      // The store / don't-keep choice (spec 2B-6), as the default for uploads. Only while uploads are on: with uploads off there is nothing to upload (BUILDER 11-23).
-      if (uploadsOn()) {
+      // The store / don't-keep choice (spec 2B-6), as the default for uploads.
       const choiceNote = h('p', { class: 'form-note', role: 'status' });
       const choiceError = errorLine();
       let current = 'keep';
@@ -985,7 +951,6 @@
           option('keep', 'Store my data (default)', 'Ryagram privately keeps this dataset because it’s needed to rebuild the film later.'),
           option('dont_keep', 'Don’t keep my data', 'Ryagram deletes the input data after processing. The film can’t be rebuilt after its rendered copy is archived.')),
         choiceNote, choiceError));
-      }
 
       // Delete account
       const delError = errorLine();
@@ -996,7 +961,7 @@
         event.preventDefault();
         delError.hidden = true;
         if (!delForm.reportValidity()) return;
-        if (!confirm('Delete your account? Your films, previews and files are removed for good. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.')) return;
+        if (!confirm('Delete your account, every project, film and file? This can’t be undone.')) return;
         await busy(del, 'Deleting…', async () => {
           try {
             const result = await data.deleteAccount(typed.value);
@@ -1008,7 +973,7 @@
         h('label', { for: 'acct-delete-email' }, 'Type your email to confirm'), typed, del, delNote, delError);
       sections.push(h('section', { class: 'account-section account-danger', 'aria-labelledby': 'acct-delete' },
         h('h2', { id: 'acct-delete' }, 'Delete your account'),
-        h('p', {}, 'We remove your films, previews and files, replace your email in support requests and invite records, and then delete your login. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand. A render that is still running has to finish or be cancelled first.'),
+        h('p', {}, 'This deletes your login, every project and version, every film and file, and any public film pages, at once. Renders must have finished first. If you’ve bought or used credits, those records are kept as financial records and your account is closed by hand within 30 days.'),
         delForm));
       if (helpSection) sections.push(helpSection);
       return sections;
@@ -1017,7 +982,7 @@
     // --- #/credits  packs and plans (Stripe Checkout; credits arrive through the webhook)
     async function creditsView(paidCode, onStop) {
       const C = window.ryagramCredits;
-      const [offers, plan, filmRows, haveRows] = await Promise.all([buyingOn() ? data.shopOffers() : [], data.myPlan(), Promise.resolve().then(() => data.filmPrices()).catch(() => []), Promise.resolve().then(() => creditsOn() ? data.creditBalances() : null).catch(() => null)]);   // (the film price is a nicety: no answer, no sentence)      // closed: no shop-offers request at all, so no pack or plan price travels in the page's network answer (CC1 17:48)
+      const [offers, plan, filmRows] = await Promise.all([data.shopOffers(), data.myPlan(), Promise.resolve().then(() => data.filmPrices()).catch(() => [])]);   // (the film price is a nicety: no answer, no sentence)
       const error = errorLine();
       const balance = h('p', { class: 'credit-balance' }, 'Loading credits…');
       let before = null;
@@ -1077,7 +1042,7 @@
         h('h1', { tabindex: '-1' }, 'Credits'),
         balance, thanks,
         // DRAFT FOR RYAN: what credits are for and what a full film costs (the cost is read from the ledger's price table, the same numbers the Render step quotes).
-        h('p', { class: 'form-note credit-about' }, 'Credits pay for full films. ', C.filmCostLine(filmRows), C.filmCoverLine(filmRows, haveRows ? haveRows.reduce((s, r) => s + (r.available || 0), 0) : null), open ? ' Contact sheets are free. ' + FREE_PREVIEW_RULE : null),      // DRAFT FOR RYAN
+        h('p', { class: 'form-note credit-about' }, 'Credits pay for full films. ', C.filmCostLine(filmRows), open ? ' Contact sheets are free. ' + FREE_PREVIEW_RULE : null),      // DRAFT FOR RYAN
         open ? null : h('p', { class: 'form-note credit-closed' }, BUYING_CLOSED),
         testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
         testMode && !window.ryagramMock ? h('p', { class: 'form-note credit-test-label' }, 'Test mode — prices are placeholders, no real charge.') : null,
@@ -1085,8 +1050,7 @@
           current ? h('p', {}, current) : null,
           h('button', { class: 'button secondary small', type: 'button',
                         onclick: event => go(event.currentTarget, 'Opening…', () => data.openBillingPortal()) }, 'Manage plan')) : null,
-        // Buying closed: no packs, plans or prices a stranger cannot pay (CC1 ruling 11-23 08:34; the closed sentence and the free-preview rule above stay). Open: today's lists.
-        !open ? null : packs.length && plans.length ? window.ryagramFlip.create({ h, label: 'Credits', address: false, sections: [
+        packs.length && plans.length ? window.ryagramFlip.create({ h, label: 'Credits', address: false, sections: [
           { id: 'packs', label: 'Credit packs', el: h('div', {}, h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)), h('p', { class: 'form-note' }, 'Pack credits never expire.')) },
           { id: 'plans', label: 'Monthly plans', el: h('div', {}, h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)), h('p', { class: 'form-note' }, planNote)) }] }).el : [
         packs.length ? [h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)),
@@ -1144,7 +1108,6 @@
         } }, `Start a new version from version ${v.number}`)));
 
       const helpNote = requestsOn() ? h('p', { class: 'form-note request-pointer' }, 'Not sure how to build a film? ', h('a', { href: '#/request' }, 'Request a film'), ' and we will make it for you.') : null;
-      requestGate(data, helpNote);      // the pointer hides while it cannot be used (buying closed, no credits): BUILDER 11-23
       return [
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, project.title),
@@ -1175,7 +1138,7 @@
       const facts = { data: h('p', { class: 'v' }, 'Loading…'), dataSub: h('p', { class: 's' }), credits: h('p', { class: 'v' }, creditsOn() ? '…' : 'Free'), creditsSub: h('p', { class: 's' }), job: h('p', { class: 'v' }, 'No jobs yet'), jobSub: h('p', { class: 's' }) };
       const onJobs = list => {
         const j = list[0];                                                   // newest first
-        facts.job.replaceChildren(j ? `${window.ryagramJobs.typeLabel(j.job_type)}: ${window.ryagramJobs.STATE_LABELS[j.state] || STATE_LABELS[j.state] || j.state}` : 'No jobs yet');
+        facts.job.replaceChildren(j ? `${window.ryagramJobs.typeLabel(j.job_type)}: ${STATE_LABELS[j.state] || j.state}` : 'No jobs yet');
         facts.jobSub.textContent = j ? (window.ryagramJobs.isActive(j) ? 'Working on it. This page updates itself.' : `Updated ${date(j.updated_at || j.created_at)}`) : 'Start with a contact sheet.';
       };
       const jobs = jobsPanel(v, {
@@ -1283,10 +1246,6 @@
       const advancedEl = h('div', { class: 'advanced-panel', id: 'advanced-panel' }, h('h2', {}, 'Advanced: your own data and the story file'),
         h('p', { class: 'form-note' }, 'Most films start from a ready-made film. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
         uploads?.el, storyForm);
-      if (!uploads) {      // uploads off: the tab holds only the story file, so it promises no 'own data' or spreadsheet (BUILDER 11-23)
-        advancedEl.querySelector('h2').textContent = 'Advanced: the story file';
-        advancedEl.querySelector('.form-note').textContent = 'Most films start from a ready-made film. Use this if you want to edit the story file directly.';
-      }
       advanced = advancedEl;
       let flip = null;
       const makeIt = h('div', { class: 'make-it' }, picker, byodPointer, saved, jobs.el, lookApply, v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null);
@@ -1777,7 +1736,6 @@
       let ownCompute = null;                                          // { tester, computers } for a tester account with a film waiting; null = unknown, nothing is claimed
       let engine = null;                           // the worker's current engine version, if known
       let quotes = {};                             // job type -> credit_quote, when credits are on
-      let filmRows = null;                         // the price table's final_* rows (data.filmPrices), read once: the 'a film that costs less would fit' hint; never typed
       let accounting = {};                         // job id -> job_accounting row
       let balance = null;
       const C = window.ryagramCredits;
@@ -1817,7 +1775,7 @@
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
           finalNote, finalButton),
-        h('p', { class: 'form-note run-timing' }, 'Jobs run if you leave. No email: check back here.'));
+        h('p', { class: 'form-note run-timing' }, 'Jobs keep running if you leave this page.'));
 
       async function submit(button, type, params, ladder) {
         error.hidden = true;
@@ -1842,7 +1800,7 @@
         if (w.error) return showError(error, new Error(w.error));
         const q = quotes.preview;
         if (creditsOn() && q && !q.error && q.credits > 0 && paymentsOn() && !buyingOn() && (q.available || 0) < q.credits) {      // short of credits and buying is closed: say so here, not the server's refusal
-          return showError(error, new Error(`${q.free_preview ? '' : J.FREE_PREVIEW_USED + ' '}This preview needs ${C.plural(q.credits)} and you have ${C.plural(Math.max(0, q.available || 0))}. ${BUYING_CLOSED_SHORT}`));
+          return showError(error, new Error(`This preview needs ${C.plural(q.credits)} and you have ${C.plural(Math.max(0, q.available || 0))}. ${BUYING_CLOSED_SHORT}`));
         }
         if (creditsOn() && q && !q.error && q.credits > 0
             && !(await askConfirm(previewButton, `Your free previews are used up for now, so this one costs ${C.plural(q.credits)}. Go ahead?`, 'Yes, make the preview'))) return;
@@ -1899,9 +1857,9 @@
         const busyType = type => jobs.some(j => j.job_type === type && J.isActive(j));
         const why = { sheet: '', preview: '', final: '' };                 // why a button is off: its tooltip, and the not-allowed cursor
         sheetButton.disabled = busyType('contact_sheet');
-        if (sheetButton.disabled) why.sheet = jobs.some(j => j.job_type === 'contact_sheet' && j.state === 'queued') ? 'Your contact sheet is waiting in line.' : 'A contact sheet is already being made.';
+        if (sheetButton.disabled) why.sheet = 'A contact sheet is already being made.';
         previewButton.disabled = busyType('preview');
-        if (previewButton.disabled) why.preview = jobs.some(j => j.job_type === 'preview' && j.state === 'queued') ? 'Your preview is waiting in line.' : 'A preview is already being made.';
+        if (previewButton.disabled) why.preview = 'A preview is already being made.';
         const ladder = J.ladder(jobs, storySha, engine);
         const noFilm = !!(window.ryagramTemplates && window.ryagramTemplates.isBlank(v.story_spec));
         blankNote.hidden = !noFilm;
@@ -1909,11 +1867,9 @@
         {
           const q = quotes.final_render;
           const anySheet = jobs.some(j => j.job_type === 'contact_sheet' && j.state === 'complete' && j.story_sha256 === storySha);
-          const cantBuy = !!q && typeof q.credits === 'number' && (q.available || 0) < q.credits && !buyingOn();      // short of credits with nowhere to get them: the strip must not promise the full film
           if (creditsOn() && anySheet && !jobs.some(j => j.job_type === 'final_render') && q && !q.error && typeof q.credits === 'number') {
-            nextStrip.replaceChildren(h('strong', {}, 'That first picture was free.'), ' Your contact sheet is under Files. ', ladder.preview ? (cantBuy ? 'You have a preview too.' : 'You have a preview too, so the full film is next.') : (cantBuy ? 'Next make a short preview.' : 'Next make a short preview, then the full film.'),
-              C.filmVsBalance(q, cantBuy),
-              ...(buyingOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : paymentsOn() && (q.available || 0) < q.credits ? [' ', BUYING_CLOSED_SHORT, C.fitsLine(q, filmRows)] : []));      // (the strip's two sentences by the film's OWN quote: q.credits is this version's view price)
+            nextStrip.replaceChildren(h('strong', {}, 'That first picture was free.'), ' ', ladder.preview ? 'You have a preview too, so the full film is next.' : 'Next make a short preview, then the full film.',
+              ` The full film uses ${C.plural(q.credits)}; you have ${C.plural(Math.max(0, q.available || 0))}.`, ...(buyingOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : paymentsOn() && (q.available || 0) < q.credits ? [' ', BUYING_CLOSED_SHORT] : []));
             nextStrip.hidden = false;
           } else nextStrip.hidden = true;
         }
@@ -1929,10 +1885,8 @@
           const label = (button, base, type) => {
             const q = quotes[type];
             button.textContent = q && !q.error ? `${base} · ${C.priceLabel(q)}` : base;
-            const isFinal = type === 'final_render';
-            const can = q && !q.error ? C.affordable(q, isFinal ? { rows: filmRows, closed: paymentsOn() && !buyingOn() } : undefined) : { ok: true };
-            if (type === 'preview' && q && !q.error && !q.free_preview && q.credits > 0 && !can.ok) can.reason = `${J.FREE_PREVIEW_USED} ${can.reason}`;      // which limit, and the next step
-            if (!can.ok && !isFinal && paymentsOn() && !buyingOn()) can.reason += ` ${BUYING_CLOSED_SHORT}`;      // short of credits and nothing to link to: say plainly buying is not open yet
+            const can = q && !q.error ? C.affordable(q) : { ok: true };
+            if (!can.ok && paymentsOn() && !buyingOn()) can.reason += ` ${BUYING_CLOSED_SHORT}`;      // short of credits and nothing to link to: say plainly buying is not open yet
             if (!can.ok) { button.disabled = true; whyKey(button, q?.error ? q.error : can.reason); }
             return q?.error ? q.error : can.ok ? '' : can.reason;
           };
@@ -2001,9 +1955,11 @@
                        j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
               }, 'Try again') : null,
           creditsOn() && failed ? returnedLine(j, note) : null,
-          failed && j.state !== 'cancelled' && opsOn()      // the render machine's own raw words (paths, codes) are never put on the page: only the plain problem() words above, and a way to send the job to us
+          failed && j.state !== 'cancelled' && (J.rawDetail(j) || opsOn())
             ? h('details', { class: 'job-help' }, h('summary', {}, 'Get help with this'),
-                h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Send this to us')) : null);
+                J.rawDetail(j) ? h('p', { class: 'form-note' }, 'What the render machine reported, in its own words:') : null,
+                J.rawDetail(j) ? h('code', {}, J.rawDetail(j)) : null,
+                opsOn() ? h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Send this to us') : null) : null);
       }
 
       function draw() {
@@ -2049,25 +2005,20 @@
           engine = currentEngine;
           if (creditsOn()) {
             const types = ['contact_sheet', 'preview', 'final_render'];
-            const [q, acct, bal, prices] = await Promise.all([
+            const [q, acct, bal] = await Promise.all([
               Promise.all(types.map(t => data.creditQuote(v.id, t).catch(err => ({ error: err.message })))),
               data.jobAccounting(v.id).catch(() => ({})),
-              data.creditBalances().catch(() => null),
-              filmRows ? filmRows : Promise.resolve().then(() => data.filmPrices()).catch(() => null)
+              data.creditBalances().catch(() => null)
             ]);
-            if (prices) filmRows = prices;
             quotes = Object.fromEntries(types.map((t, i) => [t, q[i]]));
             accounting = acct;
             balance = bal;
           }
           const pos = {};
-          // The delayed notice is read in THIS pass (so never an overlapping request), only while a film waits or a notice is showing and may need to clear.
-          const statusRead = opsOn() && (fresh.some(j => j.state === 'queued') || root.querySelector('.delayed-notice')) ? data.serviceStatus() : Promise.resolve(undefined);
-          const [, status] = await Promise.all([Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
+          await Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
             try { pos[j.id] = await data.queuePosition(j.id); } catch { /* position unknown */ }
-          })), statusRead]);
+          }));
           if (stopped || pass !== gen) return;
-          if (status !== undefined) setDelayedNotice(window.ryagramOps.bannerText(status));
           const before = seen;
           seen = new Map(fresh.map(j => [j.id, j.state]));
           jobs = fresh;
@@ -2101,7 +2052,7 @@
       const el = h('section', { class: 'jobs-panel', 'aria-labelledby': 'jobs-title' },
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
-        h('p', { class: 'form-note' }, 'A contact sheet is a grid of still frames to check the look. It takes about 5 minutes once it starts. A preview is a short clip. The final film is the full render.'),
+        h('p', { class: 'form-note' }, 'A contact sheet is a grid of still frames to check the look. It usually takes about 4 to 5 minutes. A preview is a short clip. The final film is the full render.'),
         nextStrip, controls, orderBox, balanceNote, lockedNote, error);
       // the job list is its OWN section (the Jobs tab) and scrolls inside its own panel; a status stuck on a hidden tab is refreshed the moment the page is visible again
       const listPanel = h('section', { class: 'jobs-list-panel', 'aria-labelledby': 'jobs-list-title' },

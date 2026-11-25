@@ -47,8 +47,8 @@ def link_footers(apply):
         s = path.read_text(encoding='utf-8')
         s2 = s if '/terms/' in s else re.sub(r'(<footer[^>]*>.*?)(<a href="/privacy-policy\.html">Privacy Policy</a>)', r'\1<a href="/terms/">Terms of Use</a>\2', s, count=1, flags=re.S)   # the FOOTER's privacy link only
         if p == 'app/index.html':
-            s2 = s2.replace('<p class="form-note" role="note">Ryagram is for people 18 and older. Read the <a href="/terms/">Terms of Use</a> and the <a href="/privacy-policy.html">Privacy Policy</a>.</p>',
-                            '<p class="form-note" role="note">By joining you agree to the <a href="/terms/">Terms of Use</a> and the <a href="/privacy-policy.html">Privacy Policy</a>. Ryagram is for people 18 and older.</p>', 1)      # open sign-up (11-22): the sign-up panel's note becomes the agreement line once counsel's Terms are in
+            s2 = s2.replace('<p class="form-intro">Ryagram is invite-only for now.</p>',
+                            '<p class="form-intro">Ryagram is invite-only for now.</p>\n    <p class="form-note">By joining you agree to the <a href="/terms/">Terms of Use</a> and the <a href="/privacy-policy.html">Privacy Policy</a>.</p>', 1)
         if p == 'ryagram/index.html':
             s2 = s2.replace('We will only use this to contact you about the beta. See our <a href="/privacy-policy.html">Privacy Policy</a>.',
                             'By applying you agree to the <a href="/terms/">Terms of Use</a>. We will only use this to contact you about the beta. See our <a href="/privacy-policy.html">Privacy Policy</a>.', 1)
