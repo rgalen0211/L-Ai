@@ -38,11 +38,19 @@ declare
   -- public.claim_next_job (20261113000400's ordering line): its 2-minute starvation guard AND its oldest-first tie order both read the line
   -- (GAMES 12:23: with only the tie order moved, an old film Ryan approves just now would count as waiting for days and stop every bundle jump)
   -- public.node_claim (20261026000200); public.queue_position (20260928000100)
-  fns  constant text[] := array['public.claim_next_job()', 'public.claim_next_job()', 'public.node_claim(text)', 'public.queue_position(uuid)'];
+  -- (CC1 14:3x, GAMES 13:39 LOWs) ryagram_private.expire_stale_queue (20261010000100): when the render PC has been silent for the whole
+  -- timeout it fails jobs that WAITED longer than it; with created_at, a full film approved minutes ago would be failed as 'waited an hour'.
+  -- ryagram_private.admin_ops_base (20261010000100, renamed by pipe1): the Ops page's 'the oldest has waited X', the same clock as the watch.
+  fns  constant text[] := array['public.claim_next_job()', 'public.claim_next_job()', 'public.node_claim(text)', 'public.queue_position(uuid)',
+                                'ryagram_private.expire_stale_queue()', 'ryagram_private.admin_ops_base()'];
   olds constant text[] := array['and o.created_at < now() - interval ''', 'then 0 else 1 end, created_at, id',
-                                'order by created_at, id for update skip locked limit 1;', '(q.created_at, q.id) < (j.created_at, j.id)'];
+                                'order by created_at, id for update skip locked limit 1;', '(q.created_at, q.id) < (j.created_at, j.id)',
+                                'and j.created_at < now() - make_interval(mins => s.queue_timeout_min)',
+                                'min(created_at)) / 60) from public.jobs where state = ''queued'''];
   news constant text[] := array['and o.joined_line_at < now() - interval ''', 'then 0 else 1 end, joined_line_at, id',
-                                'order by joined_line_at, id for update skip locked limit 1;', '(q.joined_line_at, q.id) < (j.joined_line_at, j.id)'];
+                                'order by joined_line_at, id for update skip locked limit 1;', '(q.joined_line_at, q.id) < (j.joined_line_at, j.id)',
+                                'and j.joined_line_at < now() - make_interval(mins => s.queue_timeout_min)',
+                                'min(joined_line_at)) / 60) from public.jobs where state = ''queued'''];
   fn text; o text; nw text;
 begin
   for i in 1 .. array_length(fns, 1) loop

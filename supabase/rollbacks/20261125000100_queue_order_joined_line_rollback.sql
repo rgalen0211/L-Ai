@@ -8,11 +8,16 @@ do $do$
 declare
   def text; n int; i int; fn text; o text; nw text;
   -- the same four short pairs as the migration, each put back
-  fns  constant text[] := array['public.claim_next_job()', 'public.claim_next_job()', 'public.node_claim(text)', 'public.queue_position(uuid)'];
+  fns  constant text[] := array['public.claim_next_job()', 'public.claim_next_job()', 'public.node_claim(text)', 'public.queue_position(uuid)',
+                                'ryagram_private.expire_stale_queue()', 'ryagram_private.admin_ops_base()'];
   news constant text[] := array['and o.joined_line_at < now() - interval ''', 'then 0 else 1 end, joined_line_at, id',
-                                'order by joined_line_at, id for update skip locked limit 1;', '(q.joined_line_at, q.id) < (j.joined_line_at, j.id)'];
+                                'order by joined_line_at, id for update skip locked limit 1;', '(q.joined_line_at, q.id) < (j.joined_line_at, j.id)',
+                                'and j.joined_line_at < now() - make_interval(mins => s.queue_timeout_min)',
+                                'min(joined_line_at)) / 60) from public.jobs where state = ''queued'''];
   olds constant text[] := array['and o.created_at < now() - interval ''', 'then 0 else 1 end, created_at, id',
-                                'order by created_at, id for update skip locked limit 1;', '(q.created_at, q.id) < (j.created_at, j.id)'];
+                                'order by created_at, id for update skip locked limit 1;', '(q.created_at, q.id) < (j.created_at, j.id)',
+                                'and j.created_at < now() - make_interval(mins => s.queue_timeout_min)',
+                                'min(created_at)) / 60) from public.jobs where state = ''queued'''];
 begin
   for i in 1 .. array_length(fns, 1) loop
     fn := fns[i]; nw := news[i]; o := olds[i];
