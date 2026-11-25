@@ -3,9 +3,14 @@
 -- WHAT: authenticated may still read every column EXCEPT price_cents (price_version, code, credits, monthly, effective_from). The page's film-cost line (app-data.js filmPrices) selects only credits, so it keeps working. The page's shop (shopOffers) selects price_cents and runs only when buying is on: when Ryan opens buying live step 69 part 4 (the one that opens buying) grants price_cents back.
 -- NOT CHANGED: the policy "Signed-in people read prices" (rows stay visible), credit_view_prices and stripe_prices (no money in them), service_role and the edge functions (they read with their own role).
 -- UNDO: rollbacks/20261123000800_credit_prices_hide_money_rollback.sql (puts the table-wide grant back).
+-- GUARD (RENDERER 20:54): public.credit_prices is created only by the hand-applied phase-2b ledger, so the shared test template (every migration, no phase-2b files) has no such table. There the block does nothing; live has the table (Q673 true), so it applies.
 begin;
-revoke select on public.credit_prices from authenticated;
-grant select (price_version, code, credits, monthly, effective_from) on public.credit_prices to authenticated;
+do $g$ begin
+  if to_regclass('public.credit_prices') is not null then
+    revoke select on public.credit_prices from authenticated;
+    grant select (price_version, code, credits, monthly, effective_from) on public.credit_prices to authenticated;
+  end if;
+end $g$;
 
 select ryagram_private.gate_apply();                       -- every migration after the gate ends with this line (a test fails otherwise)
 
