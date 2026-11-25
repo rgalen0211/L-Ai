@@ -247,6 +247,12 @@ class CheckoutTax(unittest.TestCase):
         self.admin("update public.tax_rates set active = false where code = 'oh_b' returning 1")
         self.admin("update public.ohio_county_rate set rate_code = 'oh_a' where county in ('Lorain', 'Summit') returning 1")
         self.admin("delete from public.tax_rates where code in ('oh_b', 'oh_c') returning 1")
+        self.run_sql("create table pg_temp.zips_hold as select * from public.ohio_zip_county")
+        self.run_sql("delete from public.ohio_zip_county")                                      # no Ohio ZIPs loaded
+        with self.assertRaises(psycopg.Error) as cm:
+            self.run_sql(P69[4])
+        self.assertIn("Ohio rates are not loaded", str(cm.exception))
+        self.run_sql("insert into public.ohio_zip_county select * from pg_temp.zips_hold")
         self.run_sql(P69[4])
         self.assertEqual(self.admin("select buying_open from public.stripe_settings where id"), True)
 
