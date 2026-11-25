@@ -77,9 +77,14 @@ grant execute on function public.my_tax_profile() to authenticated;
 grant execute on function public.set_my_tax_profile(text, text, text, text) to authenticated;
 
 -- The checkout's context: every old key unchanged, four new ones (see the header). Same name, arguments, owner and grants (create or replace keeps them).
+-- GUARD (GAMES 20:55, RENDERER 20:54): the Stripe tables and this function are made by the hand-applied phase-2b files. The shared test template runs every migration BEFORE them, and stripe_test_mode.sql creates the function with a plain
+-- 'create function' (it would fail 'already exists' if this ran first). So the replacement happens only where the Stripe tables already exist (live does; a template that loads the phase-2b files and THEN this migration, as test_checkout_tax.py does, does too).
+do $g$ begin
+if to_regclass('public.stripe_settings') is not null and to_regclass('public.stripe_prices') is not null then
+execute $f$
 create or replace function public.stripe_checkout_context(p_owner uuid, p_price_code text)
 returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql stable security definer set search_path = '' as $body$
 declare prof public.account_tax_profile%rowtype; v_mode text; v_county text; v_rate text; v_unknown boolean := false;
 begin
   select * into prof from public.account_tax_profile where owner_id = p_owner;
@@ -106,7 +111,10 @@ begin
     'tax_rate_id', v_rate,
     'tax_county', v_county,
     'tax_unknown', v_unknown);
-end $$;
+end $body$;
+$f$;
+end if;
+end $g$;
 
 select ryagram_private.gate_apply();                       -- every migration after the gate ends with this line (a test fails otherwise)
 
