@@ -111,7 +111,7 @@ def main():
 
             print('4. the builder')
             p.wait_for_selector('h2:has-text("Start from a ready-made film")', timeout=15000)
-            check(p.locator('.builder-start').count() == 3, 'three ready-made starts')
+            check(p.locator('.builder-start').count() == 6, 'six ready-made starts')
             screen(p, '4-starts', 'builder start')
             p.click('.builder-start[data-start="housing"]')
             p.wait_for_selector('.builder-summary', timeout=15000)

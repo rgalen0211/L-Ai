@@ -76,10 +76,10 @@ def main():
             p.click('#first-film')
             p.wait_for_selector('h2:has-text("Start from a ready-made film")', timeout=15000)
             starts = p.locator('.builder-start')
-            check(starts.count() == 3, f'three ready-made starts ({starts.count()})')
+            check(starts.count() == 6, f'six ready-made starts ({starts.count()})')
             names = [starts.nth(i).inner_text().split('\n')[0] for i in range(starts.count())]
-            check(names == ['Housing', 'Health', 'Work'], f'housing, health, work, and no income ({names})')
-            check(p.locator('h2:has-text("Which data?")').count() == 1 and p.locator('[aria-label="Datasets"] .builder-card').count() == 3, 'the full dataset list is still there under it')
+            check(names == ['Housing', 'Health', 'Work', 'Health care jobs', 'Factory jobs', 'Restaurant and hotel jobs'], f'housing, health, work, the three job starts, and no income ({names})')
+            check(p.locator('h2:has-text("Which data?")').count() == 1 and p.locator('[aria-label="Datasets"] .builder-card').count() == 6, 'the full dataset list is still there under it')
             small = p.evaluate(BIG)
             check(not small, f'every control 44 px or more {small}')
             check(not p.evaluate('document.documentElement.scrollWidth > innerWidth + 1'), 'no sideways scroll in the builder')

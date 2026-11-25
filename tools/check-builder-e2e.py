@@ -69,7 +69,7 @@ def main():
                 p.wait_for_selector('a:has-text("Make a film step by step")', timeout=20000)
                 p.click('a:has-text("Make a film step by step")')
                 p.wait_for_selector('h2:has-text("Which data?")', timeout=15000)
-                check(p.locator('.builder-card').count() == 3, 'the catalog lists only its listed datasets')
+                check(p.locator('.builder-card').count() == 6, 'the catalog lists only its listed datasets (the mock lists six, BUILDER 11-25)')
                 p.get_by_role('tab', name=re.compile('Choose a dataset')).click(); p.locator('.builder-card').filter(has=p.locator('strong:text-is("State unemployment rate")')).click()
                 for heading in ('What do you want to show?', 'Which years?', 'What kind of film?'):
                     p.click('button:has-text("Next")')
