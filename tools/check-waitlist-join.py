@@ -46,7 +46,7 @@ with sync_playwright() as pw:
             body = json.loads(calls[0][2]) if calls else {}
             check(set(body) == {'p_email', 'p_reason', 'p_source'} and body.get('p_source', '').startswith('uselai.com/ryagram?utm_source=film_page') and len(body.get('p_reason') or '') == 140, f'{case}: the body has email, reason (140) and source')
             t = p.inner_text('#waitlist-status')
-            if case in ('new', 'repeat'): check(t == 'Thanks. We’ll keep you posted about Ryagram.' and 'on the list' not in t, f'{case}: the updates form answers with its own words (assets/ryagram.js joined()), no list claim')
+            if case in ('new', 'repeat'): check('on the list' in t and 'x' != t, f'{case}: the page\'s own success words')
             elif case == 'refusal': check('does not look like an email address' in t and p.is_visible('#wl-email'), f'{case}: the plain sentence shows and the form stays')
             else: check('couldn’t add you' in t and 'duplicate' not in t and 'a@b.c' not in t, f'{case}: an odd error shows the page\'s own line, no database words')
             check(not errs, f'{case}: no page errors')

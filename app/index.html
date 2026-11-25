@@ -12,12 +12,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/workflow-audit.css?v=20261023a">
-<link rel="stylesheet" href="/assets/app.css?v=20261123ct">
+<link rel="stylesheet" href="/assets/app.css?v=20261121bk">
 <link rel="stylesheet" href="/assets/app-editor.css?v=20261120c">
 <link rel="stylesheet" href="/assets/app-editor-pro.css?v=20261120m">
 <link rel="stylesheet" href="/assets/app-site.css?v=20261120zc">
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="stylesheet" href="/assets/ryagram-look.css?v=20261117c">
-<link rel="stylesheet" href="/assets/ryagram-ds.css?v=20261123ct">
+<link rel="stylesheet" href="/assets/ryagram-ds.css?v=20261121q">
 <link rel="stylesheet" href="/assets/app-pages-ds.css?v=20261121be">
 </head>
 <body class="ryagram-app ryagram-look ryagram-ds ds-page">
@@ -34,7 +34,7 @@
 
   <section id="sign-in" class="app-panel" hidden aria-labelledby="sign-in-title">
     <h1 id="sign-in-title" tabindex="-1">Sign in</h1>
-    <p class="form-intro">Sign in to your Ryagram account.</p>
+    <p class="form-intro">Ryagram is invite-only for now.</p>
     <form id="sign-in-form" class="contact-form">
       <label for="si-email">Email</label>
       <input id="si-email" name="email" type="email" autocomplete="username" required>
@@ -55,7 +55,7 @@
       <p id="invite-note" class="form-note" role="status"></p>
       <p id="invite-error" class="form-note app-error" role="alert" hidden></p>
     </form>
-    <p class="form-note sign-in-help"><span class="help-line">Trouble signing in? <a href="/help/">Get help</a>.</span></p>
+    <p class="form-note sign-in-help"><span class="help-line">No invite yet? <a href="/ryagram/#waitlist">Join the waitlist</a> to ask for an invite.</span> <span class="help-line">Trouble signing in? <a href="/help/">Get help</a>.</span></p>
     <p id="create-row" class="form-note" hidden>First time here? <a href="#/create-account" id="create-link">Create an account</a></p>
     <form id="reset-form" class="contact-form" hidden>
       <label for="rs-email">Email for the reset link</label>
@@ -67,13 +67,12 @@
 
   <section id="create-account" class="app-panel" hidden aria-labelledby="create-account-title">
     <h1 id="create-account-title" tabindex="-1">Create an account</h1>
-    <p class="form-intro">Make a free account to try Ryagram.</p>
-    <p class="form-note" role="note">Ryagram is for people 18 and older. Read the <a href="/terms/">Terms of Use</a> and the <a href="/privacy-policy.html">Privacy Policy</a>.</p>
+    <p class="form-intro">Your account joins the list. We will email you when your access opens.</p>
+    <p class="form-note" role="note">Our Terms of Use and Privacy Policy are drafts while Ryagram is in testing. Creating an account only puts you on the list.</p>
     <form id="create-account-form" class="contact-form">
       <label for="ca-email">Email</label>
       <input id="ca-email" name="email" type="email" autocomplete="email" required>
       <p class="form-note">We email you a link. Open it to confirm your address and choose your password.</p>
-      <p class="form-note" data-free-account-line>When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. A free account can make free contact sheets. Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones. Buying credits is not open yet.</p>
       <label class="choice age-choice" for="ca-age"><input id="ca-age" name="over18" type="checkbox" aria-describedby="create-account-error" aria-required="true"><span>I am 18 or older.</span></label>
       <button class="button primary" type="submit">Create account</button>
       <p id="create-account-note" class="form-note" role="status"></p>
@@ -97,7 +96,7 @@
       <button class="button primary" type="submit">Send me a new link</button>
       <p id="auth-expired-note" class="form-note" role="status"></p>
     </form>
-    <p>Never set a password? <a href="mailto:ryagram@uselai.com?subject=Please%20send%20me%20a%20new%20link">Ask for a new link</a>. <button class="link-button" id="auth-expired-back" type="button">Back to sign in</button></p>
+    <p>Invited and never set a password? <a href="mailto:ryagram@uselai.com?subject=Please%20send%20me%20a%20new%20invite">Ask for a new invite</a>. <button class="link-button" id="auth-expired-back" type="button">Back to sign in</button></p>
   </section>
 
   <section id="set-password" class="app-panel" hidden aria-labelledby="set-password-title">
@@ -115,25 +114,24 @@
   <section id="library" class="app-panel" hidden></section>
 </main>
 <footer class="app-foot"><span>Ryagram is operated by L'Ai, LLC.</span><a href="/help/">Help</a><a href="mailto:ryagram@uselai.com">Contact: ryagram@uselai.com</a><a href="/terms/">Terms of Use</a><a href="/privacy-policy.html">Privacy Policy</a><a href="/ai-content/">AI content</a></footer>
-<script src="/assets/ryagram-config.js?v=20261123v3c"></script>
-<script src="/assets/free-account-line.js?v=20261123wd"></script>
+<script src="/assets/ryagram-config.js?v=20261121bf"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="/assets/funnel.js?v=20261017a"></script>
 <script src="/assets/app-limits.js?v=20261012a"></script>
-<script src="/assets/app-data.js?v=20261123a"></script>
-<script src="/assets/app-jobs.js?v=20261124wu"></script>
-<script src="/assets/app-templates.js?v=20261123v3c"></script>
-<script src="/assets/app-credits.js?v=20261123we"></script>
+<script src="/assets/app-data.js?v=20261121bl"></script>
+<script src="/assets/app-jobs.js?v=20261122d"></script>
+<script src="/assets/app-templates.js?v=20261113a"></script>
+<script src="/assets/app-credits.js?v=20261121bd"></script>
 <script src="/assets/app-sources.js?v=20261004h"></script>
 <script src="/assets/app-uploads.js?v=20261026b"></script>
 <script src="/assets/app-prepared.js?v=20261120q"></script>
 <script src="/assets/app-download-data.js?v=20261029a"></script>
 <script src="/assets/app-admin.js?v=20261004h"></script>
-<script src="/assets/app-ops.js?v=20261123v3a"></script>
-<script src="/assets/app-builder-sample.js?v=20261123bld"></script>
-<script src="/assets/app-builder.js?v=20261124wt"></script>
+<script src="/assets/app-ops.js?v=20261031w"></script>
+<script src="/assets/app-builder-sample.js?v=20261030a"></script>
+<script src="/assets/app-builder.js?v=20261121p"></script>
 <script src="/assets/app-intake.js?v=20261031a"></script>
-<script src="/assets/app-tester-wizard.js?v=20261122a"></script>
+<script src="/assets/app-tester-wizard.js?v=20261112a"></script>
 <script src="/assets/app-films.js?v=20261121p"></script>
 <script src="/assets/profile-core.js?v=20261018c"></script>
 <script src="/assets/app-looks.js?v=20261108a"></script>
@@ -141,9 +139,9 @@
 <script src="/assets/windows-release.js?v=20261031a"></script>
 <script src="/assets/mac-note.js?v=20261031a"></script>
 <script src="/assets/app-device.js?v=20261117d"></script>
-<script src="/assets/app-account.js?v=20261123v3c"></script>
-<script src="/assets/app-start.js?v=20261123d"></script>
-<script src="/assets/app-departments.js?v=20261123a"></script>
+<script src="/assets/app-account.js?v=20261029a"></script>
+<script src="/assets/app-start.js?v=20261121a"></script>
+<script src="/assets/app-departments.js?v=20261121p"></script>
 <script src="/assets/app-editor-core.js?v=20261117b"></script>
 <script src="/assets/app-editor-progress.js?v=20261027a"></script>
 <script src="/assets/app-editor-draft.js?v=20261117b"></script>
@@ -163,12 +161,12 @@
 <script src="/assets/app-editor-film.js?v=20261120k"></script>
 <script src="/assets/app-editor.js?v=20261121f"></script>
 <script src="/assets/app-editor-pro.js?v=20261120o"></script>
-<script src="/assets/app-waiting.js?v=20261123v3c"></script>
+<script src="/assets/app-waiting.js?v=20261121bm"></script>
 <script src="/assets/app-switches.js?v=20261110a"></script>
 <script src="/assets/ryagram-ds.js?v=20261121p"></script>
 <script src="/assets/app-site.js?v=20261120j"></script>
 <script src="/assets/app-flip.js?v=20261121p"></script>
-<script src="/assets/app-library.js?v=20261124wu"></script>
-<script src="/assets/app-auth.js?v=20261123b"></script>
+<script src="/assets/app-library.js?v=20261122c"></script>
+<script src="/assets/app-auth.js?v=20261121bn"></script>
 </body>
 </html>

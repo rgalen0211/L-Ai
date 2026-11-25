@@ -126,8 +126,6 @@
   let sending = false;
   const createLine = document.getElementById && document.getElementById('wl-create');           // Option B: shown only when the waitingAccounts switch is exactly true
   if (createLine && config.waitingAccounts === true) createLine.hidden = false;
-  const freeLine = document.getElementById && document.getElementById('wl-free');                  // the free-account line shows with the create line, not before accounts can be made
-  if (freeLine && config.waitingAccounts === true) freeLine.hidden = false;
 
   function say(message) {
     status.hidden = false;
@@ -137,7 +135,7 @@
 
   function joined() {
     form.querySelector('.waitlist-fields').hidden = true;
-    say('Thanks. We’ll keep you posted about Ryagram.');
+    say('You’re on the list. We’ll email you when there’s something to try.');
   }
 
   form.addEventListener('submit', async (event) => {
@@ -146,12 +144,12 @@
     // Hidden from people; a filled value means a bot. Look successful, send nothing.
     if (form.elements.website.value) { joined(); return; }
     if (!baseUrl || !key) {
-      say(`Sign-up for updates isn’t connected yet. Email ${CONTACT} and we’ll add you by hand.`);
+      say(`The waitlist isn’t connected yet. Email ${CONTACT} and we’ll add you by hand.`);
       return;
     }
     sending = true;
     button.disabled = true;
-    button.textContent = 'Sending…';
+    button.textContent = 'Joining…';
     form.setAttribute('aria-busy', 'true');
     const headers = { apikey: key, 'Content-Type': 'application/json' };
     // Legacy anon keys are JWTs and go in Authorization too; publishable keys must not.
@@ -180,7 +178,7 @@
       clearTimeout(timeout);
       sending = false;
       button.disabled = false;
-      button.textContent = 'Keep me posted';
+      button.textContent = 'Join the waitlist';
       form.removeAttribute('aria-busy');
     }
   });

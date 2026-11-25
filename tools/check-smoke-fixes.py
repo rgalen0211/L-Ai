@@ -84,7 +84,7 @@ def main():
                 check('Working' in text and 'Stage' not in text.split('Working')[0][-0:] and ('2 min' in text), f'a running job with no data says Working and the time: {text[:200]!r}')
                 check('unknown key' not in p.inner_text('.job-problem') and 'outro' in p.inner_text('.job-problem') and '$' not in p.inner_text('.job-problem'), 'the refusal is plain words')
                 p.click('summary:has-text("Get help with this")')
-                check("unknown key" not in p.inner_text('.job-help') and '$:' not in p.inner_text('.job-help') and p.locator('.job-help a:has-text("Send this to us")').count() == 1, 'the raw text is NOT on the page any more (library-fixes 84442f05): Get help with this only offers Send this to us')
+                check("$: unknown key 'outro'" in p.inner_text('.job-help'), 'the raw text is behind Get help with this')
                 check(p.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'no sideways scroll')
                 p.screenshot(path=str(OUT / f'smoke-{name}.png'), full_page=True)
                 check(not errors, f'no console errors {errors[:2]}')

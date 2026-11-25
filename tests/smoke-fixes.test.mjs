@@ -27,7 +27,7 @@ test('REFUSALS: every fault in a joined list is put into words (not only the fir
   const two = p(GOLDEN.twoUnknown);
   assert.match(two, /recognise: “outro”\./);
   assert.match(two, /recognise: “description_notes”\./, 'the second fault is not lost');
-  assert.match(p(GOLDEN.datasetNotAllowed), /The dataset “not_on_this_worker” \(in sequence > clip 2 > dataset\) can’t be drawn here\. Start again from a ready-made film\./);
+  assert.match(p(GOLDEN.datasetNotAllowed), /The dataset “not_on_this_worker” \(in sequence > clip 2 > dataset\) can’t be drawn here\. Pick a dataset from the catalog\./);
   assert.match(p(GOLDEN.notOneOf), /The value “thirty” \(in sequence > fps\) isn’t an allowed choice here\. Allowed: 24, 25, 30\./);
   assert.match(p(GOLDEN.badView), /The value “globe” .*Allowed: map, bars, line, paired, panel, shares\./);
   assert.match(p(GOLDEN.viewNotOffered), /cbp_suppression can’t be drawn as bars \(in sequence > clip 2 > view\)\. It can be drawn as: line\./);
@@ -43,7 +43,7 @@ test('REFUSALS: every fault in a joined list is put into words (not only the fir
   assert.equal(p('No data for 2031 in this dataset.'), 'No data for 2031 in this dataset.');
   assert.equal(p(null), '');
   const many = p(Array.from({ length: 8 }, (_, i) => `$: unknown key 'k${i}'`).join('; '));
-  assert.match(many, /And 3 more\. Open “Get help with this” and send it to us\.$/);
+  assert.match(many, /And 3 more: open “Get help with this”\.$/);
   assert.equal((two.match(/pick a ready-made film/g) || []).length, 1, 'the advice is said once, at the end');
   assert.ok(two.endsWith('start again.'));
   const ids = JSON.stringify(Array.from({ length: 83 }, (_, i) => `dataset_${i}`));
@@ -80,6 +80,6 @@ test('PAGE: locked run buttons carry data-locked and a title with the reason; th
   assert.match(lib, /if \(!ladder\.ready\) why\.final = ladder\.missing/);
   assert.ok(lib.includes("p.working") && lib.includes("h('p', { class: 'working' }") && lib.includes('Working' + String.fromCharCode(92) + 'u2026'), 'the working line');
   assert.match(lib, /h\('details', \{ class: 'job-help' \}, h\('summary', \{\}, 'Get help with this'\)/);
-  assert.doesNotMatch(lib, /h\('code', \{\}, J\.rawDetail\(j\)\)/, 'the raw machine words are no longer on the stranger page (WEB 11-23)');
+  assert.match(lib, /h\('code', \{\}, J\.rawDetail\(j\)\)/);
   assert.match(read('assets/app.css'), /\.button\[data-locked\]:disabled\{cursor:not-allowed\}/);
 });

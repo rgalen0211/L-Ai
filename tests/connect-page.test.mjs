@@ -59,8 +59,8 @@ test('LIMITS: free previews only (within a daily limit), no full renders, and th
   assert.match(foot, /<a href="\/terms\/">Terms of Use<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><a href="\/ai-content\/">AI content<\/a>/);
 });
 
-test('NO NEW MAIL ADDRESS: the only address on the guide is the one the site already shows the public for contact (Ryan 10-26, Q251: contact by emailing ryagram@uselai.com; it is on /help/ and /ryagram/), once, as the "write to us" link (neutral subject, nothing about invites; Connect-an-AI open, L5); no other address or mailto', () => {
-  const INVITE = '<a href="mailto:ryagram@uselai.com?subject=Connecting%20an%20AI">write to us</a>';
+test('NO NEW MAIL ADDRESS: the only address on the guide is the one the site already shows the public for contact (Ryan 10-26, Q251: contact by emailing ryagram@uselai.com; it is on /help/ and /ryagram/), once, as the invite request link; no other address or mailto', () => {
+  const INVITE = '<a href="mailto:ryagram@uselai.com?subject=Ryagram%20invite%20request">email us</a>';
   assert.ok(page.split(INVITE).length - 1 <= 1, 'at most once');
   assert.doesNotMatch(page.replace(INVITE, ''), /ryagram@uselai|mailto:|@[a-z0-9-]+\.[a-z]/i);
 });
@@ -87,12 +87,11 @@ test('SOURCED FACTS (Claude fact-check 01:50, Q72): two separate Claude paths th
 });
 
 test('the guide is TRUE WHETHER OR NOT connecting is open to everyone (Ryan 11-21: it opens at launch): it says who may connect by what the person can SEE, where to look, and how to ask, and never says "invite-only"', () => {
-  assert.ok(page.includes('A Ryagram account. Open Account in Ryagram and look for Connected AIs. If it does not show, connecting is not available on your account; <a href="mailto:ryagram@uselai.com?subject=Connecting%20an%20AI">write to us</a>.'));
-  assert.doesNotMatch(page, /invite request|allowed to connect|not open to your account/i);
+  assert.ok(page.includes('A Ryagram account that is allowed to connect an AI. If Connected AIs does not show under Account in Ryagram, connecting is not open to your account yet; to ask for it, <a href="mailto:ryagram@uselai.com?subject=Ryagram%20invite%20request">email us</a>.'));
   assert.doesNotMatch(page, /invite-only|has been invited/i, 'no wording that goes false the day the list opens');
   const app = fs.readFileSync(path.join(root, 'assets/app-library.js'), 'utf8');
   assert.ok(app.includes('Connected AIs'), 'and the page the guide points to says exactly that');
-  assert.ok(read('assets/creator-beta.js').includes('ryagram@uselai.com'), 'the address is the one the site uses');   // creator-beta.js no longer builds the invite mailto (WEB 11-23): the hero button is Create an account
+  assert.ok(read('assets/creator-beta.js').includes("encodeURIComponent('Ryagram invite request')") && read('assets/creator-beta.js').includes('ryagram@uselai.com'), 'the subject and the address are the ones the site uses');
 });
 test('the connector\'s no-grant message is also true in both states (it never says invite-only), and tells the person where to look and how to ask', () => {
   const d = read('supabase/functions/connect-core/dispatch.ts');
