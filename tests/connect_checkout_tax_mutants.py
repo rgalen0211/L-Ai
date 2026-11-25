@@ -55,7 +55,6 @@ def fresh():
     (SCRATCH / "tests").mkdir()
     shutil.copy(ROOT / "tests" / "stripe.test.mjs", SCRATCH / "tests" / "stripe.test.mjs")
     shutil.copytree(ROOT / "tests" / "fixtures" / "stripe", SCRATCH / "tests" / "fixtures" / "stripe")
-    shutil.copy(ROOT / "tests" / "supabase_stub.sql", SCRATCH / "tests" / "supabase_stub.sql")
 
 
 def run(group):
@@ -66,7 +65,10 @@ def run(group):
 
 
 missed = 0
+ONLY = os.environ.get("MUT_GROUPS", "js,sql").split(",")             # MUT_GROUPS=js runs only the node group (light); the sql group starts a Postgres per mutant
 for group, mutants in (("js", JS), ("sql", SQL)):
+    if group not in ONLY:
+        continue
     fresh()
     rc, tail = run(group)
     if rc:
@@ -88,6 +90,6 @@ for group, mutants in (("js", JS), ("sql", SQL)):
         print(("caught  " if rc else "MISSED  ") + name, flush=True)
         missed += 0 if rc else 1
 shutil.rmtree(SCRATCH, ignore_errors=True)
-total = len(JS) + len(SQL)
+total = sum(len(g) for n, g in (("js", JS), ("sql", SQL)) if n in ONLY)
 print(f"{missed} mutant(s) not caught" if missed else f"all {total} mutants caught")
 sys.exit(1 if missed else 0)
