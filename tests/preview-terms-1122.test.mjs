@@ -40,12 +40,12 @@ test('NO PAYMENTS: nothing about prices, refunds, tax, subscriptions or buying i
   }
 });
 
-test('NOTHING INVENTED: no governing law, liability limit, arbitration or DMCA text; the mailing address is a visible placeholder until Ryan supplies it', () => {
+test('NOTHING INVENTED: no governing law, liability limit, arbitration or DMCA text; no postal address anywhere (Ryan 11-24 23:15): contact is the email only', () => {
   const text = textOf(terms) + ' ' + textOf(privacy);
   assert.doesNotMatch(text, /governed by|governing law|arbitrat|class action|class-action|DMCA|liability|liable|indemnif|warrant/i);
   for (const html of [terms, privacy]) {
-    // When Ryan gives the address, replace the placeholder AND this pin together.
-    assert.equal((textOf(html).match(/\[Mailing address: to be added before launch\]/g) || []).length, 1);
+    // Ryan 11-24 23:15: NO postal address on the pages (no home address, no PO box). The contact is the email line; no placeholder is left behind.
+    assert.doesNotMatch(textOf(html), /Mailing address|to be added before launch|P\.?O\.? Box|\[/i, 'no mailing address and no placeholder');
     assert.match(textOf(html), /L'Ai, LLC/);
     assert.match(html, /mailto:ryagram@uselai\.com/);
   }
@@ -158,6 +158,7 @@ test('WEB 11-23 (BUILDER second review): who reads requests, steps recorded, inv
   assert.match(p, /within a minute or so\. We try again every minute until it is gone/);
   // nothing in the page source names the author or the proposals path
   assert.doesNotMatch(terms + privacy, /WEB 11-22|proposals\/|<!--/);
-  // the placeholders stay until Ryan supplies the address and the Connect wording
-  assert.match(t, /\[Mailing address: to be added before launch\]/);
+  // no postal address and no placeholder (Ryan 11-24 23:15); the contact email is the one line
+  assert.doesNotMatch(t, /Mailing address|to be added before launch/);
+  assert.match(t, /ryagram@uselai\.com/);
 });
