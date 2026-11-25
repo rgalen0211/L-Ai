@@ -64,7 +64,7 @@ def setUpModule():
         # a tiny Ohio: Franklin (rate txr_OhioA1), Cuyahoga (county with NO rate row), Lorain (rate with no Stripe id), Summit (inactive rate)
         c.execute("insert into public.tax_rates (code, percent, stripe_tax_rate_id, active) values ('oh_a', 7.5, 'txr_OhioA1', true), ('oh_b', 8.0, null, true), ('oh_c', 7.25, 'txr_OhioC1', false)")
         c.execute("insert into public.ohio_county_rate (county, rate_code) values ('Franklin', 'oh_a'), ('Lorain', 'oh_b'), ('Summit', 'oh_c')")
-        c.execute("insert into public.ohio_zip_county (zip, county) values ('43004', 'Franklin'), ('44101', 'Cuyahoga'), ('44001', 'Lorain'), ('44301', 'Summit')")
+        c.execute("insert into public.ohio_zip_county (zip, county) values ('43004', 'Franklin'), ('44101', 'Cuyahoga'), ('44001', 'Lorain'), ('44301', 'Summit'), ('45000', 'Franklin'), ('45000', 'Summit')")        # 45000 sits on a county line
 
 
 class CheckoutTax(unittest.TestCase):
@@ -85,8 +85,8 @@ class CheckoutTax(unittest.TestCase):
     def run_sql(self, sql, *args):
         return self.db.as_(None).c.execute(sql, args or None)
 
-    def setp(self, who, use, country="US", state="OH", zip_="43004"):
-        return self.db.as_(who).one("select public.set_my_tax_profile(%s, %s, %s, %s)", use, country, state, zip_)
+    def setp(self, who, use, country="US", state="OH", zip_="43004", county="Franklin"):
+        return self.db.as_(who).one("select public.set_my_tax_profile(%s, %s, %s, %s, %s)", use, country, state, zip_, county)
 
     def ctx(self, code, who=RYAN):
         return self.db.as_("service").one("select public.stripe_checkout_context(%s, %s)", who, code)
@@ -95,37 +95,53 @@ class CheckoutTax(unittest.TestCase):
     def test_a_person_reads_and_writes_only_their_own_answer(self):
         self.assertIsNone(self.db.as_(RYAN).one("select public.my_tax_profile()"))
         p = self.setp(RYAN, "business")
-        self.assertEqual({k: p[k] for k in ("use", "country", "state", "zip")}, {"use": "business", "country": "US", "state": "OH", "zip": "43004"})
+        self.assertEqual({k: p[k] for k in ("use", "country", "state", "zip", "county")}, {"use": "business", "country": "US", "state": "OH", "zip": "43004", "county": "Franklin"})
         self.assertIn("answered_at", p)
         self.assertNotIn("owner_id", p, "the id of the person is never given back")
         self.assertIsNone(self.db.as_(OTHER).one("select public.my_tax_profile()"), "another person sees nothing")
-        self.setp(OTHER, "personal", state="TX", zip_=None)
+        self.setp(OTHER, "personal", state="TX", zip_=None, county=None)
         self.assertEqual(self.db.as_(RYAN).one("select public.my_tax_profile()")["state"], "OH")
         before = self.admin("select answered_at from public.account_tax_profile where owner_id = %s", RYAN)
-        self.setp(RYAN, "personal", state="CA", zip_=None)
-        row = self.admin("select use, state, zip, answered_at from public.account_tax_profile where owner_id = %s", RYAN)
-        self.assertEqual((row[0], row[1], row[2]), ("personal", "CA", None), "changing the answer replaces it (the zip goes with Ohio)")
+        self.setp(RYAN, "personal", state="CA", zip_=None, county=None)
+        row = self.admin("select use, state, zip, answered_at, county from public.account_tax_profile where owner_id = %s", RYAN)
+        self.assertEqual((row[0], row[1], row[2], row[4]), ("personal", "CA", None, None), "changing the answer replaces it (the zip and county go with Ohio)")
         self.assertGreaterEqual(row[3], before)
         self.assertEqual(self.admin("select count(*) from public.account_tax_profile"), 2)
 
     def test_wrong_shapes_are_refused_with_their_code(self):
-        cases = [("use_invalid", ("neither", "US", "OH", "43004")), ("use_invalid", (None, "US", "OH", "43004")),
-                 ("country_invalid", ("business", "usa", "OH", "43004")), ("country_invalid", ("business", None, "OH", "43004")),
-                 ("state_required", ("business", "US", "", "43004")), ("state_required", ("business", "US", "Ohio", "43004")),
-                 ("zip_required", ("business", "US", "OH", "4300")), ("zip_required", ("personal", "US", "OH", None)),
-                 ("zip_unknown", ("business", "US", "OH", "45999"))]
+        cases = [("use_invalid", ("neither", "US", "OH", "43004", "Franklin")), ("use_invalid", (None, "US", "OH", "43004", "Franklin")),
+                 ("country_invalid", ("business", "usa", "OH", "43004", "Franklin")), ("country_invalid", ("business", None, "OH", "43004", "Franklin")),
+                 ("state_required", ("business", "US", "", "43004", "Franklin")), ("state_required", ("business", "US", "Ohio", "43004", "Franklin")),
+                 ("county_required", ("business", "US", "OH", "43004", None)), ("county_required", ("business", "US", "OH", "43004", "   ")),
+                 ("county_unknown", ("business", "US", "OH", "43004", "Atlantis")), ("county_unknown", ("business", "US", "OH", "44101", "Cuyahoga"))]
         for code, args in cases:
             with self.assertRaises(psycopg.Error, msg=str(args)) as cm:
-                self.db.as_(RYAN).one("select public.set_my_tax_profile(%s, %s, %s, %s)", *args)
+                self.db.as_(RYAN).one("select public.set_my_tax_profile(%s, %s, %s, %s, %s)", *args)
             self.assertIn(code, str(cm.exception), str(args))
         self.assertEqual(self.admin("select count(*) from public.account_tax_profile"), 0)
-        self.assertEqual(self.setp(RYAN, "personal", zip_="45999")["zip"], "45999", "a personal answer needs no known county")
-        p = self.setp(RYAN, "business", country="CA", state="ON", zip_="12345")
-        self.assertEqual((p["country"], p["state"], p["zip"]), ("CA", None, None), "outside the US the state and zip are not kept")
+        p = self.setp(RYAN, "personal", zip_="45999", county=None)
+        self.assertEqual((p["zip"], p["county"]), ("45999", None), "a personal answer needs no county")
+        p = self.setp(RYAN, "personal", zip_="43", county="Franklin")
+        self.assertEqual((p["zip"], p["county"]), (None, None), "a malformed ZIP is not kept and a personal answer keeps no county")
+        p = self.setp(RYAN, "business", county="  fRaNkLiN ")
+        self.assertEqual(p["county"], "Franklin", "the table's own spelling is stored, whatever case or spaces came in")
+        p = self.setp(RYAN, "business", country="CA", state="ON", zip_="12345", county="Franklin")
+        self.assertEqual((p["country"], p["state"], p["zip"], p["county"]), ("CA", None, None, None), "outside the US the state, zip and county are not kept")
+        p = self.setp(RYAN, "business", state="TX", zip_="75001", county="Franklin")
+        self.assertEqual((p["state"], p["zip"], p["county"]), ("TX", None, None), "outside Ohio no zip or county is kept")
+        self.assertEqual(self.db.as_(RYAN).one("select public.set_my_tax_profile('personal', 'US', 'TX', null)")["state"], "TX", "the older four-argument call still works")
         with self.assertRaises(psycopg.Error):
             self.db.as_("anon").one("select public.set_my_tax_profile('personal', 'US', 'TX', null)")
         with self.assertRaises(psycopg.Error):
             self.db.as_("anon").one("select public.my_tax_profile()")
+
+    def test_the_county_pre_fill_read(self):
+        self.assertEqual(self.db.as_(RYAN).one("select public.ohio_counties_for_zip('43004')"), ["Franklin"])
+        self.assertEqual(self.db.as_(RYAN).one("select public.ohio_counties_for_zip(' 45000 ')"), ["Franklin", "Summit"], "a ZIP on a county line gives both")
+        self.assertEqual(self.db.as_(RYAN).one("select public.ohio_counties_for_zip('00000')"), [])
+        self.assertEqual(self.db.as_(RYAN).one("select public.ohio_counties_for_zip(null)"), [])
+        with self.assertRaises(psycopg.Error):
+            self.db.as_("anon").one("select public.ohio_counties_for_zip('43004')")
 
     def test_the_tables_are_closed_to_every_api_role(self):
         for table in ("account_tax_profile", "tax_rates", "ohio_county_rate", "ohio_zip_county"):
@@ -141,25 +157,37 @@ class CheckoutTax(unittest.TestCase):
         self.setp(RYAN, "business")
         c = self.ctx("sub_creator")
         self.assertEqual((c["tax_rate_id"], c["tax_county"], c["tax_unknown"]), ("txr_OhioA1", "Franklin", False))
-        self.assertEqual(c["tax_profile"], {"use": "business", "country": "US", "state": "OH", "zip": "43004"})
+        self.assertEqual(c["tax_profile"], {"use": "business", "country": "US", "state": "OH", "zip": "43004", "county": "Franklin"})
         for code in ("pack_starter", "pack_maker"):
             c = self.ctx(code)
             self.assertEqual((c["tax_rate_id"], c["tax_unknown"]), (None, False), f"{code}: a credit pack is never taxed at checkout")
         self.setp(RYAN, "personal")
         c = self.ctx("sub_creator")
         self.assertEqual((c["tax_rate_id"], c["tax_unknown"]), (None, False), "personal use in Ohio: never")
-        self.setp(RYAN, "business", state="TX", zip_=None)
+        self.setp(RYAN, "business", state="TX", zip_=None, county=None)
         c = self.ctx("sub_pro")
         self.assertEqual((c["tax_rate_id"], c["tax_unknown"]), (None, False), "business outside Ohio: none")
-        self.setp(RYAN, "business", country="CA", state=None, zip_=None)
+        self.setp(RYAN, "business", country="CA", state=None, zip_=None, county=None)
         self.assertEqual(self.ctx("sub_pro")["tax_rate_id"], None)
 
     def test_a_rate_the_database_cannot_give_means_unknown_and_never_untaxed(self):
-        for zip_ in ("44101", "44001", "44301"):                  # no county rate row / a rate with no Stripe id / an inactive rate
-            self.setp(RYAN, "business", zip_=zip_)
+        for county in ("Lorain", "Summit"):                       # a rate with no Stripe id / an inactive rate
+            self.setp(RYAN, "business", zip_=None, county=county)
             c = self.ctx("sub_creator")
-            self.assertEqual((c["tax_rate_id"], c["tax_unknown"]), (None, True), zip_)
+            self.assertEqual((c["tax_rate_id"], c["tax_unknown"], c["tax_county"]), (None, True, county), county)
             self.assertEqual(self.ctx("pack_starter")["tax_unknown"], False, "a pack does not need a rate")
+        self.setp(RYAN, "business")                               # Franklin is fine ...
+        self.assertEqual(self.ctx("sub_creator")["tax_rate_id"], "txr_OhioA1")
+        self.run_sql("delete from public.ohio_county_rate where county = 'Franklin'")      # ... until its rate row is removed after the answer was given
+        c = self.ctx("sub_creator")
+        self.assertEqual((c["tax_rate_id"], c["tax_unknown"]), (None, True))
+
+    def test_the_rate_follows_the_chosen_county_never_the_zip(self):
+        self.setp(RYAN, "business", zip_="45000", county="Franklin")             # a ZIP on the line of Franklin and Summit
+        self.assertEqual(self.ctx("sub_creator")["tax_rate_id"], "txr_OhioA1")
+        self.setp(RYAN, "business", zip_="43004", county="Summit")               # a ZIP in Franklin, but the customer says Summit (its rate is inactive here)
+        c = self.ctx("sub_creator")
+        self.assertEqual((c["tax_county"], c["tax_unknown"]), ("Summit", True))
 
     def test_every_old_key_of_the_context_is_still_there(self):
         keys = set(self.ctx("pack_starter"))
@@ -257,12 +285,12 @@ class CheckoutTax(unittest.TestCase):
             self.run_sql(P69[4])
         self.assertIn("Ohio rates are not loaded", str(cm.exception))
         self.admin("update public.tax_rates set active = true where code = 'oh_a' returning 1")
-        self.run_sql("create table pg_temp.zips_hold as select * from public.ohio_zip_county")
-        self.run_sql("delete from public.ohio_zip_county")                                      # no Ohio ZIPs loaded
+        self.run_sql("create table pg_temp.rates_hold as select * from public.ohio_county_rate")
+        self.run_sql("delete from public.ohio_county_rate")                                     # no Ohio counties loaded
         with self.assertRaises(psycopg.Error) as cm:
             self.run_sql(P69[4])
         self.assertIn("Ohio rates are not loaded", str(cm.exception))
-        self.run_sql("insert into public.ohio_zip_county select * from pg_temp.zips_hold")
+        self.run_sql("insert into public.ohio_county_rate select * from pg_temp.rates_hold")
         self.run_sql(P69[4])
         self.assertEqual(self.admin("select buying_open from public.stripe_settings where id"), True)
 

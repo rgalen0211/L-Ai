@@ -15,7 +15,7 @@ select (select live_ok from public.stripe_settings where id) as live_ok_now,
        (select count(*) from public.stripe_customers) as test_customers,
        (select count(*) from public.stripe_subscriptions) as test_subscriptions,
        (select count(*) from public.stripe_events where livemode) as live_events_so_far,
-       (select count(*) from public.ohio_zip_county) as ohio_zips_loaded,
+       (select count(*) from public.ohio_county_rate) as ohio_counties_with_a_rate,
        (select count(*) from public.tax_rates where stripe_tax_rate_id is not null) as tax_rates_with_stripe_id;
 
 -- PART 2 (the write): TYPE THE FIVE LIVE PRICE IDS (price_...) from Stripe's LIVE dashboard in place of each price_REPLACE_ME, then run the whole block.
@@ -68,7 +68,7 @@ begin
   if exists (select 1 from public.stripe_prices p join ryagram_private.stripe_prices_test_ids t using (price_code) where p.stripe_price_id = t.stripe_price_id) then
     raise exception 'Not run: a price id is still the test one.';
   end if;
-  if (select count(*) from public.ohio_zip_county) = 0 or exists (select 1 from public.tax_rates r where r.active and r.stripe_tax_rate_id is null)
+  if (select count(*) from public.ohio_county_rate) = 0 or exists (select 1 from public.tax_rates r where r.active and r.stripe_tax_rate_id is null)
      or exists (select 1 from public.ohio_county_rate c join public.tax_rates r on r.code = c.rate_code where not r.active) then
     raise exception 'Not run: the Ohio rates are not loaded (or a rate has no Stripe Tax Rate id). Without them an Ohio business plan cannot be sold. Ask CC1.';
   end if;

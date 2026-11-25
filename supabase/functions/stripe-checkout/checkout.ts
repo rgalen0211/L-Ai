@@ -9,7 +9,7 @@ export interface Context {
   // CONNECT 11-24 (CC1 09:33 / 10:23): the answer the person gave once ("business or personal use?" and where they are), stored on the account
   // by set_my_tax_profile; null = never answered. tax_rate_id is the Stripe Tax Rate the DATABASE picked for THIS profile and THIS price (a plan, business, Ohio, that ZIP's county), or null = no tax.
   // tax_unknown = the profile needs a tax rate the database does not have yet (an Ohio ZIP it cannot place, or a rate with no Stripe id): the checkout is refused, never opened untaxed.
-  tax_profile?: { use: "business" | "personal"; country: string; state: string | null; zip: string | null } | null;
+  tax_profile?: { use: "business" | "personal"; country: string; state: string | null; zip: string | null; county?: string | null } | null;
   tax_rate_id?: string | null; tax_county?: string | null; tax_unknown?: boolean;
 }
 export interface Deps {

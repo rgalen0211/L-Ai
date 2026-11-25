@@ -10,11 +10,13 @@ union all select 'the three tax tables exist and are closed to every API role',
          and not has_table_privilege('anon', to_regclass('public.tax_rates'), 'select') and not has_table_privilege('authenticated', to_regclass('public.tax_rates'), 'select')
          and not has_table_privilege('authenticated', to_regclass('public.ohio_county_rate'), 'select') and not has_table_privilege('authenticated', to_regclass('public.ohio_zip_county'), 'select')
          and not has_table_privilege('service_role', to_regclass('public.ohio_zip_county'), 'select'), false)
-union all select 'a signed-in person can run my_tax_profile and set_my_tax_profile; nobody anonymous can',
+union all select 'a signed-in person can run my_tax_profile and set_my_tax_profile; nobody anonymous can (and the county pre-fill read)',
        coalesce(has_function_privilege('authenticated', to_regprocedure('public.my_tax_profile()'), 'execute')
-         and has_function_privilege('authenticated', to_regprocedure('public.set_my_tax_profile(text,text,text,text)'), 'execute')
+         and has_function_privilege('authenticated', to_regprocedure('public.set_my_tax_profile(text,text,text,text,text)'), 'execute')
          and not has_function_privilege('anon', to_regprocedure('public.my_tax_profile()'), 'execute')
-         and not has_function_privilege('anon', to_regprocedure('public.set_my_tax_profile(text,text,text,text)'), 'execute'), false)
+         and not has_function_privilege('anon', to_regprocedure('public.set_my_tax_profile(text,text,text,text,text)'), 'execute')
+         and has_function_privilege('authenticated', to_regprocedure('public.ohio_counties_for_zip(text)'), 'execute')
+         and not has_function_privilege('anon', to_regprocedure('public.ohio_counties_for_zip(text)'), 'execute'), false)
 union all select 'the checkout context gives the four tax keys and still gives every key it had',
        coalesce(pg_get_functiondef(to_regprocedure('public.stripe_checkout_context(uuid,text)')) like '%''tax_profile''%'
          and pg_get_functiondef(to_regprocedure('public.stripe_checkout_context(uuid,text)')) like '%''tax_rate_id''%'
