@@ -20,15 +20,10 @@
   // Ready-made starts (NEXT-WEB 132 G3/G4): one click fills dataset, years, film type and title and lands on the Review (Back still works). Each is a view that has been
   // rendered before (app-templates.js): health as a map, housing and work as lines (housing was a map until 2026-11-23: the engine's checks stop that map, see MEASURED.blocked in app-catalog.js). A start is offered only when its dataset is in the catalog the function returned.
   // Income is not here: no income dataset is listable yet (proposals/WEB-GUIDED-FIRST-FILM-GAPS.md, G4).
-  // The three job starts (BUILDER 11-25): each (dataset, view) passed the engine's own sheet checks as the site builds it (proposals/ENGINE-CATALOG-SHEET-CHECKS-1123.md, Passing),
-  // none is on the block list, the years are the dataset's own window (app-templates.js DATASETS), and each costs 8 credits or less (a map 8, a line 6), so the welcome credits cover it.
   const READY_MADE = [
     { id: 'housing', label: 'Housing', blurb: 'New homes permitted per 1,000 residents: the top counties as lines, 1990 to 2024.', dataset: 'bps_county_permits', film_type: 'line', title: 'New homes permitted per 1,000 residents, by county', start: '1990', end: '2024' },
     { id: 'health', label: 'Health', blurb: 'Adult obesity, state by state, 2011 to 2023.', dataset: 'state_obesity_fastfood', film_type: 'map', title: 'Adult obesity by state', start: '2011', end: '2023' },
-    { id: 'work', label: 'Work', blurb: 'Unemployment, state by state, 2019 to 2022.', dataset: 'bls_state_unemployment', film_type: 'line', title: 'State unemployment rate, 2019 to 2022', start: '2019-01', end: '2022-12' },
-    { id: 'health-care-jobs', label: 'Health care jobs', blurb: 'Private health care and social assistance as a share of jobs, state by state, 1998 to 2023.', dataset: 'cbp_health_care_share_state', film_type: 'map', title: 'Which states depend most on private health care & social assistance?', start: '1998', end: '2023' },
-    { id: 'factory-jobs', label: 'Factory jobs', blurb: 'Manufacturing as a share of jobs: the top states as lines, 1998 to 2023.', dataset: 'cbp_manufacturing_share_state', film_type: 'line', title: 'Which states depend most on manufacturing?', start: '1998', end: '2023' },
-    { id: 'food-jobs', label: 'Restaurant and hotel jobs', blurb: 'Accommodation and food services as a share of jobs: the top states as lines, 1998 to 2023.', dataset: 'cbp_accommodation_food_share_state', film_type: 'line', title: 'Which states depend most on accommodation & food services?', start: '1998', end: '2023' }
+    { id: 'work', label: 'Work', blurb: 'Unemployment, state by state, 2019 to 2022.', dataset: 'bls_state_unemployment', film_type: 'line', title: 'State unemployment rate, 2019 to 2022', start: '2019-01', end: '2022-12' }
   ];
   const readyMade = catalog => READY_MADE.filter(r => (catalog || []).some(d => d.id === r.dataset));
   const FILE_NOTE = 'The contact sheet is a grid of still frames to check the film. It takes about 5 minutes once started and is free; you decide what to do after you have seen it.';

@@ -292,7 +292,6 @@
           qa('Why can\u2019t I make a full film? How do I get credits?', WELCOME_LINE + ' A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' ' + FILM_COST_CLOSED + ' Buying credits is not open yet.'))) },
         { id: 'account', label: 'Account and reports', el: answers(
           qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
-          qa('How do I delete my account?', 'Open Account and press Delete my account. Your films, previews and files are removed for good. If your account has any credit history, we keep that record, we block your login at once, and we record your request. An administrator then closes the account by hand.'),
           qa('How do I report a film?', ['Public film pages are not open yet. To report a film, use the ', h('a', { href: '/report/' }, 'report form'), '. For reports about child safety, private information, harassment or copyright we usually hide the film at once while we review it.']),
           uploadsOn() ? null : qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, this answer will say how your files are read and deleted. Until then nothing can be uploaded.')) }
       ] });
