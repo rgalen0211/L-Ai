@@ -1095,7 +1095,7 @@
       const askTitle = h('h2', { id: 'use-ask-title', tabindex: '-1' }, 'Before you pay');
       const askBox = h('section', { class: 'use-ask', hidden: true, 'aria-labelledby': 'use-ask-title' },
         askTitle,
-        h('p', { class: 'form-intro' }, 'We need two answers to work out sales tax. Ohio sales tax applies only to business use in Ohio: a monthly plan shows any tax at checkout, and credit packs have none at checkout. We keep your answers with the date, and you can change them any time.'),
+        h('p', { class: 'form-intro' }, 'We need two answers to work out sales tax. Ohio sales tax applies only to business use in Ohio: a monthly plan shows any tax at checkout, and credit packs have none at checkout. We keep your answers with the date. You can change them any time; a change applies to your next purchase, not to a plan that is already running.'),
         h('fieldset', {}, h('legend', {}, 'Do you use Ryagram for business or personal use?'), useRadio('business', 'Business'), useRadio('personal', 'Personal')),
         h('p', {}, h('label', { for: 'use-country' }, 'Where do you use it? '), countrySelect), otherRow, stateRow, zipRow,
         askError,
