@@ -32,22 +32,21 @@ create index if not exists jobs_queued_line_idx on public.jobs (joined_line_at, 
 
 do $do$
 declare
-  def text; n int;
+  def text; n int; i int;
+  -- Each pair is SHORT on purpose: a planted fault in the film_bundles line that leaves these pieces in place (its two mutants change the
+  -- number of minutes, or add 'and false') then still reaches its own test, which catches it on an assertion (tests/mutant_blind_check.py).
   -- public.claim_next_job (20261113000400's ordering line): its 2-minute starvation guard AND its oldest-first tie order both read the line
   -- (GAMES 12:23: with only the tie order moved, an old film Ryan approves just now would count as waiting for days and stop every bundle jump)
-  c_old constant text := E'and o.created_at < now() - interval ''2 minutes'') then 0 else 1 end, created_at, id\n    for update skip locked\n    limit 1;';
-  c_new constant text := E'and o.joined_line_at < now() - interval ''2 minutes'') then 0 else 1 end, joined_line_at, id\n    for update skip locked\n    limit 1;';
-  -- public.node_claim (20261026000200)
-  n_old constant text := 'order by created_at, id for update skip locked limit 1;';
-  n_new constant text := 'order by joined_line_at, id for update skip locked limit 1;';
-  -- public.queue_position (20260928000100)
-  q_old constant text := '(q.created_at, q.id) < (j.created_at, j.id)';
-  q_new constant text := '(q.joined_line_at, q.id) < (j.joined_line_at, j.id)';
+  -- public.node_claim (20261026000200); public.queue_position (20260928000100)
+  fns  constant text[] := array['public.claim_next_job()', 'public.claim_next_job()', 'public.node_claim(text)', 'public.queue_position(uuid)'];
+  olds constant text[] := array['and o.created_at < now() - interval ''', 'then 0 else 1 end, created_at, id',
+                                'order by created_at, id for update skip locked limit 1;', '(q.created_at, q.id) < (j.created_at, j.id)'];
+  news constant text[] := array['and o.joined_line_at < now() - interval ''', 'then 0 else 1 end, joined_line_at, id',
+                                'order by joined_line_at, id for update skip locked limit 1;', '(q.joined_line_at, q.id) < (j.joined_line_at, j.id)'];
   fn text; o text; nw text;
 begin
-  foreach fn in array array['public.claim_next_job()', 'public.node_claim(text)', 'public.queue_position(uuid)'] loop
-    o := case fn when 'public.claim_next_job()' then c_old when 'public.node_claim(text)' then n_old else q_old end;
-    nw := case fn when 'public.claim_next_job()' then c_new when 'public.node_claim(text)' then n_new else q_new end;
+  for i in 1 .. array_length(fns, 1) loop
+    fn := fns[i]; o := olds[i]; nw := news[i];
     select pg_get_functiondef(f.oid) into def from pg_proc f where f.oid = to_regprocedure(fn);
     if def is null then
       raise exception '% is not on this database; this change expects it (nothing was changed).', fn;

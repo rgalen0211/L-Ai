@@ -6,17 +6,16 @@ begin;
 
 do $do$
 declare
-  def text; n int; fn text; o text; nw text;
-  c_new constant text := E'and o.joined_line_at < now() - interval ''2 minutes'') then 0 else 1 end, joined_line_at, id\n    for update skip locked\n    limit 1;';
-  c_old constant text := E'and o.created_at < now() - interval ''2 minutes'') then 0 else 1 end, created_at, id\n    for update skip locked\n    limit 1;';
-  n_new constant text := 'order by joined_line_at, id for update skip locked limit 1;';
-  n_old constant text := 'order by created_at, id for update skip locked limit 1;';
-  q_new constant text := '(q.joined_line_at, q.id) < (j.joined_line_at, j.id)';
-  q_old constant text := '(q.created_at, q.id) < (j.created_at, j.id)';
+  def text; n int; i int; fn text; o text; nw text;
+  -- the same four short pairs as the migration, each put back
+  fns  constant text[] := array['public.claim_next_job()', 'public.claim_next_job()', 'public.node_claim(text)', 'public.queue_position(uuid)'];
+  news constant text[] := array['and o.joined_line_at < now() - interval ''', 'then 0 else 1 end, joined_line_at, id',
+                                'order by joined_line_at, id for update skip locked limit 1;', '(q.joined_line_at, q.id) < (j.joined_line_at, j.id)'];
+  olds constant text[] := array['and o.created_at < now() - interval ''', 'then 0 else 1 end, created_at, id',
+                                'order by created_at, id for update skip locked limit 1;', '(q.created_at, q.id) < (j.created_at, j.id)'];
 begin
-  foreach fn in array array['public.claim_next_job()', 'public.node_claim(text)', 'public.queue_position(uuid)'] loop
-    nw := case fn when 'public.claim_next_job()' then c_new when 'public.node_claim(text)' then n_new else q_new end;
-    o := case fn when 'public.claim_next_job()' then c_old when 'public.node_claim(text)' then n_old else q_old end;
+  for i in 1 .. array_length(fns, 1) loop
+    fn := fns[i]; nw := news[i]; o := olds[i];
     select pg_get_functiondef(f.oid) into def from pg_proc f where f.oid = to_regprocedure(fn);
     if def is null then continue; end if;
     def := replace(def, chr(13), '');
