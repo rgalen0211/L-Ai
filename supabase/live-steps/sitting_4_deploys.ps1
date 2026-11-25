@@ -10,6 +10,7 @@
     Set-Location C:\Users\Ryan\Documents\GitHub\L-Ai
     $head = git rev-parse HEAD
     if ($head -ne $tue) { Write-Host "STOP: L-Ai is on $head, not the Tuesday commit. Do step 0 first." -ForegroundColor Red; return }
+    if (git status --porcelain) { Write-Host 'STOP: the L-Ai folder has changed files; the deploys would send them. Tell GEO.' -ForegroundColor Red; return }
     # 3b P2: the two purge secrets, 64 characters each, into a file in your own folder; nothing is printed
     if (-not (Test-Path "$HOME\purge-secrets.env")) {
         $r = [Security.Cryptography.RandomNumberGenerator]::Create(); $a = New-Object byte[] 32; $c = New-Object byte[] 32; $r.GetBytes($a); $r.GetBytes($c)
@@ -28,6 +29,7 @@
     }
     # step 3, the buying lock: row 6 FALSE = do NOT apply any payment SQL; only look whether stripe-checkout is deployed
     $list = npx.cmd supabase functions list --project-ref $ref | Out-String
+    if ($LASTEXITCODE -ne 0) { Write-Host 'STOP: could not list the functions, so the buying lock is NOT checked (the 8 deploys ARE done). Look in Dashboard > Edge Functions for stripe-checkout and tell GEO.' -ForegroundColor Red; return }
     if ($list -match 'stripe-checkout') {
         Write-Host 'BUYING LOCK: stripe-checkout IS deployed. Delete it now: Dashboard > Edge Functions > stripe-checkout > Delete function (section 2a b).' -ForegroundColor Yellow
     } else {

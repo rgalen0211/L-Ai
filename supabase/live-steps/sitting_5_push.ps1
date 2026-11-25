@@ -7,7 +7,9 @@
     $tue = 'eca5cf8b8ddd3d48ce07025de1002c26b88f007d'
     Set-Location C:\Users\Ryan\Documents\GitHub\L-Ai
     if ((git rev-parse HEAD) -ne $tue) { Write-Host 'STOP: L-Ai is not on the Tuesday commit.' -ForegroundColor Red; return }
+    if (git status --porcelain) { Write-Host 'STOP: the L-Ai folder has changed files; the redeem-invite deploy would send them. Tell GEO.' -ForegroundColor Red; return }
     git fetch origin
+    if ($LASTEXITCODE -ne 0) { Write-Host 'STOP: git fetch failed (network?). Nothing was pushed. Try again in a minute.' -ForegroundColor Red; return }
     $was = git rev-parse origin/main
     Write-Host "WRITE THIS DOWN (the undo target): origin/main was $was" -ForegroundColor Yellow
     git push origin "${tue}:refs/heads/main"

@@ -6,6 +6,7 @@ Same steps, same order, same Tuesday commit eca5cf8b8ddd3d48ce07025de1002c26b88f
 
 | # | What | Where | PASS line | About |
 |---|---|---|---|---|
+| before 0 | Open status.supabase.com (CC1 08:15 item 4). GEO also reads it right before you start and posts what it says | browser | 'All Systems Operational', or nothing listed for Database, Edge Functions or the SQL Editor. Otherwise wait and tell GEO | 1 min |
 | 0 | `git -C C:\Users\Ryan\Documents\GitHub\L-Ai fetch`, then `git -C C:\Users\Ryan\Documents\GitHub\L-Ai checkout eca5cf8b8ddd3d48ce07025de1002c26b88f007d`, then `git -C C:\Users\Ryan\Documents\GitHub\L-Ai rev-parse HEAD` | PowerShell | prints eca5cf8b8ddd3d48ce07025de1002c26b88f007d | 1 min |
 | 1 | sitting_1_before.sql: every BEFORE check (Q634, steps 41 42 43 44 35 46 51 61 63), read-only | SQL Editor | first row `PASS: every BEFORE check is as the paper says` | 2 min |
 | 2 | sitting_2_apply.sql: A1 to A19, the migration files byte for byte, in order. CHANGES the database. Run it ONCE | SQL Editor | `PASS: A1 to A19 applied; now paste 3` | 3 min |
