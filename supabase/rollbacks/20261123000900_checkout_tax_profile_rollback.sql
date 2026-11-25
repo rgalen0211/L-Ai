@@ -21,6 +21,10 @@ $$;
 
 drop function public.set_my_tax_profile(text, text, text, text);
 drop function public.my_tax_profile();
+-- gate_apply (the closing line of the migration) renames each signed-in-callable function without arguments to NAME__ungated and puts a gated wrapper under the old name: the wrapper was dropped above, the renamed original stays unless it goes too
+-- (RENDERER 22:15: otherwise it is an orphan and a later re-apply of the migration fails 'already exists').
+drop function if exists public.my_tax_profile__ungated();
+drop function if exists public.set_my_tax_profile__ungated(text, text, text, text);
 drop table public.ohio_zip_county;
 drop table public.ohio_county_rate;
 drop table public.tax_rates;

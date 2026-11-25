@@ -184,6 +184,11 @@ class CheckoutTax(unittest.TestCase):
         self.assertEqual(self.ctx("sub_creator")["mode"], "subscription")
         rows = self.run_sql(S72).fetchall()
         self.assertEqual([r[1] for r in rows], [False, False, False, False, False, True], rows)
+        self.assertEqual(self.admin("select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and strpos(p.proname, 'tax_profile') > 0"), 0,
+                         "no function of the migration is left behind, the renamed gate originals included (RENDERER 22:15)")
+        self.run_sql(MIG.read_text(encoding="utf-8"))                                      # an undo followed by the migration again must work
+        rows = self.run_sql(S72).fetchall()
+        self.assertTrue(all(r[1] is True for r in rows), rows)
 
     # ---- live steps 69 and 70
     def vals(self, mapping):
