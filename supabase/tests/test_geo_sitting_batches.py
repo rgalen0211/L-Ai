@@ -27,7 +27,9 @@ sys.path.insert(0, str(LIVE))
 import sitting_build as sb  # noqa: E402
 
 A_FILES = {name for _, name in sb.APPLY}
-LEDGER = core.ROOT / "phase-2b" / "credits_ledger.sql"
+LIVE_MAIN = "e947f26af8ccb8b58ba01754ca803e853f4e6f04"                       # L-Ai main = live before the sitting
+LIVE_LEDGER = subprocess.run(["git", "-C", str(core.ROOT), "show", LIVE_MAIN + ":supabase/phase-2b/credits_ledger.sql"],
+                             capture_output=True, text=True, encoding="utf-8", check=True).stdout
 _server = None
 _n = 0
 
@@ -42,7 +44,7 @@ def setUpModule():
         for path in core.MIGRATIONS:
             if path.name not in A_FILES:
                 c.execute(path.read_text(encoding="utf-8"))
-        c.execute(LEDGER.read_text(encoding="utf-8"))
+        c.execute(LIVE_LEDGER)                                                   # the ledger AS LIVE HAS IT (main e947f26a), not the Tuesday file, which already carries A14
 
 
 def fresh():
@@ -57,9 +59,10 @@ def fresh():
 def paste(c, name, text=None):
     """The whole file as ONE query (the SQL Editor's way); returns the rows of the LAST statement."""
     cur = c.execute(text if text is not None else (LIVE / name).read_text(encoding="utf-8"))
-    rows = cur.fetchall()
+    rows = cur.fetchall() if cur.description else None
     while cur.nextset():
-        rows = cur.fetchall() if cur.description else rows
+        if cur.description:
+            rows = cur.fetchall()
     return rows
 
 

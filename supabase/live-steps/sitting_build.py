@@ -52,16 +52,16 @@ T, F = True, False
 BEFORE = [
     ("A0 Q634 before-check", Q634_COPY.name, [T] * 14 + [F, F]),
     ("A5 before (step 41)", "41_account_delete_paid_after_check.sql", [F, F, F, F]),
-    ("A8 before (step 42)", "42_retention_outbox_support_after_check.sql", None),        # rows 1 and 3 false; the rest true (length from the file)
+    ("A8 before (step 42)", "42_retention_outbox_support_after_check.sql", None),        # rows 1, 3 AND 4 false at the very start: row 4 tests account_redact_contact, which A5 makes (the paper's vector was for right before A8)
     ("A9 before (step 43)", "43_unfinished_uploads_purged_after_check.sql", None),       # row 1 false; the rest true
     ("A10 before (step 44)", "44_delete_revokes_ai_after_check.sql", None),              # row 1 false; the rest true
     ("A12 before (step 35)", "35_connect_open_check.sql", None),                         # every row false
-    ("A13 before (step 46)", "46_join_open_check.sql", [F, F, T, F, F, T, F, T]),   # the paper's seven rows + row 5 join_daily_max (added since; A13 makes it, so false before)
+    ("A13 before (step 46)", "46_join_open_check.sql", [F, F, F, F, F, T, F, T]),   # the paper's seven rows + row 5 join_daily_max; row 3 now also looks for join_daily_max in join_reserve, which only A13 adds, so it is FALSE at the start (the paper said true)
     ("A14 before (step 51)", "51_free_preview_machine_faults_check.sql", [T, F, F, T, F, T]),   # the file's own header: rows 2, 3 and 5 false (a row was added since the paper)
     ("A18 before (step 61)", "61_connect_whoami_desktop_app_check.sql", [F, T]),
     ("A19 before (step 63)", "63_welcome_credits_check.sql", [T, F, F, F, F, F, T, T]),
 ]
-FALSE_ROWS = {"A8 before (step 42)": {1, 3}, "A9 before (step 43)": {1}, "A10 before (step 44)": {1}}
+FALSE_ROWS = {"A8 before (step 42)": {1, 3, 4}, "A9 before (step 43)": {1}, "A10 before (step 44)": {1}}
 
 # AFTER: (label, check file); every row must be true; the row count is pinned in AFTER_ROWS (from the files, checked by the test)
 AFTER = [
@@ -159,7 +159,7 @@ def build():
     head = ("-- {title} (GEO sitting_build.py, Wed 11-25; generated: edit sitting_build.py, never this file). Read-only: one SELECT, changes nothing.\n"
             "-- Copy ALL of this file into the Supabase SQL Editor and Run. Read ONLY the first row: PASS or STOP. On STOP, send GEO the rows below it.\n")
     out["sitting_1_before.sql"] = folded(before_rows(counts), head.format(title="SITTING PASTE 1 of 3: every BEFORE check, before any migration"),
-                                         "every BEFORE check is as the paper says; go on to paste 2",
+                                         "every BEFORE check is as expected; go on to paste 2",
                                          "Do NOT run paste 2; send GEO this grid.").encode()
     out["sitting_3_after.sql"] = folded([(label, name, [True] * counts[name]) for label, name in AFTER],
                                         head.format(title="SITTING PASTE 3 of 3: every AFTER check of A1 to A19"),

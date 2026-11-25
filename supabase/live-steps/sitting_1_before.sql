@@ -229,7 +229,7 @@ union all select 'the settings row is there and nobody signed in or anonymous ca
 union all select 'a verification gives ' || coalesce((select (to_jsonb(o) ->> 'welcome_credits') from public.ops_settings o limit 1), 'nothing: the migration is not applied') || ' credits now (the setting; 0 = off)', true
   ) t
 ),
-want(k, n, ok) as (values (0, 1, true), (0, 2, true), (0, 3, true), (0, 4, true), (0, 5, true), (0, 6, true), (0, 7, true), (0, 8, true), (0, 9, true), (0, 10, true), (0, 11, true), (0, 12, true), (0, 13, true), (0, 14, true), (0, 15, false), (0, 16, false), (1, 1, false), (1, 2, false), (1, 3, false), (1, 4, false), (2, 1, false), (2, 2, true), (2, 3, false), (2, 4, true), (3, 1, false), (3, 2, true), (3, 3, true), (4, 1, false), (4, 2, true), (4, 3, true), (5, 1, false), (5, 2, false), (5, 3, false), (5, 4, false), (5, 5, false), (6, 1, false), (6, 2, false), (6, 3, true), (6, 4, false), (6, 5, false), (6, 6, true), (6, 7, false), (6, 8, true), (7, 1, true), (7, 2, false), (7, 3, false), (7, 4, true), (7, 5, false), (7, 6, true), (8, 1, false), (8, 2, true), (9, 1, true), (9, 2, false), (9, 3, false), (9, 4, false), (9, 5, false), (9, 6, false), (9, 7, true), (9, 8, true)),
+want(k, n, ok) as (values (0, 1, true), (0, 2, true), (0, 3, true), (0, 4, true), (0, 5, true), (0, 6, true), (0, 7, true), (0, 8, true), (0, 9, true), (0, 10, true), (0, 11, true), (0, 12, true), (0, 13, true), (0, 14, true), (0, 15, false), (0, 16, false), (1, 1, false), (1, 2, false), (1, 3, false), (1, 4, false), (2, 1, false), (2, 2, true), (2, 3, false), (2, 4, false), (3, 1, false), (3, 2, true), (3, 3, true), (4, 1, false), (4, 2, true), (4, 3, true), (5, 1, false), (5, 2, false), (5, 3, false), (5, 4, false), (5, 5, false), (6, 1, false), (6, 2, false), (6, 3, false), (6, 4, false), (6, 5, false), (6, 6, true), (6, 7, false), (6, 8, true), (7, 1, true), (7, 2, false), (7, 3, false), (7, 4, true), (7, 5, false), (7, 6, true), (8, 1, false), (8, 2, true), (9, 1, true), (9, 2, false), (9, 3, false), (9, 4, false), (9, 5, false), (9, 6, false), (9, 7, true), (9, 8, true)),
 want_rows(k, rows_wanted) as (values
 (0, 16),
 (1, 4),
@@ -252,7 +252,7 @@ bad as (
 )
 select result, step, row_no, check_name, ok, wanted from (
   select 0 as o, 0 as k, 0 as n,
-         case when (select count(*) from bad) = 0 then 'PASS: every BEFORE check is as the paper says; go on to paste 2 (' || (select count(*) from got) || ' rows)'
+         case when (select count(*) from bad) = 0 then 'PASS: every BEFORE check is as expected; go on to paste 2 (' || (select count(*) from got) || ' rows)'
               else 'STOP: ' || (select count(*) from bad) || ' row(s) not as expected; the first is ' || (select step || coalesce(' row ' || n, '') from bad order by k, n nulls first limit 1) || '. Do NOT run paste 2; send GEO this grid.' end as result,
          null::text as step, null::bigint as row_no, null::text as check_name, null::boolean as ok, null::boolean as wanted
   union all
