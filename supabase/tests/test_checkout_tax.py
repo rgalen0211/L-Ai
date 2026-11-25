@@ -6,7 +6,7 @@ What it proves, each with the opposite case beside it
   * a person reads and writes ONLY their own answer, through the two functions; wrong shapes are refused with their code (use_invalid, country_invalid, state_required, zip_required, zip_unknown); an Ohio ZIP that is not placed is refused only for BUSINESS use;
   * the context: ONLY a plan, for business use in Ohio, gets a tax rate, from that ZIP's county; personal Ohio, business elsewhere, a pack in Ohio, and no answer at all get none; a rate that is missing, inactive or has no Stripe id means tax_unknown (the checkout refuses) and never an untaxed Ohio business plan; every old key is still there;
   * the answer and tax tables are closed to every API role; the functions are closed to anonymous callers;
-  * the rollback puts the old context back and drops the tables; live step 71 says so before and after;
+  * the rollback puts the old context back and drops the tables; live step 72 says so before and after;
   * live step 69 refuses placeholders, a wrong set of codes, buying already open, and a second switch; swaps the ids, saves the old ones and sets live_ok; step 69 part 4 refuses until a live purchase AND refund exist and the Ohio rates are loaded; step 70 closes buying and restores the test ids and refuses once a live payment exists.
 """
 import json
@@ -26,7 +26,7 @@ MIG = ROOT / "migrations" / "20261123000900_checkout_tax_profile.sql"
 RB = ROOT / "rollbacks" / "20261123000900_checkout_tax_profile_rollback.sql"
 S69 = (ROOT / "live-steps" / "69_buying_open.sql").read_text(encoding="utf-8")
 S70 = (ROOT / "live-steps" / "70_buying_UNDO.sql").read_text(encoding="utf-8")
-S71 = (ROOT / "live-steps" / "71_checkout_tax_profile_check.sql").read_text(encoding="utf-8")
+S72 = (ROOT / "live-steps" / "72_checkout_tax_profile_check.sql").read_text(encoding="utf-8")
 RYAN, OTHER = core.RYAN, core.OTHER
 _server = None
 _count = 0
@@ -170,7 +170,7 @@ class CheckoutTax(unittest.TestCase):
 
     # ---- undo and the check step
     def test_the_rollback_puts_the_old_context_back_and_step_71_says_so_before_and_after(self):
-        rows = self.run_sql(S71).fetchall()
+        rows = self.run_sql(S72).fetchall()
         self.assertEqual(len(rows), 6)
         self.assertTrue(all(r[1] is True for r in rows), rows)
         self.run_sql(RB.read_text(encoding="utf-8"))
@@ -180,7 +180,7 @@ class CheckoutTax(unittest.TestCase):
         keys = set(self.ctx("sub_creator"))
         self.assertFalse({"tax_profile", "tax_rate_id", "tax_county", "tax_unknown"} & keys)
         self.assertEqual(self.ctx("sub_creator")["mode"], "subscription")
-        rows = self.run_sql(S71).fetchall()
+        rows = self.run_sql(S72).fetchall()
         self.assertEqual([r[1] for r in rows], [False, False, False, False, False, True], rows)
 
     # ---- live steps 69 and 70
