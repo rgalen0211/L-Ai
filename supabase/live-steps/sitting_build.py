@@ -91,7 +91,19 @@ def body(name):
     text = (HERE / name).read_text(encoding="utf-8").replace("\r\n", "\n").rstrip()
     if not text.endswith(";"):
         raise SystemExit(f"{name}: does not end with ';'")
-    return text[:-1]
+    # Each row gets its number as a LITERAL (geo_n), so the pinned vectors never rest on UNION ALL's order (BUILDER 08:39 LOW 2).
+    # Every check file starts its first row with a line 'select ' and each later row with a line 'union all select ' (GAMES 08:15, checked).
+    lines, k, first = text[:-1].split("\n"), 1, True
+    for i, line in enumerate(lines):
+        if first and line.startswith("select "):
+            lines[i] = "select 1 as geo_n, " + line[len("select "):]
+            first = False
+        elif line.startswith("union all select "):
+            k += 1
+            lines[i] = f"union all select {k}, " + line[len("union all select "):]
+    if first or text.lower().count("union all") != k - 1:
+        raise SystemExit(f"{name}: not one 'select' line followed by one 'union all select' line per row")
+    return "\n".join(lines)
 
 
 def row_counts():
@@ -107,7 +119,7 @@ def folded(rows, header, verdict_ok, verdict_name):
     """rows: list of (label, file, expected vector). One SELECT: line 0 is the verdict, then only the rows not as expected."""
     parts = []
     for i, (label, name, exp) in enumerate(rows):
-        parts.append(f"  select {i} as k, '{label}'::text as step, row_number() over () as n, t.check_name::text as check_name, t.ok as ok\n"
+        parts.append(f"  select {i} as k, '{label}'::text as step, t.geo_n::bigint as n, t.check_name::text as check_name, t.ok as ok\n"
                      f"  from (\n{body(name)}\n  ) t")
     vals = []
     for i, (label, name, exp) in enumerate(rows):
