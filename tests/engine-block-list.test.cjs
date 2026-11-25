@@ -58,11 +58,10 @@ test('the catalog offers 48 films, not 68: 24 usable datasets with a period, eac
   assert.equal(n, 48);
 });
 
-test('every ready-made start is a film the engine passed, and none is on the block list (Housing was a county map that failed legend_separability, also on the live engine)', () => {
+test('all three ready-made starts are films the engine passed, and none is on the block list (Housing was a county map that failed legend_separability, also on the live engine)', () => {
   const B = ctx.window.ryagramBuilder;
   assert.ok(B, 'app-builder.js loads');
-  const PASSED = ['bps_county_permits/line', 'state_obesity_fastfood/map', 'bls_state_unemployment/line',      // ENGINE-CATALOG-SHEET-CHECKS-1123.md, Passing
-                  'cbp_health_care_share_state/map', 'cbp_manufacturing_share_state/line', 'cbp_accommodation_food_share_state/line'];   // the three job starts (BUILDER 11-25), same list
+  const PASSED = ['bps_county_permits/line', 'state_obesity_fastfood/map', 'bls_state_unemployment/line'];   // ENGINE-CATALOG-SHEET-CHECKS-1123.md, Passing
   assert.deepEqual(JSON.parse(JSON.stringify(B.READY_MADE.map(r => `${r.dataset}/${r.film_type}`))), PASSED);
   const blocked = pairs(Object.fromEntries(Object.entries(K.MEASURED.blocked).map(([id, o]) => [id, Object.keys(o)])));
   for (const r of B.READY_MADE) assert.ok(!blocked.includes(`${r.dataset}/${r.film_type}`) && !pairs(fixture).includes(`${r.dataset}/${r.film_type}`), r.id);
