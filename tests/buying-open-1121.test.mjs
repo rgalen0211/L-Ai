@@ -136,8 +136,10 @@ test('BEFORE STRIPE: closed = no question anywhere; open = the question is hidde
   const z0 = byId(view, 'use-zip'); z0.value = '90210'; await click(go); assert.match(err().textContent, /Ohio ZIP/); assert.equal(calls.length, 0, 'a California ZIP is not an Ohio ZIP');
   const s0 = byId(view, 'use-state'); s0.value = 'xx'; s0.listeners.input({}); await click(go); assert.match(err().textContent, /state as two letters/); s0.value = 'oh'; s0.listeners.input({});
   const zip = byId(view, 'use-zip'); zip.value = '43215';
+  await click(go); assert.match(err().textContent, /Choose your Ohio county./, 'Ohio + business needs the county, not the ZIP alone');
+  const county = byId(view, 'use-county'); county.value = 'Franklin';
   await click(go);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', { use: 'business', country: 'US', state: 'OH', zip: '43215' }], ['pack_starter']]);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', { use: 'business', country: 'US', state: 'OH', zip: '43215', county: 'Franklin' }], ['pack_starter']]);
   // the second Buy in the same visit does not ask again
   await click(buyButton(view));
   assert.equal(calls.length, 3); assert.deepEqual(JSON.parse(JSON.stringify(calls[2])), ['pack_starter']);      // saved answers: no second question, no second SET
@@ -179,6 +181,37 @@ test('BEFORE STRIPE: if the server says the answer is missing, the page asks the
   const box = elements(view).find(e => e.className === 'use-ask');
   await click(buyButton(view));
   assert.equal(box.hidden, false, 'tax_profile_missing opens the question');
+});
+
+test('OHIO COUNTY: the list is the 88 Ohio counties, each once, spelled as the Department table; personal Ohio use sends no county; the mock refuses a business Ohio answer without one', async () => {
+  const m = lib.match(/const OH_COUNTIES = '([^']+)'\.split\(' '\)\.map\(c => c\.replace\('_', ' '\)\);/);
+  assert.ok(m, 'the county list is in the library');
+  const names = m[1].split(' ').map(c => c.replace('_', ' '));
+  assert.equal(names.length, 88); assert.equal(new Set(names).size, 88);
+  for (const c of ['Franklin', 'Cuyahoga', 'Hamilton', 'Van Wert', 'Wyandot', 'Adams']) assert.ok(names.includes(c), c);
+  assert.doesNotMatch(names.join(' '), /County/, 'names only, no word County');
+  const calls = [];
+  const view = await credits({ config: { buyingOpen: true }, checkout: calls });
+  await click(buyButton(view));
+  byId(view, 'use-personal').listeners.change({});
+  const c = byId(view, 'use-country'); c.value = 'US'; c.listeners.change({});
+  const s = byId(view, 'use-state'); s.value = 'OH'; s.listeners.input({});
+  byId(view, 'use-zip').value = '43215';
+  await click(elements(view).find(e => e.tag === 'button' && e.textContent === 'Continue to Stripe'));
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', { use: 'personal', country: 'US', state: 'OH', zip: '43215' }], ['pack_starter']], 'personal use in Ohio: no county sent');
+});
+test('OHIO COUNTY: the box shows the county row only for business use in Ohio', async () => {
+  const view = await credits({ config: { buyingOpen: true } });
+  await click(buyButton(view));
+  const row = id => elements(view).find(e => e.tag === 'p' && e.kids.some(k => typeof k !== 'string' && k.attrs && k.attrs.for === id));
+  byId(view, 'use-business').listeners.change({});
+  const c = byId(view, 'use-country'); c.value = 'US'; c.listeners.change({});
+  const s = byId(view, 'use-state'); s.value = 'TX'; s.listeners.input({});
+  assert.notEqual(row('use-county').hidden, false, 'Texas: no county');
+  s.value = 'OH'; s.listeners.input({});
+  assert.equal(row('use-county').hidden, false, 'Ohio + business: the county row shows');
+  byId(view, 'use-personal').listeners.change({});
+  assert.notEqual(row('use-county').hidden, false, 'Ohio + personal: no county');
 });
 
 test('PLANTED FAULT: the open-state markup in the closed state is caught', async () => {

@@ -385,13 +385,15 @@
       },
       // Mock of CONNECT's tax-profile contract (connect-checkout-use-tax-1124, migration 20261123000900): my_tax_profile() -> the stored answer or null; set_my_tax_profile(p_use, p_country, p_state, p_zip) validates like the SQL and stores it.
       my_tax_profile() { return { data: db.taxProfile ? { ...db.taxProfile } : null, error: null }; },
-      set_my_tax_profile({ p_use, p_country, p_state, p_zip }) {
+      set_my_tax_profile({ p_use, p_country, p_state, p_zip, p_county }) {
         const c = String(p_country || '').trim().toUpperCase(), s = String(p_state || '').trim().toUpperCase(), z = String(p_zip || '').trim();
         if (p_use !== 'business' && p_use !== 'personal') return fail('use_invalid: Choose business or personal use.');
         if (!/^[A-Z]{2}$/.test(c)) return fail('country_invalid: Choose your country.');
         if (c === 'US' && !/^[A-Z]{2}$/.test(s)) return fail('state_required: Choose your state.');
         if (c === 'US' && s === 'OH' && !/^[0-9]{5}$/.test(z)) return fail('zip_required: Enter your 5-digit ZIP code.');
-        db.taxProfile = { use: p_use, country: c, state: c === 'US' ? s : null, zip: c === 'US' && s === 'OH' ? z : null, answered_at: now() };
+        const county = String(p_county || '').trim();
+        if (c === 'US' && s === 'OH' && p_use === 'business' && !county) return fail('county_required: Choose your Ohio county.');
+        db.taxProfile = { use: p_use, country: c, state: c === 'US' ? s : null, zip: c === 'US' && s === 'OH' ? z : null, county: c === 'US' && s === 'OH' && p_use === 'business' ? county : null, answered_at: now() };
         return { data: { ...db.taxProfile }, error: null };
       },
       my_access() {

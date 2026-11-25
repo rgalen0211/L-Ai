@@ -178,8 +178,8 @@ test('WIRING: the script loads before the library, the route and the mount are b
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
   assert.match(html, /app-departments\.js\?v=20261123a/);
-  assert.match(html, /app-data\.js\?v=20261124wz/);
-  assert.match(html, /app-library\.js\?v=20261124wz/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
+  assert.match(html, /app-data\.js\?v=20261125co/);
+  assert.match(html, /app-library\.js\?v=20261125co/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
 });
 
 test('THE MOCK MIRRORS THE PROPOSED SERVER: five departments (one works), interest once per person per department, an unannounced id refused, withdraw removes it', async () => {
