@@ -158,11 +158,12 @@ function checkoutDeps(ctx = {}, over = {}) {
   return {
     s, customers,
     deps: {
-      allowedOrigins: ['https://uselai.com'], siteUrl: 'https://uselai.com', keyIsTest: true,
+      allowedOrigins: ['https://uselai.com'], siteUrl: 'https://uselai.com', keyIsTest: false,   // a live key: with buying open a TEST key is refused (CONNECT 11-24), tested below
       verifyUser: async jwt => (jwt === 'good' ? { id: RYAN } : null),
       context: async (owner, code) => ({ stripe_price_id: code === 'pack_starter' ? 'price_Starter1' : code === 'sub_creator' ? 'price_Creator1' : null,
                                          mode: code.startsWith('pack_') ? 'payment' : code.startsWith('sub_') ? 'subscription' : null,
-                                         customer_id: null, email: 'ryan@example.test', has_plan: false, live_ok: false, buying_open: true, ...ctx }),   // buying open: the tests below; closed: GEO 11-21's test
+                                         customer_id: null, email: 'ryan@example.test', has_plan: false, live_ok: true, buying_open: true,
+                                         tax_profile: { use: 'personal', country: 'US', state: 'CA', zip: null }, tax_rate_id: null, tax_county: null, tax_unknown: false, ...ctx }),   // buying open: the tests below; closed: GEO 11-21's test
       setCustomer: async (owner, id) => { customers.push([owner, id]); },
       stripe: s.stripe,
       ...over,
@@ -187,7 +188,7 @@ test('checkout: a pack creates the customer once and a payment session tagged wi
   assert.equal(p.customer, 'cus_New');
   assert.equal(p.client_reference_id, RYAN);
   assert.deepEqual(p.line_items, [{ price: 'price_Starter1', quantity: 1 }]);
-  assert.deepEqual(p.payment_intent_data.metadata, { owner_id: RYAN, price_code: 'pack_starter' });
+  assert.deepEqual(p.payment_intent_data.metadata, { owner_id: RYAN, price_code: 'pack_starter', tax_use: 'personal', tax_country: 'US', tax_state: 'CA' });
   assert.equal(p.success_url, 'https://uselai.com/app/#/credits?paid=pack_starter');
   assert.equal(p.allow_promotion_codes, undefined);    // a discount would fail the amount check
   assert.match(s.calls[1].form, /line_items%5B0%5D%5Bprice%5D=price_Starter1/);
@@ -199,7 +200,7 @@ test('checkout: plans, the one-plan rule, the portal, and refusals', async () =>
   let res = await call(deps, { price_code: 'sub_creator' });
   assert.equal(res.status, 200);
   assert.deepEqual(s.calls.map(c => c.path), ['/v1/checkout/sessions']);     // existing customer reused
-  assert.deepEqual(s.calls[0].params.subscription_data.metadata, { owner_id: RYAN, price_code: 'sub_creator' });
+  assert.deepEqual(s.calls[0].params.subscription_data.metadata, { owner_id: RYAN, price_code: 'sub_creator', tax_use: 'personal', tax_country: 'US', tax_state: 'CA' });
 
   ({ deps } = checkoutDeps({ customer_id: 'cus_Ryan', has_plan: true }));
   assert.equal((await call(deps, { price_code: 'sub_creator' })).status, 409);
@@ -220,7 +221,7 @@ test('checkout: plans, the one-plan rule, the portal, and refusals', async () =>
   assert.equal((await call(deps, {}, { method: 'GET' })).status, 405);
   assert.equal(s.calls.length, 0);
 
-  ({ s, deps } = checkoutDeps({}, { keyIsTest: false }));                        // a live key, not yet allowed
+  ({ s, deps } = checkoutDeps({ live_ok: false }, { keyIsTest: false }));          // a live key, not yet allowed
   assert.equal((await call(deps, { price_code: 'pack_starter' })).status, 503);
   assert.equal(s.calls.length, 0);
 
@@ -294,4 +295,71 @@ test('buying is a server switch: closed, no checkout opens for an ordinary accou
   assert.equal((await call(deps, { price_code: 'pack_starter' })).status, 200);   // Ryan's own test purchase
   ({ s, deps } = checkoutDeps({ buying_open: false, is_admin: false, customer_id: 'cus_Ryan' }));
   assert.equal((await call(deps, { action: 'portal' })).status, 200);         // an existing plan can still be managed
+});
+
+// ---- CONNECT 11-24 (CC1 09:33 / 10:23): the one question, the plan-only Ohio tax, the test-key refusal ----
+test('checkout: no answer to the use-and-place question means no checkout, and Stripe is never called', async () => {
+  for (const missing of [null, undefined, { use: 'neither', country: 'US', state: 'OH', zip: '43004' }]) {
+    const { s, deps } = checkoutDeps({ tax_profile: missing });
+    for (const code of ['pack_starter', 'sub_creator']) {
+      const res = await call(deps, { price_code: code });
+      assert.equal(res.status, 422);
+      assert.equal((await res.json()).code, 'tax_profile_missing');
+    }
+    assert.equal(s.calls.length, 0);
+  }
+  const { deps } = checkoutDeps({ tax_profile: null, customer_id: 'cus_Ryan' });
+  assert.equal((await call(deps, { action: 'portal' })).status, 200);       // the billing portal needs no answer
+});
+
+test('checkout: a plan carries the Stripe Tax Rate the database picked, a pack never does, and what the person said goes into the metadata', async () => {
+  const biz = { use: 'business', country: 'US', state: 'OH', zip: '43004' };
+  let { s, deps } = checkoutDeps({ customer_id: 'cus_Ryan', tax_profile: biz, tax_rate_id: 'txr_Franklin1', tax_county: 'Franklin' });
+  let res = await call(deps, { price_code: 'sub_creator' });
+  assert.equal(res.status, 200);
+  assert.deepEqual(s.calls[0].params.line_items, [{ price: 'price_Creator1', quantity: 1, tax_rates: ['txr_Franklin1'] }]);
+  assert.deepEqual(s.calls[0].params.subscription_data.metadata, { owner_id: RYAN, price_code: 'sub_creator', tax_use: 'business', tax_country: 'US', tax_state: 'OH', tax_county: 'Franklin' });
+  assert.match(s.calls[0].form, /line_items%5B0%5D%5Btax_rates%5D%5B0%5D=txr_Franklin1/);
+  assert.match(s.calls[0].key, /^checkout-.*-sub_creator-txr_Franklin1-\d+$/);           // a corrected answer never gets an old session back
+
+  ({ s, deps } = checkoutDeps({ customer_id: 'cus_Ryan', tax_profile: biz, tax_rate_id: 'txr_Franklin1', tax_county: 'Franklin' }));
+  res = await call(deps, { price_code: 'pack_starter' });                                 // even if the database handed a rate, a pack is not taxed at checkout
+  assert.equal(res.status, 200);
+  assert.deepEqual(s.calls[0].params.line_items, [{ price: 'price_Starter1', quantity: 1 }]);
+  assert.equal(JSON.stringify(s.calls[0].params).includes('tax_rates'), false);
+
+  ({ s, deps } = checkoutDeps({ customer_id: 'cus_Ryan', tax_profile: { use: 'personal', country: 'US', state: 'OH', zip: '43004' } }));
+  res = await call(deps, { price_code: 'sub_creator' });                                  // personal use: the database gave no rate
+  assert.equal(res.status, 200);
+  assert.deepEqual(s.calls[0].params.line_items, [{ price: 'price_Creator1', quantity: 1 }]);
+
+  ({ s, deps } = checkoutDeps({ customer_id: 'cus_Ryan', tax_profile: { use: 'business', country: 'US', state: 'TX', zip: null } }));
+  res = await call(deps, { price_code: 'sub_creator' });                                  // business outside Ohio: no rate
+  assert.equal(res.status, 200);
+  assert.deepEqual(s.calls[0].params.line_items, [{ price: 'price_Creator1', quantity: 1 }]);
+});
+
+test('checkout: a plan that needs a tax rate the database cannot give is refused, never sold untaxed; a pack is unaffected', async () => {
+  const biz = { use: 'business', country: 'US', state: 'OH', zip: '43004' };
+  let { s, deps } = checkoutDeps({ customer_id: 'cus_Ryan', tax_profile: biz, tax_rate_id: null, tax_unknown: true });
+  const res = await call(deps, { price_code: 'sub_creator' });
+  assert.equal(res.status, 503);
+  assert.equal((await res.json()).code, 'tax_not_ready');
+  assert.equal(s.calls.length, 0);
+  ({ s, deps } = checkoutDeps({ customer_id: 'cus_Ryan', tax_profile: biz, tax_rate_id: null, tax_unknown: true }));
+  assert.equal((await call(deps, { price_code: 'pack_starter' })).status, 200);
+});
+
+test('checkout: a TEST key with buying open opens nothing, for anyone; with buying closed an administrator may still test', async () => {
+  let { s, deps } = checkoutDeps({ buying_open: true, is_admin: false }, { keyIsTest: true });
+  let res = await call(deps, { price_code: 'pack_starter' });
+  assert.equal(res.status, 503);
+  assert.equal(s.calls.length, 0);
+  ({ s, deps } = checkoutDeps({ buying_open: true, is_admin: true }, { keyIsTest: true }));
+  assert.equal((await call(deps, { price_code: 'pack_starter' })).status, 503);          // not even an administrator: the public test card would buy real credits
+  assert.equal(s.calls.length, 0);
+  ({ s, deps } = checkoutDeps({ buying_open: false, is_admin: true }, { keyIsTest: true }));
+  assert.equal((await call(deps, { price_code: 'pack_starter' })).status, 200);          // closed + administrator + test key: Ryan's own test, as before
+  ({ s, deps } = checkoutDeps({ buying_open: true, is_admin: false, customer_id: 'cus_Ryan' }, { keyIsTest: true }));
+  assert.equal((await call(deps, { action: 'portal' })).status, 200);                    // the portal is not a checkout
 });

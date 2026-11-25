@@ -6,6 +6,11 @@ export interface Context {
   stripe_price_id: string | null; mode: "payment" | "subscription" | null; customer_id: string | null;
   email: string | null; has_plan: boolean; live_ok: boolean;
   buying_open?: boolean; is_admin?: boolean;   // GEO 11-21: the server's buying switch (stripe_settings.buying_open); an app admin may test while it is off
+  // CONNECT 11-24 (CC1 09:33 / 10:23): the answer the person gave once ("business or personal use?" and where they are), stored on the account
+  // by set_my_tax_profile; null = never answered. tax_rate_id is the Stripe Tax Rate the DATABASE picked for THIS profile and THIS price (a plan, business, Ohio, that ZIP's county), or null = no tax.
+  // tax_unknown = the profile needs a tax rate the database does not have yet (an Ohio ZIP it cannot place, or a rate with no Stripe id): the checkout is refused, never opened untaxed.
+  tax_profile?: { use: "business" | "personal"; country: string; state: string | null; zip: string | null } | null;
+  tax_rate_id?: string | null; tax_county?: string | null; tax_unknown?: boolean;
 }
 export interface Deps {
   allowedOrigins: string[];
@@ -52,6 +57,9 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     // GEO 11-21: buying is a server switch, not only the page's hidden buttons. While it is off no checkout opens for an ordinary
     // account (the billing portal for an existing plan stays open). A missing key reads as closed.
     if (action === "checkout" && ctx.buying_open !== true && ctx.is_admin !== true) return reply(503, { error: "Buying is not open yet." });
+    // CONNECT 11-24 (CC1 safety fact): a TEST key skips live_ok above, and anyone can pay with Stripe's public test card. So while buying is open
+    // for everyone, a test key opens NO checkout, for an administrator too. (Step 69 swaps the key and the price ids BEFORE it opens buying.)
+    if (action === "checkout" && deps.keyIsTest && ctx.buying_open === true) return reply(503, { error: "Payments aren't open yet." });
     const back = `${deps.siteUrl}/app/#/credits`;
 
     if (action === "portal") {
@@ -65,6 +73,18 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     if (ctx.mode === "subscription" && ctx.has_plan) {
       return reply(409, { error: "You already have a plan. Use Manage plan to change or cancel it." });
     }
+    // The one question (business or personal use, and where you are) is asked ONCE and stored; a checkout without it is refused so no plan is ever
+    // sold untaxed by accident. The page answers it with set_my_tax_profile and asks again on this code.
+    const profile = ctx.tax_profile ?? null;
+    if (!profile || (profile.use !== "business" && profile.use !== "personal")) {
+      return reply(422, { error: "Tell us whether this is for business or personal use and where you are first.", code: "tax_profile_missing" });
+    }
+    // Only a PLAN can carry tax here (a credit pack is never taxed at checkout: prepaid credits are taxed when used, Ryan 11-24).
+    // The database decides the rate; if it says a tax applies but has no rate to give, refuse rather than sell untaxed.
+    const taxRate = ctx.mode === "subscription" ? (ctx.tax_rate_id ?? null) : null;
+    if (ctx.mode === "subscription" && ctx.tax_unknown === true) {
+      return reply(503, { error: "Tax for your area isn't set up yet. Please try again later.", code: "tax_not_ready" });
+    }
     let customer = ctx.customer_id;
     if (!customer) {
       // One customer per person: the idempotency key makes a double click create one, not two.
@@ -73,17 +93,20 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       customer = created.id as string;
       await deps.setCustomer(user.id, customer);
     }
-    const metadata = { owner_id: user.id, price_code: code };
+    // What Stripe's own record of the purchase will say about use and place (the webhook reads only owner_id and price_code; the rest is for the books).
+    const metadata: Record<string, string> = { owner_id: user.id, price_code: code, tax_use: profile.use, tax_country: profile.country };
+    if (profile.state) metadata.tax_state = profile.state;
+    if (ctx.tax_county) metadata.tax_county = ctx.tax_county;
     const session = await deps.stripe("/v1/checkout/sessions", {
       mode: ctx.mode,
       customer,
       client_reference_id: user.id,
-      line_items: [{ price: ctx.stripe_price_id, quantity: 1 }],
+      line_items: [{ price: ctx.stripe_price_id, quantity: 1, ...(taxRate ? { tax_rates: [taxRate] } : {}) }],
       metadata,
       ...(ctx.mode === "payment" ? { payment_intent_data: { metadata } } : { subscription_data: { metadata } }),
       success_url: `${back}?paid=${code}`,
       cancel_url: back,
-    }, `checkout-${user.id}-${code}-${Math.floor(Date.now() / 60000)}`);   // one session per minute per choice
+    }, `checkout-${user.id}-${code}-${taxRate ?? "none"}-${Math.floor(Date.now() / 60000)}`);   // one session per minute per choice (and per tax rate, so a corrected answer is never served an old session)
     return reply(200, { url: session.url });
   } catch (err) {
     console.error(errorLine(err));      // never the message: Stripe's can name the key, an email or a customer id (GEO 11-21 L3)
