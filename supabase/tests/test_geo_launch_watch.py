@@ -106,8 +106,8 @@ class Watch(unittest.TestCase):
     def jobs(self, k, state, *, made="now()", claimed=None, ended=None, code=None):
         self.c.execute("set session_replication_role = replica")          # the throwaway database only: no project/version rows needed
         for _ in range(k):
-            self.c.execute(f"insert into public.jobs (owner_id, project_id, version_id, job_type, story, story_sha256, state, created_at, claimed_at, ended_at, error_code) "
-                           f"values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'preview', '{{}}', repeat('a', 64), '{state}', {made}, {claimed or 'null'}, {ended or 'null'}, {code and repr(code) or 'null'})")
+            self.c.execute(f"insert into public.jobs (owner_id, project_id, version_id, job_type, story, story_sha256, state, created_at, queued_at, claimed_at, ended_at, error_code) "
+                           f"values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'preview', '{{}}', repeat('a', 64), '{state}', {made}, {made}, {claimed or 'null'}, {ended or 'null'}, {code and repr(code) or 'null'})")
         self.c.execute("set session_replication_role = origin")
 
     # -- the tests
@@ -142,10 +142,12 @@ class Watch(unittest.TestCase):
 
     def test_GEO_03_a_flood_of_made_up_addresses(self):
         self.c.execute("update public.ops_settings set join_daily_max = 500")
-        self.asks(9)
-        self.assert_ok()                                                              # 9 asks, 0 opened: under the line
-        self.asks(1)
-        self.assert_only(3)                                                           # 10 asks, 0 opened
+        self.asks(10, "now() - interval '5 minutes'")
+        self.assert_ok()                                                              # a real first rush: 10 asks 5 min old, nobody has opened yet (RENDERER 09:27)
+        self.asks(9, "now() - interval '30 minutes'")
+        self.assert_ok()                                                              # 9 asks 30 min old, 0 opened: under the line
+        self.asks(1, "now() - interval '30 minutes'")
+        self.assert_only(3)                                                           # 10 asks 20 to 60 min old, 0 opened
         self.users(1, confirmed="now()")
         self.assert_ok()                                                              # one real person opened: not a flood
 
@@ -161,6 +163,11 @@ class Watch(unittest.TestCase):
         self.assert_ok()
         self.jobs(1, "queued", made="now() - interval '31 minutes'")
         self.assert_only(5)
+
+    def test_GEO_05b_a_retried_job_waits_from_its_new_queue_time(self):
+        self.jobs(1, "queued", made="now() - interval '3 hours'")
+        self.c.execute("update public.jobs set queued_at = now() - interval '10 minutes'")   # made 3 h ago, queued again 10 min ago (RENDERER LOW a)
+        self.assert_ok()
 
     def test_GEO_06_claimed_not_started(self):
         self.jobs(1, "claimed", claimed="now() - interval '9 minutes'")

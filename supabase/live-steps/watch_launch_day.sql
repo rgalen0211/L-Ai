@@ -23,12 +23,12 @@ with r(n, what, value, look, when_look, what_you_do) as (
          'within 5 of the size',
          'Expected on a busy day; new strangers then read ''Sign-up is full for now''. Under Resend Free the size stays 35 (row 1). First read row 3: if it says LOOK, someone is filling the day with made-up addresses.'
   union all
-  select 3, 'sign-up asks in the last hour vs accounts opened in the last hour (a flood of made-up addresses)',
-         (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 hour') || ' asked, '
+  select 3, 'sign-up asks made 20 to 60 min ago vs accounts opened in the last hour (a flood of made-up addresses)',
+         (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 hour' and at < now() - interval '20 minutes') || ' asked, '
          || (select count(*) from auth.users where email_confirmed_at > now() - interval '1 hour') || ' opened',
-         (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 hour') >= 10
+         (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 hour' and at < now() - interval '20 minutes') >= 10
            and (select count(*) from auth.users where email_confirmed_at > now() - interval '1 hour') = 0,
-         '10 or more asked and 0 opened',
+         '10 or more asked 20 to 60 min ago and 0 opened',
          'Close sign-up now with live step 48 (sign-up OFF) so the flood cannot use up the day and the email budget, and tell CC1; step 47 opens it again when CC1 says (LAUNCH-WED-1125.md: if the day''s 35 fill with addresses nobody opens).'
   union all
   select 4, 'sign-ups not opened 20 minutes after (made 20 to 60 min ago)',
@@ -41,9 +41,9 @@ with r(n, what, value, look, when_look, what_you_do) as (
          'The emails may not be arriving: Supabase, Edge Functions, join, Logs (lines starting join invite:) and the Resend dashboard (bounced or refused). Tell CC1.'
   union all
   select 5, 'jobs waiting for the render PC, and the oldest wait',
-         (select count(*) from public.jobs where state = 'queued' and run_on = 'house') || ' waiting; oldest made '
-         || coalesce((select round(extract(epoch from now() - min(created_at)) / 60)::text from public.jobs where state = 'queued' and run_on = 'house'), '0') || ' min ago',
-         coalesce((select extract(epoch from now() - min(created_at)) / 60 from public.jobs where state = 'queued' and run_on = 'house'), 0) > 30,
+         (select count(*) from public.jobs where state = 'queued' and run_on = 'house') || ' waiting; oldest queued '
+         || coalesce((select round(extract(epoch from now() - min(queued_at)) / 60)::text from public.jobs where state = 'queued' and run_on = 'house'), '0') || ' min ago',
+         coalesce((select extract(epoch from now() - min(queued_at)) / 60 from public.jobs where state = 'queued' and run_on = 'house'), 0) > 30,
          'the oldest is over 30 min',
          'Check row 7 (is the render PC there?). At 25 waiting, or the oldest over 90 min, brake the queue with live step 71 (BUILDER), as LAUNCH-WED-1125.md says. Tell CC1.'
   union all
@@ -57,7 +57,7 @@ with r(n, what, value, look, when_look, what_you_do) as (
          coalesce((select round(extract(epoch from now() - max(last_seen_at)) / 60)::text || ' min ago' from public.workers where enabled and last_seen_at is not null), 'never'),
          coalesce((select max(last_seen_at) from public.workers where enabled and last_seen_at is not null) < now() - interval '5 minutes', true),
          'over 5 min ago, or never',
-         'The render PC is off or cut off: WORKER''s card proposals/WORKER-IF-IT-BREAKS-1125.md, step 1. Strangers'' films wait meanwhile; nothing is lost.'
+         'If you ran WORKER''s item 5 or put a STOP file down in the last 15 min, this is expected (a stopped worker does not check in) and clears with its new start. Otherwise the render PC is off or cut off: WORKER''s card proposals/WORKER-IF-IT-BREAKS-1125.md, step 1. Strangers'' films wait meanwhile; nothing is lost.'
   union all
   select 8, 'failed or needs-decision jobs in the last hour, by code (of all jobs ended in the last hour)',
          coalesce((select string_agg(code || ' x' || k, ', ' order by k desc, code)
