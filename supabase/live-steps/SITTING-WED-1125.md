@@ -11,6 +11,7 @@ Same steps, same order, same Tuesday commit eca5cf8b8ddd3d48ce07025de1002c26b88f
 | 1 | sitting_1_before.sql: every BEFORE check (Q634, steps 41 42 43 44 35 46 51 61 63), read-only | SQL Editor | first row `PASS: every BEFORE check is as expected` | 2 min |
 | 2 | sitting_2_apply.sql: A1 to A19, the migration files byte for byte, in order. CHANGES the database. Run it ONCE | SQL Editor | `PASS: A1 to A19 applied; now paste 3` | 3 min |
 | 3 | sitting_3_after.sql: every AFTER check of A1 to A19 incl. step 63 after, read-only | SQL Editor | ONE row `PASS: A1 to A19 are all applied and every AFTER row is true` | 2 min |
+| before 4 | Dashboard > Edge Functions: write down the 'updated' date of **ai-editor** and **connect**, and whether **purge-partial-uploads** and **stripe-checkout** are listed (the function undo table below needs them) | Dashboard | four notes in your own text file | 1 min |
 | 4 | sitting_4_deploys.ps1: purge secrets made and set (never printed), then 8 deploys with --no-verify-jwt (delete-account, ai-editor, film-page, ops-tick, connect, purge-uploads, purge-partial-uploads, guided-builder), then the buying-lock look | PowerShell | green `PASS: 8 functions deployed ...`; and one BUYING LOCK line: if it is yellow, delete stripe-checkout in Dashboard > Edge Functions | 8 min |
 | 4b | 3b P3 part 2: Dashboard > Integrations > Vault > Add secret, twice: name `cron_purge_uploads` = the value after `PURGE_UPLOADS_SECRET=` in `$HOME\purge-secrets.env` (open it in Notepad), name `cron_purge_partial` = the value after `PURGE_PARTIAL_SECRET=`. Then `Remove-Item "$HOME\purge-secrets.env"` | Dashboard | both names listed in Vault | 4 min |
 | 4c | live-steps/54_purge_jobs_before_check.sql, then live-steps/55_purge_jobs_schedule.sql | SQL Editor | 54: rows 1 to 5 true; 55: two rows, `purge-partial-uploads 30 * * * *` active and `purge-uploads 0 * * * *` active | 3 min |
@@ -20,6 +21,19 @@ Same steps, same order, same Tuesday commit eca5cf8b8ddd3d48ce07025de1002c26b88f
 **If the SQL Editor refuses paste 2 as too long (it then ran nothing):** paste sitting_2a_apply_half.sql (A1 to A10, PASS line `PASS: A1 to A10 applied; now paste 2b`), then sitting_2b_apply_half.sql (A11 to A19, `PASS: A11 to A19 applied; now paste 3`), then paste 3 as above.
 
 **On any STOP or error: stop there and send GEO the result rows (or the red lines).** Never run paste 2 a second time: each migration keeps its own begin and commit, so on an error the ones before it ARE applied and nothing after it ran; paste 3 then names the first step that is missing, and GEO gives you the rest one file at a time. Undo of anything: LAUNCH-LIVE-STEPS-1121.md section 3a, unchanged.
+
+**If a function misbehaves after block 4 or 5: put the old one back (ENGINE proposals/ENGINE-FUNCTION-UNDO-1125.md, checked by GEO in git, every file each function imports followed).** Redeploy ONLY the function that misbehaves, from a clean folder of its undo commit, never from your Wednesday folder. In PowerShell (use npx.cmd, not npx: this PC refuses npx's .ps1):
+`git -C C:\Users\Ryan\Documents\GitHub\L-Ai worktree add C:\Users\Ryan\Documents\GitHub\L-Ai-undo-1125 6a07e0dd`, then `Set-Location C:\Users\Ryan\Documents\GitHub\L-Ai-undo-1125`, then `npx.cmd supabase functions deploy <name> --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
+
+| Function | Undo commit | How sure (GEO's git check) |
+|---|---|---|
+| redeem-invite, join, stripe-checkout, stripe-webhook | 6a07e0dd | CERTAIN: the function and every file it imports are byte-identical in 6a07e0dd and live main e947f26a, so whatever day it was deployed from main, this is it |
+| delete-account, film-page, ops-tick, purge-uploads | 6a07e0dd | CERTAIN, same reason (not in ENGINE's table; GEO checked) |
+| purge-partial-uploads | 6a07e0dd, or DELETE it in Edge Functions if your 'before 4' note says it was not listed | CERTAIN for the code; the paper (3b undo) says delete it if it was never deployed |
+| guided-builder | 6a07e0dd | MEDIUM (ENGINE): deployed about 11-05; 6a07e0dd is the 11-05 09:49 commit. It differs from main in TWO imported files, the catalog list AND profile.ts (ENGINE named only the catalog) |
+| ai-editor, connect | NOT KNOWN YET | Their code changed on main on 11-20 (a88a3100, 935b8ea2), so the live copy depends on the day each was deployed: send GEO your 'before 4' dates and GEO names the commit. Until then, an undo of either is CC1's call |
+
+A function undo never undoes SQL; the SQL undos are LAUNCH-LIVE-STEPS-1121.md section 3a. Undo of the push: block 5's yellow 'origin/main was' line, and a revert commit CC1 names (never --force).
 
 **What the pastes cover, one for one with the paper:** step 1 = pastes 1 to 3 (A1 to A19 with every BEFORE and AFTER check the paper names, step 63 before and after A19); step 2 + 3b P1 = block 4's deploys; step 3 (row 6 false) = block 4's look; 3b P2 + P3 part 1 = block 4's first lines; 3b P3 part 2 = 4b; 3b P4 + P5 = 4c; step 4 + 4a = block 5; 3b P6 = 'later'.
 
