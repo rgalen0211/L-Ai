@@ -11,7 +11,8 @@ do $do$
 begin
   if (select s.buying_open from public.stripe_settings s where s.id) then raise exception 'Not run: buying is still open. Run part 1 first.'; end if;
   if exists (select 1 from public.stripe_events where livemode and outcome = 'applied') then raise exception 'Not run: a live Stripe event was applied, so a real payment exists. Do not go back to test mode: ask CC1.'; end if;
-  if to_regclass('ryagram_private.stripe_prices_test_ids') is null or (select count(*) from ryagram_private.stripe_prices_test_ids) = 0 then raise exception 'Not run: step 69 never saved the test price ids.'; end if;
+  if to_regclass('ryagram_private.stripe_prices_test_ids') is null then raise exception 'Not run: step 69 never saved the test price ids.'; end if;
+  if (select count(*) from ryagram_private.stripe_prices_test_ids) = 0 then raise exception 'Not run: step 69 never saved the test price ids.'; end if;
   update public.stripe_prices p set stripe_price_id = t.stripe_price_id from ryagram_private.stripe_prices_test_ids t where t.price_code = p.price_code;
   update public.stripe_settings set live_ok = false where id;
 end $do$;

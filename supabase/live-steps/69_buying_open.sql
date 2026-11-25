@@ -32,7 +32,7 @@ begin
   end if;
   for k, v in select * from jsonb_each_text(vals) loop
     if v !~ '^price_[A-Za-z0-9]+$' or v like '%REPLACE%' then raise exception 'Not run: % has no real live price id yet.', k; end if;
-    if exists (select 1 from public.stripe_prices where price_code = k and stripe_price_id = v) then raise exception 'Not run: % is still the old (test) price id.', k; end if;
+    if exists (select 1 from public.stripe_prices where stripe_price_id = v) then raise exception 'Not run: % is still the old (test) price id (or another one).', k; end if;
   end loop;
   if (select count(distinct value) from jsonb_each_text(vals)) <> (select count(*) from jsonb_each_text(vals)) then raise exception 'Not run: two codes have the same price id.'; end if;
   -- keep the test ids for the undo (only the first time)
@@ -64,6 +64,7 @@ begin
      or (select count(*) from public.stripe_events e where e.livemode and e.outcome = 'applied' and e.type = 'charge.refunded') < 1 then
     raise exception 'Not run: your own live test purchase and its refund have not both arrived (part 3 must show at least 1 and 1).';
   end if;
+  if to_regclass('ryagram_private.stripe_prices_test_ids') is null then raise exception 'Not run: part 2 has not been run (the test price ids were never saved).'; end if;
   if exists (select 1 from public.stripe_prices p join ryagram_private.stripe_prices_test_ids t using (price_code) where p.stripe_price_id = t.stripe_price_id) then
     raise exception 'Not run: a price id is still the test one.';
   end if;

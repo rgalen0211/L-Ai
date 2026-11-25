@@ -52,6 +52,8 @@ def setUpModule():
         c.execute(ledger.LEDGER.read_text(encoding="utf-8"))
         c.execute((ROOT / "phase-2b" / "stripe_test_mode.sql").read_text(encoding="utf-8"))
         c.execute((ROOT / "phase-2b" / "stripe_refunds_disputes.sql").read_text(encoding="utf-8"))
+        c.execute("alter default privileges in schema public grant all on tables to anon, authenticated, service_role")           # Supabase's own defaults: a table or function made from here on is open to the API roles
+        c.execute("alter default privileges in schema public grant execute on functions to anon, authenticated, service_role")    # until the migration closes it, so a missing revoke is a real hole here too
         c.execute(MIG.read_text(encoding="utf-8"))
         c.execute("insert into auth.users (id, email) values (%s,'ryan@x'),(%s,'other@x')", (RYAN, OTHER))
         c.execute("insert into public.stripe_prices (price_code, stripe_price_id, mode) values "
@@ -194,7 +196,7 @@ class CheckoutTax(unittest.TestCase):
         row = self.run_sql(P69[1]).fetchone()
         self.assertEqual(row[:2], (False, False))
         with self.assertRaises(psycopg.Error) as cm:                                         # the placeholders
-            self.run_sql(P69[2])
+            self.run_sql(self.vals({k: "price_REPLACE_ME" for k in self.GOOD}))
         self.assertIn("no real live price id", str(cm.exception))
         for bad, word in (({**self.GOOD, "pack_maker": "price_REPLACE_ME"}, "no real live price id"),
                           ({**self.GOOD, "pack_maker": "not-an-id"}, "no real live price id"),
@@ -204,7 +206,7 @@ class CheckoutTax(unittest.TestCase):
             with self.assertRaises(psycopg.Error, msg=str(bad)) as cm:
                 self.run_sql(self.vals(bad))
             self.assertIn(word, str(cm.exception))
-        self.assertEqual(self.admin("select count(*) from public.stripe_prices where stripe_price_id like 'price_Live%'"), 0, "nothing changed")
+        self.assertEqual(self.admin("select count(*) from public.stripe_prices where starts_with(stripe_price_id, 'price_Live')"), 0, "nothing changed")
         self.admin("update public.stripe_settings set buying_open = true returning 1")
         with self.assertRaises(psycopg.Error) as cm:
             self.run_sql(self.vals(self.GOOD))
@@ -238,15 +240,18 @@ class CheckoutTax(unittest.TestCase):
         self.assertIn("test purchase and its refund", str(cm.exception), "a purchase without a refund is not enough")
         self.admin("insert into public.stripe_events (event_id, type, livemode, outcome) values ('evt_L2', 'charge.refunded', true, 'applied') returning 1")
         self.assertEqual(self.run_sql(P69[3]).fetchone(), (1, 1, True, False))
-        self.admin("update public.tax_rates set stripe_tax_rate_id = null where code = 'oh_a' returning 1")     # a rate without its Stripe id
+        self.admin("update public.ohio_county_rate set rate_code = 'oh_a' where county in ('Lorain', 'Summit') returning 1")     # one good rate left, so each case below is the ONLY thing wrong
+        self.admin("delete from public.tax_rates where code in ('oh_b', 'oh_c') returning 1")
+        self.admin("update public.tax_rates set stripe_tax_rate_id = null where code = 'oh_a' returning 1")     # an active rate without its Stripe id
         with self.assertRaises(psycopg.Error) as cm:
             self.run_sql(P69[4])
         self.assertIn("Ohio rates are not loaded", str(cm.exception))
         self.admin("update public.tax_rates set stripe_tax_rate_id = 'txr_OhioA1' where code = 'oh_a' returning 1")
-        self.admin("update public.tax_rates set stripe_tax_rate_id = 'txr_OhioB1' where code = 'oh_b' returning 1")
-        self.admin("update public.tax_rates set active = false where code = 'oh_b' returning 1")
-        self.admin("update public.ohio_county_rate set rate_code = 'oh_a' where county in ('Lorain', 'Summit') returning 1")
-        self.admin("delete from public.tax_rates where code in ('oh_b', 'oh_c') returning 1")
+        self.admin("update public.tax_rates set active = false where code = 'oh_a' returning 1")               # a county pointing at an inactive rate
+        with self.assertRaises(psycopg.Error) as cm:
+            self.run_sql(P69[4])
+        self.assertIn("Ohio rates are not loaded", str(cm.exception))
+        self.admin("update public.tax_rates set active = true where code = 'oh_a' returning 1")
         self.run_sql("create table pg_temp.zips_hold as select * from public.ohio_zip_county")
         self.run_sql("delete from public.ohio_zip_county")                                      # no Ohio ZIPs loaded
         with self.assertRaises(psycopg.Error) as cm:
