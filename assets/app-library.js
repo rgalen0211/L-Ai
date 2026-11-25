@@ -1058,39 +1058,49 @@
       // BEFORE STRIPE (CC1 plan 11-24, Ohio sales tax): the first Buy or Subscribe opens this short question; nothing is asked while buying is closed, and the page is no taller until a button is pressed.
       const US_STATES = 'AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
       const askError = h('p', { class: 'form-note app-error', role: 'alert', hidden: true });
-      let pending = null, saved = null, useValue = null;
-      const useRadio = (value, label) => { const id = 'use-' + value; return h('label', { class: 'choice', for: id }, h('input', { type: 'radio', name: 'use', value, id, onchange: () => { useValue = value; } }), ' ' + label); };
+      // The answer is kept on the account with its date (CONNECT's my_tax_profile / set_my_tax_profile): read once when the page opens, only while buying is open (closed = no request at all).
+      const profileNow = buyingOn() && data.myTaxProfile ? await Promise.resolve().then(() => data.myTaxProfile()).catch(() => null) : null;
+      let pending = null, useValue = profileNow ? profileNow.use : null;
+      let saved = profileNow ? { use: profileNow.use, country: profileNow.country, ...(profileNow.state ? { state: profileNow.state } : {}), ...(profileNow.zip ? { zip: profileNow.zip } : {}) } : null;
+      const useRadio = (value, label) => { const id = 'use-' + value; return h('label', { class: 'choice', for: id }, h('input', { type: 'radio', name: 'use', value, id, checked: !!profileNow && profileNow.use === value, onchange: () => { useValue = value; } }), ' ' + label); };
       const countrySelect = h('select', { id: 'use-country', name: 'country', 'aria-label': 'Where you use Ryagram' }, h('option', { value: '' }, 'Choose…'), h('option', { value: 'US' }, 'United States'), h('option', { value: 'OTHER' }, 'Another country'));
+      const otherInput = h('input', { id: 'use-other', name: 'other', maxlength: '2', autocomplete: 'off', 'aria-label': 'Country code, two letters', placeholder: 'CA' });
       const stateInput = h('input', { id: 'use-state', name: 'state', maxlength: '2', autocomplete: 'off', 'aria-label': 'State, two letters', placeholder: 'OH' });
       const zipInput = h('input', { id: 'use-zip', name: 'zip', maxlength: '5', inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'ZIP code', placeholder: '43215' });
+      const otherRow = h('p', { hidden: true }, h('label', { for: 'use-other' }, 'Country code (two letters) '), otherInput);
       const stateRow = h('p', { hidden: true }, h('label', { for: 'use-state' }, 'State (two letters) '), stateInput);
       const zipRow = h('p', { hidden: true }, h('label', { for: 'use-zip' }, 'ZIP code (Ohio) '), zipInput);
-      const showRows = () => { stateRow.hidden = countrySelect.value !== 'US'; zipRow.hidden = stateRow.hidden || stateInput.value.trim().toUpperCase() !== 'OH'; };
+      const showRows = () => { otherRow.hidden = countrySelect.value !== 'OTHER'; stateRow.hidden = countrySelect.value !== 'US'; zipRow.hidden = stateRow.hidden || stateInput.value.trim().toUpperCase() !== 'OH'; };
       countrySelect.addEventListener('change', showRows); stateInput.addEventListener('input', showRows);
+      if (profileNow) {      // a person who changes their answers sees what is on file
+        countrySelect.value = profileNow.country === 'US' ? 'US' : 'OTHER'; otherInput.value = profileNow.country === 'US' ? '' : profileNow.country;
+        stateInput.value = profileNow.state || ''; zipInput.value = profileNow.zip || ''; showRows();
+      }
       const readAnswers = () => {
         const use = useValue;
-        const country = countrySelect.value, state = stateInput.value.trim().toUpperCase(), zip = zipInput.value.trim();
+        const where = countrySelect.value, other = otherInput.value.trim().toUpperCase(), state = stateInput.value.trim().toUpperCase(), zip = zipInput.value.trim();
         if (!use) return { error: 'Choose business or personal use.' };
-        if (!country) return { error: 'Choose where you use Ryagram.' };
-        if (country === 'US' && !US_STATES.includes(state)) return { error: 'Give your state as two letters, for example OH.' };
-        if (country === 'US' && state === 'OH' && !/^4[3-5][0-9]{3}$/.test(zip)) return { error: 'Give your five-digit Ohio ZIP code, for example 43215.' };
-        return { answers: { use, country, ...(country === 'US' ? { state } : {}), ...(country === 'US' && state === 'OH' ? { zip } : {}) } };
+        if (!where) return { error: 'Choose where you use Ryagram.' };
+        if (where === 'OTHER' && !(/^[A-Z]{2}$/.test(other) && other !== 'US')) return { error: 'Give your country as two letters, for example CA.' };
+        if (where === 'US' && !US_STATES.includes(state)) return { error: 'Give your state as two letters, for example OH.' };
+        if (where === 'US' && state === 'OH' && !/^4[3-5][0-9]{3}$/.test(zip)) return { error: 'Give your five-digit Ohio ZIP code, for example 43215.' };
+        return { answers: { use, country: where === 'US' ? 'US' : other, ...(where === 'US' ? { state } : {}), ...(where === 'US' && state === 'OH' ? { zip } : {}) } };
       };
       const continueButton = h('button', { class: 'button primary', type: 'button', onclick: event => {
         const r = readAnswers();
         if (r.error) { askError.textContent = r.error; askError.hidden = false; return; }
-        askError.hidden = true; saved = r.answers;
-        go(event.currentTarget, 'Opening Stripe…', () => data.startCheckout(pending, saved));
+        askError.hidden = true;
+        go(event.currentTarget, 'Opening Stripe…', async () => { await data.setMyTaxProfile(r.answers); saved = r.answers; if (!pending) { askBox.hidden = true; return '#/credits'; } return data.startCheckout(pending); });
       } }, 'Continue to Stripe');
       const askTitle = h('h2', { id: 'use-ask-title', tabindex: '-1' }, 'Before you pay');
       const askBox = h('section', { class: 'use-ask', hidden: true, 'aria-labelledby': 'use-ask-title' },
         askTitle,
-        h('p', { class: 'form-intro' }, 'We need two answers to work out sales tax. Ohio sales tax applies only to business use in Ohio: a monthly plan shows any tax at checkout, and credit packs have none at checkout. We ask again the next time you buy.'),
+        h('p', { class: 'form-intro' }, 'We need two answers to work out sales tax. Ohio sales tax applies only to business use in Ohio: a monthly plan shows any tax at checkout, and credit packs have none at checkout. We keep your answers with the date, and you can change them any time.'),
         h('fieldset', {}, h('legend', {}, 'Do you use Ryagram for business or personal use?'), useRadio('business', 'Business'), useRadio('personal', 'Personal')),
-        h('p', {}, h('label', { for: 'use-country' }, 'Where do you use it? '), countrySelect), stateRow, zipRow,
+        h('p', {}, h('label', { for: 'use-country' }, 'Where do you use it? '), countrySelect), otherRow, stateRow, zipRow,
         askError,
         h('p', {}, continueButton, ' ', h('button', { class: 'button secondary', type: 'button', onclick: () => { askBox.hidden = true; pending = null; } }, 'Cancel')));
-      const askFirst = code => { pending = code; askError.hidden = true; askBox.hidden = false; if (askTitle.focus) askTitle.focus(); };
+      const askFirst = code => { pending = code; continueButton.textContent = code ? 'Continue to Stripe' : 'Save answers'; askError.hidden = true; askBox.hidden = false; if (askTitle.focus) askTitle.focus(); };
       const planNote = `A plan balance holds up to two months of credits; the rest expires at renewal.${current || plan ? ' Cancel any time from Manage plan.' : ''}`;      // no Manage plan button without a plan: no sentence that points at it
       const open = buyingOn();
       const offerItem = p => {
@@ -1099,7 +1109,7 @@
           h('strong', {}, C.offerName(p.code)), h('span', { class: 'meta' }, C.offerLine(p)),
           !open ? null : h('button', { class: 'button secondary small', type: 'button', disabled: blocked,
                         title: blocked ? 'You already have a plan. Use Manage plan to change it.' : null,
-                        onclick: event => { if (saved) go(event.currentTarget, 'Opening Stripe…', () => data.startCheckout(p.code, saved)); else askFirst(p.code); } },
+                        onclick: event => { if (!saved) { askFirst(p.code); return; } go(event.currentTarget, 'Opening Stripe…', async () => { try { return await data.startCheckout(p.code); } catch (err) { if (err && err.code === 'tax_profile_missing') { saved = null; askFirst(p.code); throw new Error('Please answer the two questions first.'); } throw err; } }); } },
             p.monthly ? 'Subscribe' : 'Buy'));
       };
       const packs = offers.filter(p => !p.monthly), plans = offers.filter(p => p.monthly);
@@ -1131,7 +1141,7 @@
         offers.length || !open ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
         open ? askBox : null,
-        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe; Ryagram never sees your card. Ohio sales tax is added where it applies.') : null
+        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe; Ryagram never sees your card. Ohio sales tax is added where it applies.', saved ? [' ', h('button', { class: 'link-button', type: 'button', id: 'tax-change', onclick: () => { askFirst(null); } }, 'Change tax answers')] : null) : null
       ];
     }
 

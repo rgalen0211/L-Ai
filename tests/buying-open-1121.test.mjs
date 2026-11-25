@@ -29,14 +29,15 @@ const OFFERS = [
   { code: 'sub_creator', credits: 30, price_cents: 2400, monthly: true },
   { code: 'sub_pro', credits: 100, price_cents: 6900, monthly: true }];
 
-async function credits({ config = {}, mock = false, search = '', source = lib, prices = null, plan = null, checkout = null } = {}) {
+async function credits({ config = {}, mock = false, search = '', source = lib, prices = null, plan = null, checkout = null, profile = null, missing = false } = {}) {
   const document = { createElement: t => new El(t) };
   const win = { ryagramConfig: { credits: true, payments: true, stripeTestMode: true, ...config } };
   if (mock) win.ryagramMock = {};
   const Cmod = {}; vm.runInNewContext(read('assets/app-credits.js'), { window: Cmod });
   win.ryagramCredits = Cmod.ryagramCredits;
   win.ryagramFlip = { create: ({ sections }) => ({ el: sections.map(s => s.el) }) };
-  const data = { shopOffers: async () => { credits.shopCalls++; return OFFERS; }, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], startCheckout: async (code, answers) => { if (checkout) checkout.push([code, answers]); return '#'; }, openBillingPortal: async () => '#',
+  const data = { shopOffers: async () => { credits.shopCalls++; return OFFERS; }, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], myTaxProfile: async () => { credits.profileCalls++; return profile; }, setMyTaxProfile: async a => { if (checkout) checkout.push(['SET', a]); return a; },
+                 startCheckout: async code => { if (missing) { const e = new Error('Tell us whether this is for business or personal use and where you are first.'); e.code = 'tax_profile_missing'; throw e; } if (checkout) checkout.push([code]); return '#'; }, openBillingPortal: async () => '#',
                  filmPrices: async () => prices || [] };
   const a = source.indexOf('  const creditsOn ='), b = source.indexOf('  const BUYING_CLOSED_SHORT'), helpers = source.slice(a, source.indexOf('\n', b));
   const body = source.slice(source.indexOf('    async function creditsView('), source.indexOf('    // --- #/p/<id>'));
@@ -52,7 +53,7 @@ async function credits({ config = {}, mock = false, search = '', source = lib, p
   await new Promise(r => setTimeout(r, 5));
   return view;
 }
-credits.shopCalls = 0;
+credits.shopCalls = 0; credits.profileCalls = 0;
 // What must be true of the closed state; the planted-fault test runs the closed state with open markup and expects violations.
 const closedViolations = view => {
   const text = textOf(view), bad = [];
@@ -136,22 +137,48 @@ test('BEFORE STRIPE: closed = no question anywhere; open = the question is hidde
   const s0 = byId(view, 'use-state'); s0.value = 'xx'; s0.listeners.input({}); await click(go); assert.match(err().textContent, /state as two letters/); s0.value = 'oh'; s0.listeners.input({});
   const zip = byId(view, 'use-zip'); zip.value = '43215';
   await click(go);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['pack_starter', { use: 'business', country: 'US', state: 'OH', zip: '43215' }]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', { use: 'business', country: 'US', state: 'OH', zip: '43215' }], ['pack_starter']]);
   // the second Buy in the same visit does not ask again
   await click(buyButton(view));
-  assert.equal(calls.length, 2); assert.equal(calls[1][0], 'pack_starter'); assert.deepEqual(JSON.parse(JSON.stringify(calls[1][1])), JSON.parse(JSON.stringify(calls[0][1])));
+  assert.equal(calls.length, 3); assert.deepEqual(JSON.parse(JSON.stringify(calls[2])), ['pack_starter']);      // saved answers: no second question, no second SET
 });
 test('BEFORE STRIPE: personal use outside the US sends no state and no ZIP; a US state other than Ohio sends a state and no ZIP', async () => {
-  for (const [country, st, want] of [['OTHER', '', { use: 'personal', country: 'OTHER' }], ['US', 'tx', { use: 'personal', country: 'US', state: 'TX' }]]) {
+  for (const [country, st, other, want] of [['OTHER', '', 'ca', { use: 'personal', country: 'CA' }], ['US', 'tx', '', { use: 'personal', country: 'US', state: 'TX' }]]) {
     const calls = [];
     const view = await credits({ config: { buyingOpen: true }, checkout: calls });
     await click(buyButton(view));
     byId(view, 'use-personal').listeners.change({});
     const c = byId(view, 'use-country'); c.value = country; c.listeners.change({});
     const s = byId(view, 'use-state'); s.value = st; s.listeners.input({});
+    byId(view, 'use-other').value = other;
     await click(elements(view).find(e => e.tag === 'button' && e.textContent === 'Continue to Stripe'));
-    assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['pack_starter', want]]);
+    assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', want], ['pack_starter']]);
   }
+});
+
+test('BEFORE STRIPE: a stored answer goes straight to checkout (no question), can be changed, and a closed page never reads it', async () => {
+  credits.profileCalls = 0;
+  await credits({ config: { buyingOpen: false } });
+  assert.equal(credits.profileCalls, 0, 'closed: the tax answer is not even read');
+  const calls = [];
+  const view = await credits({ config: { buyingOpen: true }, checkout: calls, profile: { use: 'business', country: 'US', state: 'OH', zip: '43215', answered_at: '2026-11-24T20:00:00Z' } });
+  const box = elements(view).find(e => e.className === 'use-ask');
+  await click(buyButton(view));
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['pack_starter']], 'stored answers: Buy goes straight to checkout');
+  assert.notEqual(box.hidden, false, 'and no question opens');
+  const change = byId(view, 'tax-change');
+  assert.ok(change, 'a stored answer can be changed');
+  await click(change);
+  assert.equal(box.hidden, false, 'Change tax answers opens the box');
+  const save = elements(view).find(e => e.tag === 'button' && e.textContent === 'Save answers');
+  assert.ok(save, 'with no purchase pending the button says Save answers');
+  assert.equal(byId(view, 'use-state').value, 'OH', 'it shows what is on file');
+});
+test('BEFORE STRIPE: if the server says the answer is missing, the page asks the question instead of failing', async () => {
+  const view = await credits({ config: { buyingOpen: true }, missing: true, profile: { use: 'personal', country: 'US', state: 'TX', zip: null } });
+  const box = elements(view).find(e => e.className === 'use-ask');
+  await click(buyButton(view));
+  assert.equal(box.hidden, false, 'tax_profile_missing opens the question');
 });
 
 test('PLANTED FAULT: the open-state markup in the closed state is caught', async () => {

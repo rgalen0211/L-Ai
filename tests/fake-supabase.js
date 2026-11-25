@@ -383,6 +383,17 @@
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
         return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
       },
+      // Mock of CONNECT's tax-profile contract (connect-checkout-use-tax-1124, migration 20261123000900): my_tax_profile() -> the stored answer or null; set_my_tax_profile(p_use, p_country, p_state, p_zip) validates like the SQL and stores it.
+      my_tax_profile() { return { data: db.taxProfile ? { ...db.taxProfile } : null, error: null }; },
+      set_my_tax_profile({ p_use, p_country, p_state, p_zip }) {
+        const c = String(p_country || '').trim().toUpperCase(), s = String(p_state || '').trim().toUpperCase(), z = String(p_zip || '').trim();
+        if (p_use !== 'business' && p_use !== 'personal') return fail('use_invalid: Choose business or personal use.');
+        if (!/^[A-Z]{2}$/.test(c)) return fail('country_invalid: Choose your country.');
+        if (c === 'US' && !/^[A-Z]{2}$/.test(s)) return fail('state_required: Choose your state.');
+        if (c === 'US' && s === 'OH' && !/^[0-9]{5}$/.test(z)) return fail('zip_required: Enter your 5-digit ZIP code.');
+        db.taxProfile = { use: p_use, country: c, state: c === 'US' ? s : null, zip: c === 'US' && s === 'OH' ? z : null, answered_at: now() };
+        return { data: { ...db.taxProfile }, error: null };
+      },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
         const id = session && session.user && session.user.id;
@@ -1088,6 +1099,7 @@
               for (const sub of db.stripe_subscriptions) sub.cancel_at_period_end = !sub.cancel_at_period_end;
               return { data: { url: '#/credits' }, error: null };
             }
+            if (!db.taxProfile) return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Tell us whether this is for business or personal use and where you are first.', code: 'tax_profile_missing' }) } } };
             const offer = db.credit_prices.find(p => p.code === body.price_code && p.price_cents != null);
             if (!offer) return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'That isn’t on sale.' }) } } };
             if (offer.monthly) {
