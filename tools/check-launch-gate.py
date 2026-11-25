@@ -1,7 +1,7 @@
 """THE LAUNCH GATE (NEXT-WEB 132 G8, growth plan #3), real Chrome at PHONE width (390 x 844, touch), LOCAL server only, mock mode for the signed-in part. One script, one pass/fail:
 a brand-new invited user can find Ryagram, make a meaningful preview, and see how to buy a final render, without help.
 
-  1. The Ryagram page (/ryagram/): the sign-in way in is on the first screen of text ("Already have one? Sign in").
+  1. The Ryagram page (/ryagram/): the invite way in is on the first screen of text ("Already have an invite? Sign in").
   2. Sign in (/app/): the real sign-in page loads, names its fields, offers the invite code form's entry in mock mode (the live switch is inviteSignup).
   3. Signed in with no projects (mock): ONE big "Make your first film" on the first screen; no other path needed.
   4. The builder opens on ready-made starts; one tap on Housing lands on the Review with everything filled; "Make the film and a free contact sheet".
@@ -88,9 +88,9 @@ def main():
             print('1. find Ryagram')
             p.goto(f'{BASE}/ryagram/', wait_until='load')
             link = p.locator('.rg-release a[href="/app/"]')
-            check(link.count() == 1, 'the sign-in way in is on the Ryagram page ("Already have one? Sign in")')
+            check(link.count() == 1, 'the invite way in is on the Ryagram page ("Already have an invite? Sign in")')
             hero = p.locator('.rg-hero-signin')
-            check(hero.count() == 1 and hero.first.bounding_box()['y'] < 1100, 'and a plain "Sign in" link sits right under the hero button, high on the page')
+            check(hero.count() == 1 and hero.first.bounding_box()['y'] < 1100, 'and a plain "Already invited? Sign in" sits right under the hero button, high on the page')
             p.screenshot(path=str(OUT / '1-ryagram.png'), full_page=True)
             link.first.click()
 
@@ -116,7 +116,7 @@ def main():
             p.click('.builder-start[data-start="housing"]')
             p.wait_for_selector('.builder-summary', timeout=15000)
             text = p.inner_text('.builder-summary')
-            check('1990 to 2024' in text and 'Lines' in text, 'one tap lands on the Review with data, years and kind filled')
+            check('1990 to 2024' in text and 'Map' in text, 'one tap lands on the Review with data, years and kind filled')
             screen(p, '5-review', 'review')
             p.click('button:has-text("Make the film and a free contact sheet")')
 

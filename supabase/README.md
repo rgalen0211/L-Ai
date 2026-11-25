@@ -333,12 +333,9 @@ the answer never says whether an email already has an account.
 
 1. **Email sender first:** the checklist above. Supabase's built-in sender only reaches the
    project's team members, so invites wouldn't arrive.
-2. **Authentication → Emails → Invite user:** paste `supabase/email-templates/invite-user.html`
-   (subject from `invite-user.subject.txt`: "Finish making your Ryagram account"). Its link is
-   `{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=invite` (Site URL `https://uselai.com`),
-   never `{{ .ConfirmationURL }}`. This one template reaches BOTH people who make an account from the
-   "Create an account" box (the `join` function) and people who redeem an invite code (`redeem-invite`),
-   so its words say neither "invited" nor "beta": the `type=invite` stays only in the link.
+2. **Authentication → Emails → Invite user:** replace the link in the template with
+   `<a href="{{ .SiteURL }}/app/?invite={{ .TokenHash }}">Join Ryagram</a>` (Site URL
+   `https://uselai.com`, as for password reset). The app checks that token itself.
 3. **SQL Editor:** `migrations/20261003000200_invite_codes.sql`.
 4. **Deploy** (visitors aren't signed in; no secrets):
 

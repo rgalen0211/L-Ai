@@ -155,16 +155,15 @@ function form({ config, fetchImpl, values = {}, website = '' } = {}) {
   const f = { elements, querySelector: s => (s === '.creator-fields' ? fields : button), addEventListener: (t, fn) => { listeners[t] = fn; }, setAttribute() {}, removeAttribute() {} };
   status.append = (...parts) => { status.textContent += parts.map(p => (typeof p === 'string' ? p : `${p.textContent} <${p.href}>`)).join(''); };
   const hero = { textContent: 'Join the creator beta', href: '#creators' };
-  const section = { hidden: true }, navLink = { hidden: true };
   const requests = [];
   const window = { ryagramConfig: config };
   vm.runInNewContext(read('assets/creator-beta.js'), {
-    window, document: { getElementById: id => ({ 'creator-form': f, 'creator-status': status, creators: section })[id],
-                        querySelector: s => (s === '.rg-hero-cta a.rg-btn' ? hero : s === '.rg-navlink' ? navLink : null), createElement: () => ({}) },
+    window, document: { getElementById: id => ({ 'creator-form': f, 'creator-status': status })[id],
+                        querySelector: s => (s === '.rg-hero-cta a.rg-btn' ? hero : null), createElement: () => ({}) },
     fetch: (url, opts) => { requests.push({ url, opts }); return (fetchImpl || (async () => ({ ok: true, status: 200 })))(url, opts); },
     AbortController, setTimeout, clearTimeout, Object, JSON, String, Promise
   });
-  return { submit: () => (listeners.submit ? listeners.submit({ preventDefault() {} }) : undefined), listeners, hero, section, navLink, requests, status, fields, button, window };
+  return { submit: () => (listeners.submit ? listeners.submit({ preventDefault() {} }) : undefined), listeners, hero, requests, status, fields, button, window };
 }
 const ON = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test', creatorBeta: true };
 
@@ -195,46 +194,18 @@ test('FORM: a good submit posts trimmed JSON to the creator-beta function with t
   assert.equal(f.button.disabled, false);
 });
 
-test('FORM OFF: with creatorBeta not on there is no form, the Creator beta section and its nav link stay hidden (switch-driven), the hero button is never touched, and nothing is ever sent', async () => {
+test('FORM OFF (Ryan, 2026-10-17): with creatorBeta not on there is no form to fill in -- the hero button and the form\'s place ask for an invite by email, and nothing is ever sent', async () => {
   for (const config of [{ ...ON, creatorBeta: false }, {}]) {
     const f = form({ config });
     assert.equal(f.fields.hidden, true);
     assert.equal(f.listeners.submit, undefined);
     await f.submit();
     assert.equal(f.requests.length, 0);
-    assert.equal(f.section.hidden, true);
-    assert.equal(f.navLink.hidden, true);
-    assert.equal(f.hero.textContent, 'Join the creator beta');       // untouched: on the real page this is "Create an account"
-    assert.equal(f.hero.href, '#creators');
-    assert.equal(f.status.textContent, '');
+    assert.equal(f.status.hidden, false);
+    assert.match(f.status.textContent, /open soon.*request an invite.*ryagram@uselai\.com <mailto:ryagram@uselai\.com\?subject=Ryagram%20invite%20request>/);
+    assert.equal(f.hero.textContent, 'Email to request an invite');
+    assert.equal(f.hero.href, 'mailto:ryagram@uselai.com?subject=Ryagram%20invite%20request');
   }
-});
-
-test('FORM ON: the Creator beta section and its nav link are shown', () => {
-  const f = form({ config: ON });
-  assert.equal(f.section.hidden, false);
-  assert.equal(f.navLink.hidden, false);
-});
-
-test('REAL PAGE: the real creator-beta.js over the real ryagram/index.html (switch off) leaves the hero button reading "Create an account", keeps the Creator beta section and nav link hidden, and the page has no invite / beta-credit words outside them', () => {
-  const html = read('ryagram/index.html');
-  const heroM = html.match(/<div class="rg-hero-cta"><a class="rg-btn" href="([^"]+)">([^<]+)<\/a>/);
-  const hero = { href: heroM[1], textContent: heroM[2] };
-  const section = { hidden: /<section id="creators"[^>]*\shidden[\s>]/.test(html) };
-  const navLink = { hidden: /<a class="rg-navlink" href="#creators" hidden>/.test(html) };
-  const fields = { hidden: false }, status = { hidden: true, textContent: '' };
-  const form = { querySelector: () => fields, addEventListener() {} };
-  vm.runInNewContext(read('assets/creator-beta.js'), {
-    window: { ryagramConfig: { creatorBeta: false } },
-    document: { getElementById: id => ({ 'creator-form': form, 'creator-status': status, creators: section })[id],
-                querySelector: s => (s === '.rg-hero-cta a.rg-btn' ? hero : s === '.rg-navlink' ? navLink : null) }
-  });
-  assert.equal(hero.textContent, 'Create an account');
-  assert.equal(hero.href, '/app/#/create-account');
-  assert.equal(section.hidden, true);
-  assert.equal(navLink.hidden, true);
-  const visible = html.replace(/<section id="creators"[\s\S]*?<\/section>/, '').replace(/<a class="rg-navlink"[^>]*>[^<]*<\/a>/, '').replace(/<!--[\s\S]*?-->/g, '');
-  assert.doesNotMatch(visible, /request an invite|Beta credits|private beta|invite-only|then it is yours to publish|Ryagram waitlist/i);
 });
 
 test('FORM ON, no project configured: the form shows, NOTHING is sent and the person is told to email; the hero button is untouched', async () => {

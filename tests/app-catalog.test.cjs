@@ -141,7 +141,7 @@ test('"not drawn before" is said for any view and dataset pair no confirmed temp
 
 test('measured combinations: blocked views are not built, drawn-and-passing ones are marked drawn', () => {
   const by = id => K.viewChoices(D.entries.find(e => e.id === id), T.TEMPLATES);
-  assert.deepEqual(plain(by('bls_state_unemployment').filter(c => c.blocked).map(c => c.view)), ['map']);   // bars is on ENGINE's list too and is no longer in the catalog at all, so it is not even listed as blocked
+  assert.deepEqual(plain(by('bls_state_unemployment').filter(c => c.blocked).map(c => c.view)), ['map']);
   assert.deepEqual(plain(by('cbp_suppression').filter(c => c.blocked).map(c => c.view)), ['bars']);
   assert.equal(by('cbp_county_grocery').find(c => c.view === 'map'), undefined, 'map is on the ENGINE block list (tools/data/engine-catalog-block-list-1123.json): no longer offered');
   assert.equal(by('cbp_suppression').find(c => c.view === 'line').tested, true);
@@ -152,7 +152,7 @@ test('measured combinations: blocked views are not built, drawn-and-passing ones
       assert.ok(e, id);
       // a view measured ok but now on the ENGINE block list is no longer offered (the internal MEASURED list is not loaded by the app)
       const gone = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'tools', 'data', 'engine-catalog-block-list-1123.json'), 'utf8'))[id] || []);
-      for (const view of Array.isArray(v) ? v : Object.keys(v)) assert.ok(e.views.includes(view) || gone.has(view), `${id}/${view}`);
+      for (const view of Array.isArray(v) ? v : Object.keys(v)) assert.ok(e.views.includes(view) || (kind === 'ok' && gone.has(view)), `${id}/${view}`);
     }
   }
 });

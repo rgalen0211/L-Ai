@@ -49,10 +49,10 @@ test('F3: a retry says "attempt 2 of 2": the database retries a job once (attemp
   const sql = read('supabase/migrations/20261017000600_pipe1_orders.sql');
   assert.match(sql, /check \(attempt between 1 and 2\)/);
   assert.match(sql, /lost\.attempt < 2 then 'queued'/);
-  const check = note => assert.match(note, /^Next in line\. We make one film at a time. It starts when the film being made now finishes, which can take up to about half an hour. This was put back in line after a problem on our side\.$/);
+  const check = note => assert.match(note, /^Next in line\. Retrying once after a render-machine problem \(attempt 2 of 2\)\.$/);
   check(J.progressNote({ state: 'queued', attempt: 2 }, 1));
-  goesRed(check, 'Next in line. Retrying once after a render-machine problem (attempt 2 of 2).');
-  assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 1), 'Next in line. We make one film at a time. It starts when the film being made now finishes, which can take up to about half an hour.');
+  goesRed(check, 'Next in line. Retrying after a render-machine problem (attempt 2 of 3).');
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 1), 'Next in line.');
 });
 
 test('GAMES help: the live editor answer does not say nothing is sent; it says no credits are used and a change can be undone', () => {
@@ -120,8 +120,8 @@ test('B3 queue_timeout: the job never ran, so it does not say "It tried N times"
   const s = job({ error_class: 'infrastructure', error_code: 'queue_timeout', attempt: 1, error_detail: 'Rendering was delayed, so this film could not start. Your credits were returned.' });
   const check = t => { assert.doesNotMatch(t, /tried/); assert.match(t, /Rendering was delayed, so this film could not start\. Your credits were returned\. You can try again\.$/); };
   check(s);
-  goesRed(check, 'We had a problem on our side, not with your story. It tried 1 time. Rendering was delayed, so this film could not start.');
-  assert.doesNotMatch(job({ error_class: 'infrastructure', error_code: 'worker_lost', attempt: 2 }), /tried|render machine/, 'a job that did run no longer says how many times (wed-v3)');
+  goesRed(check, 'The render machine had a problem, not your story. It tried 1 time. Rendering was delayed, so this film could not start.');
+  assert.match(job({ error_class: 'infrastructure', error_code: 'worker_lost', attempt: 2 }), /It tried 2 times\./, 'a job that did run keeps the count');
 });
 
 test('B4 limit: only a preview is told to try a shorter preview window', () => {
