@@ -1,5 +1,5 @@
 """Option B pages in real Chrome, mock mode, LOCAL server only (NEXT-WEB waiting pages): a WAITING account sees only "You are on the list" at any address; a wrong code is refused in words and a right one opens the library;
-a failed access check is tried once more, then says it could not check (closed, and NOT 'You are on the list'); Create an account (Q378 A: email only, a bad address refused, then the join answer; "not open yet" while the switch is off);
+a failed access check also draws the waiting page (fail closed); Create an account (Q378 A: email only, a bad address refused, then the join answer; "not open yet" while the switch is off);
 Ryan's #/admin/waiting lists them and approves only a CONFIRMED address; a non-admin gets no list; no sideways scroll at 1200, 375 and 320 px; no console errors.
     python tools/check-waiting-accounts.py [SCREENSHOT_FOLDER]      (default: a new folder in the system temp, so nobody's pictures are overwritten)"""
 import http.server, re, socketserver, sys, tempfile, threading
@@ -77,10 +77,7 @@ with sync_playwright() as pw:
         check(h1(p) != 'You are on the list', 'a valid code opens the library')
         # fail closed
         go(p, '&accesserr')
-        p.wait_for_function("document.querySelector('#library h1') && document.querySelector('#library h1').textContent.includes('could not check')", timeout=15000)
-        check(h1(p) == 'We could not check your account just now.', 'a failed access check (twice) says it could not check your account')
-        check('Reload the page.' in p.inner_text('#library') and 'on the list' not in p.inner_text('#library').lower(), 'and says to reload, with no waiting-list claim')
-        check(p.locator('#library a[href^="#/p/"], #library a[href="#/credits"], #library a[href="#/new"]').count() == 0, 'and the app stays closed (fail closed)')
+        check(h1(p) == 'You are on the list', 'a failed access check draws the waiting page (fail closed)')
         # an ACTIVE account is untouched
         go(p, '')
         check(h1(p) != 'You are on the list', 'an active account sees the library')

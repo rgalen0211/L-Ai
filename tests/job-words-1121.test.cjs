@@ -14,7 +14,7 @@ const J = load(SRC);
 // The code shapes a person must never see (kept independent of the page's own filter).
 const CODE = /[$\[\]{}]|::|Traceback|\bat line\b|\bException\b|[a-z]+_[a-z_]+|\b[A-Z][a-z]+Error\b|\bexit \d|\.(?:mp4|json|png|csv|py|log|txt)\b|limit \d{3,}|\d{5,}|\b(?:sidecar|engine commit|preflight)\b/i;
 const job = (over) => ({ state: 'failed', attempt: 2, error_class: 'infrastructure', error_detail: '', ...over });
-const MACHINE = /We had a problem on our side, not with your story\./;
+const MACHINE = /The render machine had a problem, not your story\./;
 
 // [row, name, job, advice regexp the sentence must keep]
 const ROWS = [
@@ -27,7 +27,7 @@ const ROWS = [
   [7, 'no_receipt', job({ attempt: 1, error_detail: 'the render wrote no readable sidecar' }), /You can try again\./],
   [8, 'no_commit', job({ attempt: 1, error_detail: 'the receipt records no engine commit' }), /You can try again\./],
   [9, 'no_output', job({ error_class: 'unknown', error_detail: 'exit 0 but no preview.mp4' }), /You can try again\./],
-  [10, 'timeout', job({ job_type: 'preview', error_class: 'timeout', error_detail: 'stopped after 120 s' }), /shorten the film or the preview window/],
+  [10, 'timeout', job({ error_class: 'timeout', error_detail: 'stopped after 120 s' }), /shorten the film or the preview window/],
   [11, 'limit (memory or disk), no next step before', job({ job_type: 'preview', error_class: 'limit', error_detail: '' }), /Try a shorter preview window, or ask us to help\./],
   [12, 'limit (output too big)', job({ job_type: 'preview', error_class: 'limit', error_detail: 'outputs are 61234567 bytes, limit 52428800' }), /Try a shorter preview window, or ask us to help\./],
   [13, 'gate_failed (checks failed)', job({ error_class: 'gate', error_detail: '2 preflight check(s) failed' }), /Change the story, then make a new preview\./],
@@ -78,12 +78,12 @@ test('JOB WORDS row 14: checks that did not run are the machine\'s fault: no "Ch
 test('JOB WORDS: the worker\'s own plain codes (WORKER proposes these) pass the filter untouched', () => {
   for (const t of ['Something went wrong on the render machine.', 'The finished film could not be stored.', 'The render did not finish its checks.', 'The render machine could not confirm which version made the film.',
                    'The render finished but wrote no film.', 'The film came out larger than the size limit.', 'The dataset has no data before 2010. It is only a short note.']) {
-    assert.equal(J.plainDetail(t), t, t);          // the filter keeps plain prose; an infrastructure problem no longer shows the worker's detail at all (wed-v3)
+    assert.ok(J.problem(job({ error_detail: t })).includes(t), t);
   }
 });
 
 test('JOB WORDS: ordinary prose with a full stop is not caught as a file name', () => {
-  for (const t of ['It stopped. Try again.', 'Version 2.5 of the story is fine.', 'See www.example.com for more.']) assert.equal(J.plainDetail(t), t, t);
+  for (const t of ['It stopped. Try again.', 'Version 2.5 of the story is fine.', 'See www.example.com for more.']) assert.ok(J.problem(job({ error_detail: t })).includes(t), t);
 });
 
 test('JOB WORDS PLANTED FAULTS: the old filter lets each missing shape through, the new one does not', () => {
@@ -92,6 +92,6 @@ test('JOB WORDS PLANTED FAULTS: the old filter lets each missing shape through, 
   assert.notEqual(planted, SRC);
   const Jold = load(planted);
   let leaked = 0;
-  for (const [row, , j] of ROWS.filter(r => [2, 4, 6, 7, 8, 9, 12, 13, 14, 16].includes(r[0]))) if (CODE.test(Jold.plainDetail(j.error_detail))) leaked++;
+  for (const [row, , j] of ROWS.filter(r => [2, 4, 6, 7, 8, 9, 12, 13, 14, 16].includes(r[0]))) if (CODE.test(Jold.problem(j))) leaked++;
   assert.ok(leaked >= 8, `the old filter leaks ${leaked} of 10 rows`);
 });

@@ -149,11 +149,11 @@ test('LINKS (CC1 LOW-3): a data link from the catalog is shown only as a plain h
   assert.doesNotMatch(src, /href: d\.url/, 'the link target always goes through webLink');
 });
 
-test('READY-MADE STARTS (NEXT-WEB 132; BUILDER 11-25 the three job starts): housing, health, work and three job shares, each a view rendered before, offered only when the function\'s catalog lists its dataset; no income (nothing listable)', () => {
-  assert.deepEqual(plain(B.READY_MADE.map(r => [r.id, r.dataset, r.film_type])), [['housing', 'bps_county_permits', 'line'], ['health', 'state_obesity_fastfood', 'map'], ['work', 'bls_state_unemployment', 'line'], ['health-care-jobs', 'cbp_health_care_share_state', 'map'], ['factory-jobs', 'cbp_manufacturing_share_state', 'line'], ['food-jobs', 'cbp_accommodation_food_share_state', 'line']]);
+test('READY-MADE STARTS (NEXT-WEB 132): housing, health and work, each a view rendered before, offered only when the function\'s catalog lists its dataset; no income (nothing listable)', () => {
+  assert.deepEqual(plain(B.READY_MADE.map(r => [r.id, r.dataset, r.film_type])), [['housing', 'bps_county_permits', 'map'], ['health', 'state_obesity_fastfood', 'map'], ['work', 'bls_state_unemployment', 'line']]);
   assert.ok(!B.READY_MADE.some(r => /income/i.test(`${r.id} ${r.dataset} ${r.title}`)), 'no income start until an income dataset is listable');
   const all = B.READY_MADE.map(r => ({ id: r.dataset }));
-  assert.deepEqual(plain(B.readyMade(all).map(r => r.id)), ['housing', 'health', 'work', 'health-care-jobs', 'factory-jobs', 'food-jobs']);
+  assert.deepEqual(plain(B.readyMade(all).map(r => r.id)), ['housing', 'health', 'work']);
   assert.deepEqual(plain(B.readyMade([{ id: 'state_obesity_fastfood' }, { id: 'something_else' }]).map(r => r.id)), ['health'], 'a start whose dataset is not in the catalog is not offered');
   assert.deepEqual(plain(B.readyMade([])), []);
   assert.deepEqual(plain(B.readyMade(null)), []);
@@ -173,8 +173,7 @@ test('FIRST FILM (NEXT-WEB 132): with no projects the guided builder is the main
 test('BUY STRIP (NEXT-WEB 132 G5): after the free first picture the Render panel says what the full film uses and what the person has, in credits and never a price; it is hidden once a final film exists', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /That first picture was free\./);
-  assert.match(read('assets/app-credits.js'), /The full film uses \$\{plural\(quote\.credits\)\}; you have \$\{plural\(have\)\}\./);
-  assert.ok(lib.includes('C.filmVsBalance(q, cantBuy)'));
+  assert.match(lib, /The full film uses \$\{C\.plural\(q\.credits\)\}; you have \$\{C\.plural\(Math\.max\(0, q\.available \|\| 0\)\)\}\./);
   assert.match(lib, /!jobs\.some\(j => j\.job_type === 'final_render'\)/, 'gone once a final film is ordered');
   const strip = lib.slice(lib.indexOf("nextStrip.replaceChildren"), lib.indexOf("} else nextStrip.hidden = true;"));
   assert.ok(!/priceLabel|money\(|cents|\$\{?\s*price/i.test(strip), 'no money in the strip');
@@ -275,6 +274,6 @@ test('TUTORIAL POLISH: the sample\'s first step promises nothing it cannot keep 
   const src = read('assets/app-builder.js');
   const step = src.slice(src.indexOf('function stepDataset'), src.indexOf('function stepMeasure'));
   assert.match(step, /sample \? 'One click puts the sample’s own choices back and takes you to the last step\.'/, 'MUST-FAIL: no "first picture is free" in the sample');
-  assert.match(step, /sample\r?\n\s+\? 'The sample has one dataset\. Outside the sample you choose from the whole list/, 'no "choose your own" in a one-dataset sample');
+  assert.match(step, /sample\r?\n\s+\? 'The sample has one dataset\. With your own data you choose from the whole list/, 'no "choose your own" in a one-dataset sample');
   assert.ok(step.includes("The first picture is free.'") && step.includes("'Or choose your own. '"), 'the real builder keeps its own words');
 });

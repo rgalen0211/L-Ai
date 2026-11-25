@@ -809,12 +809,6 @@
           return fail('The story is not a schema-1 sequence yet.');
         }
         const type = args.p_job_type;
-        // The two Tuesday refusals (BUILDER 11-23, migrations 20261123000200/000300), word for word, so a mock walk can see them: ?queuefull (the 2-films-waiting
-        // cap) and ?viewnotready (a blocked film), for a person's own contact sheet or preview only, as the server does.
-        if ((type === 'contact_sheet' || type === 'preview') && typeof location !== 'undefined') {
-          if (/[?&]queuefull/.test(location.search || '')) return fail('You have 2 films waiting. You can start another when one is done.');
-          if (/[?&]viewnotready/.test(location.search || '')) return fail('This film is not available yet. Please pick another view. A line view always works.');
-        }
         const params = args.p_params || {};
         const allowed = { contact_sheet: ['periods'], preview: ['window_s'], final_render: [] }[type];
         const bad = Object.keys(params).find(k => !allowed.includes(k));
@@ -979,14 +973,11 @@
             if (body.adult_confirmed !== true) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Confirm that you are 18 or older to make an account.' }) } } };
             const email = String(body.email || '').trim().toLowerCase();
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Enter a valid email address.' }) } } };
-            if (typeof location !== 'undefined' && /[?&]joinoff/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 409, json: async () => ({ error: 'Making an account is not open yet. Please try again later.' }) } } };
-            // The server's other answers (supabase/functions/join/join.ts; tests/join-mock-words.test.mjs keeps these equal to it): ?joinsendfail = 503, ?joinfull = 429.
-            if (typeof location !== 'undefined' && /[?&]joinsendfail/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 503, json: async () => ({ error: 'We couldn’t send the email just now. Please try again in a few minutes.' }) } } };
-            if (typeof location !== 'undefined' && /[?&]joinfull/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 429, json: async () => ({ error: 'Sign-up is full for now. Please try again later.' }) } } };
+            if (typeof location !== 'undefined' && /[?&]joinoff/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 409, json: async () => ({ error: 'Making an account is not open yet. Join the waitlist instead.' }) } } };
             db.waiting = db.waiting || [];
             if (!db.waiting.some(w => w.email === email)) db.waiting.push({ user_id: `00000000-0000-4000-8000-${String(100 + db.waiting.length).padStart(12, '0')}`, email, joined_at: new Date().toISOString(), confirmed: false, approved: false });
             log.push({ joined: email });
-            return { data: { message: 'If that email can join, a link to finish making your account is on its way. It works once. If it has not come in a few minutes, try again later. Already have an account? Sign in instead.' }, error: null };
+            return { data: { message: 'If that email can join, a link to finish joining is on its way. It works once.' }, error: null };
           }
           if (name === 'approve-waiting') {
             // Mock of CONNECT's approve-waiting: admin only; refuses an unconfirmed address; answers {status, message} (mail is not switched on in the mock, so 'saved').
@@ -1013,7 +1004,7 @@
               return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'A render is still running. Cancel it or let it finish, then try again.' }) } } };
             }
             if (ledger && db.jobs.some(j => j.credits_quoted > 0)) {
-              return { data: { status: 'requested', message: 'Your films, previews and files are deleted, and you can no longer sign in. Your credit history is kept as a financial record, so your account itself is closed by hand.' }, error: null };
+              return { data: { status: 'requested', message: 'Your account has credit history, which is kept as a financial record. Your request is recorded, and your account and files will be deleted by hand within 30 days.' }, error: null };
             }
             for (const t of ['projects', 'versions', 'artifacts', 'jobs', 'film_pages', 'account_settings', 'ai_sessions', 'ai_messages']) db[t].length = 0;
             return { data: { status: 'deleted', files_removed: 0 }, error: null };

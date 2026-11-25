@@ -61,7 +61,7 @@ def main():
                 p.wait_for_selector('a:has-text("Make a film step by step")', timeout=20000)
                 p.click('a:has-text("Make a film step by step")')
                 p.wait_for_selector('h2:has-text("Which data?")', timeout=15000)
-                p.get_by_role('tab', name=re.compile('Choose a dataset')).click()          # step 1 flips between ready-made films and the dataset list (design system)
+                p.get_by_role('tab', name=re.compile('Your own data')).click()          # step 1 flips between ready-made films and the dataset list (design system)
                 check(p.locator('.builder-steps li').count() == 7, 'seven steps are shown')
                 check(p.locator('.builder-card').count() == 3 and 'Source: ' in p.inner_text('[aria-label="Datasets"]') and 'Licence: ' in p.inner_text('[aria-label="Datasets"]'), 'every dataset shows its source and licence in the list')
                 p.fill('#bd-filter', 'health')
