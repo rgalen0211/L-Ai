@@ -130,7 +130,50 @@ class QueueOrder(unittest.TestCase):
         self.assertEqual(status, "building")
         self.assertEqual(self.claim(), bundle, "the bundle goes first: the approved film joined the line less than 2 minutes ago")
 
+    def approved_old_film(self, key, asked_min=180):
+        """a full film asked for long ago and approved by Ryan NOW: it has waited 0 minutes in line"""
+        self.make_ryan_admin()
+        self.grant(100, who=OTHER)
+        oid = self.order(key, want="final")
+        self.work_through_preview(oid)
+        final = self.stage_job(oid, "final_render")
+        self.ago(final, asked_min)
+        sid = self.admin("select id from render_stages where order_id = %s and stage = 'final_render'", oid)
+        self.db.as_(RYAN).one("select state from admin_render_decide(%s, true)", sid)
+        return final
+
+    def scenario_timeout_measures_the_wait_in_line(self):
+        # CC1 14:3x: the render PC silent for the whole timeout fails only jobs that WAITED longer than it
+        final = self.approved_old_film("order-line-t")
+        sheet = self.submit(self.version(), "contact_sheet")
+        self.ago(sheet, 70)
+        self.admin("update public.workers set last_seen_at = now() - interval '2 hours' returning 1")
+        self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 1, "only the sheet that waited 70 minutes")
+        self.assertEqual(self.admin("select state::text, error_code from jobs where id = %s", sheet), ("failed", "queue_timeout"))
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", final), "queued", "the film Ryan approved minutes ago is not failed as 'waited an hour'")
+
+    def scenario_ops_oldest_wait_is_the_wait_in_line(self):
+        self.approved_old_film("order-line-o")
+        sheet = self.submit(self.version(), "contact_sheet")
+        self.ago(sheet, 20)
+        self.assertEqual(self.db.as_(RYAN).one("select (admin_ops() ->> 'oldest_queued_min')::int"), 20,
+                         "the Ops page's oldest wait is the longest wait IN LINE, not the film asked for 3 hours ago")
+
     # ---------------------------------------------------------------- tests
+    def test_the_queue_timeout_measures_the_wait_in_line(self):
+        self.scenario_timeout_measures_the_wait_in_line()
+
+    def test_the_ops_oldest_wait_is_the_wait_in_line(self):
+        self.scenario_ops_oldest_wait_is_the_wait_in_line()
+
+    def test_must_fail_with_the_queue_timeout_left_on_created_at(self):
+        self.must_fail("do $p$ begin execute replace(pg_get_functiondef(to_regprocedure('ryagram_private.expire_stale_queue()')), "
+                       "'and j.joined_line_at < now()', 'and j.created_at < now()'); end $p$", self.scenario_timeout_measures_the_wait_in_line)
+
+    def test_must_fail_with_the_ops_oldest_wait_left_on_created_at(self):
+        self.must_fail("do $p$ begin execute replace(pg_get_functiondef(to_regprocedure('ryagram_private.admin_ops_base()')), "
+                       "'min(joined_line_at)) / 60)', 'min(created_at)) / 60)'); end $p$", self.scenario_ops_oldest_wait_is_the_wait_in_line)
+
     def test_retry_job_keeps_its_place(self):
         self.scenario_retry_job_keeps_its_place()
 
