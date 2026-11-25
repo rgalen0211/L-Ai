@@ -1,5 +1,5 @@
 // "I am 18 or older." (Ryan 11-21: age 18+). A required box on both sign-up forms (Create an account, and the invite-code form). It BLOCKS the sign-up on the page: unticked, no request is sent.
-// It is NOT stored with the account: the join function reads the email alone, so nothing here sends the tick and no word on the page says it is recorded. (CONNECT/GEO would add the field: proposals/WEB-AGE-CONFIRM-1121.md.)
+// The tick IS passed on (adult_confirmed: true) and recorded: the join function refuses anything else (ADULT_WORDS) and migration 20261121000800 copies it to public.account_adult_confirmation when the account is made. The page says nothing more about it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -60,4 +60,12 @@ test('honest words: nothing on the page says the confirmation is recorded or kep
     assert.ok(!/record|stored|kept|saved|logged|verif/i.test(near), id);
   }
   assert.ok(!/record|stored|kept|saved/i.test(read('assets/app-data.js').match(/async joinWaiting[\s\S]*?\n      },/)[0].replace(/\/\/.*$/gm, '')), 'no words about recording in the join call');
+});
+
+test('the page comment no longer says the tick is not stored (GAMES 11-25 09:04 (3)); the join function and the migration both carry it', () => {
+  const page = read('assets/app-waiting.js');
+  assert.doesNotMatch(page, /NOT stored with the account/);
+  assert.match(page, /adult_confirmed: true/);
+  assert.match(read('supabase/functions/join/join.ts'), /body.adult_confirmed !== true/);
+  assert.match(read('supabase/migrations/20261121000800_join_open.sql'), /account_adult_confirmation/);
 });
