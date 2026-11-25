@@ -1072,9 +1072,21 @@
       const countySelect = h('select', { id: 'use-county', name: 'county', 'aria-label': 'Your Ohio county' }, h('option', { value: '' }, 'Choose…'), OH_COUNTIES.map(c => h('option', { value: c }, c)));
       const otherRow = h('p', { hidden: true }, h('label', { for: 'use-other' }, 'Country code (two letters) '), otherInput);
       const stateRow = h('p', { hidden: true }, h('label', { for: 'use-state' }, 'State (two letters) '), stateInput);
-      const zipRow = h('p', { hidden: true }, h('label', { for: 'use-zip' }, 'ZIP code (Ohio) '), zipInput);
+      const zipRow = h('p', { hidden: true }, h('label', { for: 'use-zip' }, 'ZIP code (optional: it helps pick your county) '), zipInput);
       const countyRow = h('p', { hidden: true }, h('label', { for: 'use-county' }, 'Your Ohio county '), countySelect);
-      const showRows = () => { otherRow.hidden = countrySelect.value !== 'OTHER'; stateRow.hidden = countrySelect.value !== 'US'; zipRow.hidden = stateRow.hidden || stateInput.value.trim().toUpperCase() !== 'OH'; countyRow.hidden = zipRow.hidden || useValue !== 'business'; };
+      const showRows = () => { otherRow.hidden = countrySelect.value !== 'OTHER'; stateRow.hidden = countrySelect.value !== 'US'; zipRow.hidden = stateRow.hidden || stateInput.value.trim().toUpperCase() !== 'OH' || useValue !== 'business'; countyRow.hidden = zipRow.hidden; };
+      // The county is what sets the rate (CONNECT 1c71d72b: required for Ohio + business). The ZIP only PRE-FILLS it, through ohio_counties_for_zip: one county = preselected, two or more = the list narrows to them, none = the full list.
+      const setCountyChoices = (names, preselect) => { const keep = countySelect.value; countySelect.textContent = ''; countySelect.append(h('option', { value: '' }, 'Choose…'), ...names.map(c => h('option', { value: c }, c))); countySelect.value = preselect || (names.includes(keep) ? keep : ''); };
+      let zipSeq = 0;
+      zipInput.addEventListener('input', async () => {
+        const z = zipInput.value.trim(), mine = ++zipSeq;
+        if (!/^[0-9]{5}$/.test(z) || !data.ohioCountiesForZip) { setCountyChoices(OH_COUNTIES); return; }
+        let list = [];
+        try { list = await data.ohioCountiesForZip(z); } catch { /* no pre-fill: the full list stays */ }
+        if (mine !== zipSeq) return;
+        list = (list || []).filter(c => OH_COUNTIES.includes(c));
+        if (list.length === 1) setCountyChoices(OH_COUNTIES, list[0]); else if (list.length > 1) setCountyChoices(list); else setCountyChoices(OH_COUNTIES);
+      });
       countrySelect.addEventListener('change', showRows); stateInput.addEventListener('input', showRows);
       if (profileNow) {      // a person who changes their answers sees what is on file
         countrySelect.value = profileNow.country === 'US' ? 'US' : 'OTHER'; otherInput.value = profileNow.country === 'US' ? '' : profileNow.country;
@@ -1087,10 +1099,10 @@
         if (!where) return { error: 'Choose where you use Ryagram.' };
         if (where === 'OTHER' && !(/^[A-Z]{2}$/.test(other) && other !== 'US')) return { error: 'Give your country as two letters, for example CA.' };
         if (where === 'US' && !US_STATES.includes(state)) return { error: 'Give your state as two letters, for example OH.' };
-        if (where === 'US' && state === 'OH' && !/^4[3-5][0-9]{3}$/.test(zip)) return { error: 'Give your five-digit Ohio ZIP code, for example 43215.' };
+        if (where === 'US' && state === 'OH' && use === 'business' && zip && !/^[0-9]{5}$/.test(zip)) return { error: 'Give a five-digit ZIP code, or leave it empty.' };
         const county = countySelect.value;
         if (where === 'US' && state === 'OH' && use === 'business' && !OH_COUNTIES.includes(county)) return { error: 'Choose your Ohio county.' };
-        return { answers: { use, country: where === 'US' ? 'US' : other, ...(where === 'US' ? { state } : {}), ...(where === 'US' && state === 'OH' ? { zip } : {}), ...(where === 'US' && state === 'OH' && use === 'business' ? { county } : {}) } };
+        return { answers: { use, country: where === 'US' ? 'US' : other, ...(where === 'US' ? { state } : {}), ...(where === 'US' && state === 'OH' && use === 'business' && zip ? { zip } : {}), ...(where === 'US' && state === 'OH' && use === 'business' ? { county } : {}) } };
       };
       const continueButton = h('button', { class: 'button primary', type: 'button', onclick: event => {
         const r = readAnswers();

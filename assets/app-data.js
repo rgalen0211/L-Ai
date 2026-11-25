@@ -250,6 +250,8 @@
       // Both return a Stripe URL to go to; card details are entered only on Stripe's pages.
       // The use and place answer (CONNECT 11-24, migration 20261123000900): stored on the account with its date. my_tax_profile() = { use, country, state, zip, answered_at } or null; set_my_tax_profile answers with the stored row, or a refusal worded 'code: plain sentence'.
       async myTaxProfile() { return (await run(client.rpc('my_tax_profile'), 'Couldn’t read your tax answers.')) || null; },
+      // CONNECT 1c71d72b: the counties a ZIP touches (text[]: none, one, or two or more); it only PRE-FILLS the county question.
+      async ohioCountiesForZip(zip) { const r = await run(client.rpc('ohio_counties_for_zip', { p_zip: zip }), 'Couldn’t look up the county.'); return Array.isArray(r) ? r : []; },
       async setMyTaxProfile(a) {
         try { return await run(client.rpc('set_my_tax_profile', { p_use: a.use, p_country: a.country, p_state: a.state || '', p_zip: a.zip || '', p_county: a.county || '' }), 'Couldn’t save your answers.'); }
         catch (err) { throw new Error(String(err.message || '').replace(/^[a-z_]+: /, '')); }

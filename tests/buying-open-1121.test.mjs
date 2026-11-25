@@ -36,7 +36,7 @@ async function credits({ config = {}, mock = false, search = '', source = lib, p
   const Cmod = {}; vm.runInNewContext(read('assets/app-credits.js'), { window: Cmod });
   win.ryagramCredits = Cmod.ryagramCredits;
   win.ryagramFlip = { create: ({ sections }) => ({ el: sections.map(s => s.el) }) };
-  const data = { shopOffers: async () => { credits.shopCalls++; return OFFERS; }, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], myTaxProfile: async () => { credits.profileCalls++; return profile; }, setMyTaxProfile: async a => { if (checkout) checkout.push(['SET', a]); return a; },
+  const data = { shopOffers: async () => { credits.shopCalls++; return OFFERS; }, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], myTaxProfile: async () => { credits.profileCalls++; return profile; }, ohioCountiesForZip: async z => (z === '43215' ? ['Franklin'] : z === '44444' ? ['Mahoning', 'Trumbull'] : []), setMyTaxProfile: async a => { if (checkout) checkout.push(['SET', a]); return a; },
                  startCheckout: async code => { if (missing) { const e = new Error('Tell us whether this is for business or personal use and where you are first.'); e.code = 'tax_profile_missing'; throw e; } if (checkout) checkout.push([code]); return '#'; }, openBillingPortal: async () => '#',
                  filmPrices: async () => prices || [] };
   const a = source.indexOf('  const creditsOn ='), b = source.indexOf('  const BUYING_CLOSED_SHORT'), helpers = source.slice(a, source.indexOf('\n', b));
@@ -132,12 +132,13 @@ test('BEFORE STRIPE: closed = no question anywhere; open = the question is hidde
   const country = byId(view, 'use-country'); country.value = 'US'; country.listeners.change({});
   await click(go); assert.match(err().textContent, /state as two letters/);
   const state = byId(view, 'use-state'); state.value = 'oh'; state.listeners.input({});
-  await click(go); assert.match(err().textContent, /five-digit Ohio ZIP/);
-  const z0 = byId(view, 'use-zip'); z0.value = '90210'; await click(go); assert.match(err().textContent, /Ohio ZIP/); assert.equal(calls.length, 0, 'a California ZIP is not an Ohio ZIP');
+  await click(go); assert.match(err().textContent, /Choose your Ohio county./, 'the ZIP is optional: the county is what is required');
+  const z0 = byId(view, 'use-zip'); z0.value = '12'; await click(go); assert.match(err().textContent, /five-digit ZIP code, or leave it empty/); assert.equal(calls.length, 0);
+  z0.value = '';
   const s0 = byId(view, 'use-state'); s0.value = 'xx'; s0.listeners.input({}); await click(go); assert.match(err().textContent, /state as two letters/); s0.value = 'oh'; s0.listeners.input({});
-  const zip = byId(view, 'use-zip'); zip.value = '43215';
-  await click(go); assert.match(err().textContent, /Choose your Ohio county./, 'Ohio + business needs the county, not the ZIP alone');
-  const county = byId(view, 'use-county'); county.value = 'Franklin';
+  const zip = byId(view, 'use-zip'); zip.value = '43215'; await zip.listeners.input({}); await new Promise(r => setTimeout(r, 5));
+  const county = byId(view, 'use-county');
+  assert.equal(county.value, 'Franklin', 'a ZIP in one county pre-selects it (ohio_counties_for_zip)');
   await click(go);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', { use: 'business', country: 'US', state: 'OH', zip: '43215', county: 'Franklin' }], ['pack_starter']]);
   // the second Buy in the same visit does not ask again
@@ -198,7 +199,7 @@ test('OHIO COUNTY: the list is the 88 Ohio counties, each once, spelled as the D
   const s = byId(view, 'use-state'); s.value = 'OH'; s.listeners.input({});
   byId(view, 'use-zip').value = '43215';
   await click(elements(view).find(e => e.tag === 'button' && e.textContent === 'Continue to Stripe'));
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', { use: 'personal', country: 'US', state: 'OH', zip: '43215' }], ['pack_starter']], 'personal use in Ohio: no county sent');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', { use: 'personal', country: 'US', state: 'OH' }], ['pack_starter']], 'personal use in Ohio: no county and no ZIP sent');
 });
 test('OHIO COUNTY: the box shows the county row only for business use in Ohio', async () => {
   const view = await credits({ config: { buyingOpen: true } });
@@ -212,6 +213,26 @@ test('OHIO COUNTY: the box shows the county row only for business use in Ohio', 
   assert.equal(row('use-county').hidden, false, 'Ohio + business: the county row shows');
   byId(view, 'use-personal').listeners.change({});
   assert.notEqual(row('use-county').hidden, false, 'Ohio + personal: no county');
+});
+
+test('OHIO COUNTY PRE-FILL: a ZIP in two counties narrows the list to those two, an unknown ZIP leaves the full list, a county is required without a ZIP, and the ZIP is optional', async () => {
+  const calls = [];
+  const view = await credits({ config: { buyingOpen: true }, checkout: calls });
+  await click(buyButton(view));
+  byId(view, 'use-business').listeners.change({});
+  const c = byId(view, 'use-country'); c.value = 'US'; c.listeners.change({});
+  const s = byId(view, 'use-state'); s.value = 'OH'; s.listeners.input({});
+  const zip = byId(view, 'use-zip'), county = byId(view, 'use-county');
+  const opts = () => county.kids.filter(k => typeof k !== 'string' && k.tag === 'option').length;
+  zip.value = '44444'; await zip.listeners.input({}); await new Promise(r => setTimeout(r, 5));
+  assert.equal(opts(), 3, 'Choose + the two counties the ZIP touches');
+  zip.value = '45999'; await zip.listeners.input({}); await new Promise(r => setTimeout(r, 5));
+  assert.equal(opts(), 89, 'Choose + all 88 when the ZIP is unknown');
+  zip.value = ''; await zip.listeners.input({}); await new Promise(r => setTimeout(r, 5));
+  assert.equal(opts(), 89, 'no ZIP: the full list');
+  county.value = 'Cuyahoga';
+  await click(elements(view).find(e => e.tag === 'button' && e.textContent === 'Continue to Stripe'));
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['SET', { use: 'business', country: 'US', state: 'OH', county: 'Cuyahoga' }], ['pack_starter']], 'no ZIP sent when none was typed');
 });
 
 test('PLANTED FAULT: the open-state markup in the closed state is caught', async () => {
