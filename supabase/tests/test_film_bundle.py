@@ -266,7 +266,7 @@ class Bundles(core.Base):
 
     def test_a_render_that_has_waited_two_minutes_goes_before_a_later_window(self):
         final = self.queued_final()
-        self.admin("update jobs set created_at = now() - interval '3 minutes' where id = %s returning 1", final)
+        self.admin("update jobs set created_at = now() - interval '3 minutes', joined_line_at = now() - interval '3 minutes' where id = %s returning 1", final)   # the wait in line (BUILDER 11-25: 20261125000100)
         _, vid = self.project_with_version()
         window = self.request(vid)[1]
         self.assertEqual(self.claim(), final, "a film that has waited two minutes is not overtaken by editing")
@@ -275,7 +275,7 @@ class Bundles(core.Base):
 
     def test_a_render_that_has_waited_a_minute_is_still_overtaken_and_windows_keep_their_own_order(self):
         final = self.queued_final()
-        self.admin("update jobs set created_at = now() - interval '110 seconds' where id = %s returning 1", final)
+        self.admin("update jobs set created_at = now() - interval '110 seconds', joined_line_at = now() - interval '110 seconds' where id = %s returning 1", final)   # the wait in line (BUILDER 11-25: 20261125000100)
         _, v1 = self.project_with_version()
         _, v2 = self.project_with_version()
         w1 = self.request(v1)[1]
@@ -288,7 +288,7 @@ class Bundles(core.Base):
 
     def test_a_waiting_job_of_a_disabled_type_does_not_hold_windows_back(self):
         final = self.queued_final()
-        self.admin("update jobs set created_at = now() - interval '5 minutes' where id = %s returning 1", final)
+        self.admin("update jobs set created_at = now() - interval '5 minutes', joined_line_at = now() - interval '5 minutes' where id = %s returning 1", final)   # the wait in line (BUILDER 11-25: 20261125000100)
         _, vx = self.project_with_version()
         x = self.db.as_(RYAN).one("select id from submit_job(%s, 'contact_sheet', '{\"periods\": [\"2016\", \"2018\", \"2020\"]}')", vx)       # an enabled job, older than the window
         _, vid = self.project_with_version()
