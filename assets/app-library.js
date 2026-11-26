@@ -1788,7 +1788,7 @@
       const liveNote = h('span', { class: 'meta live-note' }, 'Connecting…');
       const listEl = h('div', { 'aria-live': 'polite' }, h('p', { class: 'form-intro' }, 'Loading jobs…'));
 
-      const periods = h('input', { id: 'run-periods', inputmode: 'numeric', placeholder: 'e.g. 2016, 2020', autocomplete: 'off' });
+      const periods = h('input', { id: 'run-periods', inputmode: 'numeric', placeholder: '2016, 2020', autocomplete: 'off' });
       const winStart = h('input', { id: 'run-start', type: 'number', min: '0', step: '0.5', placeholder: '0', 'aria-label': 'Preview start, seconds' });
       const winEnd = h('input', { id: 'run-end', type: 'number', min: '0', step: '0.5', placeholder: '10', 'aria-label': 'Preview end, seconds' });
       const sheetButton = h('button', { class: 'button secondary', type: 'button' }, 'Make contact sheet');
