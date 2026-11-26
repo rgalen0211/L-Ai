@@ -127,7 +127,7 @@ body.ryagram-look .film-main p:has(>.button){margin-top:24px}
 /* the admin table: header words stay whole (they wrap between words, never inside one) and the day pills have room */
 body.ryagram-look .admin-table th{letter-spacing:.06em;vertical-align:bottom}
 @media(min-width:561px){body.ryagram-look .admin-table th{overflow-wrap:normal;word-break:normal;hyphens:none}}
-body.ryagram-look p>.button.small{margin:8px 12px 8px 0}
+body.ryagram-look p>.button.small{margin:8px 8px 8px 0}
 /* link-style buttons and the sign-in help links line up with the heading's left edge; paragraphs on the help-style pages have a gap */
 body.ryagram-look .link-button,body.ryagram-look .sign-in-help a{padding-left:0;padding-right:0}
 body.ryagram-look .help-main p+p{margin-top:14px}
