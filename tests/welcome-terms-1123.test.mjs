@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PAID = (() => { const w = {}; vm.runInNewContext(fs.readFileSync(new URL('../assets/ryagram-config.js', import.meta.url), 'utf8'), { window: w }); return w.ryagramConfig.buyingOpen === true; })();      // the opening branch: buying is open and the payment text is on the pages
+const PAID = fs.readFileSync(new URL('../terms/index.html', import.meta.url), 'utf8').includes('<section id="buying"><h2>9. Buying credits</h2>');      // the payment text is on the pages (kept even if buying is closed again after a sale); the config is no longer read here
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const textOf = (html) => html.match(/<main[\s\S]*?<\/main>/)[0].replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 const terms = textOf(read('terms/index.html'));
