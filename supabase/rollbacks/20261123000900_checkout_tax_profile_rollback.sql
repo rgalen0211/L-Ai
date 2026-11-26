@@ -1,6 +1,6 @@
 -- THE EXACT UNDO of migrations/20261123000900_checkout_tax_profile.sql. NOT APPLIED, and NOT a migration: it lives outside migrations/ so nothing applies it by accident.
 -- It puts back stripe_checkout_context as phase-2b/stripe_refunds_disputes.sql defines it (no tax keys), drops the two functions and the four tables. WARNING: every business-or-personal answer people gave, and any rows loaded into the tax tables, are LOST: copy them out first (select * from public.account_tax_profile).
--- Run it only while buying is CLOSED: stripe-checkout at the branch that reads tax_profile refuses every checkout when the key is missing.
+-- RUN LIVE STEP 72b FIRST AND SAVE ITS RESULT (it exports the answers this file drops). Run it only while buying is CLOSED: stripe-checkout at the branch that reads tax_profile refuses every checkout when the key is missing.
 begin;
 
 create or replace function public.stripe_checkout_context(p_owner uuid, p_price_code text)

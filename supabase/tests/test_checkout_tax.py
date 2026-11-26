@@ -199,6 +199,22 @@ class CheckoutTax(unittest.TestCase):
             self.db.as_(RYAN).one("select public.stripe_checkout_context(%s, 'pack_starter')", RYAN)
 
     # ---- undo and the check step
+    def test_step_72b_exports_the_answers_read_only_and_without_any_email(self):
+        x = (ROOT / "live-steps" / "72b_checkout_tax_answers_export.sql").read_text(encoding="utf-8")
+        px = parts(x)
+        self.assertFalse(re.search(r"\b(insert|update|delete|drop|alter|create|truncate|grant)\b", re.sub(r"--[^\n]*", "", x), re.I), "read-only")
+        self.assertEqual(self.run_sql(px[1]).fetchone(), (0, 0, 0, 0, 0))
+        self.setp(RYAN, "business")
+        self.setp(OTHER, "personal", state="TX", zip_=None, county=None)
+        self.assertEqual(self.run_sql(px[1]).fetchone(), (2, 1, 1, 1, 1))
+        rows = self.run_sql(px[2]).fetchall()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({r[0] for r in rows}, {RYAN, OTHER})
+        self.assertEqual(sorted(r[4] for r in rows if r[4]), ["Franklin"])
+        self.assertNotIn("email", x.lower().replace("no email", ""), "no email column")
+        self.assertIn("72b", (ROOT / "rollbacks" / "20261123000900_checkout_tax_profile_rollback.sql").read_text(encoding="utf-8"), "the rollback tells you to export first")
+        self.assertIn("72b", (ROOT / "live-steps" / "70_buying_UNDO.sql").read_text(encoding="utf-8"), "step 70 tells you too")
+
     def test_the_rollback_puts_the_old_context_back_and_step_71_says_so_before_and_after(self):
         rows = self.run_sql(S72).fetchall()
         self.assertEqual(len(rows), 6)
