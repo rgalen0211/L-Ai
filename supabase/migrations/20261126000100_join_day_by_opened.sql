@@ -20,6 +20,12 @@ begin;
 
 alter table public.join_attempts add column if not exists confirmed_at timestamptz;
 alter table public.ops_settings add column if not exists join_asks_max integer check (join_asks_max is null or join_asks_max >= 0);
+-- BACKFILL (BUILDER 11-26, found writing live step 74): addresses that ALREADY opened their email before this file is applied are marked now, so
+-- the day's size does not forget the people who came in earlier today (without it the size would undercount them for up to 24 hours).
+update public.join_attempts j set confirmed_at = now()
+  where j.confirmed_at is null
+    and exists (select 1 from auth.users u where u.email_confirmed_at is not null and btrim(coalesce(u.email, '')) <> ''
+                  and encode(sha256(convert_to('ryagram-join:' || lower(btrim(u.email)), 'UTF8')), 'hex') = j.email_hash);
 
 create or replace function ryagram_private.join_attempt_confirmed() returns trigger
 language plpgsql security definer set search_path = '' as $$

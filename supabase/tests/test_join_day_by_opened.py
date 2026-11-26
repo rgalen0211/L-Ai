@@ -29,6 +29,7 @@ setUpModule = core.setUpModule
 MIG = core.ROOT / "migrations" / "20261126000100_join_day_by_opened.sql"
 RB = core.ROOT / "rollbacks" / "20261126000100_join_day_by_opened_rollback.sql"
 OPEN000800 = core.ROOT / "migrations" / "20261121000800_join_open.sql"
+STEP74 = core.ROOT / "live-steps" / "74_join_by_opened.sql"
 FULL = {"ok": False, "reason": "full"}
 OK = {"ok": True}
 
@@ -205,6 +206,61 @@ class JoinByOpened(core.Base):
         self.must_fail("do $p$ declare d text := pg_get_functiondef(to_regprocedure('public.join_reserve(text, text)')); begin "
                        "execute replace(d, 'coalesce((select o.join_asks_max from public.ops_settings o limit 1), 2 * coalesce((select o.join_daily_max from public.ops_settings o limit 1), 200))', '1000000'); end $p$",
                        self.scenario_the_ask_ceiling_holds)
+
+    def scenario_the_backfill_counts_people_who_opened_before_the_change(self, mig_text):
+        self.d().execute(RB.read_text(encoding="utf-8"))                   # the live state before this change
+        self.d().execute("update public.ops_settings set join_daily_max = 1")
+        self.assertEqual(self.join("early@example.com", "ip1"), OK)
+        self.opened("early@example.com")                                     # opened under the OLD code: no trigger, no column
+        self.d().execute(mig_text)                                           # Ryan applies the change
+        self.assertEqual(self.join("late@example.com", "ip2"), FULL, "the person who opened earlier today still counts: a size of 1 is full")
+
+    def test_the_backfill_counts_people_who_opened_before_the_change(self):
+        self.scenario_the_backfill_counts_people_who_opened_before_the_change(MIG.read_text(encoding="utf-8"))
+
+    def test_must_fail_without_the_backfill(self):
+        t = MIG.read_text(encoding="utf-8")
+        start = t.index("update public.join_attempts j set confirmed_at = now()")
+        no_backfill = t[:start] + "select 1;" + t[t.index("= j.email_hash);", start) + len("= j.email_hash);"):]
+        with self.assertRaises(AssertionError):
+            self.scenario_the_backfill_counts_people_who_opened_before_the_change(no_backfill)
+
+    # ---------------------------------------------------------------- LIVE STEP 74 (Ryan's paste)
+    def step_parts(self):
+        import re
+        chunks = re.split(r"^-- PART \d.*$", STEP74.read_text(encoding="utf-8"), flags=re.M)[1:]
+        self.assertEqual(len(chunks), 4)
+        return [c.strip() for c in chunks]
+
+    def rows(self, sql):
+        return self.d().execute(sql).fetchall()
+
+    def test_step_74_before_and_after(self):
+        p1, p2, p3, p4 = self.step_parts()
+        self.assertTrue(p1.lower().startswith("select") and p2.lower().startswith("with"), "parts 1 and 2 are read-only")
+        self.d().execute(RB.read_text(encoding="utf-8"))                   # live before the change
+        self.d().execute("update public.ops_settings set join_daily_max = 35")
+        self.assertEqual(self.join("one@example.com", "ip1"), OK)
+        self.assertEqual(self.join("two@example.com", "ip2"), OK)
+        self.opened("one@example.com")
+        before = dict(self.rows(p1))
+        self.assertEqual(before["flood fix applied"], "no")
+        self.assertEqual(before["different addresses asked for in 24 hours"], "2")
+        self.assertEqual(before["of them, opened their email (what the day's size counts after the fix)"], "1", "part 1 counts opened ones even before the fix")
+        self.assertTrue(self.rows(p2)[0][0].startswith("STOP"), "before the migration part 2 says STOP")
+        self.d().execute(MIG.read_text(encoding="utf-8"))
+        after = dict(self.rows(p1))
+        self.assertEqual(after["flood fix applied"], "yes")
+        self.assertEqual(after["the ceiling on asks (join_asks_max)"], "empty = 2 x the day's size")
+        out = self.rows(p2)
+        self.assertTrue(out[0][0].startswith("PASS"), out)
+        self.assertEqual(self.d().execute("select count(*) from public.join_attempts where confirmed_at is not null").fetchone()[0], 1, "the backfill marked the one who opened")
+        self.d().execute(p3)
+        self.assertEqual(dict(self.rows(p1))["the ceiling on asks (join_asks_max)"], "70")
+        self.d().execute(p4)
+        self.assertEqual(dict(self.rows(p1))["the ceiling on asks (join_asks_max)"], "empty = 2 x the day's size")
+        self.assertIn("20261126000100_join_day_by_opened.sql", STEP74.read_text(encoding="utf-8"))
+        self.assertIn("20261126000100_join_day_by_opened_rollback.sql", STEP74.read_text(encoding="utf-8"))
 
     def test_must_fail_without_the_trigger(self):
         self.must_fail("drop trigger join_attempt_confirmed_trg on auth.users", self.scenario_opened_addresses_fill_the_day)
