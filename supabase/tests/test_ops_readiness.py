@@ -421,7 +421,11 @@ class Ops(core.Base):
                            # departments in the top bar (20261027000100): the signed-in INVITED person's own list and interest (checked inside); the counts refuse everyone but an admin inside
                            "my_departments()", "my_department_interests()", "register_department_interest(text)", "withdraw_department_interest(text)", "admin_department_interest_counts()",
                            # the live preview editor (20261027000400): the signed-in person's own editor, resolved from their app session and checked inside (the connector and the computer have their own functions)
-                           "editor_apply_ops(uuid,text,bigint,jsonb)", "editor_undo(uuid,text,bigint)", "editor_undo_all_ai(uuid,text)", "my_edit_ops_since(uuid,text,bigint)", "editor_heartbeat(uuid,text)"}
+                           "editor_apply_ops(uuid,text,bigint,jsonb)", "editor_undo(uuid,text,bigint)", "editor_undo_all_ai(uuid,text)", "my_edit_ops_since(uuid,text,bigint)", "editor_heartbeat(uuid,text)",
+                           # the checkout tax answer (20261123000900): granted to signed-in people ON PURPOSE, each resolves auth.uid() inside and touches only the caller's OWN row
+                           "my_tax_profile()", "set_my_tax_profile(text,text,text,text,text)",
+                           # the county pre-fill (20261123000900): reads only the public Ohio ZIP-to-county names, no account data (granted to signed-in people, revoked from public and anon)
+                           "ohio_counties_for_zip(text)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue
