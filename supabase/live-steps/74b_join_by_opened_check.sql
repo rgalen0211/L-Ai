@@ -1,5 +1,5 @@
 -- SIGN-UP FLOOD FIX, the AFTER check (step 74's order, point 4). Read-only. Paste ALL and Run AFTER the migration 20261126000100.
--- Its FIRST row says PASS or STOP; on STOP send CC1 the rows below it. Before the migration it says STOP (that is expected then).
+-- Its FIRST row says PASS or STOP. On STOP send CC1 the rows below it. Before the migration it says STOP (that is expected then).
 with c as (
   select 1 as n, 'the column join_attempts.confirmed_at is there' as what,
          exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'join_attempts' and column_name = 'confirmed_at') as ok
@@ -15,8 +15,8 @@ with c as (
                      from pg_proc p where p.oid = to_regprocedure('ryagram_private.join_attempt_confirmed()')), false)
 )
 select result, what, ok from (
-  select 0 as n, case when bool_and(ok) then 'PASS: the flood fix is on; open sign-up again with step 47'
-              else 'STOP: ' || count(*) filter (where not ok) || ' row(s) not as expected; send CC1 these rows' end as result, null::text as what, null::boolean as ok
+  select 0 as n, case when bool_and(ok) then 'PASS: the flood fix is on, open sign-up again with step 47'
+              else 'STOP: ' || count(*) filter (where not ok) || ' row(s) not as expected, send CC1 these rows' end as result, null::text as what, null::boolean as ok
   from c
   union all
   select n, null, what, ok from c
