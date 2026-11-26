@@ -15,7 +15,7 @@ const root = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([
 const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 
 // The switches Ryan has turned ON (each with his recorded yes in the config's comment or the commit that turned it on). Anything else must be false.
-const ON_BY_RYAN = ['visitCounting', 'credits', 'payments', 'buyingOpen', 'accountTools', 'passwordReset', 'inviteSignup', 'opsTools', 'filmRequests', 'guidedBuilder',
+const ON_BY_RYAN = ['visitCounting', 'credits', 'payments', 'stripeTestMode', 'buyingOpen', 'accountTools', 'passwordReset', 'inviteSignup', 'opsTools', 'filmRequests', 'guidedBuilder',
   'lookEditor', 'renderOrders', 'connectAi', 'aiFirst', 'departments', 'desktopApp',
   'waitingAccounts'];      // waitingAccounts: Ryan 11-21 11:30, sign-up OPEN at launch (branch web-signup-open-1122; LAUNCH-WED-1125 row 1); the server's join_open decides whether it works
 // Permanently off and read by nothing (the config says so; tests/app-catalog.test.cjs fails if either turns true).

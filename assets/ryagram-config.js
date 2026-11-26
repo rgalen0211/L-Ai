@@ -21,12 +21,12 @@ window.ryagramConfig = Object.freeze({
   // STRIPE TEST WINDOW: see credits above. stripeTestMode below is false only on the opening branch, together with buyingOpen true; tests/stripe-test-window.test.cjs enforces the pairing.
   payments: true,
   // While Stripe runs with TEST keys this is true and the Credits page says so and names the test card. FALSE on the opening branch (live keys): no test text.
-  stripeTestMode: false,
+  stripeTestMode: true,
   // BUYING OPEN: whether the app offers any Buy / Subscribe button (the Credits page's buttons, the home "Buy credits" link, the "Buy credits" link under a render that needs more credits).
   // THIS BRANCH OPENS BUYING (web-buying-flip-1124, WEB 11-24): true, with stripeTestMode false (no test-card text). Push it ONLY after Ryan's live step 69 (live price ids, live keys, stripe_settings.live_ok,
   // an admin test purchase and refund) and the lawyer's review of the payment terms; the Wednesday head ships buyingOpen false. Closed (false): Credits shows the balance and what credits are for,
   // no packs, plans, prices or buttons, and says buying is not open yet (CC1 ruling 11-23 08:34). Mock mode and tests turn it on themselves (tests/fake-supabase.js seeds, ?buyingclosed shows the closed page in mock).
-  buyingOpen: true,
+  buyingOpen: false,
   // Show "Public page" on finished films in /app/. Turn on only once the film-page function is
   // deployed and its SQL applied (supabase/README.md, "Public film pages").
   filmPages: false,
