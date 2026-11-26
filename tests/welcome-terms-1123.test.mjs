@@ -20,11 +20,11 @@ const migrationLanded = fs.existsSync(path.join(root, MIGRATION));
 
 // clause -> page sentence + what the migration must show (patterns are CONNECT-agnostic: the grant function, the verified-email trigger, a hashed key, no deletion of the key, invite exclusion)
 const CLAUSES = [
-  ['8 credits at email confirmation', terms, 'When you confirm your email we give your account 8 welcome credits, once for each email address.', [/after insert or update of email_confirmed_at on auth\.users/, /tg_op = 'UPDATE' and old\.email_confirmed_at is not null then return new/, /perform public\.grant_credits\(new\.id, 'grant', n,/, /welcome_credits integer not null default 8 check/]],
+  ['8 credits at email confirmation', terms, 'When you confirm your email we give your account 16 welcome credits, once for each email address.', [/after insert or update of email_confirmed_at on auth\.users/, /tg_op = 'UPDATE' and old\.email_confirmed_at is not null then return new/, /perform public\.grant_credits\(new\.id, 'grant', n,/, /welcome_credits integer not null default 8 check/]],
   ['same address again gets none (key survives deletion)', terms, 'If you delete your account and make a new one with the same address, you do not get them again.', [/email_hash text primary key check \(email_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/, /sha256\(convert_to\('ryagram-welcome:' \|\| mail/, /on conflict \(email_hash\) do nothing/]],
   ['invite-code accounts keep their own credits, no extra 8', terms, 'An account made with an invite code keeps the credits that came with its code and does not get the 8.', [/adult_source', ''\) = 'invite' or exists \(select 1 from public\.invite_redemptions r where r\.email = mail\)/]],
   ['no cash value, not transferable, buying closed', terms, 'Credits have no cash value and cannot be moved to another person. Buying credits is not open yet.', []],
-  ['what a film costs', terms, 'A full film costs about 6 to 10 credits, depending on the film type, so 8 welcome credits cover a line film or a map film.', []],
+  ['what a film costs', terms, 'A full film costs about 6 to 10 credits, depending on the film type, so 16 welcome credits cover two line or map films, or one bars film and one line film.', []],
   ['privacy: scrambled copy kept past deletion', privacy, 'To give welcome credits only once, we keep a scrambled copy of your email address. We keep it even if you delete your account.', [/email_hash text primary key check \(email_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/, /sha256\(convert_to\('ryagram-welcome:' \|\| mail/, /on conflict \(email_hash\) do nothing/]],
   ['privacy: credit record kept with the account ID, no end date, closed by hand (NOT "we then remove it": no code removes ledger rows)', privacy, 'We keep a record of each credit given to your account or used, with the time and your account\'s ID, as a financial record. We keep it after you delete your account, and we have no end date for it. Your account itself is then closed by hand.', []],
 ];
@@ -49,7 +49,7 @@ test('MIGRATION: clauses are checked against CONNECT\'s welcome migration when i
     assert.doesNotMatch(sql, /delete from ryagram_private\.welcome_credit_grants|truncate/i, 'nothing removes the once-per-address memory');
     // the page number must be the migration's default
     assert.match(sql, /welcome_credits integer not null default 8 /);
-    assert.match(terms, /we give your account 8 welcome credits/);
+    assert.match(terms, /we give your account 16 welcome credits/);
   } else {
     assert.equal(migrationLanded, false);
   }

@@ -40,10 +40,10 @@ test('3 both Helps answer "How do I get credits?" with the free-account words, b
   const mine = lib.slice(lib.indexOf(Q.replace(AP, BS + 'u2019')));
   assert.ok(mine.includes("WELCOME_LINE + ' A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' ' + FILM_COST_CLOSED + ' Buying credits is not open yet.')"));
   assert.match(lib, /const FREE_PREVIEW_RULE = 'Each project gets 6 free previews \(15 across all projects in any 24 hours\); then 1 credit each\. A failed free one caused by your story still counts\.'/);
-  assert.ok(CLOSED.startsWith('When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. A free account can make free contact sheets. Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each.'));
-  assert.ok(CLOSED.endsWith('A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones. Buying credits is not open yet.'));
-  assert.ok(lib.includes("const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';"));
-  assert.ok(lib.includes("const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.';"));
+  assert.ok(CLOSED.startsWith('When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. A free account can make free contact sheets. Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each.'));
+  assert.ok(CLOSED.endsWith('A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film. Buying credits is not open yet.'));
+  assert.ok(lib.includes("const WELCOME_LINE = 'When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';"));
+  assert.ok(lib.includes("const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film.';"));
   assert.equal((help.match(/<details(?![^>]*data-flag)/g) || []).length, 8, 'not hidden by a help flag');
 });
 
