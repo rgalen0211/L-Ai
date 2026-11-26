@@ -9,7 +9,9 @@
 -- 2 x the day's size (35 -> 70, so GEO's email sum 35 x 2 + 20 alerts = 90 stays under Resend's 100 a day), past it the same 'full'; (4) an address
 -- that already asked today still passes both. 0 still shuts sign-up. LIMIT, said plainly: a visitor with enough networks can still reach the ASK ceiling
 -- (70 made-up addresses need at least 7 networks at 10 a day each), so the day can still be closed that way, only it takes twice as much and shows in
--- the watch; a captcha is the full answer (Ryan's later call, CC1 11-25 09:05).
+-- the watch (GEO's row: asks vs opened; step 48 stops it at once). It MOVES the line, it does not close it, and Resend's free 100 a day can still run
+-- out first. The levers that close it: a lower per-network day limit (10 -> 3 or 4 makes 70 asks need about 20 networks), and a captcha token on join
+-- (Supabase Auth supports one; Ryan's later call, CC1 11-25 09:05). GAMES 11-26 15:01.
 -- HOW: join_reserve is changed by TWO SHORT exact-text edits of its LIVE text (the 20261113000400 / 20261125000100 method), each refused in words if
 -- its piece is not there exactly once; everything else in it stays as 20261121000800 wrote it. The pieces are short on purpose, so a planted fault in
 -- 20261121000800's join_reserve still reaches tests/connect_join_open_mutants.mjs's suite (tests/mutant_blind_check.py's class).

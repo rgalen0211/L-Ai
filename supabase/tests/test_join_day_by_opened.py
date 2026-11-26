@@ -179,6 +179,33 @@ class JoinByOpened(core.Base):
         self.must_fail(f"create or replace function public.join_reserve(p_email text, p_ip_hash text) returns jsonb language plpgsql security definer set search_path = '' as $p${old_block_body}$p$",
                        self.scenario_a_flood_of_unopened_addresses_does_not_fill_the_day)
 
+    def scenario_a_mixed_case_address_counts_once_opened(self):
+        self.size(1)
+        self.assertEqual(self.join("Mixed@Example.COM ", "ip1"), OK)
+        self.opened("Mixed@Example.COM")                                      # Auth may keep the address as typed
+        self.assertEqual(self.join("next@example.com", "ip2"), FULL, "the trigger hashes the address as join_reserve does (lower case, trimmed)")
+
+    def scenario_the_ask_ceiling_holds(self):
+        self.size(1)                                                         # 2 x 1 = 2 asks
+        self.assertEqual(self.join("f1@nowhere.example", "n1"), OK)
+        self.assertEqual(self.join("f2@nowhere.example", "n2"), OK)
+        self.assertEqual(self.join("f3@nowhere.example", "n3"), FULL, "the 3rd different unopened address: the ask ceiling")
+
+    def test_a_mixed_case_address_counts_once_opened(self):
+        self.scenario_a_mixed_case_address_counts_once_opened()
+
+    def test_the_ask_ceiling_holds(self):
+        self.scenario_the_ask_ceiling_holds()
+
+    def test_must_fail_with_the_hash_not_lower_cased(self):
+        self.must_fail("do $p$ begin execute replace(pg_get_functiondef(to_regprocedure('ryagram_private.join_attempt_confirmed()')), "
+                       "'lower(btrim(new.email))', 'new.email'); end $p$", self.scenario_a_mixed_case_address_counts_once_opened)
+
+    def test_must_fail_without_the_ask_ceiling(self):
+        self.must_fail("do $p$ declare d text := pg_get_functiondef(to_regprocedure('public.join_reserve(text, text)')); begin "
+                       "execute replace(d, 'coalesce((select o.join_asks_max from public.ops_settings o limit 1), 2 * coalesce((select o.join_daily_max from public.ops_settings o limit 1), 200))', '1000000'); end $p$",
+                       self.scenario_the_ask_ceiling_holds)
+
     def test_must_fail_without_the_trigger(self):
         self.must_fail("drop trigger join_attempt_confirmed_trg on auth.users", self.scenario_opened_addresses_fill_the_day)
 
