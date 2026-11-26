@@ -262,3 +262,7 @@ body.is-waiting .dept-slot,body.is-waiting .app-account .app-nav-link:not([href=
 .ops-list{margin-top:14px}
 body.ryagram-app.ryagram-ds.ryagram-look .flip-tabs,body.ryagram-app.ryagram-ds .builder-list,.ryagram-app .start-buttons,.ryagram-app .start-strip,.ryagram-app .dept-bar{gap:12px}
 .ops-list .button{margin:0 12px 12px 0}
+/* Film page tabs on a wide screen (Claude's walk, WEB 11-26): plain tabs in a row, no sideways scroller, arrows or dots; a phone keeps the swipe strip */
+@media(min-width:900px){body.ryagram-app.ryagram-ds.ryagram-look .flip-plain .flip-tabs{overflow:visible;flex-wrap:wrap;justify-content:flex-start}body.ryagram-app.ryagram-ds.ryagram-look .flip-plain .flip-arrow,body.ryagram-app.ryagram-ds.ryagram-look .flip-plain .flip-dots,body.ryagram-app.ryagram-ds.ryagram-look .flip-plain .flip-where{display:none}}
+.file-list video{max-width:480px;max-height:42vh;object-fit:contain}
+#run-periods{padding-left:12px;padding-right:12px;font-size:.92rem;text-overflow:clip}
