@@ -96,8 +96,8 @@
   const FREE_PREVIEW_RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
   const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE;      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
   const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
-  const WELCOME_LINE = 'When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';      // Q679 B (Ryan 11-23 15:46); the same words as assets/free-account-line.js (a test pins both)
-  const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film.';      // typed for the Help answer only; the Credits page reads the price table
+  const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';      // Q679 B (Ryan 11-23 15:46); the same words as assets/free-account-line.js (a test pins both)
+  const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.';      // typed for the Help answer only; the Credits page reads the price table
   // A film request costs credits. While buying is closed, the way in (the home link, the project page's pointer) shows only to someone whose balance COVERS a request (the same
   // cost the request page reads): a new account has none and could not buy any, so the link would lead to a send that fails (BUILDER 11-23, the Wednesday first-user audit; the
   // full cost, not 'any credits', per GAMES/CC1 08:33). A failed read keeps it hidden. Open buying, or credits off, leaves it as it was.
@@ -109,7 +109,7 @@
       .then(([rows, cost]) => { if (cost != null && availableOf(rows) >= Number(cost)) el.hidden = false; }).catch(() => {});
     return el;
   };
-  const REQUEST_CLOSED = (cost, have) => `A film request costs ${window.ryagramCredits.plural(Number(cost))}; you have ${window.ryagramCredits.plural(have)}. Buying credits is not open yet.`;      // the request page's send, at a balance below the cost while buying is closed (Q679 B: 16 welcome credits are not 10)
+  const REQUEST_CLOSED = (cost, have) => `A film request costs ${window.ryagramCredits.plural(Number(cost))}; you have ${window.ryagramCredits.plural(have)}. Buying credits is not open yet.`;      // the request page's send, at a balance below the cost while buying is closed (Q679 B: 8 welcome credits are not 10)
 
   // Every admin page that is switched on, in plain words and in groups (the Admin page #/admin, WEB 11-20: the admin tools live on ONE page, not in a menu and not scattered over the user pages).
   const adminPages = () => [
