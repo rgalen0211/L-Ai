@@ -5,9 +5,9 @@
 -- if part 1 errors with 'column "join_daily_max" does not exist', STOP: skip this step (the size stays 200) and tell CC1.
 -- Undo: run part 2 again with 200 (the built-in default); it takes seconds and no account changes. 'Any 24 hours' is rolling, not midnight to midnight:
 -- tries from 08:30 Wednesday count until 08:30 Thursday. The test join in Wednesday step 5 takes one place.
--- AFTER THE FLOOD FIX (only if live step 74 was run; its PART 1 row 1 then says 'flood fix applied: yes'): the number counts only people who OPENED
--- their email, so made-up addresses no longer take places; asks are capped separately by join_asks_max (empty = 2 x this number; step 74 PARTS 3
--- and 4 set and clear it). If you raise this number after step 74, the ask cap rises with it unless join_asks_max is set.
+-- AFTER THE FLOOD FIX (only if live step 74 was run; its row 1 then says 'flood fix applied: yes'): the number counts only people who OPENED
+-- their email, so made-up addresses no longer take places; asks are capped separately by join_asks_max (empty = 2 x this number; steps 74c
+-- and 74d set and clear it). If you raise this number after step 74, the ask cap rises with it unless join_asks_max is set.
 
 -- PART 1, read-only BEFORE check: the size now (200 unless someone changed it).
 select join_daily_max as sign_up_size_now, join_open as sign_up_is_open from public.ops_settings;

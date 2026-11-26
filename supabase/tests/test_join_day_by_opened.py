@@ -30,6 +30,7 @@ MIG = core.ROOT / "migrations" / "20261126000100_join_day_by_opened.sql"
 RB = core.ROOT / "rollbacks" / "20261126000100_join_day_by_opened_rollback.sql"
 OPEN000800 = core.ROOT / "migrations" / "20261121000800_join_open.sql"
 STEP74 = core.ROOT / "live-steps" / "74_join_by_opened.sql"
+STEP74_FILES = [core.ROOT / "live-steps" / n for n in ("74_join_by_opened.sql", "74b_join_by_opened_check.sql", "74c_join_asks_max_set.sql", "74d_join_asks_max_clear.sql")]
 FULL = {"ok": False, "reason": "full"}
 OK = {"ok": True}
 
@@ -228,9 +229,13 @@ class JoinByOpened(core.Base):
     # ---------------------------------------------------------------- LIVE STEP 74 (Ryan's paste)
     def step_parts(self):
         import re
-        chunks = re.split(r"^-- PART \d.*$", STEP74.read_text(encoding="utf-8"), flags=re.M)[1:]
-        self.assertEqual(len(chunks), 4)
-        return [c.strip() for c in chunks]
+        out = []
+        for f in STEP74_FILES:                      # GAMES 15:51 MEDIUM: one statement per file, so a 'Copy ALL' shows the result the card promises
+            sql = "\n".join(l for l in f.read_text(encoding="utf-8").splitlines() if not l.lstrip().startswith("--")).strip()
+            self.assertEqual(sql.count(";"), 1, f.name + " holds exactly one statement")
+            self.assertTrue(sql.endswith(";"), f.name)
+            out.append(sql)
+        return out
 
     def rows(self, sql):
         return self.d().execute(sql).fetchall()
@@ -254,6 +259,8 @@ class JoinByOpened(core.Base):
         self.assertEqual(after["the ceiling on asks (join_asks_max)"], "empty = 2 x the day's size")
         out = self.rows(p2)
         self.assertTrue(out[0][0].startswith("PASS"), out)
+        self.assertEqual([r[2] for r in out[1:]], [True] * 5, "the five detail rows follow the PASS line, in order")
+        self.assertIn("anon", out[5][1])
         self.assertEqual(self.d().execute("select count(*) from public.join_attempts where confirmed_at is not null").fetchone()[0], 1, "the backfill marked the one who opened")
         self.d().execute(p3)
         self.assertEqual(dict(self.rows(p1))["the ceiling on asks (join_asks_max)"], "70")
