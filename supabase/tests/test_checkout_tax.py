@@ -209,7 +209,7 @@ class CheckoutTax(unittest.TestCase):
         self.assertEqual(self.run_sql(px[1]).fetchone(), (2, 1, 1, 1, 1))
         rows = self.run_sql(px[2]).fetchall()
         self.assertEqual(len(rows), 2)
-        self.assertEqual({r[0] for r in rows}, {RYAN, OTHER})
+        self.assertEqual({str(r[0]) for r in rows}, {RYAN, OTHER})
         self.assertEqual(sorted(r[4] for r in rows if r[4]), ["Franklin"])
         self.assertNotIn("email", x.lower().replace("no email", ""), "no email column")
         self.assertIn("72b", (ROOT / "rollbacks" / "20261123000900_checkout_tax_profile_rollback.sql").read_text(encoding="utf-8"), "the rollback tells you to export first")
