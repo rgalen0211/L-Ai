@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /legal-drafts/
+Disallow: /directory-drafts/
+Disallow: /landing-drafts/
+Disallow: /tests/
+Disallow: /tools/
+Disallow: /supabase/
