@@ -12,7 +12,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const terms = read('terms/index.html');
 const privacy = read('privacy-policy.html');
 const LABEL = 'Preview terms: free preview, no payments';
-const PAID = (() => { const w = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: w }); return w.ryagramConfig.buyingOpen === true; })();      // the opening branch: buying is open, the payment text is on the pages
+const PAID = fs.readFileSync(new URL('../terms/index.html', import.meta.url), 'utf8').includes('<section id="buying"><h2>9. Buying credits</h2>');      // the payment text is on the pages (kept even if buying is closed again after a sale); the config is no longer read here
 const NOT_OPEN = 'Buying credits and payments are not open yet; these terms will be replaced before any payment.';
 const mainOf = (html) => html.match(/<main[\s\S]*?<\/main>/)[0];
 const textOf = (html) => mainOf(html).replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
