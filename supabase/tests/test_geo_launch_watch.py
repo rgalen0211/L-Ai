@@ -27,6 +27,9 @@ UNDO_WATCH = core.ROOT / "live-steps" / "watch_launch_day_after_welcome_undo.sql
 A_FROM = "20261120000100"            # A1 is the first of the sitting's 19 files; every later 2026112x file is A1-A19
 A_FILES = {p.name for p in core.MIGRATIONS if p.name >= A_FROM + "_" and p.name.startswith("202611")}
 LIVE_MAIN = "e947f26af8ccb8b58ba01754ca803e853f4e6f04"
+FLOOD_FIX_HEAD = "405d71d6ca99daa78ed6069b49533a1bf3dae842"     # builder-join-by-opened-1126: live step 74's migration (BUILDER 11-26)
+FLOOD_FIX = subprocess.run(["git", "-C", str(core.ROOT), "show", FLOOD_FIX_HEAD + ":supabase/migrations/20261126000100_join_day_by_opened.sql"],
+                           capture_output=True, text=True, encoding="utf-8", check=True).stdout
 LIVE_LEDGER = subprocess.run(["git", "-C", str(core.ROOT), "show", LIVE_MAIN + ":supabase/phase-2b/credits_ledger.sql"],
                              capture_output=True, text=True, encoding="utf-8", check=True).stdout
 STANDINS = """
@@ -139,6 +142,37 @@ class Watch(unittest.TestCase):
         self.assert_ok()
         self.asks(1, "now() - interval '3 hours'")
         self.assert_only(2)
+
+    # -- AFTER live step 74 (BUILDER 11-26): its migration, from the flood-fix branch head, applied on top of live
+    def after_step_74(self):
+        self.c.execute(FLOOD_FIX)
+        self.c.execute("update public.ops_settings set join_daily_max = 35")             # the ask ceiling is then 2 x 35 = 70
+
+    def value(self, n):
+        return next(r[2] for r in self.run_watch()[2][1:] if r[0] == n)
+
+    def test_GEO_02b_after_step_74_unopened_asks_do_not_fill_the_size(self):
+        self.after_step_74()
+        self.asks(64, "now() - interval '3 hours'")
+        self.assert_ok()                                                              # 64 asked, 0 opened: neither line reached (before step 74 this was LOOK)
+        self.asks(1, "now() - interval '3 hours'")
+        self.assert_only(2)                                                           # 65 asked: within 5 of the ceiling 70
+        self.assertIn("0 opened of 35; 65 asked of 70", self.value(2))
+
+    def test_GEO_02c_after_step_74_opened_addresses_fill_the_size(self):
+        self.after_step_74()
+        self.c.execute("update public.ops_settings set join_asks_max = 1000")
+        self.asks(40, "now() - interval '3 hours'")
+        self.c.execute("update public.join_attempts set confirmed_at = now() where email_hash in (select email_hash from public.join_attempts order by email_hash limit 29)")
+        self.assert_ok()                                                              # 29 opened of 35: under the line
+        self.c.execute("update public.join_attempts set confirmed_at = now() where email_hash in (select email_hash from public.join_attempts where confirmed_at is null order by email_hash limit 1)")
+        self.assert_only(2)                                                           # 30 opened: within 5 of the size
+        self.assertIn("30 opened of 35; 40 asked of 1000", self.value(2))
+
+    def test_GEO_02d_the_after_welcome_undo_file_has_the_same_row_2(self):
+        a, b = (f.read_text(encoding="utf-8") for f in (WATCH, UNDO_WATCH))
+        row2 = lambda t: t[t.index("  -- BUILDER 11-26: after live step 74"):t.index("  union all\n  select 3,")]
+        self.assertEqual(row2(a.replace("\r\n", "\n")), row2(b.replace("\r\n", "\n")))
 
     def test_GEO_03_a_flood_of_made_up_addresses(self):
         self.c.execute("update public.ops_settings set join_daily_max = 500")

@@ -15,12 +15,17 @@ with r(n, what, value, look, when_look, what_you_do) as (
          '70 or more',
          'Open the Resend dashboard for the exact count. At 90 or more, close sign-up until 19:00 Ohio (live step 48, sign-up OFF; step 47 opens it again after 19:00), because over 100 a sign-up email is refused and never retried. Tell CC1.'
   union all
-  select 2, 'sign-up size used today (different addresses asked for in 24 hours, as join counts)',
-         (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day')
-         || ' of ' || coalesce((select (to_jsonb(o) ->> 'join_daily_max') from public.ops_settings o limit 1), '200 (no setting)'),
-         (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day')
-           >= coalesce((select (to_jsonb(o) ->> 'join_daily_max')::int from public.ops_settings o limit 1), 200) - 5,
-         'within 5 of the size',
+  -- BUILDER 11-26: after live step 74 (the flood fix) join counts OPENED addresses against the size and every ask against the ask ceiling;
+  -- before it, as join counts today. confirmed_at is read through to_jsonb so this paste never errors before step 74.
+  select 2, 'sign-up size used today (as join counts: before step 74 every address asked for in 24 hours; after it, opened ones, and asks against the ceiling)',
+         case when exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'join_attempts' and column_name = 'confirmed_at')
+              then (select count(distinct j.email_hash) from public.join_attempts j where j.at > now() - interval '1 day' and (to_jsonb(j) ->> 'confirmed_at') is not null) || ' opened of ' || coalesce((select (to_jsonb(o) ->> 'join_daily_max')::int from public.ops_settings o limit 1), 200) || '; ' || (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day') || ' asked of ' || coalesce((select (to_jsonb(o) ->> 'join_asks_max')::int from public.ops_settings o limit 1), 2 * coalesce((select (to_jsonb(o) ->> 'join_daily_max')::int from public.ops_settings o limit 1), 200)) || ' (the ask ceiling, step 74)'
+              else (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day')
+                   || ' of ' || coalesce((select (to_jsonb(o) ->> 'join_daily_max') from public.ops_settings o limit 1), '200 (no setting)') end,
+         case when exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'join_attempts' and column_name = 'confirmed_at')
+              then (select count(distinct j.email_hash) from public.join_attempts j where j.at > now() - interval '1 day' and (to_jsonb(j) ->> 'confirmed_at') is not null) >= coalesce((select (to_jsonb(o) ->> 'join_daily_max')::int from public.ops_settings o limit 1), 200) - 5 or (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day') >= coalesce((select (to_jsonb(o) ->> 'join_asks_max')::int from public.ops_settings o limit 1), 2 * coalesce((select (to_jsonb(o) ->> 'join_daily_max')::int from public.ops_settings o limit 1), 200)) - 5
+              else (select count(distinct email_hash) from public.join_attempts where at > now() - interval '1 day') >= coalesce((select (to_jsonb(o) ->> 'join_daily_max')::int from public.ops_settings o limit 1), 200) - 5 end,
+         'within 5 of the size (after step 74: opened within 5 of the size, or asks within 5 of the ceiling)',
          'Expected on a busy day; new strangers then read ''Sign-up is full for now''. Under Resend Free the size stays 35 (row 1). First read row 3: if it says LOOK, someone is filling the day with made-up addresses.'
   union all
   select 3, 'sign-up asks made 20 to 60 min ago vs accounts opened in the last hour (a flood of made-up addresses)',
