@@ -29,13 +29,13 @@ test('FACTS: the price table, the view prices and the request cost are what the 
 });
 
 test('THE TYPED NUMBERS (people who are not signed in cannot read the price table) match it: 6 to 10, and 8 welcome credits cover the smaller types only', () => {
-  assert.ok(FREE.CLOSED.includes('A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.'));
-  assert.ok(FREE.CLOSED.startsWith('When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. '));
-  assert.ok(FREE.OPEN.startsWith('When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. ') && FREE.OPEN.endsWith('Credits pay for full films.'));
+  assert.ok(FREE.CLOSED.includes('A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film.'));
+  assert.ok(FREE.CLOSED.startsWith('When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. '));
+  assert.ok(FREE.OPEN.startsWith('When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. ') && FREE.OPEN.endsWith('Credits pay for full films.'));
   const lo = 6, mid = 8, hi = 10;
   assert.ok(mid >= lo && mid < hi, '8 covers some film types and not all');
-  assert.ok(lib.includes("const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.';"));
-  assert.ok(lib.includes("const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';"));
+  assert.ok(lib.includes("const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film.';"));
+  assert.ok(lib.includes("const WELCOME_LINE = 'When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';"));
   assert.ok(!/never a full film|have 0 credits|0 credits, so/i.test(FREE.CLOSED + FREE.OPEN + lib), 'no "you have none" sentence is typed anywhere');
   assert.ok(!/A full film needs credits/.test(FREE.CLOSED + read('app/index.html') + read('help/index.html') + read('ryagram/index.html') + lib), 'the old "needs credits" closed sentence is gone');
 });
@@ -117,7 +117,7 @@ test('HELP: the one swappable Q&A entry says 8 welcome credits and what they cov
   const entry = lib.slice(at, lib.indexOf('\n', at));
   assert.ok(entry.includes("WELCOME_LINE + ' A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? ' Credits pay for full films.' : ' ' + FILM_COST_CLOSED + ' Buying credits is not open yet.')"));
   for (const f of ['app/index.html', 'ryagram/index.html', 'help/index.html']) assert.ok(read(f).includes(`>${FREE.CLOSED}</p>`), `${f} carries the CLOSED line word for word`);
-  assert.equal((lib.match(/you get 8 welcome credits/g) || []).length, 1, 'one definition in the library');
+  assert.equal((lib.match(/you get 16 welcome credits/g) || []).length, 1, 'one definition in the library');
 });
 
 test('THE HINT names no price (a dataset may not offer it) and says where to change it: balances 0, 2, 5, 6, 7, 8, 9, 10, buying closed and open', () => {
@@ -168,7 +168,7 @@ test('THE INVITE CLAUSE (GAMES 16:12, FACES 16:09): every copy of the welcome li
   const clause = 'If you sign up with an invite code, you get the credits that code gives instead.';
   for (const f of ['app/index.html', 'ryagram/index.html', 'help/index.html']) assert.ok(read(f).includes(clause), f);
   assert.ok(FREE.CLOSED.includes(clause) && FREE.OPEN.includes(clause));
-  assert.ok(lib.includes(`const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address. ${clause}';`));
+  assert.ok(lib.includes(`const WELCOME_LINE = 'When you confirm your email you get 16 welcome credits, once for each email address. ${clause}';`));
   const credits = lib.slice(lib.indexOf('async function creditsView'), lib.indexOf('async function creditsView') + 6000);
   assert.ok(!credits.includes('invite code'), 'the Credits page does not say it (phone height; it cannot know where a balance came from)');
   assert.ok(!credits.includes('These include your welcome credits'), 'FACES (b) not added: false for an invited account or a later buyer');

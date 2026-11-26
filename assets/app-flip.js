@@ -12,7 +12,7 @@
     return m && ids.includes(m[1]) ? m[1] : null;
   }
 
-  function create({ h, sections, initial = null, onChange = () => {}, label = 'Sections', address = true }) {
+  function create({ h, sections, initial = null, onChange = () => {}, label = 'Sections', address = true, plain = false }) {
     const list = sections.filter(s => s && s.el && !s.hidden);
     const ids = list.map(s => s.id);
     let at = Math.max(0, ids.indexOf((address ? sectionFromAddress(ids) : null) || initial || ids[0]));
@@ -26,7 +26,7 @@
     const track = h('div', { class: 'flip-track' }, panels);
     const dots = list.map((s, i) => h('span', { class: 'flip-dot', 'aria-hidden': 'true' }));
     const viewport = h('div', { class: 'flip-viewport' }, track);
-    const root = h('section', { class: 'flip', 'data-flip': '', 'aria-label': label },
+    const root = h('section', { class: plain ? 'flip flip-plain' : 'flip', 'data-flip': '', 'aria-label': label },
       h('div', { class: 'flip-bar' }, prev, h('div', { class: 'flip-tabs', role: 'tablist', 'aria-label': label }, tabEls), next),
       viewport, h('div', { class: 'flip-dots' }, dots), where);
 

@@ -13,5 +13,5 @@ test('Get help opens with a form-intro line, then the form', () => {
 
 test('the static help page, the app and the tutorial all wear the look sheet', () => {
   for (const f of ['help/index.html', 'app/index.html']) assert.match(read(f), /<body class="[a-z -]*ryagram-look/, f);
-  assert.match(read('help/index.html'), /ryagram-look\.css\?v=20261117c/);
+  assert.match(read('help/index.html'), /ryagram-look\.css\?v=20261126w1/);
 });

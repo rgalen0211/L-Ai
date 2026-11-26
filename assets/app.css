@@ -252,3 +252,20 @@ body.is-waiting .dept-slot,body.is-waiting .app-account .app-nav-link:not([href=
 /* the in-page confirm for spending clicks (WEB 11-18): a plain box under the button's row, two big buttons, no pop-up that a pane can auto-answer */
 .inpage-confirm{margin:12px 0;padding:14px 16px;border:2px solid var(--ring,#ff8a3d);border-radius:12px;background:var(--paper,#1b1b23)}.inpage-confirm p{margin:0 0 10px;font-weight:600}.inpage-confirm .actions-row{margin:0}.inpage-confirm .button{min-height:44px}
 .age-choice input[type=checkbox]{width:24px;height:24px;min-height:24px;margin:0}.age-choice{align-items:center;min-height:44px;margin:12px 0 8px}.age-choice span{padding:8px 0}
+/* One shared gap for every button in the app (WEB 11-26, Ryan's fix): at least 12 px between neighbouring buttons, stacked or side by side, wrapped or not. Margin, not per-page gaps, so a new page gets it too. */
+.app-main .button{margin-right:12px}
+.app-main p:has(>.button:only-child)+p:has(>.button:only-child){margin-top:12px}
+.app-main .contact-form .button,.app-main .inline-confirm .button{margin-right:0}
+.app-main .actions-row .button,.app-main .start-buttons .button{margin:0}
+.start-outs{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.start-outs .button{margin:0}
+.ops-list{margin-top:14px}
+body.ryagram-app.ryagram-ds.ryagram-look .flip-tabs,body.ryagram-app.ryagram-ds .builder-list,.ryagram-app .start-buttons,.ryagram-app .start-strip,.ryagram-app .dept-bar{gap:12px}
+.ops-list .button{margin:0 12px 12px 0}
+/* Film page tabs on a wide screen (Claude's walk, WEB 11-26): plain tabs in a row, no sideways scroller, arrows or dots; a phone keeps the swipe strip */
+@media(min-width:900px){body.ryagram-app.ryagram-ds.ryagram-look .flip-plain .flip-tabs{overflow:visible;flex-wrap:wrap;justify-content:flex-start}body.ryagram-app.ryagram-ds.ryagram-look .flip-plain .flip-arrow,body.ryagram-app.ryagram-ds.ryagram-look .flip-plain .flip-dots,body.ryagram-app.ryagram-ds.ryagram-look .flip-plain .flip-where{display:none}}
+.file-list video{max-width:480px;max-height:42vh;object-fit:contain}
+#run-periods{padding-left:12px;padding-right:12px;font-size:.92rem;text-overflow:clip}
+/* Phone: the preview seconds boxes keep room for their number (FACES 18:05 MEDIUM); the years box fits its short placeholder beside its button */
+@media(max-width:520px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step.run-step input[type=number]{min-width:56px;padding-left:12px;padding-right:12px}}
+@media(max-width:400px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step.run-step #run-periods{min-width:96px}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step.run-step:first-of-type .inline-row .button{flex-shrink:1;min-width:0;line-height:1.2}}
