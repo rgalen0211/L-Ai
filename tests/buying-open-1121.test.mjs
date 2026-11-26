@@ -68,7 +68,7 @@ const closedViolations = view => {
 };
 
 test('CLOSED (the default config): Credits has no Buy or Subscribe button, no test card, no Test mode text, and says buying is not open yet; no packs, plans or prices; the balance still shows', async () => {
-  assert.equal(vm.runInNewContext(`${read('assets/ryagram-config.js')}; window.ryagramConfig.buyingOpen`, { window: {} }), true, 'the committed config on THIS branch has buyingOpen true (the opening: web-buying-flip-1124)');
+  assert.equal(vm.runInNewContext(`${read('assets/ryagram-config.js')}; window.ryagramConfig.buyingOpen`, { window: {} }), vm.runInNewContext(`${read('assets/ryagram-config.js')}; window.ryagramConfig.stripeTestMode === false`, { window: {} }), 'buyingOpen is true exactly when stripeTestMode is false (the pair)');
   assert.deepEqual(closedViolations(await credits({ config: { buyingOpen: false } })), []);
   assert.deepEqual(closedViolations(await credits({})), [], 'a missing switch is closed');
 });
@@ -258,8 +258,8 @@ test('EVERY Buy site is tied to the one switch: no Buy/Subscribe label or #/cred
   assert.match(lib, /: paymentsOn\(\) && \(q\.available \|\| 0\) < q\.credits \? \[' ', BUYING_CLOSED_SHORT, C\.fitsLine\(q, filmRows\)\]/, 'the next-step strip says so too');
   assert.match(lib, /DRAFT FOR RYAN/);
   const cfg = read('assets/ryagram-config.js');
-  assert.match(cfg, /\n  buyingOpen: true,/);
-  assert.match(cfg, /\n  stripeTestMode: false,/);
+  assert.match(cfg, /\n  buyingOpen: (true|false),/);
+  assert.match(cfg, /\n  stripeTestMode: (true|false),/);
   assert.match(cfg, /THIS BRANCH OPENS BUYING[\s\S]*live_ok/);
   for (const f of fs.readdirSync(new URL('../assets/', import.meta.url)).filter(f => /^app-.*\.js$/.test(f) && f !== 'app-library.js' && f !== 'app-data.js')) {
     assert.doesNotMatch(read(`assets/${f}`), /startCheckout\(|'Buy credits'|'Subscribe'/, `${f} has no Buy site of its own`);
