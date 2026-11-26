@@ -7,10 +7,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const PAID = (() => { const w = {}; vm.runInNewContext(fs.readFileSync(new URL('../assets/ryagram-config.js', import.meta.url), 'utf8'), { window: w }); return w.ryagramConfig.buyingOpen === true; })();      // the opening branch: buying is open and the payment text is on the pages
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const textOf = (html) => html.match(/<main[\s\S]*?<\/main>/)[0].replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 const terms = textOf(read('terms/index.html'));
@@ -23,7 +25,7 @@ const CLAUSES = [
   ['8 credits at email confirmation', terms, 'When you confirm your email we give your account 8 welcome credits, once for each email address.', [/after insert or update of email_confirmed_at on auth\.users/, /tg_op = 'UPDATE' and old\.email_confirmed_at is not null then return new/, /perform public\.grant_credits\(new\.id, 'grant', n,/, /welcome_credits integer not null default 8 check/]],
   ['same address again gets none (key survives deletion)', terms, 'If you delete your account and make a new one with the same address, you do not get them again.', [/email_hash text primary key check \(email_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/, /sha256\(convert_to\('ryagram-welcome:' \|\| mail/, /on conflict \(email_hash\) do nothing/]],
   ['invite-code accounts keep their own credits, no extra 8', terms, 'An account made with an invite code keeps the credits that came with its code and does not get the 8.', [/adult_source', ''\) = 'invite' or exists \(select 1 from public\.invite_redemptions r where r\.email = mail\)/]],
-  ['no cash value, not transferable, buying closed', terms, 'Credits have no cash value and cannot be moved to another person. Buying credits is not open yet.', []],
+  ['no cash value, not transferable' + (PAID ? '' : ', buying closed'), terms, PAID ? 'Credits have no cash value and cannot be moved to another person.' : 'Credits have no cash value and cannot be moved to another person. Buying credits is not open yet.', []],
   ['what a film costs', terms, 'A full film costs about 6 to 10 credits, depending on the film type, so 8 welcome credits cover a line film or a map film.', []],
   ['privacy: scrambled copy kept past deletion', privacy, 'To give welcome credits only once, we keep a scrambled copy of your email address. We keep it even if you delete your account.', [/email_hash text primary key check \(email_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/, /sha256\(convert_to\('ryagram-welcome:' \|\| mail/, /on conflict \(email_hash\) do nothing/]],
   ['privacy: credit record kept with the account ID, no end date, closed by hand (NOT "we then remove it": no code removes ledger rows)', privacy, 'We keep a record of each credit given to your account or used, with the time and your account\'s ID, as a financial record. We keep it after you delete your account, and we have no end date for it. Your account itself is then closed by hand.', []],
@@ -76,7 +78,8 @@ test('PLAIN + NO NEW PROMISES: no sentence over 45 words; no retention number or
   assert.doesNotMatch(privacy.split('Welcome credits.')[1].split('Credit history.')[0], /no end date|for \d/);
 });
 
-test('BANNER: the label stays true (buying closed) and no longer says credits do not exist', () => {
+test('BANNER: the label stays true (buying closed) and no longer says credits do not exist (once buying is open the banner is gone from Terms and Privacy and the AI content page keeps no false word)', () => {
+  if (PAID) { for (const f of ['terms/index.html', 'privacy-policy.html', 'ai-content/index.html']) assert.doesNotMatch(read(f), /Buying credits and payments are not open yet|Preview terms: free preview, no payments/, f); return; }
   for (const f of ['terms/index.html', 'privacy-policy.html', 'ai-content/index.html']) {
     const h = read(f);
     assert.match(h, /Buying credits and payments are not open yet; these terms will be replaced before any payment\./, f);

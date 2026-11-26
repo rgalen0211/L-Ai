@@ -3,10 +3,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const PAID = (() => { const w = {}; vm.runInNewContext(fs.readFileSync(new URL('../assets/ryagram-config.js', import.meta.url), 'utf8'), { window: w }); return w.ryagramConfig.buyingOpen === true; })();      // the opening branch: buying is open, the preview banner is gone
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 const page = read('ai-content/index.html');
 const LABEL = 'Preview terms: free preview, no payments';
@@ -15,7 +17,8 @@ const main = page.match(/<main[\s\S]*?<\/main>/)[0];
 const text = main.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 const BANNER = /<strong>Preview terms[^<]*<\/strong>[^<]*/;
 
-test('LABEL: the banner is the preview Terms banner, word for word, before any section; no draft or placeholder wording is left', () => {
+test('LABEL: the banner is the preview Terms banner, word for word, before any section; no draft or placeholder wording is left (once buying is open the banner is gone)', () => {
+  if (PAID) { assert.doesNotMatch(page, /Preview terms: free preview, no payments|Buying credits and payments are not open yet/); assert.match(text, /Last updated November 26, 2026/); assert.doesNotMatch(page, /DRAFT\. Pending legal review|This page is a placeholder|PLACEHOLDER SHELL|data-legal-shell|\[RYAN|\[ATTORNEY|\bTBD\b/); return; }
   assert.match(page, /<p class="shell-banner" role="note"><strong>Preview terms: free preview, no payments\.<\/strong> Buying credits and payments are not open yet; these terms will be replaced before any payment\.<\/p>/);
   assert.ok(page.indexOf(LABEL) < page.indexOf('<h2>'));
   assert.ok(text.includes(NOT_OPEN));

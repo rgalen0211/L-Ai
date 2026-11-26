@@ -12,12 +12,14 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const terms = read('terms/index.html');
 const privacy = read('privacy-policy.html');
 const LABEL = 'Preview terms: free preview, no payments';
+const PAID = (() => { const w = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: w }); return w.ryagramConfig.buyingOpen === true; })();      // the opening branch: buying is open, the payment text is on the pages
 const NOT_OPEN = 'Buying credits and payments are not open yet; these terms will be replaced before any payment.';
 const mainOf = (html) => html.match(/<main[\s\S]*?<\/main>/)[0];
 const textOf = (html) => mainOf(html).replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 const privPart = privacy.match(/<section id="ryagram-preview">[\s\S]*?<\/section>/)[0];
 
-test('LABEL: both pages carry "Preview terms: free preview, no payments" and the not-open sentence, before any section', () => {
+test('LABEL: both pages carry "Preview terms: free preview, no payments" and the not-open sentence, before any section (only while buying is closed; once open neither page carries them)', () => {
+  if (PAID) { for (const html of [terms, privacy]) { assert.doesNotMatch(textOf(html), /Preview terms: free preview, no payments|Buying credits and payments are not open yet|will be replaced before any payment/i); } return; }
   for (const [name, html] of [['terms', terms], ['privacy', privacy]]) {
     assert.ok(textOf(html).includes(LABEL + '.'), name);
     assert.ok(textOf(html).includes(NOT_OPEN), name);
@@ -29,11 +31,12 @@ test('LABEL: both pages carry "Preview terms: free preview, no payments" and the
 });
 
 test('LAST UPDATED: both pages say Last updated with the date of the commit that wrote them', () => {
-  for (const html of [terms, privacy]) assert.match(textOf(html), /Last updated November 23, 2026/);
+  for (const html of [terms, privacy]) assert.match(textOf(html), PAID ? /Last updated November 26, 2026/ : /Last updated November 23, 2026/);
   assert.doesNotMatch(privacy, /Updated October 2, 2026/);
 });
 
-test('NO PAYMENTS: nothing about prices, refunds, tax, subscriptions or buying is written as if it were live', () => {
+test('NO PAYMENTS: nothing about prices, refunds, tax, subscriptions or buying is written as if it were live (while buying is closed; once open the payment sections must exist)', () => {
+  if (PAID) { assert.match(textOf(terms), /9. Buying credits/); assert.match(textOf(terms), /Stripe/); assert.match(textOf(terms), /refund within 14 days/); assert.match(textOf(terms), /Ohio sales tax applies only to business use in Ohio/); assert.match(textOf(privacy), /Stripe processes your payment/); return; }
   // the Ryagram parts only: the older website sections of the privacy page (inquiries, waitlist, analytics) are not about payments
   for (const html of [mainOf(terms), privPart]) {
     const text = html.replace(/<[^>]+>/g, ' ').split(NOT_OPEN).join(' ').split(LABEL).join(' ');
@@ -76,7 +79,7 @@ test('NOT YET: features that are OFF on Wednesday are named only as "not yet in 
   for (const html of [terms, privPart]) {
     assert.doesNotMatch(rest(html), /upload|spreadsheet|\.csv|Recently deleted|restore|Delete forever|publish|anyone with the link|stop sharing|connect(ed|ing)? (an|your|AI)|\bAI assistant|Report page|DMCA/i);
   }
-  assert.doesNotMatch(privPart, /Stripe|sends the sign-up email/);
+  assert.doesNotMatch(privPart, PAID ? /sends the sign-up email/ : /Stripe|sends the sign-up email/);
 });
 
 test('PLAIN: no sentence on either page runs past 45 words', () => {

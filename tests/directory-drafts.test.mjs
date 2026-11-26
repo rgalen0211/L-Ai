@@ -57,5 +57,5 @@ test('they are linked from nowhere else and do not replace the real pages', () =
   const html = fs.readdirSync(new URL('..', import.meta.url)).filter(f => f.endsWith('.html')).map(f => read(f)).join('\n') + read('help/index.html') + read('privacy-policy.html') + read('terms/index.html');
   assert.ok(!/directory-drafts/.test(html), 'no real page links to them');
   assert.ok(!/directory-drafts/.test(read('assets/app-library.js') + read('assets/app-start.js')), 'no app script links to them');
-  assert.ok(/This page is a placeholder|DRAFT|Preview terms: free preview, no payments/.test(read('terms/index.html')), 'the real Terms page is still the placeholder or the labelled preview terms');
+  assert.ok(/This page is a placeholder|DRAFT|Preview terms: free preview, no payments|9. Buying credits/.test(read('terms/index.html')), 'the real Terms page is still the placeholder, the labelled preview terms, or (buying open) the reviewed payment terms');
 });
