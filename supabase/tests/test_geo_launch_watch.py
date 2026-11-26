@@ -228,6 +228,18 @@ class Watch(unittest.TestCase):
         self.c.execute("update public.ops_settings set welcome_credits = 8")
         self.assert_only(13)
 
+    def test_GEO_13d_the_same_at_16_welcome_credits(self):
+        # Ryan 11-26 17:00: new verified emails get 16; the row reads the grant, never the amount, so it must read the same at 16
+        self.c.execute("update public.ops_settings set welcome_credits = 16")
+        self.users(1, made="now() - interval '2 hours'", confirmed="now() - interval '1 hour'")   # the real trigger grants 16
+        self.assertEqual(self.c.execute("select coalesce(sum(available), 0)::int from public.credit_balances b join auth.users u on u.id = b.owner_id where u.email_confirmed_at is not null").fetchone()[0], 16)
+        self.assert_ok()                                                              # granted: nothing to do
+        self.c.execute("set session_replication_role = replica")                 # a second verified stranger whose grant did not happen
+        self.users(1, made="now() - interval '2 hours'", confirmed="now() - interval '1 hour'")
+        self.c.execute("set session_replication_role = origin")
+        self.assert_only(13)
+        self.assertIn("welcome setting 16", [r for r in self.run_watch()[2] if r[0] == 13][0][2])
+
     def test_GEO_13b_after_the_welcome_undo_the_second_file_runs(self):
         self.c.execute("drop table ryagram_private.welcome_credit_grants cascade")
         with self.assertRaises(psycopg.Error):
