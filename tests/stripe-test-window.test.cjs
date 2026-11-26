@@ -22,9 +22,9 @@ test('TEST WINDOW: payments need credits (the Credits page lives inside credits)
   assert.equal(typeof cfg.payments, 'boolean');
 });
 
-test('TEST WINDOW: on the opening branch stripeTestMode is false in this file (going live is Ryan’s typed step 69; the Wednesday head keeps it true)', () => {
-  assert.equal(cfg.stripeTestMode, false);
-  assert.match(cfgSource, /stripeTestMode: false,/);
+test('TEST WINDOW: stripeTestMode is false (live keys) exactly when buyingOpen is true, in this file (going live is Ryan’s typed step 69, its undo is the pair flipped back)', () => {
+  assert.equal(cfg.stripeTestMode === false, cfg.buyingOpen === true);
+  assert.match(cfgSource, /stripeTestMode: (true|false),/);
 });
 
 test('TEST WINDOW: the checkout function still refuses live keys and the database still refuses live events until live_ok', () => {

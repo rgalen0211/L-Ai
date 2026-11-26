@@ -69,12 +69,12 @@ test('the words follow the Credits page switch (credits + payments + buyingOpen)
   assert.ok(!/not open yet/.test(OPEN) && /Credits pay for full films\.$/.test(OPEN));
 });
 
-test('the shipped config on the opening branch (buyingOpen true) gives the open wording, and every marked element is filled', () => {
+test('the shipped config gives the wording of its own switch (open when buyingOpen is true, closed when false), and every marked element is filled', () => {
   const cfgWin = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: cfgWin });
   const el = { textContent: 'stale' };
   const win = { ryagramConfig: cfgWin.ryagramConfig };
   vm.runInNewContext(read('assets/free-account-line.js'), { window: win, document: { querySelectorAll: () => [el] } });
-  assert.equal(el.textContent, OPEN);
+  assert.equal(el.textContent, cfgWin.ryagramConfig.buyingOpen === true ? OPEN : CLOSED);
   const closed = { textContent: '' };
   vm.runInNewContext(read('assets/free-account-line.js'), { window: { ryagramConfig: { ...cfgWin.ryagramConfig, buyingOpen: false } }, document: { querySelectorAll: () => [closed] } });
   assert.equal(closed.textContent, CLOSED);
