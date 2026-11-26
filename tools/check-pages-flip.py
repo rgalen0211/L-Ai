@@ -88,7 +88,7 @@ with sync_playwright() as pw:
         # dots, arrows
         p.locator('.flip-tab').nth(2).click(); p.wait_for_timeout(500)
         check(p.locator('.flip-dot[aria-current=true]').count() == 1 and p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") == 2, f'{name}: a tab opens its section and its dot lights')
-        # a wide screen shows the film page's tabs as plain tabs: no arrow buttons, no dots, no sideways scroller (Claude's walk 11-26); the phone block below still drives the arrows
+        # a wide screen shows the film page's tabs as plain tabs: no arrow buttons, no dots, no sideways scroller (Claude's walk 11-26); the phone block below drives the arrows
         check(not p.locator('[data-flip-prev]').is_visible() and not p.locator('[data-flip-next]').is_visible() and not p.locator('.flip-dots').is_visible(), f'{name}: desktop shows plain tabs (no arrows, no dots)')
         check(p.evaluate("(() => { const t = document.querySelector('.flip-tabs'); return t.scrollWidth <= t.clientWidth + 1 })()"), f'{name}: desktop tabs all fit without a sideways scroller')
         # swipe: horizontal moves, vertical does not
@@ -118,6 +118,14 @@ with sync_playwright() as pw:
             check(h_ <= vh * MAX_RATIO_PHONE, f'{name} phone: section {i + 1}: the whole page is {h_ / vh:.2f} x the screen (at most {MAX_RATIO_PHONE})')
         small = p.evaluate("[...document.querySelectorAll('.flip-tab, .flip-arrow')].filter(e => { const r = e.getBoundingClientRect(); return r.width && (r.height < 44 || r.width < 44) }).length")
         check(small == 0, f'{name} phone: tabs and arrows are at least 44 px')
+        # the arrow buttons a phone still shows (moved here from the desktop block, GAMES 18:11): a tab opens its section and its dot lights, the left arrow goes back, the right arrow goes on
+        idx = "e => [...e.parentElement.children].indexOf(e)"
+        p.locator('.flip-tab').nth(2).click(); p.wait_for_timeout(500)
+        check(p.locator('.flip-dot[aria-current=true]').count() == 1 and p.locator('.flip-tab[aria-selected=true]').evaluate(idx) == 2, f'{name} phone: a tab opens its section and its dot lights')
+        p.locator('[data-flip-prev]').click(); p.wait_for_timeout(500)
+        check(p.locator('.flip-tab[aria-selected=true]').evaluate(idx) == 1, f'{name} phone: the left arrow button goes back')
+        p.locator('[data-flip-next]').click(); p.wait_for_timeout(500)
+        check(p.locator('.flip-tab[aria-selected=true]').evaluate(idx) == 2, f'{name} phone: the right arrow button goes on')
         p.screenshot(path=str(OUT / f'flip-{name.lower()}-phone.png'))
         check(not errs, f'{name} phone: no page errors')
         ctx.close()
