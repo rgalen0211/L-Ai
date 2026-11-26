@@ -1056,7 +1056,71 @@
         });
       };
       const current = C.planLine(plan);
-      const planNote = `Unused plan credits carry over, up to two months’ worth.${current || plan ? ' Cancel any time from Manage plan.' : ''}`;      // no Manage plan button without a plan: no sentence that points at it
+      // BEFORE STRIPE (CC1 plan 11-24, Ohio sales tax): the first Buy or Subscribe opens this short question; nothing is asked while buying is closed, and the page is no taller until a button is pressed.
+      const US_STATES = 'AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
+      // Ohio's 88 counties, the NAME as the Department of Taxation's quarter table writes it (CC1 21:47: the rate follows the CUSTOMER's county, never the ZIP alone). A test pins the count and the spelling.
+      const OH_COUNTIES = 'Adams Allen Ashland Ashtabula Athens Auglaize Belmont Brown Butler Carroll Champaign Clark Clermont Clinton Columbiana Coshocton Crawford Cuyahoga Darke Defiance Delaware Erie Fairfield Fayette Franklin Fulton Gallia Geauga Greene Guernsey Hamilton Hancock Hardin Harrison Henry Highland Hocking Holmes Huron Jackson Jefferson Knox Lake Lawrence Licking Logan Lorain Lucas Madison Mahoning Marion Medina Meigs Mercer Miami Monroe Montgomery Morgan Morrow Muskingum Noble Ottawa Paulding Perry Pickaway Pike Portage Preble Putnam Richland Ross Sandusky Scioto Seneca Shelby Stark Summit Trumbull Tuscarawas Union Van_Wert Vinton Warren Washington Wayne Williams Wood Wyandot'.split(' ').map(c => c.replace('_', ' '));
+      const askError = h('p', { class: 'form-note app-error', role: 'alert', hidden: true });
+      // The answer is kept on the account with its date (CONNECT's my_tax_profile / set_my_tax_profile): read once when the page opens, only while buying is open (closed = no request at all).
+      const profileNow = buyingOn() && data.myTaxProfile ? await Promise.resolve().then(() => data.myTaxProfile()).catch(() => null) : null;
+      let pending = null, useValue = profileNow ? profileNow.use : null;
+      let saved = profileNow ? { use: profileNow.use, country: profileNow.country, ...(profileNow.state ? { state: profileNow.state } : {}), ...(profileNow.zip ? { zip: profileNow.zip } : {}), ...(profileNow.county ? { county: profileNow.county } : {}) } : null;
+      const useRadio = (value, label) => { const id = 'use-' + value; return h('label', { class: 'choice', for: id }, h('input', { type: 'radio', name: 'use', value, id, checked: !!profileNow && profileNow.use === value, onchange: () => { useValue = value; showRows(); } }), ' ' + label); };
+      const countrySelect = h('select', { id: 'use-country', name: 'country', 'aria-label': 'Where you use Ryagram' }, h('option', { value: '' }, 'Choose…'), h('option', { value: 'US' }, 'United States'), h('option', { value: 'OTHER' }, 'Another country'));
+      const otherInput = h('input', { id: 'use-other', name: 'other', maxlength: '2', autocomplete: 'off', 'aria-label': 'Country code, two letters', placeholder: 'CA' });
+      const stateInput = h('input', { id: 'use-state', name: 'state', maxlength: '2', autocomplete: 'off', 'aria-label': 'State, two letters', placeholder: 'OH' });
+      const zipInput = h('input', { id: 'use-zip', name: 'zip', maxlength: '5', inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'ZIP code', placeholder: '43215' });
+      const countySelect = h('select', { id: 'use-county', name: 'county', 'aria-label': 'Your Ohio county' }, h('option', { value: '' }, 'Choose…'), OH_COUNTIES.map(c => h('option', { value: c }, c)));
+      const otherRow = h('p', { hidden: true }, h('label', { for: 'use-other' }, 'Country code (two letters) '), otherInput);
+      const stateRow = h('p', { hidden: true }, h('label', { for: 'use-state' }, 'State (two letters) '), stateInput);
+      const zipRow = h('p', { hidden: true }, h('label', { for: 'use-zip' }, 'ZIP code (optional: it helps pick your county) '), zipInput);
+      const countyRow = h('p', { hidden: true }, h('label', { for: 'use-county' }, 'Your Ohio county '), countySelect);
+      const showRows = () => { otherRow.hidden = countrySelect.value !== 'OTHER'; stateRow.hidden = countrySelect.value !== 'US'; zipRow.hidden = stateRow.hidden || stateInput.value.trim().toUpperCase() !== 'OH' || useValue !== 'business'; countyRow.hidden = zipRow.hidden; };
+      // The county is what sets the rate (CONNECT 1c71d72b: required for Ohio + business). The ZIP only PRE-FILLS it, through ohio_counties_for_zip: one county = preselected, two or more = the list narrows to them, none = the full list.
+      const setCountyChoices = (names, preselect) => { const keep = countySelect.value; countySelect.textContent = ''; countySelect.append(h('option', { value: '' }, 'Choose…'), ...names.map(c => h('option', { value: c }, c))); countySelect.value = preselect || (names.includes(keep) ? keep : ''); };
+      let zipSeq = 0;
+      zipInput.addEventListener('input', async () => {
+        const z = zipInput.value.trim(), mine = ++zipSeq;
+        if (!/^[0-9]{5}$/.test(z) || !data.ohioCountiesForZip) { setCountyChoices(OH_COUNTIES); return; }
+        let list = [];
+        try { list = await data.ohioCountiesForZip(z); } catch { /* no pre-fill: the full list stays */ }
+        if (mine !== zipSeq) return;
+        list = (list || []).filter(c => OH_COUNTIES.includes(c));
+        if (list.length === 1) setCountyChoices(OH_COUNTIES, list[0]); else if (list.length > 1) setCountyChoices(list); else setCountyChoices(OH_COUNTIES);
+      });
+      countrySelect.addEventListener('change', showRows); stateInput.addEventListener('input', showRows);
+      if (profileNow) {      // a person who changes their answers sees what is on file
+        countrySelect.value = profileNow.country === 'US' ? 'US' : 'OTHER'; otherInput.value = profileNow.country === 'US' ? '' : profileNow.country;
+        stateInput.value = profileNow.state || ''; zipInput.value = profileNow.zip || ''; countySelect.value = profileNow.county || ''; showRows();
+      }
+      const readAnswers = () => {
+        const use = useValue;
+        const where = countrySelect.value, other = otherInput.value.trim().toUpperCase(), state = stateInput.value.trim().toUpperCase(), zip = zipInput.value.trim();
+        if (!use) return { error: 'Choose business or personal use.' };
+        if (!where) return { error: 'Choose where you use Ryagram.' };
+        if (where === 'OTHER' && !(/^[A-Z]{2}$/.test(other) && other !== 'US')) return { error: 'Give your country as two letters, for example CA.' };
+        if (where === 'US' && !US_STATES.includes(state)) return { error: 'Give your state as two letters, for example OH.' };
+        if (where === 'US' && state === 'OH' && use === 'business' && zip && !/^[0-9]{5}$/.test(zip)) return { error: 'Give a five-digit ZIP code, or leave it empty.' };
+        const county = countySelect.value;
+        if (where === 'US' && state === 'OH' && use === 'business' && !OH_COUNTIES.includes(county)) return { error: 'Choose your Ohio county.' };
+        return { answers: { use, country: where === 'US' ? 'US' : other, ...(where === 'US' ? { state } : {}), ...(where === 'US' && state === 'OH' && use === 'business' && zip ? { zip } : {}), ...(where === 'US' && state === 'OH' && use === 'business' ? { county } : {}) } };
+      };
+      const continueButton = h('button', { class: 'button primary', type: 'button', onclick: event => {
+        const r = readAnswers();
+        if (r.error) { askError.textContent = r.error; askError.hidden = false; return; }
+        askError.hidden = true;
+        go(event.currentTarget, 'Opening Stripe…', async () => { await data.setMyTaxProfile(r.answers); saved = r.answers; if (!pending) { askBox.hidden = true; return '#/credits'; } return data.startCheckout(pending); });
+      } }, 'Continue to Stripe');
+      const askTitle = h('h2', { id: 'use-ask-title', tabindex: '-1' }, 'Before you pay');
+      const askBox = h('section', { class: 'use-ask', hidden: true, 'aria-labelledby': 'use-ask-title' },
+        askTitle,
+        h('p', { class: 'form-intro' }, 'We need two answers to work out sales tax. Ohio sales tax applies only to business use in Ohio: a monthly plan shows any tax at checkout, and credit packs have none at checkout. We keep your answers with the date. You can change them any time; a change applies to your next purchase, not to a plan that is already running.'),
+        h('fieldset', {}, h('legend', {}, 'Do you use Ryagram for business or personal use?'), useRadio('business', 'Business'), useRadio('personal', 'Personal')),
+        h('p', {}, h('label', { for: 'use-country' }, 'Where do you use it? '), countrySelect), otherRow, stateRow, zipRow, countyRow,
+        askError,
+        h('p', {}, continueButton, ' ', h('button', { class: 'button secondary', type: 'button', onclick: () => { askBox.hidden = true; pending = null; } }, 'Cancel')));
+      const askFirst = code => { pending = code; continueButton.textContent = code ? 'Continue to Stripe' : 'Save answers'; askError.hidden = true; askBox.hidden = false; if (askTitle.focus) askTitle.focus(); };
+      const planNote = `A plan balance holds up to two months of credits; the rest expires at renewal.${current || plan ? ' Cancel any time from Manage plan.' : ''}`;      // no Manage plan button without a plan: no sentence that points at it
       const open = buyingOn();
       const offerItem = p => {
         const blocked = p.monthly && C.hasPlan(plan);
@@ -1064,13 +1128,13 @@
           h('strong', {}, C.offerName(p.code)), h('span', { class: 'meta' }, C.offerLine(p)),
           !open ? null : h('button', { class: 'button secondary small', type: 'button', disabled: blocked,
                         title: blocked ? 'You already have a plan. Use Manage plan to change it.' : null,
-                        onclick: event => go(event.currentTarget, 'Opening Stripe…', () => data.startCheckout(p.code)) },
+                        onclick: event => { if (!saved) { askFirst(p.code); return; } go(event.currentTarget, 'Opening Stripe…', async () => { try { return await data.startCheckout(p.code); } catch (err) { if (err && err.code === 'tax_profile_missing') { saved = null; askFirst(p.code); throw new Error('Please answer the two questions first.'); } throw err; } }); } },
             p.monthly ? 'Subscribe' : 'Buy'));
       };
       const packs = offers.filter(p => !p.monthly), plans = offers.filter(p => p.monthly);
       const testMode = !open ? null : window.ryagramMock
         ? 'Mock mode: nothing goes to Stripe, and buying adds the credits at once.'
-        : window.ryagramConfig?.stripeTestMode !== false
+        : window.ryagramConfig?.stripeTestMode === true
           ? 'Test mode: no real money moves. Use the card 4242 4242 4242 4242 with any future date and any CVC.' : null;
       return [
         h('a', { href: '#/', class: 'back' }, '← All projects'),
@@ -1095,7 +1159,8 @@
                         h('p', { class: 'form-note' }, planNote)] : null],
         offers.length || !open ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
-        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.') : null
+        open ? askBox : null,
+        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe; Ryagram never sees your card. Ohio sales tax is added where it applies.', saved ? [' ', h('button', { class: 'link-button', type: 'button', id: 'tax-change', onclick: () => { askFirst(null); } }, 'Change tax answers')] : null) : null
       ];
     }
 

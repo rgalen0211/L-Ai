@@ -127,6 +127,17 @@ test('shop: current prices that Stripe sells; checkout URLs only go to Stripe', 
   const offers = await data.shopOffers();
   assert.deepEqual(offers.map(o => o.code), ['pack_starter', 'sub_creator', 'pack_maker', 'sub_pro']);
   assert.equal(offers[0].credits, 10);
+  // the checkout needs the stored use-and-place answer first (CONNECT 11-24): without it the mock answers tax_profile_missing, and set_my_tax_profile stores it with its date
+  assert.equal(await data.myTaxProfile(), null);
+  await assert.rejects(data.startCheckout('pack_starter'), err => err.code === 'tax_profile_missing');
+  await assert.rejects(data.setMyTaxProfile({ use: 'maybe', country: 'US', state: 'TX' }), /Choose business or personal use\./);
+  await assert.rejects(data.setMyTaxProfile({ use: 'business', country: 'US', state: 'OH', zip: '12' }), /Choose your Ohio county/);
+  await assert.rejects(data.setMyTaxProfile({ use: 'business', country: 'US', state: 'OH', county: 'Atlantis' }), /could not find that Ohio county/);
+  assert.deepEqual(await data.ohioCountiesForZip('44444'), ['Mahoning', 'Trumbull']);
+  assert.deepEqual(await data.ohioCountiesForZip('45999'), []);
+  const stored = await data.setMyTaxProfile({ use: 'personal', country: 'US', state: 'TX' });
+  assert.equal(stored.use, 'personal'); assert.equal(stored.state, 'TX'); assert.ok(stored.answered_at);
+  assert.equal((await data.myTaxProfile()).country, 'US');
 
   assert.equal(await data.startCheckout('pack_starter'), '#/credits?paid=pack_starter');
   await new Promise(r => setTimeout(r, 5));

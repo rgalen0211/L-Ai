@@ -383,6 +383,30 @@
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
         return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
       },
+      // Mock of CONNECT's tax-profile contract (connect-checkout-use-tax-1124, migration 20261123000900): my_tax_profile() -> the stored answer or null; set_my_tax_profile(p_use, p_country, p_state, p_zip) validates like the SQL and stores it.
+      my_tax_profile() { return { data: db.taxProfile ? { ...db.taxProfile } : null, error: null }; },
+      // CONNECT 1c71d72b: the ZIP is optional and only a pre-fill; Ohio + business needs a county the rate table knows (county_required / county_unknown). The mock's county table is the 88 names; the ZIP lookup uses made-up test ZIPs (43215 one county, 44444 two, anything else none).
+      ohio_counties_for_zip({ p_zip }) { const z = String(p_zip || '').trim(); return { data: z === '43215' ? ['Franklin'] : z === '44444' ? ['Mahoning', 'Trumbull'] : [], error: null }; },
+      set_my_tax_profile({ p_use, p_country, p_state, p_zip, p_county }) {
+        const c = String(p_country || '').trim().toUpperCase(), s = String(p_state || '').trim().toUpperCase();
+        let z = String(p_zip || '').trim(), county = String(p_county || '').trim();
+        if (p_use !== 'business' && p_use !== 'personal') return fail('use_invalid: Choose business or personal use.');
+        if (!/^[A-Z]{2}$/.test(c)) return fail('country_invalid: Choose your country.');
+        if (c === 'US' && !/^[A-Z]{2}$/.test(s)) return fail('state_required: Choose your state.');
+        if (c === 'US' && s === 'OH') {
+          if (z && !/^[0-9]{5}$/.test(z)) z = '';
+          if (p_use === 'business') {
+            if (!county) return fail('county_required: Choose your Ohio county.');
+            const names = 'Adams Allen Ashland Ashtabula Athens Auglaize Belmont Brown Butler Carroll Champaign Clark Clermont Clinton Columbiana Coshocton Crawford Cuyahoga Darke Defiance Delaware Erie Fairfield Fayette Franklin Fulton Gallia Geauga Greene Guernsey Hamilton Hancock Hardin Harrison Henry Highland Hocking Holmes Huron Jackson Jefferson Knox Lake Lawrence Licking Logan Lorain Lucas Madison Mahoning Marion Medina Meigs Mercer Miami Monroe Montgomery Morgan Morrow Muskingum Noble Ottawa Paulding Perry Pickaway Pike Portage Preble Putnam Richland Ross Sandusky Scioto Seneca Shelby Stark Summit Trumbull Tuscarawas Union Van_Wert Vinton Warren Washington Wayne Williams Wood Wyandot'.split(' ').map(x => x.replace('_', ' '));
+            const hit = names.find(x => x.toLowerCase() === county.toLowerCase());
+            if (!hit) return fail('county_unknown: We could not find that Ohio county.');
+            county = hit;
+          } else county = '';
+        } else { z = ''; county = ''; }
+        db.taxProfile = { use: p_use, country: c, state: c === 'US' ? s : null, zip: z || null, county: county || null, answered_at: now() };
+        return { data: { ...db.taxProfile }, error: null };
+      },
+
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
         const id = session && session.user && session.user.id;
@@ -1088,6 +1112,7 @@
               for (const sub of db.stripe_subscriptions) sub.cancel_at_period_end = !sub.cancel_at_period_end;
               return { data: { url: '#/credits' }, error: null };
             }
+            if (!db.taxProfile) return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Tell us whether this is for business or personal use and where you are first.', code: 'tax_profile_missing' }) } } };
             const offer = db.credit_prices.find(p => p.code === body.price_code && p.price_cents != null);
             if (!offer) return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'That isn’t on sale.' }) } } };
             if (offer.monthly) {

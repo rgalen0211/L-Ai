@@ -75,6 +75,8 @@ def main():
             b = pw.chromium.launch(channel='chrome')
             for width, height in ((390, 844), (1280, 800)):
                 ctx = b.new_context(viewport={'width': width, 'height': height}, has_touch=width < 500)
+                # the opening branch ships buyingOpen true; the CLOSED checks serve the config closed (mock mode is open unless ?buyingclosed, as before) (web-buying-flip-1124)
+                ctx.route('**/assets/ryagram-config.js*', lambda r: r.fulfill(body=(ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8').replace('buyingOpen: true,', 'buyingOpen: false,'), content_type='text/javascript'))
                 page = ctx.new_page()
                 errors = []
                 page.on('pageerror', lambda e: errors.append(str(e)))
