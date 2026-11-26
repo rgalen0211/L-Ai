@@ -419,8 +419,8 @@ class Wait(unittest.TestCase):
         for i in range(3):
             self.assertTrue(self.one("service", "select public.join_reserve('same@example.com', %s)", f"ipB{i}")["ok"])
         self.assertEqual(self.one("service", "select public.join_reserve('SAME@example.com', 'ipC')"), {"ok": False, "reason": "throttled"}, "the 4th for one address in a day, any case")
-        self.owner("insert into public.join_attempts (ip_hash, email_hash) select 'x' || g, lpad(g::text, 64, '0') from generate_series(1, 200) g")
-        self.assertEqual(self.one("service", "select public.join_reserve('z@example.com', 'ipD')"), {"ok": False, "reason": "full"}, "200 DIFFERENT addresses in any 24 hours: the day is full (20261121000800: its own reason, counted in people, nobody blamed)")
+        self.owner("insert into public.join_attempts (ip_hash, email_hash, confirmed_at) select 'x' || g, lpad(g::text, 64, '0'), now() from generate_series(1, 200) g")
+        self.assertEqual(self.one("service", "select public.join_reserve('z@example.com', 'ipD')"), {"ok": False, "reason": "full"}, "200 DIFFERENT addresses in any 24 hours, all OPENED (20261126000100): the day is full (20261121000800: its own reason, counted in people, nobody blamed)")
 
     def test_join_one_caller_cannot_use_the_whole_day_for_everyone(self):
         self.switch()

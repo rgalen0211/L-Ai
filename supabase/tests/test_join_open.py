@@ -46,6 +46,10 @@ class JoinOpen(core.Base):
     def join(self, mail, ip="ip1"):
         return self.db.as_("service").one("select public.join_reserve(%s, %s)", mail, ip)
 
+    def opened(self, mail):
+        """the person opens the email (Supabase sets email_confirmed_at): since 20261126000100 the day's size counts OPENED addresses (BUILDER 11-26)"""
+        self.d().execute("insert into auth.users (id, email, email_confirmed_at) values (gen_random_uuid(), %s, now())", (mail,))
+
     def signs_up(self, uid, mail, meta=None):
         """what Supabase Auth does after the invite: a new auth.users row (the trigger records its status), carrying the invite's data as user metadata"""
         self.d().execute("insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values (%s, %s, now(), %s::jsonb)", (uid, mail, None if meta is None else json.dumps(meta)))
@@ -85,8 +89,8 @@ class JoinOpen(core.Base):
         for i in range(3):
             self.assertTrue(self.join("same@example.com", f"ipB{i}")["ok"])
         self.assertEqual(self.join("SAME@example.com", "ipC"), {"ok": False, "reason": "throttled"}, "the 4th for one address in a day")
-        self.d().execute("insert into public.join_attempts (ip_hash, email_hash) select 'bulk' || g, encode(sha256(convert_to('bulk' || g, 'UTF8')), 'hex') from generate_series(1, 200) g")
-        self.assertEqual(self.join("z@example.com", "ipD"), {"ok": False, "reason": "full"}, "200 different addresses in any 24 hours: the day is FULL (its own answer, nobody blamed)")
+        self.d().execute("insert into public.join_attempts (ip_hash, email_hash, confirmed_at) select 'bulk' || g, encode(sha256(convert_to('bulk' || g, 'UTF8')), 'hex'), now() from generate_series(1, 200) g")
+        self.assertEqual(self.join("z@example.com", "ipD"), {"ok": False, "reason": "full"}, "200 different addresses in any 24 hours, all OPENED (20261126000100): the day is FULL (its own answer, nobody blamed)")
 
     def test_who_can_run_it_and_who_can_touch_the_flag(self):
         for who in ("anon", STRANGER):
@@ -155,7 +159,8 @@ class JoinOpen(core.Base):
         self.d().execute("update public.ops_settings set join_daily_max = 3")
         for i in range(3):
             self.assertEqual(self.join(f"s{i}@example.com", f"ip{i}"), {"ok": True})
-        self.assertEqual(self.join("s9@example.com", "ip9"), {"ok": False, "reason": "full"}, "the 4th in the day with a size of 3")
+            self.opened(f"s{i}@example.com")
+        self.assertEqual(self.join("s9@example.com", "ip9"), {"ok": False, "reason": "full"}, "the 4th in the day with a size of 3 (three opened)")
         self.assertEqual(self.join("s0@example.com", "ip0"), {"ok": True}, "s0 already holds a place: let through (see the held-place test), never told they tried too often")
         self.d().execute("update public.ops_settings set join_daily_max = 4")
         self.assertEqual(self.join("s9@example.com", "ip9"), {"ok": True}, "raising the number lets the next one in at once")
@@ -181,7 +186,9 @@ class JoinOpen(core.Base):
         self.d().execute("update public.ops_settings set join_daily_max = 2")
         self.assertEqual(self.join("a@example.com", "ip1"), {"ok": True})
         self.assertEqual(self.join("b@example.com", "ip2"), {"ok": True})
-        self.assertEqual(self.join("c@example.com", "ip3"), {"ok": False, "reason": "full"}, "a third person: full")
+        self.opened("a@example.com")
+        self.opened("b@example.com")
+        self.assertEqual(self.join("c@example.com", "ip3"), {"ok": False, "reason": "full"}, "a third person: full (two opened)")
         self.assertEqual(self.join("b@example.com", "ip4"), {"ok": True}, "b already holds a place: let in again (their mail did not come)")
         self.assertEqual(self.join("b@example.com", "ip5"), {"ok": True})
         self.assertEqual(self.join("b@example.com", "ip6"), {"ok": False, "reason": "throttled"}, "the per-address limit of 3 a day still bites, with its own words")
@@ -199,7 +206,9 @@ class JoinOpen(core.Base):
         self.assertEqual(self.join("same@example.com", "ipS9"), {"ok": False, "reason": "throttled"}, "the per-address limit of 3 a day still bites (its own words)")
         self.assertEqual(self.join("b@example.com", "ipB"), {"ok": True}, "three tries from ONE person took one place of 3")
         self.assertEqual(self.join("c@example.com", "ipC"), {"ok": True})
-        self.assertEqual(self.join("d@example.com", "ipD"), {"ok": False, "reason": "full"}, "the 4th person")
+        for m in ("same@example.com", "b@example.com", "c@example.com"):
+            self.opened(m)
+        self.assertEqual(self.join("d@example.com", "ipD"), {"ok": False, "reason": "full"}, "the 4th person (three opened)")
 
     def test_the_check_step_answers_true_on_every_row_with_the_flag_off_and_on(self):
         text = CHK.read_text(encoding="utf-8")

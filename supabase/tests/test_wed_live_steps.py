@@ -64,7 +64,9 @@ class WedLiveSteps(core.Base):
         self.assertEqual(self.join("a@example.com", "ipA"), {"ok": True})
         self.assertEqual(self.join("a@example.com", "ipA2"), {"ok": True}, "the same person pressing Send again takes no second place (people, not tries)")
         self.assertEqual(self.join("b@example.com", "ipB"), {"ok": True})
-        self.assertEqual(self.join("c@example.com", "ipC"), {"ok": False, "reason": "full"}, "the 3rd try with a size of 2")
+        for m in ("a@example.com", "b@example.com"):                          # they open their email: since 20261126000100 the size counts OPENED addresses (BUILDER 11-26)
+            self.d().execute("insert into auth.users (id, email, email_confirmed_at) values (gen_random_uuid(), %s, now())", (m,))
+        self.assertEqual(self.join("c@example.com", "ipC"), {"ok": False, "reason": "full"}, "the 3rd person with a size of 2 (two opened)")
         self.assertEqual(self.join("b@example.com", "ipB2"), {"ok": True}, "a person who already holds a place is let through on a full day (their email went missing)")
         self.d().execute(p2)                                                     # the undo
         self.assertEqual(self.d().execute(p3).fetchall(), [(200,)])
