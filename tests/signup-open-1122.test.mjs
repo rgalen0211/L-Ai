@@ -58,7 +58,7 @@ test('/ryagram/: hero and header buttons go to Create an account; release line, 
   assert.match(h, /<a class="rg-btn rg-btn-small" href="\/app\/#\/create-account">Create an account<\/a>/);
   assert.match(h, /<div class="rg-hero-cta"><a class="rg-btn" href="\/app\/#\/create-account">Create an account<\/a> <a class="rg-hero-signin" href="\/app\/">Sign in<\/a><\/div>/);
   assert.match(h, /<p class="rg-release">Anyone 18 or older can <a href="\/app\/#\/create-account">create a free account<\/a>\. Already have one\? <a href="\/app\/">Sign in<\/a>\.<\/p>/);
-  assert.match(h, /Not a creator\? <a href="\/app\/#\/create-account">Create an account<\/a> instead\./);
+  assert.match(h, /You do not need to apply to make a free account: <a href=\"\/app\/#\/create-account\">create an account<\/a> any time./);
   assert.match(h, /<p class="rg-sub">Ryagram is open to anyone 18 or older: create a free account and try it\. Not ready yet\? Leave your email and we will keep you posted about Ryagram\.<\/p>/);
   assert.match(h, /<button class="rg-btn" type="submit">Keep me posted<\/button>/);
   assert.match(h, /Skip to the sign-up/);

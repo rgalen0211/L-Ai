@@ -462,7 +462,7 @@ test('LANDING: the sections run hero, films, how it works, creator beta, waitlis
   const order = ['hero', 'films', 'how', 'creators', 'waitlist', 'compilation'].map(at);
   assert.ok(order.every(i => i > -1), JSON.stringify(order));
   assert.deepEqual([...order].sort((x, y) => x - y), order);
-  assert.match(pageHtml.match(/<section id="creators"[\s\S]*?<\/section>/)[0], /Not a creator\? <a href="\/app\/#\/create-account">Create an account<\/a> instead\./);
+  assert.match(pageHtml.match(/<section id="creators"[\s\S]*?<\/section>/)[0], /You do not need to apply to make a free account: <a href=\"\/app\/#\/create-account\">create an account<\/a> any time./);
 });
 
 test('LANDING: no claim the product cannot back yet: nothing about an editor, speed, self-serve sign-up, free trials or prices outside the one creator-beta terms paragraph', () => {
