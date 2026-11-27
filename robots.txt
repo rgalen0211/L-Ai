@@ -13,3 +13,6 @@ Disallow: /landing-drafts/
 Disallow: /README.md
 Disallow: /package.json
 Disallow: /package-lock.json
+
+# The only full address in this file (a sitemap must be one): DOMAIN-MOVE-PLAN-1127.md, step 7.
+Sitemap: https://uselai.com/sitemap.xml

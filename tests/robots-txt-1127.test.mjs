@@ -11,11 +11,14 @@ const disallow = rules.filter((l) => /^disallow:/i.test(l)).map((l) => l.replace
 // RFC 9309 prefix match, the only kind this file uses (no * or $).
 const blocked = (path) => disallow.some((d) => d !== '' && path.startsWith(d));
 
-test('one group for every crawler, Disallow lines only, no wildcards, no Sitemap pointing at a host', () => {
+test('one group for every crawler, Disallow lines only, no wildcards; the ONE full address is the Sitemap line', () => {
   assert.deepEqual(rules.filter((l) => /^user-agent:/i.test(l)), ['User-agent: *']);
-  for (const l of rules) assert.match(l, /^(user-agent|disallow):/i, l);
+  for (const l of rules) assert.match(l, /^(user-agent|disallow|sitemap):/i, l);
   for (const d of disallow) assert.doesNotMatch(d, /[*$]/, d);
-  assert.doesNotMatch(text, /uselai\.com|https?:/i, 'no host in the file, so a domain move needs no edit');
+  // A sitemap line must be a full address (RFC 9309 section 2.2.4); it is the only one, and the domain plan's step 7 lists it.
+  assert.deepEqual(rules.filter((l) => /^sitemap:/i.test(l)), ['Sitemap: https://uselai.com/sitemap.xml']);
+  const rest = rules.filter((l) => !/^sitemap:/i.test(l)).join('\n');
+  assert.doesNotMatch(rest, /uselai\.com|https?:/i, 'no other host in the file');
 });
 
 test('the working folders are kept out of search', () => {
