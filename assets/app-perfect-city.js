@@ -29,6 +29,8 @@
     noPlaces: 'The business points are not loaded yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
     badTyped: 'Type a latitude and a longitude as numbers, for example 39.7589 and -84.1916.',
+    looking: 'Looking up the places near this spot...',
+    capped: 'There are more places near this spot than one answer carries (the nearest 60), so counts that reach past the 60th place say at least.',
     pickSpot: 'Click the map, or type a latitude and longitude, to put a spot on it.',
     outside: 'That spot is outside the county. Put it inside the shaded area.',
     compareAdd: 'Compare with a second spot',
@@ -106,9 +108,10 @@
     const spotOf = (which) => (which === 'B' ? (state.compare ? state.b.spot : null) : state.spot);
     const keyOf = (spot) => (spot ? [state.county, state.kind, spot[0], spot[1]].join('|') : '');
     async function fetchPlaces(which) {
-      const spot = spotOf(which), got = { places: null, note: '', credit: '', loaded: null };
+      const spot = spotOf(which), got = { places: null, note: '', credit: '', loaded: null, capKm: null };
       const mine = ++asked[which];
       if (!spot || !state.census || !pc.unitAt(spot, state.census.units)) return got;      // outside the county: no server call
+      if (state.dayLimit) { got.note = state.dayLimit; return got; }                       // the day's limit was reached: ask nothing more today
       const key = keyOf(spot);
       const stale = () => mine !== asked[which] || key !== keyOf(spotOf(which));
       try {
@@ -118,9 +121,12 @@
         if (!r || !(r.loaded > 0)) { got.note = WORDS.noPlaces; return got; }
         got.places = Array.isArray(r.places) ? r.places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)) : [];
         got.credit = typeof r.credit === 'string' ? r.credit : '';
-      } catch {
+        // at the cap the answer holds only the nearest N: counts are exact only for rings inside the farthest place sent
+        if (got.places.length >= (Number.isFinite(r.max_places) ? r.max_places : 60)) got.capKm = Math.max(...got.places.map((q) => pc.km(spot, [q.lon, q.lat])));
+      } catch (e) {
         if (stale()) return null;
-        got.note = WORDS.placesError;
+        if (/today.s limit/i.test(String(e && e.message))) { state.dayLimit = String(e.message); got.note = state.dayLimit; }
+        else got.note = WORDS.placesError;
       }
       return got;
     }
@@ -128,7 +134,7 @@
     async function loadPlaces() {
       const r = await fetchPlaces('A');
       if (!r) return false;
-      state.places = r.places; state.placesNote = r.note; state.credit = r.credit; state.loaded = r.loaded;
+      state.places = r.places; state.placesNote = r.note; state.credit = r.credit; state.loaded = r.loaded; state.capKm = r.capKm;
       return true;
     }
     async function loadPlacesB() {
@@ -178,6 +184,7 @@
       if (state.spot) drawSpot(state.spot, state.compare ? 'A' : '');
       if (two) drawSpot(state.b.spot, 'B');
       root.addEventListener('click', (e) => {
+        if (state.loading) return;                                   // a county is loading: this map is the old one
         const box = root.getBoundingClientRect();
         const pt = [((e.clientX - box.left) / box.width) * W, ((e.clientY - box.top) / box.height) * H];
         place(P.inv(pt), state.compare ? state.target : 'A');
@@ -219,7 +226,7 @@
         return { spot, u, places, people: u ? pc.peopleWithinArea(spot, c.units) : null,
           counts: u && places ? pc.countsWithin(spot, places) : null, near: u && places ? pc.nearest(spot, places, 1)[0] : null };
       };
-      const cols = [col(state.spot, state.places), col(state.b.spot, state.b.places)];
+      const cols = [{ ...col(state.spot, state.places), capKm: state.capKm }, { ...col(state.b.spot, state.b.places), capKm: state.b.capKm }];
       // every cell says why when there is no figure: not placed yet, outside the county, or the business points not loaded
       const cell = (k, f) => (!k.spot ? 'not placed yet' : !k.u ? 'outside the county' : f(k));
       const placesCell = (k, f) => cell(k, (x) => (x.places ? f(x) : 'business points not loaded'));
@@ -231,7 +238,7 @@
         row('People per square kilometre in the block group', 'calculated', (k) => cell(k, (x) => (x.u.density == null ? 'not available' : fmt(x.u.density)))),
         row('Median household income in the block group', 'estimated, American Community Survey 2019 to 2023', (k) => cell(k, (x) => (x.u.income ? '$' + fmt(x.u.income[0]) + (x.u.income[1] ? ` (plus or minus $${fmt(x.u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'))),
         row(`Nearest ${kind.toLowerCase()}`, 'calculated, straight line', (k) => placesCell(k, (x) => (x.near ? `${km1(x.near.km)} km (${x.near.name || 'no name in the map data'})` : 'none found'))),
-        ...pc.RINGS_KM.map((r, i) => row(`${kind} within ${r} km`, 'calculated', (k) => placesCell(k, (x) => fmt(x.counts[i].count)))),
+        ...pc.RINGS_KM.map((r, i) => row(`${kind} within ${r} km`, 'calculated', (k) => placesCell(k, (x) => countText(x.counts[i], x.capKm)))),
         ...pc.RINGS_KM.map((r, i) => row(`People within ${r} km`, 'estimated', (k) => cell(k, (x) => peopleCell(x.people[i]))))
       ];
       results.replaceChildren(h('h2', {}, 'Two spots side by side'),
@@ -241,6 +248,8 @@
         h('p', { class: 'meta' }, WORDS.compareNote),
         h('p', { class: 'meta' }, 'People within a ring: ' + pc.peopleWithinArea(state.spot, []).at(0).method + ', rounded to the nearest 100.'));
     }
+
+    const countText = (cnt, capKm) => (capKm != null && cnt.km > capKm ? `at least ${fmt(cnt.count)}` : fmt(cnt.count));
 
     function drawCompareBar() {
       if (!state.spot) { compareBar.replaceChildren(); targetWrap.replaceChildren(); return; }
@@ -286,7 +295,8 @@
           h('ol', { class: 'pc-facts', id: 'pc-nearest' }, near.map((p) => h('li', {}, `${p.name || '(no name in the map data)'}: ${km1(p.km)} km`, h('span', { class: 'pc-label' }, ' calculated, straight line')))));
         out.push(h('h3', {}, 'Within 1, 2 and 5 km'),
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, KINDS[state.kind] + ' (calculated)'), h('th', { scope: 'col' }, 'People (estimated)'))),
-            h('tbody', {}, counts.map((cnt, i) => h('tr', {}, h('th', { scope: 'row' }, `${cnt.km} km`), h('td', {}, fmt(cnt.count)), h('td', {}, peopleCell(people[i])))))));
+            h('tbody', {}, counts.map((cnt, i) => h('tr', {}, h('th', { scope: 'row' }, `${cnt.km} km`), h('td', {}, countText(cnt, state.capKm)), h('td', {}, peopleCell(people[i])))))),
+          state.capKm != null ? h('p', { class: 'form-note', id: 'pc-capped' }, WORDS.capped) : null);
       } else {
         out.push(h('h3', {}, 'Within 1, 2 and 5 km'),
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, 'People (estimated)'))),
@@ -309,9 +319,13 @@
 
     // which: 'A' or 'B'. Only the spot that moved is asked about again (each spot is its own server call).
     async function place(pt, which = 'A') {
+      if (state.loading) return;
       latIn.value = pt[1].toFixed(5); lonIn.value = pt[0].toFixed(5);
+      const inside = state.census && pc.unitAt(pt, state.census.units);
+      if (which === 'B' && state.compare) { state.b.spot = pt; state.b.places = null; } else { state.spot = pt; state.places = null; }
+      if (inside && !state.dayLimit) { drawMap(); status.textContent = WORDS.looking; }
       let fresh;
-      if (which === 'B' && state.compare) { state.b.spot = pt; fresh = await loadPlacesB(); } else { state.spot = pt; fresh = await loadPlaces(); }
+      if (which === 'B' && state.compare) fresh = await loadPlacesB(); else fresh = await loadPlaces();
       if (!fresh) return;                                          // a newer spot was put down meanwhile: that one draws
       drawAll();
       status.textContent = statusLine();
@@ -346,23 +360,39 @@
     // Is anything loaded at all? Asked once per county and kind, at the county's middle, so the note shows before any spot (MEDIUM 6).
     async function checkLoaded() {
       if (state.spot) return;
+      if (state.dayLimit) { state.placesNote = state.dayLimit; return; }
       const [x0, y0, x1, y1] = state.census.bbox;
       try {
         const r = await data.perfectCityPlaces(state.county, state.kind, (y0 + y1) / 2, (x0 + x1) / 2);
         state.loaded = r && Number.isFinite(r.loaded) ? r.loaded : null;
         state.placesNote = r && r.loaded > 0 ? '' : WORDS.noPlaces;
-      } catch { state.placesNote = WORDS.placesError; }
+      } catch (e) {
+        if (/today.s limit/i.test(String(e && e.message))) state.dayLimit = String(e.message);
+        state.placesNote = state.dayLimit || WORDS.placesError;
+      }
     }
 
     async function refresh() {
       status.textContent = 'Loading...';
-      try { state.census = await loadCensus(state.county); } catch { status.textContent = 'The map data could not be loaded. Try again later.'; return; }
+      state.loading = true;
+      try { state.census = await loadCensus(state.county); }
+      catch {
+        state.loading = false;
+        const wanted = COUNTIES.find((c) => c.id === state.county);
+        if (state.census) {                                           // keep the county that is on screen, and say so
+          state.county = state.census.county;
+          const sel = document.getElementById('pc-county'); if (sel) sel.value = state.county;
+          status.textContent = `The map data for ${wanted ? wanted.label : 'that county'} could not be loaded. Still showing ${state.census.name}. Try again later.`;
+        } else status.textContent = 'The map data could not be loaded. Try again later.';
+        return;
+      }
+      state.loading = false;
       kindSelect();
       await loadPlaces();
       if (state.compare) await loadPlacesB();
       await checkLoaded();
       drawAll();
-      status.textContent = state.compare ? statusLine() : (state.placesNote || (state.spot ? summaryLine() : '') || state.kindNote || '');
+      status.textContent = [state.kindNote, state.compare ? statusLine() : (state.placesNote || (state.spot ? summaryLine() : ''))].filter(Boolean).join(' ');
       state.kindNote = '';
     }
 
