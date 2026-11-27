@@ -5,7 +5,7 @@
 --   first_sheet     accounts whose FIRST contact sheet was asked for that day (public.jobs, job_type contact_sheet)
 --   first_preview   accounts whose FIRST preview was asked for that day (job_type preview)
 --   film_asked      accounts whose FIRST full film was asked for that day (job_type final_render, whatever happened next)
---   film_approved   accounts whose FIRST full film was let into the line that day: Ryan approved the request (render_stages.admin_decided_at, not declined), or it went straight in (no request: auto_render)
+--   film_approved   accounts whose FIRST full film was let into the line that day: Ryan approved the request (render_stages.admin_decided_at, not declined), or it went straight in with auto_render on (a direct final, or an order whose final stage was queued without a decision: the job's queued_at)
 --   film_delivered  accounts whose FIRST full film was DELIVERED that day: the order's delivery row (render_deliveries, made only when a final video was handed over; a render that
 --                   finished with no film is refunded and gets none, RENDERER 11-27), or for a direct final (no order) the first final_video file of a complete job
 -- Each column after the first counts an ACCOUNT once, on the day it first reached that step. Days are Eastern (EST5EDT, the same day the existing funnel uses). Administrator and worker accounts are left out of every column.
@@ -32,10 +32,12 @@ begin
            (select min(j.created_at) from public.jobs j where j.owner_id = p.id and j.job_type = 'contact_sheet') as sheet,
            (select min(j.created_at) from public.jobs j where j.owner_id = p.id and j.job_type = 'preview') as preview,
            (select min(j.created_at) from public.jobs j where j.owner_id = p.id and j.job_type = 'final_render') as asked,
-           (select min(case when j.stage_id is null then j.created_at else s.admin_decided_at end)
+           (select min(case when j.stage_id is null then j.created_at when s.admin_decided_at is not null then s.admin_decided_at else j.queued_at end)
               from public.jobs j left join public.render_stages s on s.id = j.stage_id
              where j.owner_id = p.id and j.job_type = 'final_render'
-               and (j.stage_id is null or (s.admin_decided_at is not null and s.state <> 'declined'))) as approved,
+               and (j.stage_id is null
+                    or (s.admin_decided_at is not null and s.state <> 'declined')
+                    or (s.admin_decided_at is null and s.state in ('queued', 'running', 'complete')))) as approved,     -- the last: an order with auto_render ON goes straight into the line (RENDERER 08:47)
            least((select min(d.created_at) from public.render_deliveries d where d.owner_id = p.id),
                  (select min(a.created_at) from public.jobs j join public.artifacts a on a.job_id = j.id and a.kind = 'final_video'
                    where j.owner_id = p.id and j.job_type = 'final_render' and j.state = 'complete' and j.stage_id is null)) as delivered

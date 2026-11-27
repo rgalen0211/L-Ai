@@ -85,6 +85,18 @@ class LaunchFunnel(p1.Orders):
         t = self.funnel()[self.today()]
         self.assertEqual((t["film_asked"], t["film_approved"], t["film_delivered"]), (1, 1, 0), "finished is not delivered")
 
+    def test_with_auto_render_on_an_order_film_is_approved_when_it_joins_the_line(self):
+        self.admin("update ops_settings set auto_render = true returning 1")        # RENDERER 08:47: the order path then queues the final with no decision
+        oid = self.order("funnel-auto-0001")
+        self.work_through_preview(oid)
+        st = self.admin("select state::text || ':' || coalesce(admin_decided_at::text, 'none') from render_stages where order_id = %s and stage = 'final_render'", oid)
+        self.assertEqual(st, "queued:none", "the final went straight into the line, no decision")
+        t = self.funnel()[self.today()]
+        self.assertEqual((t["film_asked"], t["film_approved"], t["film_delivered"]), (1, 1, 0), "approved the moment it joined the line")
+        self.work(self.claim(), ["final_video", "thumbnail", "receipt"])
+        t = self.funnel()[self.today()]
+        self.assertEqual((t["film_asked"], t["film_approved"], t["film_delivered"]), (1, 1, 1), "never a funnel that runs backwards")
+
     def test_a_declined_film_is_asked_but_never_approved_or_delivered(self):
         self.full_film("funnel-0003", approve=False)
         t = self.funnel()[self.today()]

@@ -22,10 +22,11 @@ union all select 4, 'it only reads (stable), returns numbers per day, keeps the 
          and pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%case when ds.d >= today - 1 then%'
          and pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%public.app_admins a where a.user_id = u.id%'
          and pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%public.workers w where w.user_id = u.id%', false)
-union all select 5, 'the tables it reads are still there (jobs, render_stages, render_deliveries, artifacts, join_attempts), and delivered means a real delivery',
+union all select 5, 'the tables it reads are still there (jobs, render_stages, render_deliveries, artifacts, join_attempts), delivered means a real delivery, and approved counts a film that went straight in with auto_render on',
        to_regclass('public.jobs') is not null and to_regclass('public.render_stages') is not null and to_regclass('public.join_attempts') is not null
        and to_regclass('public.render_deliveries') is not null and to_regclass('public.artifacts') is not null
        and coalesce(pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%from public.render_deliveries d where d.owner_id = p.id%', false)
+       and coalesce(pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%s.admin_decided_at is null and s.state in (''queued'', ''running'', ''complete'')%', false)
 )
 select 1 as n, case when (select bool_and(ok) from c) then 'PASS: the launch funnel can be read' else 'STOP: a row below is false (before the change this is expected)' end as check_name,
        (select bool_and(ok) from c) as ok
