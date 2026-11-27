@@ -5,10 +5,10 @@ import fs from 'node:fs';
 
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
-test('TAP TARGETS: small buttons and links are 40 px high, and every folded section\'s summary is at least 40 px', () => {
+test('TAP TARGETS: small buttons and links are 40 px high, and every folded section\'s summary is at least 44 px', () => {
   const css = read('assets/app.css');
   assert.match(css, /\.button\.small\{min-height:40px;/);
-  assert.match(css, /:where\(\.ryagram-app details\)>summary\{min-height:40px;/, 'no extra specificity, so the 44 px summaries (.advanced-panel, .ops-details) keep their own size');
+  assert.match(css, /:where\(\.ryagram-app details\)>summary\{min-height:44px;/, 'no extra specificity, so the 44 px summaries (.advanced-panel, .ops-details) keep their own size');
 });
 
 test('SWATCH LABELS: a label inside a colour swatch is black or white, whichever reads better, and is no longer faded', () => {

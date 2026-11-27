@@ -227,3 +227,19 @@ test('BACK LINK: the app .back link is at least 44 px high (walks measured 40 px
   const css = fs.readFileSync(new URL('../assets/app.css', import.meta.url), 'utf8');
   assert.match(css, /\.back\{display:inline-flex;align-items:center;min-height:44px;/);
 });
+
+test('SOON PAGE BACK LINK: a Coming soon page carries its own "← All projects" link with class back, first, before the tag (measured 87x44 at 360/390/768/1280)', () => {
+  const src = read('assets/app-departments.js');
+  assert.match(src, /return \[h\('a', \{ href: '#\/', class: 'back' \}, '← All projects'\), h\('span', \{ class: 'soon-tag soon-tag-big' \}/);
+  assert.match(read('assets/app.css'), /\.back\{display:inline-flex;align-items:center;min-height:44px;/);
+});
+
+test('TAP TARGETS: link-as-button, list links, folded summaries and padded links are 44 px high at every width', () => {
+  const css = read('assets/app.css');
+  assert.match(css, /\.project-list a\{display:flex;align-items:center;min-height:44px\}/);
+  assert.match(css, /\.ryagram-app \.button\.small\{min-height:44px\}/);
+  assert.match(css, /:where\(\.ryagram-app details\)>summary\{min-height:44px;/);
+  assert.match(css, /\.comp-link\{display:inline-block;padding:12px 0;margin:-12px 0\}/);
+  assert.match(read('assets/app-pages-ds.css'), /\.credit-balance a\{display:inline-block;padding:12px 0;margin:-12px 0\}/);
+  assert.match(read('assets/film.css'), /\.film-page \.page-nav a\{display:inline-flex;align-items:center;min-height:44px\}/);
+});
