@@ -109,8 +109,13 @@ with sync_playwright() as pw:
             check(p.evaluate("document.querySelector('.comp-run').getAttribute('role')") == 'status', f'{w} {name}: run line is a live status')
             width_ok(p, name)
             p.screenshot(path=str(OUT / f'run-{name}-{w}.png')); check(not errs, f'{w} {name}: no page errors'); c.close()
-        c, p, errs = open_page(b, w, '')
-        check('coming soon' in p.inner_text('body').lower(), f'{w} switch off: Coming soon'); width_ok(p, 'switch off')
+        c, p, errs = open_page(b, w, '&noswitches')
+        if re.search(r'^\s*compilations: true,', (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8'), re.M):      # opened for everyone (launch step 82a): an account with an EMPTY switch list gets the real page, never Coming soon
+            try: p.wait_for_selector('#comp-phrase', timeout=20000)
+            except Exception: pass      # the check below says it
+            check(p.query_selector('#comp-phrase') is not None, f'{w} opened for everyone, empty switch list: the real page'); width_ok(p, 'open for everyone')
+        else:
+            check('coming soon' in p.inner_text('body').lower(), f'{w} switch off: Coming soon'); width_ok(p, 'switch off')
         p.screenshot(path=str(OUT / f'off-{w}.png')); c.close()
     # (fold2) a 120-character unbroken phrase and title, and ten long folder names, never push a phone sideways; both flip tabs show whole at 360 and 390
     for w in (1280, 390, 360):
