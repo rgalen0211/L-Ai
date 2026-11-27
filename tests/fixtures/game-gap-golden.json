@@ -1,0 +1,1401 @@
+{
+ "note": "The real engine's score_guess for invented guesses on the rounds of assets/game-gap-rounds.js (tools/make-game-gaps.py). Do not edit by hand.",
+ "rounds": [
+  {
+   "also_in_guess_the_next_line": false,
+   "cases": [
+    {
+     "guess": "found",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "found"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "FOUND",
+     "label": "capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "found"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "Found",
+     "label": "first letter capital",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "found"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "founds",
+     "label": "plural / -s",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "found"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "foundes",
+     "label": "-es",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "found"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "founding",
+     "label": "-ing",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "found"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "founded",
+     "label": "-ed",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "found"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "foqnd",
+     "label": "one letter changed in the middle",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "found"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "fond",
+     "label": "one letter dropped",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "found"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "cat",
+     "label": "a short wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "found"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "umbrella",
+     "label": "a long wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "found"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "found kettle",
+     "label": "two words: the answer and an invented one",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "found"
+       }
+      ],
+      "points": 41,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "purple waffle",
+     "label": "two invented words",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "found"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "found"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "found"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "?!.,",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "found"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "\"found!?\"",
+     "label": "punctuation around the word",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "found"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    }
+   ],
+   "id": "e0fcb0e35c77",
+   "line": "We found a tiny orchestra living inside the old piano."
+  },
+  {
+   "also_in_guess_the_next_line": false,
+   "cases": [
+    {
+     "guess": "librarian",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "librarian"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "LIBRARIAN",
+     "label": "capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "librarian"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "Librarian",
+     "label": "first letter capital",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "librarian"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "librarians",
+     "label": "plural / -s",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "librarian"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "librarianes",
+     "label": "-es",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "librarian"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "librarianing",
+     "label": "-ing",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "librarian"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "librarianed",
+     "label": "-ed",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "librarian"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "librqrian",
+     "label": "one letter changed in the middle",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "librarian"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "librrian",
+     "label": "one letter dropped",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "librarian"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "cat",
+     "label": "a short wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "librarian"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "umbrella",
+     "label": "a long wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "librarian"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "librarian kettle",
+     "label": "two words: the answer and an invented one",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "librarian"
+       }
+      ],
+      "points": 41,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "purple waffle",
+     "label": "two invented words",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "librarian"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "librarian"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "librarian"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "?!.,",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "librarian"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "\"librarian!?\"",
+     "label": "punctuation around the word",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "librarian"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    }
+   ],
+   "id": "ac59eb5213e2",
+   "line": "The librarian whispered that the dictionary had learned to sing."
+  },
+  {
+   "also_in_guess_the_next_line": false,
+   "cases": [
+    {
+     "guess": "penguins",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "penguins"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "PENGUINS",
+     "label": "capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "penguins"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "Penguins",
+     "label": "first letter capital",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "penguins"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "penguinss",
+     "label": "plural / -s",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "penguins"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "penguinses",
+     "label": "-es",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "penguins"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "penguinsing",
+     "label": "-ing",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "penguins"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "penguinsed",
+     "label": "-ed",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "penguins"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "pengqins",
+     "label": "one letter changed in the middle",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "penguins"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "pengins",
+     "label": "one letter dropped",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "penguins"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "cat",
+     "label": "a short wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "penguins"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "umbrella",
+     "label": "a long wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "penguins"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "penguins kettle",
+     "label": "two words: the answer and an invented one",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "penguins"
+       }
+      ],
+      "points": 41,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "purple waffle",
+     "label": "two invented words",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "penguins"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "penguins"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "penguins"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "?!.,",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "penguins"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "\"penguins!?\"",
+     "label": "punctuation around the word",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "penguins"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    }
+   ],
+   "id": "ca69659b477d",
+   "line": "Seventeen penguins marched slowly through the quiet museum."
+  },
+  {
+   "also_in_guess_the_next_line": true,
+   "cases": [
+    {
+     "guess": "lighthouse",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "LIGHTHOUSE",
+     "label": "capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "Lighthouse",
+     "label": "first letter capital",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "lighthouses",
+     "label": "plural / -s",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "lighthousees",
+     "label": "-es",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "lighthouseing",
+     "label": "-ing",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "lighthouseed",
+     "label": "-ed",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "lightqouse",
+     "label": "one letter changed in the middle",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "lightouse",
+     "label": "one letter dropped",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "cat",
+     "label": "a short wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "umbrella",
+     "label": "a long wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "lighthouse kettle",
+     "label": "two words: the answer and an invented one",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 41,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "purple waffle",
+     "label": "two invented words",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "?!.,",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "\"lighthouse!?\"",
+     "label": "punctuation around the word",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "lighthouse"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    }
+   ],
+   "id": "97f72de857ce",
+   "line": "The lighthouse keeper counted seventeen sleepy seagulls on the roof."
+  },
+  {
+   "also_in_guess_the_next_line": true,
+   "cases": [
+    {
+     "guess": "told",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "told"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "TOLD",
+     "label": "capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "told"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "Told",
+     "label": "first letter capital",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "told"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "tolds",
+     "label": "plural / -s",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "told"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "toldes",
+     "label": "-es",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "tolding",
+     "label": "-ing",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "told"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "tolded",
+     "label": "-ed",
+     "result": {
+      "accuracy": 0.36,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "told"
+       }
+      ],
+      "points": 30,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "toqd",
+     "label": "one letter changed in the middle",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "tod",
+     "label": "one letter dropped",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "cat",
+     "label": "a short wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "umbrella",
+     "label": "a long wrong word",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "told kettle",
+     "label": "two words: the answer and an invented one",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "told"
+       }
+      ],
+      "points": 41,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "purple waffle",
+     "label": "two invented words",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "?!.,",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "told"
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "\"told!?\"",
+     "label": "punctuation around the word",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "told"
+       }
+      ],
+      "points": 82,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    }
+   ],
+   "id": "4905ff4aadcb",
+   "line": "Nobody told the baker that the moon was made of sourdough."
+  }
+ ],
+ "schema": "ryagram.game-gap-golden/0"
+}
