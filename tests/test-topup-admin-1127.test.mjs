@@ -52,7 +52,12 @@ test('the page: the section is on the admin tester page, behind adminTestTopup (
   assert.deepEqual([...part.matchAll(/data\.(\w+)\(/g)].map(m => m[1]).sort(), ['adminTestTopup', 'adminTestTopupList', 'adminTestTopupUndo']);
   assert.match(part, /Number\.isInteger\(n\) && n >= 1 && n <= 100/);
   assert.match(part, /note\.length < 3 \|\| note\.length > 200/);
-  assert.match(part, /busy\(give, 'Giving\\u2026'/);
+  assert.match(part, /busy\(yes, 'Giving\\u2026'/);
+  assert.match(part, /Give \$\{n\} test credits to \$\{email\.slice\(0, 120\)\}\? Credits that get spent cannot be taken back by an undo\./, 'one in-page confirm before Give acts');
+  assert.ok(part.indexOf('data.adminTestTopup(email, n, note)') > part.indexOf("yes.addEventListener('click'"), 'the call is made only from the Yes button');
+  assert.doesNotMatch(part, /window\.confirm|confirm\(/, 'never window.confirm (the Claude app panes answer it with No)');
+  assert.match(part, /value: '10'/, 'a stray press cannot give a large number');
+  assert.match(part, /Nothing can be given until the account is on the owner list \(live step 78c in the database\)/);
   assert.match(part, /all of it was already spent, so nothing was taken back|All of it was already spent, so nothing was taken back/);
   assert.doesNotMatch(part, /innerHTML|insertAdjacentHTML|outerHTML/);
   assert.match(src, /history, connectSection, \.\.\.\(topupSection \? \[topupSection\] : \[\]\)\]/);

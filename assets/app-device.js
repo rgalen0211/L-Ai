@@ -368,10 +368,11 @@
       let topupSection = null;
       if (window.ryagramSwitches && window.ryagramSwitches.featureOn('adminTestTopup') === true) {
         const tEmail = h('input', { id: 'topup-email', type: 'email', autocomplete: 'off', maxlength: '200', spellcheck: 'false' });
-        const tCredits = h('input', { id: 'topup-credits', type: 'number', min: '1', max: '100', step: '1', value: '50', inputmode: 'numeric', 'aria-describedby': 'topup-credits-note' });
+        const tCredits = h('input', { id: 'topup-credits', type: 'number', min: '1', max: '100', step: '1', value: '10', inputmode: 'numeric', 'aria-describedby': 'topup-credits-note' });
         const tNote = h('input', { id: 'topup-note', type: 'text', autocomplete: 'off', maxlength: '200', 'aria-describedby': 'topup-note-note' });
         const tStatus = h('p', { class: 'form-note', role: 'status' }), tError = errorLine();
         const tList = h('div', { class: 'topup-list' });
+        const tConfirm = h('div', { class: 'inpage-confirm topup-confirm', role: 'group', 'aria-labelledby': 'topup-confirm-q', hidden: true });
         const who = r => String(r.user_email || 'an account').slice(0, 120);
         async function drawTopups() {
           let rows;
@@ -394,7 +395,7 @@
             return h('li', {}, h('strong', {}, who(r)),
               h('span', { class: 'meta' }, ` ${Number(r.credits) || 0} credits, ${new Date(r.created_at).toLocaleString()}${done ? `, undone (${Number(r.taken_back) || 0} taken back)` : ''}`),
               h('p', { class: 'form-note' }, 'For: ', String(r.note || '').slice(0, 200)), undo);
-          })) : h('p', { class: 'form-note' }, 'No test credits given yet.'));
+          })) : h('p', { class: 'form-note' }, 'No test credits given yet. Nothing can be given until the account is on the owner list (live step 78c in the database).'));
         }
         const give = h('button', { class: 'button primary', type: 'button', 'data-key': 'topup-give' }, 'Give test credits');
         give.addEventListener('click', () => {
@@ -403,14 +404,21 @@
           const problem = !email ? 'Type the test account\u2019s email.' : !(Number.isInteger(n) && n >= 1 && n <= 100) ? 'A test top-up is 1 to 100 credits.'
             : (note.length < 3 || note.length > 200) ? 'Say what the credits are for, in a few words.' : '';
           if (problem) { showError(tError, new Error(problem)); return; }
-          return busy(give, 'Giving\u2026', async () => {
+          const yes = h('button', { class: 'button primary', type: 'button', 'data-key': 'topup-yes' }, 'Yes, give them');
+          const no = h('button', { class: 'button secondary', type: 'button', 'data-key': 'topup-no' }, 'No, go back');
+          tConfirm.replaceChildren(h('p', { class: 'form-note', id: 'topup-confirm-q' }, `Give ${n} test credits to ${email.slice(0, 120)}? Credits that get spent cannot be taken back by an undo.`), h('div', { class: 'actions-row' }, yes, no));
+          tConfirm.hidden = false; give.disabled = true; yes.focus();
+          const close = () => { tConfirm.hidden = true; tConfirm.replaceChildren(); give.disabled = false; };
+          no.addEventListener('click', () => { close(); give.focus(); });
+          yes.addEventListener('click', () => busy(yes, 'Giving\u2026', async () => {
             try {
               const id = await data.adminTestTopup(email, n, note);
+              close();
               tStatus.textContent = `${n} test credits given to ${email.slice(0, 120)} (top-up ${Number(id)}). It is in the list below, with an Undo.`;
               tNote.value = '';
               await drawTopups();
-            } catch (err) { showError(tError, err); }
-          });
+            } catch (err) { close(); showError(tError, err); }
+          }));
         });
         await drawTopups();
         topupSection = h('section', { class: 'account-section', 'aria-labelledby': 'test-topup-h' }, h('h2', { id: 'test-topup-h' }, 'Test credits'),
@@ -420,7 +428,7 @@
           h('p', { id: 'topup-credits-note', class: 'form-note' }, '1 to 100 at a time, at most 200 a day for one account.'),
           h('label', { for: 'topup-note' }, 'What they are for (a few words, saved with the top-up)'), tNote,
           h('p', { id: 'topup-note-note', class: 'form-note' }, '3 to 200 characters.'),
-          h('div', { class: 'actions-row' }, give), tStatus, tError,
+          h('div', { class: 'actions-row' }, give), tConfirm, tStatus, tError,
           h('h3', {}, 'Last top-ups'), tList);
       }
       return [back, h('h1', { tabindex: '-1' }, 'Tester computers'),
