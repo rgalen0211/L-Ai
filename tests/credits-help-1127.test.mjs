@@ -22,3 +22,8 @@ test('CONNECT WALK (11-27): the Claude / ChatGPT steps on the Account page show 
   assert.match(css, /\.connect-app>summary::before\{content:"\+"/);
   assert.match(css, /\.connect-app\[open\]>summary::before\{content:"\\2212"\}/);
 });
+test('HELP ORDER (FACES 04:45 LOW 2): First questions is the first tab and the opening one; the form is the second tab and opens first when the person came from a film (job in the address)', () => {
+  const i = lib.indexOf("id: 'first', label: 'First questions'"), w = lib.indexOf("id: 'write', label: 'Write to us'"), f = lib.indexOf("id: 'films', label: 'Films and credits'");
+  assert.ok(i > 0 && i < w && w < f);
+  assert.ok(lib.includes("label: 'Help', address: false, initial: job ? 'write' : 'first', sections: ["));
+});

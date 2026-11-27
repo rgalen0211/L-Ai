@@ -155,6 +155,7 @@ with sync_playwright() as pw:
             if name == 'Help':
                 check(p.locator('.flip-tab').count() == 4, f'{name} {kind}: the help page is four sections (First questions added 11-27) ({p.locator(".flip-tab").count()})')
                 if kind == 'desktop':
+                    p.locator('.flip-tab').nth(1).click(); p.wait_for_timeout(500)      # the form is the second tab now (First questions first, FACES 04:45)
                     check(p.evaluate("(() => { const b = document.querySelector('[data-flip-section=write] button[type=submit]'); const r = b.getBoundingClientRect(); return r.width > 0 && r.bottom <= 800 })()"), f'{name} {kind}: the help form and its Send button are on the first screen')
                 p.locator('.flip-tab').nth(2).click(); p.wait_for_timeout(500)
                 check(p.evaluate("getComputedStyle(document.querySelector('[data-flip-section=films] .scroll-panel')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: the answers scroll in their own panel')
