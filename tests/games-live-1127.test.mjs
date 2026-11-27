@@ -154,3 +154,27 @@ test('MODES: the room accepts mode line or gap only; the host offers Fill the ga
   const W = load(['assets/game-gap-rounds.js']);
   for (const r of W.ryagramGameGapRounds.rounds) assert.ok(!r.public.shown_text.toLowerCase().split(/[^a-z']+/).includes(r.answer[0].norm), 'the shown line never holds the word');
 });
+
+test('OPENING ROOM: a room that never opens shows no code, Start or Try again; a room that fails shows Try again only, with the role set before the words and no "reload"', async () => {
+  const mkEl = tag => ({ tag, kids: [], attrs: {}, log: [], setAttribute(k, v) { this.attrs[k] = v; this.log.push(`attr:${k}`); }, removeAttribute(k) { delete this.attrs[k]; }, addEventListener() {}, append(...k) { this.kids.push(...k); }, replaceChildren(...k) { this.kids = k; }, querySelector() { return null; }, focus() {}, set textContent(v) { this._t = v; this.log.push('text'); }, get textContent() { return this._t; } });
+  const h = (tag, attrs, ...kids) => { const e = mkEl(tag); for (const [k, v] of Object.entries(attrs || {})) if (v != null && v !== false && !k.startsWith('on')) e.attrs[k] = v; e.kids = kids.flat(); return e; };
+  const walk = e => (e && typeof e === 'object') ? [e, ...(e.kids || []).flatMap(walk)] : [];
+  const run = async connect => {
+    const W = load(['assets/app-games.js'], { location: { hostname: '127.0.0.1', search: '?relay=http://127.0.0.1:9', hash: '#/d/games', origin: 'http://127.0.0.1:1', reload() {} }, setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} });
+    const root = mkEl('div');
+    W.ryagramGamesHost.mount(root, { h, Room: { keyPair: async () => ({ pub: 'p' }), codeOf: async () => 'ABCDEF', connect }, Score: {}, Rounds: { rounds: [{}] }, cfg: {} });
+    await new Promise(r => setTimeout(r, 0));
+    const all = walk(root);
+    return { ids: all.map(e => e.attrs && e.attrs.id).filter(Boolean), status: all.filter(e => e.attrs && e.attrs.role === 'alert' || e.log.includes('text')) };
+  };
+  const opening = await run(() => new Promise(() => {}));
+  for (const id of ['gh-code', 'gh-start', 'gh-retry']) assert.ok(!opening.ids.includes(id), `${id} is not drawn while the room is still opening`);
+  const failed = await run(() => Promise.reject(new Error('x')));
+  assert.ok(failed.ids.includes('gh-retry'), 'a failed room offers Try again');
+  for (const id of ['gh-code', 'gh-start']) assert.ok(!failed.ids.includes(id), `${id} is not drawn for a failed room`);
+  const st = failed.status.find(e => e.attrs.role === 'alert');
+  assert.ok(st, 'the failure is announced with role=alert');
+  assert.ok(st.log.indexOf('attr:role') < st.log.lastIndexOf('text'), 'role=alert is set before the words so a screen reader announces them');
+  assert.ok(!/reload/i.test(st.textContent), 'the words say Try again, not reload');
+  assert.match(st.textContent, /try again/i, 'the failure words say Try again');
+});
