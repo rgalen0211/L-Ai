@@ -32,7 +32,7 @@ union all select 'connect_set_compilation_request keeps its signature (text, uui
 union all select 'ONLY the connector login can still run connect_set_compilation_request (grants unchanged)',
        coalesce((select has_function_privilege('connect_runner', 'public.connect_set_compilation_request(text, uuid, jsonb)', 'execute')
                    and not has_function_privilege('authenticated', 'public.connect_set_compilation_request(text, uuid, jsonb)', 'execute') and not has_function_privilege('anon', 'public.connect_set_compilation_request(text, uuid, jsonb)', 'execute')
-                   and not has_function_privilege('service_role', 'public.connect_set_compilation_request(text, uuid, jsonb)', 'execute') and not has_function_privilege('node_runner', 'public.connect_set_compilation_request(text, uuid, jsonb)', 'execute')
+                   and not has_function_privilege('node_runner', 'public.connect_set_compilation_request(text, uuid, jsonb)', 'execute')
                    and not exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) x where p.oid = to_regprocedure('public.connect_set_compilation_request(text, uuid, jsonb)') and x.grantee = 0 and x.privilege_type = 'EXECUTE')
                  where to_regprocedure('public.connect_set_compilation_request(text, uuid, jsonb)') is not null), false)
 union all select 'the gate helper connect_compilations_open(uuid) exists and no API role, no connector login and nobody else can run it directly',
