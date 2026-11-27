@@ -239,7 +239,7 @@
   const RENDER_SOURCE_WORDS = { app: 'from the app', connect: 'from a connected AI' };
   function renderQueueLine(rows) {
     const n = (rows || []).length;
-    return n ? `${plural(n, 'full render')} waiting for your approval, oldest first. Approving puts it in line, at the end; declining returns the person\u2019s credits.` : 'No full renders are waiting for approval.';
+    return n ? `${plural(n, 'full render')} waiting for your approval, oldest first. Approving starts the render; declining returns the person\u2019s credits.` : 'No full renders are waiting for approval.';
   }
   // Auto-render and caps (queue item 3). A cap is a whole number of credits a day, 0 or more; empty means "use the default" (the database deletes the row).
   const autoRenderLine = on => on ? 'Auto-render is ON: full renders start at once, with no approval.' : 'Auto-render is OFF: every full render waits here for your approval, with the credits held.';

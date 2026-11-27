@@ -163,6 +163,7 @@
   const ONE_AT_A_TIME = 'We make one film at a time.';
   const BUSY_HOURS = 'At busy times yours may take hours, or more than a day when many people join at once.';        // position unknown: no number invented (WEB 11-24, public launch: one PC, one job at a time)
   const NEXT_UP = 'It starts when the film being made now finishes, which can take up to about half an hour.';
+  const MOVE_BACK = 'Your place can move back when we approve a full film someone asked for earlier.';
   const FULL_FILM = 'A full film takes up to about half an hour once it starts';
   // Measured times (WORKER, Monday live): a contact sheet about 4.5 minutes, a preview about 4.7, an approved full film about 17 minutes and up to about 30 (ENGINE, one renderer).
   // Bands by place in line (P = 1 + the films queued ahead; the film made NOW is not counted). Short line: minutes. Longer: whole hours, never 'hours and minutes'. Very long: a day or more.
@@ -172,11 +173,11 @@
     if (position >= 150) return `${ONE_AT_A_TIME} The line is very long right now. Yours may take a day or more. You can close this page and come back; your film keeps its place in line while the render machine is running.`;
     if (job.job_type === 'final_render') {
       return position >= 25
-        ? `${ONE_AT_A_TIME} ${FULL_FILM}, and a sheet or preview ahead of yours takes a few minutes, so it may be hours with this many ahead.`
-        : `${ONE_AT_A_TIME} ${FULL_FILM}, so yours may start after a few films, not a few minutes.`;
+        ? `${ONE_AT_A_TIME} ${FULL_FILM}, and a sheet or preview ahead of yours takes a few minutes, so it may be hours with this many ahead. ${MOVE_BACK}`
+        : `${ONE_AT_A_TIME} ${FULL_FILM}, so yours may start after a few films, not a few minutes. ${MOVE_BACK}`;
     }
-    if (position >= 25) return `${ONE_AT_A_TIME} Yours starts in about ${hoursUp(position * 5)}, maybe more if full films are ahead of yours.`;
-    return `${ONE_AT_A_TIME} It may be working on another film right now. Yours starts in about ${waitWords(position * 5)} and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer.`;
+    if (position >= 25) return `${ONE_AT_A_TIME} Yours starts in about ${hoursUp(position * 5)}, maybe more if full films are ahead of yours. ${MOVE_BACK}`;
+    return `${ONE_AT_A_TIME} It may be working on another film right now. Yours starts in about ${waitWords(position * 5)} and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer. ${MOVE_BACK}`;
   }
   function progressNote(job, queuePosition, own) {
     const ownComputer = job.run_on ? job.run_on === 'owner_local' : !!(own && own.tester === true);
