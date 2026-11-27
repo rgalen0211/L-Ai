@@ -36,6 +36,12 @@ class CompilationRequests(core.Base):
         c.execute("insert into public.connect_access (user_id) values (%s), (%s)", (ALICE, BOB))
         c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values (%s, 'exact', 'claude'), ('loopback', 'loopback', 'loopback')", (tc.URI,))
         self.counter = 0
+        self.open_accounts()
+
+    def open_accounts(self):
+        """Since migration 20261127000400 the AI's writer refuses an account Compilations are not open for: these older tests are about the writer's own rules, so Alice and Bob are invited testers here
+        (the gate itself is proved in test_connect_compilation_status.py, which overrides this to open nobody)."""
+        self.db.as_(None).c.execute("insert into public.account_settings (owner_id, local_compute) values (%s, true), (%s, true) on conflict (owner_id) do update set local_compute = true", (ALICE, BOB))
 
     runner = tc.Connect.runner
     app = tc.Connect.app

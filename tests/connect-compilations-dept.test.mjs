@@ -335,11 +335,32 @@ test('DEPLOY ORDER: a database that has no connect_compilation_get (SQLSTATE 428
   }
 });
 
-test('any OTHER database fault is not mistaken for a missing function: the person gets the general sentence, never the database\'s text; the database\'s own plain refusal (22023) is passed on', async () => {
+test('any OTHER database fault is not mistaken for a missing function: the person gets the general sentence, never the database\'s text; the database\'s own plain refusal (42501) is passed on', async () => {
   const down = await throughRealLayer(Object.assign(new Error('connection to 10.1.2.3 refused, password=hunter2'), { code: '08006' }));
   assert.equal(down.code, 'error');
   assert.equal(down.text, 'Ryagram could not do that right now. Nothing was changed. Try again in a moment.');
   assert.doesNotMatch(everything(down), /10\.1\.2\.3|hunter2/);
-  const closed = await throughRealLayer(Object.assign(new Error('Compilations are not open for this account yet.'), { code: '22023' }));
+  const closed = await throughRealLayer(Object.assign(new Error('Compilations are not open for this account yet.'), { code: '42501' }));
   assert.equal(closed.text, 'Compilations are not open for this account yet.');
+});
+
+test('the AI\'s writer: when the database refuses a stranger (42501), the person\'s AI reads the database\'s plain sentence and nothing else; a database fault is not passed on', async () => {
+  const { ConnectDb } = await import('../supabase/functions/connect/db.ts');
+  const { w } = world();
+  const P = '00000000-0000-4000-8000-0000000000a1';
+  const write = async (failure) => {
+    const query = async (sql) => {
+      if (/connect_whoami/.test(sql)) return [{ r: { label: 'x', available: 1, held: 0, desktop_app: true } }];
+      if (/connect_hit/.test(sql)) return [{ r: true }];
+      if (/connect_set_compilation_request/.test(sql)) throw failure;
+      throw new Error('unexpected ' + sql);
+    };
+    const data = new ConnectDb(query, 'https://x.example/app/').data({ tokenHash: A.tokenHash });
+    return callTool('set_compilation_request', { project_id: P, phrase: 'hello', folders: ['Clips'] }, A, { data, policy: w.policy(), deps: { compile } });
+  };
+  const closed = await write(Object.assign(new Error('Compilations are not open for this account yet.'), { code: '42501' }));
+  assert.equal(closed.isError, true);
+  assert.equal(closed.text, 'Compilations are not open for this account yet.');
+  const broken = await write(Object.assign(new Error('relation "public.compilation_requests" does not exist'), { code: '42P01' }));
+  assert.doesNotMatch(broken.text, /compilation_requests|relation/);
 });
