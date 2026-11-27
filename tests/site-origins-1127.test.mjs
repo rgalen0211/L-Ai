@@ -7,6 +7,7 @@ import { resolveSiteOrigins, resolveSiteUrl } from '../supabase/functions/_share
 
 const env = (o) => (k) => o[k];
 const OLD = ['https://uselai.com', 'https://www.uselai.com'];
+const quiet = () => {};
 
 test('with no settings: exactly the two old origins and the old site address (nothing changes today)', () => {
   assert.deepEqual(resolveSiteOrigins(env({})), OLD);
@@ -35,13 +36,13 @@ test('case and spaces are tidied; duplicates are not repeated', () => {
 });
 
 test('anything that is not exactly https://host is ignored: paths, ports, http, wildcards, spaces, scripts, userinfo, one-label hosts', () => {
-  const bad = ['http://newbrand.example', 'https://newbrand.example/', 'https://newbrand.example/app/', 'https://newbrand.example:8443', 'https://*.newbrand.example',
+  const bad = ['http://newbrand.example', 'https://newbrand.example//', 'https://newbrand.example/app/', 'https://newbrand.example:8443', 'https://*.newbrand.example',
     'https://new brand.example', 'javascript:alert(1)', 'https://user@newbrand.example', 'https://localhost', 'newbrand.example', '*', 'https://-bad.example', 'https://bad-.example', 'https://a..b.example'];
   for (const b of bad) {
-    assert.deepEqual(resolveSiteOrigins(env({ SITE_URL: b, EXTRA_SITE_ORIGINS: b })), OLD, b);
-    assert.equal(resolveSiteUrl(env({ SITE_URL: b })), 'https://uselai.com', b);
+    assert.deepEqual(resolveSiteOrigins(env({ SITE_URL: b, EXTRA_SITE_ORIGINS: b }), quiet), OLD, b);
+    assert.equal(resolveSiteUrl(env({ SITE_URL: b }), quiet), 'https://uselai.com', b);
   }
-  assert.deepEqual(resolveSiteOrigins(env({ EXTRA_SITE_ORIGINS: 'https://ok.example,*,https://evil.example/x,https://ok2.example' })), [...OLD, 'https://ok.example', 'https://ok2.example']);
+  assert.deepEqual(resolveSiteOrigins(env({ EXTRA_SITE_ORIGINS: 'https://ok.example,*,https://evil.example/x,https://ok2.example' }), quiet), [...OLD, 'https://ok.example', 'https://ok2.example']);
 });
 
 test('the old origins are never dropped, whatever the secrets say', () => {
@@ -64,4 +65,26 @@ test('every edge function reads its origins and site address from the one module
   }
   assert.equal(withOrigins, 15);
   assert.equal(withSite, 6);
+});
+
+test('one trailing slash is tolerated (the paste a dashboard shows), still nothing with a path, port or http', () => {
+  assert.equal(resolveSiteUrl(env({ SITE_URL: 'https://newbrand.example/' })), 'https://newbrand.example');
+  assert.deepEqual(resolveSiteOrigins(env({ EXTRA_SITE_ORIGINS: 'https://newbrand.example/, https://www.newbrand.example' })), [...OLD, 'https://newbrand.example', 'https://www.newbrand.example']);
+  assert.deepEqual(resolveSiteOrigins(env({ SITE_URL: 'https://newbrand.example/app/' }), quiet), OLD);
+});
+
+test('a SET secret with a refused entry logs ONE line naming the key only, never the value; nothing is logged when unset, empty or good', () => {
+  const lines = [];
+  const log = (l) => lines.push(l);
+  resolveSiteOrigins(env({}), log); resolveSiteUrl(env({}), log);
+  resolveSiteOrigins(env({ SITE_URL: '', EXTRA_SITE_ORIGINS: ' , ' }), log);
+  resolveSiteOrigins(env({ SITE_URL: 'https://newbrand.example', EXTRA_SITE_ORIGINS: 'https://a.example,https://www.a.example' }), log);
+  assert.deepEqual(lines, [], 'nothing to say');
+  resolveSiteUrl(env({ SITE_URL: 'newbrand-secret.example' }), log);
+  assert.equal(lines.length, 1); assert.match(lines[0], /^SITE_URL ignored/);
+  lines.length = 0;
+  resolveSiteOrigins(env({ SITE_URL: 'ryagram-secret.example/app/', EXTRA_SITE_ORIGINS: 'https://ok.example, ryagram-secret.example, https://x.example/p' }), log);
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /^SITE_URL ignored/); assert.match(lines[1], /^EXTRA_SITE_ORIGINS: an entry was ignored/);
+  assert.doesNotMatch(lines.join(' | '), /secret\.example|ok\.example|x\.example|\/app\//, 'the value is never echoed');
 });

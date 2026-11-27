@@ -10,22 +10,34 @@ const OLD_ORIGINS = ["https://uselai.com", "https://www.uselai.com"];
 const ORIGIN = /^https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 export type Env = (key: string) => string | undefined;
+export type Log = (line: string) => void;
 const denoEnv: Env = (k) => (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get(k);
 
 const clean = (v: string | undefined): string | null => {
-  const s = (v ?? "").trim().toLowerCase();
+  const s = (v ?? "").trim().toLowerCase().replace(/\/$/, "");
   return ORIGIN.test(s) ? s : null;
 };
 
-export function resolveSiteUrl(env: Env = denoEnv): string {
-  return clean(env("SITE_URL")) ?? OLD_SITE_URL;
+export function resolveSiteUrl(env: Env = denoEnv, log: Log = console.warn): string {
+  const raw = env("SITE_URL");
+  const ok = clean(raw);
+  if (!ok && (raw ?? "").trim() !== "") log("SITE_URL ignored: not a bare https origin (https://host, no path, no port); the old address is used");
+  return ok ?? OLD_SITE_URL;
 }
 
-export function resolveSiteOrigins(env: Env = denoEnv): string[] {
+export function resolveSiteOrigins(env: Env = denoEnv, log: Log = console.warn): string[] {
   const out = [...OLD_ORIGINS];
   const add = (o: string | null) => { if (o && !out.includes(o)) out.push(o); };
-  const site = clean(env("SITE_URL"));
+  const raw = env("SITE_URL");
+  const site = clean(raw);
+  if (!site && (raw ?? "").trim() !== "") log("SITE_URL ignored: not a bare https origin (https://host, no path, no port); the old address is used");
   if (site) { add(site); add(site.startsWith("https://www.") ? site.replace("https://www.", "https://") : site.replace("https://", "https://www.")); }
-  for (const piece of (env("EXTRA_SITE_ORIGINS") ?? "").split(",")) add(clean(piece));
+  let refused = false;
+  for (const piece of (env("EXTRA_SITE_ORIGINS") ?? "").split(",")) {
+    if (piece.trim() === "") continue;
+    const o = clean(piece);
+    if (o) add(o); else refused = true;
+  }
+  if (refused) log("EXTRA_SITE_ORIGINS: an entry was ignored (not a bare https origin: https://host, no path, no port)");
   return out;
 }
