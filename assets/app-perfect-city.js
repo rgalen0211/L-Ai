@@ -12,6 +12,7 @@
     { id: 'greene_oh', label: 'Greene County, Ohio (Beavercreek, Xenia)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza'] }
   ];
   const KINDS = { fast_food: 'Fast food', restaurant: 'Restaurants', chicken: 'Chicken places', burger: 'Burger places', pizza: 'Pizza places', grocery: 'Supermarkets' };      // chicken, burger, pizza: the Ryagram engine's rules (tools/perfect-city/export_perfect_city.py SUBKINDS)
+  const OFFICIAL_KIND = { fast_food: 'limited-service restaurant (fast food)', restaurant: 'full-service restaurant', grocery: 'supermarket and grocery store' };      // the County Business Patterns industry, said as a noun before 'establishments'
   const SHADES = { density: 'People per square kilometre', income: 'Median household income' };
   const FILL = ['#dfe6f3', '#b3c2e0', '#8299c7', '#55699f', '#2f3f73'];      // pale to dark blue (FACES' shade palette B)
   const NO_DATA = '#4a4a52';
@@ -28,7 +29,8 @@
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
     badTyped: 'Type a latitude and a longitude as numbers, for example 39.7589 and -84.1916.',
     pickSpot: 'Click the map, or type a latitude and longitude, to put a spot on it.',
-    outside: 'That spot is outside the county. Put it inside the shaded area.'
+    outside: 'That spot is outside the county. Put it inside the shaded area.',
+    notCounted: 'The Census does not count chicken, burger or pizza places separately.'
   };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   const km1 = (x) => (x < 10 ? x.toFixed(2) : x.toFixed(1));
@@ -38,7 +40,7 @@
     if (have()) return Promise.resolve(have());
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = `/assets/perfect-city/${county}.census.js?v=20261127a`;
+      s.src = `/assets/perfect-city/${county}.census.js?v=20261127b`;      // b: the County Business Patterns counts (official) added
       s.onload = () => (have() ? resolve(have()) : reject(new Error('no data')));
       s.onerror = () => reject(new Error('no data'));
       document.head.append(s);
@@ -54,7 +56,7 @@
 
   async function view({ h, data }) {
     const pc = window.ryagramPerfectCity;
-    const state = { county: COUNTIES[0].id, kind: 'fast_food', shade: 'density', spot: null, census: null, places: null, placesNote: '', credit: '' };
+    const state = { county: COUNTIES[0].id, kind: 'fast_food', shade: 'density', spot: null, census: null, places: null, loaded: null, placesNote: '', credit: '' };      // loaded: how many of this kind the server has for the county
     const select = (id, label, options, value, onchange) => {
       const sel = h('select', { id, onchange: (e) => onchange(e.target.value) }, options.map(([v, t]) => h('option', { value: v }, t)));
       sel.value = value;
@@ -88,10 +90,11 @@
 
     // The server answers only for a spot: the places within 5 km of it and the nearest five (never a whole county: RENDERER 08:24, the licence question).
     async function loadPlaces() {
-      state.places = null; state.placesNote = ''; state.credit = '';
+      state.places = null; state.placesNote = ''; state.credit = ''; state.loaded = null;
       if (!state.spot) return;
       try {
         const r = await data.perfectCityPlaces(state.county, state.kind, state.spot[1], state.spot[0]);
+        state.loaded = r && Number.isFinite(r.loaded) ? r.loaded : null;
         if (!r || !(r.loaded > 0)) { state.placesNote = WORDS.noPlaces; return; }
         state.places = Array.isArray(r.places) ? r.places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)) : [];
         state.credit = typeof r.credit === 'string' ? r.credit : '';
@@ -138,6 +141,20 @@
       mapBox.replaceChildren(root, legend);
     }
 
+    // The official count beside the map data (County Business Patterns, public domain), so a stranger can see how complete the map data is.
+    // A code with no published row is 'fewer than 3 or none (not published)', never 0. There is no CBP code for chicken, burger or pizza.
+    function officialLine() {
+      const o = state.census.official;
+      if (!o || !o.kinds) return null;
+      const k = o.kinds[state.kind];
+      if (!k) return o.not_counted && o.not_counted.includes(state.kind) ? h('p', { class: 'meta', id: 'pc-official' }, WORDS.notCounted) : null;
+      const name = OFFICIAL_KIND[state.kind] || k.label.toLowerCase();
+      const what = name.endsWith(')') ? `${name.slice(0, -1)}, NAICS ${k.naics})` : `${name} (NAICS ${k.naics})`;      // 'restaurant (fast food, NAICS 722513)'
+      const n = Number.isFinite(k.est) ? fmt(k.est) : 'fewer than 3 or none (not published)';
+      const m = state.loaded == null ? 'the map data count is not known' : `the map data has ${fmt(state.loaded)} of this kind loaded`;
+      return h('p', { class: 'meta', id: 'pc-official' }, `Census County Business Patterns ${o.year} counts ${n} ${what} establishments in this county (observed); ${m}.`);
+    }
+
     // 'about 0' would contradict the block group's own count: when no block-group centre is inside a ring, say so instead.
     const peopleCell = (p) => (p.blockGroups === 0 ? 'none counted (see the method below)' : `about ${fmt(p.about)}`);
 
@@ -167,13 +184,16 @@
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, 'People (estimated)'))),
             h('tbody', {}, people.map((p) => h('tr', {}, h('th', { scope: 'row' }, `${p.km} km`), h('td', {}, peopleCell(p)))))));
       }
+      const off = officialLine();
+      if (off) out.push(off);
       out.push(h('p', { class: 'meta' }, 'People within a ring: ' + people[0].method + ', rounded to the nearest 100.'));
       results.replaceChildren(...out);
     }
 
     function drawCredits() {
       const s = state.census.sources;
-      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}. ${s.calculated}${state.credit ? ' ' + state.credit + '.' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
+      const o = state.census.official;
+      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}${o && o.source ? '; ' + o.source.replace(/\.$/, '') : ''}. ${s.calculated}${state.credit ? ' ' + state.credit + '.' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
     }
 
     async function place(pt) {
@@ -197,6 +217,7 @@
       const [x0, y0, x1, y1] = state.census.bbox;
       try {
         const r = await data.perfectCityPlaces(state.county, state.kind, (y0 + y1) / 2, (x0 + x1) / 2);
+        state.loaded = r && Number.isFinite(r.loaded) ? r.loaded : null;
         state.placesNote = r && r.loaded > 0 ? '' : WORDS.noPlaces;
       } catch { state.placesNote = WORDS.placesError; }
     }
