@@ -30,6 +30,7 @@ SIG = "public.perfect_city_places(text, text, double precision, double precision
 CALL = "select public.perfect_city_places(%s, %s, %s, %s)"
 SPOT = {"montgomery_oh": (39.7505, -84.2000), "greene_oh": (39.7000, -84.0500)}      # a spot inside each county, near the invented places
 CREDIT = "Map data (c) OpenStreetMap contributors (ODbL)"
+BANK_CREDIT = "Bank branches: FDIC Summary of Deposits, June 30, 2026"      # kind 'bank' only (FDIC, public domain)
 
 # invented points only
 POINTS = [
@@ -202,6 +203,39 @@ class PerfectCityPlaces(core.Base):
             self.assertIn("kind", e.diag.message_primary)
         self.make_admin(RYAN)
         self.refused(RYAN, "clark_oh", "fast_food", code="22023")
+
+    def test_every_food_sub_kind_is_accepted_in_both_counties_and_stored(self):
+        # chicken, burger, pizza and the 2026-11-27 kinds sandwich, mexican and asian: the check accepts each in both counties (a kind missing
+        # from the check's list is refused there, and get() then FAILS), and the table stores an INVENTED row of each kind
+        self.switch_on(OTHER)
+        for kind in ("chicken", "burger", "pizza", "sandwich", "mexican", "asian"):
+            for county in ("montgomery_oh", "greene_oh"):
+                self.owner("insert into ryagram_private.perfect_city_places (county, kind, osm_ref, name, lat, lon) values (%s, %s, %s, %s, %s, %s)",
+                           county, kind, f"t-{kind}", f"Test {kind.title()} Place", *SPOT[county])
+                got = self.get(OTHER, county=county, kind=kind)
+                self.assertEqual((got["kind"], got["loaded"], [p["name"] for p in got["places"]]), (kind, 1, [f"Test {kind.title()} Place"]), (county, kind))
+        e = self.refused(OTHER, "greene_oh", "grocery", code="22023")
+        self.assertIn("sandwich, mexican, asian or bank", e.diag.message_primary)
+
+    def test_bank_branches_are_accepted_in_both_counties_with_the_fdic_credit_and_no_ref(self):
+        # 2026-11-27: kind 'bank' is the FDIC Summary of Deposits branch list, NOT OpenStreetMap: its answer carries the FDIC credit, every other kind
+        # keeps the OpenStreetMap credit, and the FDIC id stored in osm_ref is never returned. Every branch here is INVENTED.
+        self.switch_on(OTHER)
+        branches = [("montgomery_oh", "fdic:9000001", "Test Savings Bank (Test Main Office)", 39.7507, -84.2003),
+                    ("montgomery_oh", "fdic:9000002", "Test Savings Bank (Test North Branch)", 39.7600, -84.2000),
+                    ("greene_oh", "fdic:9000003", "Invented Trust Company", 39.7004, -84.0502)]
+        for county, ref, name, lat, lon in branches:
+            self.owner("insert into ryagram_private.perfect_city_places (county, kind, osm_ref, name, lat, lon) values (%s, 'bank', %s, %s, %s, %s)", county, ref, name, lat, lon)
+        got = self.get(OTHER, kind="bank")
+        self.assertEqual((got["kind"], got["loaded"], got["credit"]), ("bank", 2, BANK_CREDIT))
+        self.assertEqual([p["name"] for p in got["places"]], ["Test Savings Bank (Test Main Office)", "Test Savings Bank (Test North Branch)"])
+        for p in got["places"]:
+            self.assertEqual(set(p), {"name", "lat", "lon"}, "never the FDIC id")
+        self.assertNotIn("fdic:", str(got))
+        greene = self.get(OTHER, county="greene_oh", kind="bank")
+        self.assertEqual((greene["loaded"], greene["credit"], [p["name"] for p in greene["places"]]), (1, BANK_CREDIT, ["Invented Trust Company"]))
+        self.assertEqual(self.get(OTHER, kind="fast_food")["credit"], CREDIT, "an OpenStreetMap kind keeps the OpenStreetMap credit")
+        self.assertEqual(self.get(OTHER, county="greene_oh", kind="restaurant")["credit"], CREDIT, "even with nothing loaded")
 
     def test_the_table_itself_refuses_a_bad_row(self):
         for bad in (("clark_oh", "grocery", "x1", "Test Place", 39.7, -84.2), ("greene_oh", "cafe", "x2", "Test Place", 39.7, -84.2),

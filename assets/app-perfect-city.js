@@ -3,18 +3,35 @@
 // (straight-line distance), how many are within 1, 2 and 5 km, and about how many people live around the spot, with the
 // block group's people, density and median income. EVERY number says observed, calculated or estimated, and the page says
 // what it does not know. Census layers ship with the page (public domain); the business points come from the server only
-// (public.perfect_city_places: OpenStreetMap, private until attorney row G11), and the page says so when they are missing.
+// (public.perfect_city_places: OpenStreetMap, private until attorney row G11; bank branches from the FDIC Summary of Deposits), and the page says so when they are missing.
+// The credit on screen is the one the server sends for the kind (OpenStreetMap, or FDIC for bank branches).
 // All public words here are DRAFT, FOR RYAN'S YES.
 (() => {
   const NS = 'http://www.w3.org/2000/svg';
   const COUNTIES = [
-    { id: 'montgomery_oh', label: 'Montgomery County, Ohio (Dayton)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'grocery'] },
-    { id: 'greene_oh', label: 'Greene County, Ohio (Beavercreek, Xenia)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza'] }
+    { id: 'montgomery_oh', label: 'Montgomery County, Ohio (Dayton)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian', 'grocery', 'bank'] },
+    { id: 'greene_oh', label: 'Greene County, Ohio (Beavercreek, Xenia)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian', 'bank'] }
   ];
-  const KINDS = { fast_food: 'Fast food', restaurant: 'Restaurants', chicken: 'Chicken places', burger: 'Burger places', pizza: 'Pizza places', grocery: 'Supermarkets' };      // chicken, burger, pizza: the Ryagram engine's rules (tools/perfect-city/export_perfect_city.py SUBKINDS)
-  const KIND_ONE = { fast_food: 'fast food place', restaurant: 'restaurant', chicken: 'chicken place', burger: 'burger place', pizza: 'pizza place', grocery: 'supermarket' };      // one of a kind: '1 restaurant', never '1 restaurants' (CC1 09:43)
-  const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : KINDS[kind].toLowerCase());
+  const KINDS = { fast_food: 'Fast food', restaurant: 'Restaurants', chicken: 'Chicken places', burger: 'Burger places', pizza: 'Pizza places', sandwich: 'Sandwich places', mexican: 'Mexican places', asian: 'Asian places', grocery: 'Supermarkets', bank: 'Bank branches' };      // chicken ... asian: the Ryagram engine's rules (tools/perfect-city/export_perfect_city.py SUBKINDS); bank: FDIC, not OpenStreetMap
+  const KIND_ONE = { fast_food: 'fast food place', restaurant: 'restaurant', chicken: 'chicken place', burger: 'burger place', pizza: 'pizza place', sandwich: 'sandwich place', mexican: 'Mexican place', asian: 'Asian place', grocery: 'supermarket', bank: 'bank branch' };      // one of a kind: '1 restaurant', never '1 restaurants' (CC1 09:43)
+  const kindLower = (k) => KINDS[k].replace(/^\S+/, (w) => (w === 'Mexican' || w === 'Asian' ? w : w.toLowerCase()));      // 'fast food', 'chicken places', but 'Mexican places'
+  const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : kindLower(kind));
+  const sourceOf = (kind) => (kind === 'bank' ? 'the FDIC branch list' : 'OpenStreetMap');      // where the business points of this kind come from, in page words
+  // What each food sub-kind's sorting rule misses, said under the results (the Ryagram engine's limits, in page words). A place is in one food kind at most:
+  // the kinds are checked in the order chicken, burger, pizza, sandwich, Mexican, Asian, and the first that fits wins.
+  const KIND_LIMITS = {
+    chicken: 'Chicken places are sorted by the map data\'s cuisine tag or a known chain name, so a place with neither is missed.',
+    burger: 'Burger places are sorted by the map data\'s cuisine tag or a known chain name, so a place with neither is missed. A place also tagged chicken is counted there instead.',
+    pizza: 'Pizza places are sorted by the map data\'s cuisine tag or a known chain name, so a place with neither is missed. A place also tagged chicken or burger is counted there instead.',
+    sandwich: 'Sandwich places are sorted by the map data\'s cuisine tag or a known chain name, so a place with neither is missed. The kinds are checked in the order chicken, burger, pizza, sandwich, Mexican, Asian, so a place also tagged chicken, burger or pizza is counted there instead.',
+    mexican: 'Mexican places are sorted by the map data\'s cuisine tag or a known chain name, so a place with neither is missed. The kinds are checked in the order chicken, burger, pizza, sandwich, Mexican, Asian, so a place also tagged one of the first four is counted there instead.',
+    asian: 'Asian places are sorted by the map data\'s cuisine tag or a known chain name. Indian places are not counted here. Independent places are often not tagged with a cuisine, so Asian places are undercounted.',
+    bank: 'FDIC-insured bank branches only. Credit unions are not included.'      // not a sorting rule: the FDIC list's own limit
+  };
   const OFFICIAL_KIND = { fast_food: 'limited-service restaurants (fast food)', restaurant: 'full-service restaurants', grocery: 'supermarkets and grocery stores' };      // the County Business Patterns industry in plain words: no industry code on the page (CC1 09:48)
+  // Kinds whose official line is said in its own plain words (County Business Patterns commercial banking, for bank; the code stays in the data file).
+  const OFFICIAL_PLAIN = { bank: 'bank offices' };
+  const OSM_CREDIT = /OpenStreetMap/;      // only the OpenStreetMap credit carries the link to its copyright page
   const SHADES = { density: 'People per square kilometre', income: 'Median household income' };
   const FILL = ['#dfe6f3', '#b3c2e0', '#8299c7', '#55699f', '#2f3f73'];      // pale to dark blue (FACES' shade palette B)
   const NO_DATA = '#4a4a52';
@@ -28,6 +45,8 @@
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.',
       'The map shows the places near your spot only: within 5 km, and the nearest five, at most the nearest 60.',
       'One county at a time: places and people across the county line are not counted, even inside a ring.'],
+    // for bank branches the second line says the FDIC list's limits instead of OpenStreetMap's
+    notKnownBank: 'The bank branches come from the FDIC Summary of Deposits, a yearly list as of June 30: a branch opened or closed since then can be missing or still listed.',
     noPlaces: 'The business points are not loaded yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
     badTyped: 'Type a latitude (from -90 to 90) and a longitude (from -180 to 180) as numbers, with a point before the decimals (a comma is not accepted), for example 39.7589 and -84.1916.',
@@ -42,8 +61,10 @@
     pickB: 'Tap or click the map, or type a latitude and longitude, to put spot B.',
     compareMarks: 'Spot A: white circle, yellow dashed rings. Spot B: cyan square, cyan dotted rings.',
     compareNote: 'Each spot is looked up on its own. This shows what is around each spot side by side; it does not say which spot is better.',
-    notCounted: 'The Census does not count chicken, burger or pizza places separately.'
+    notCounted: 'The Census does not count chicken, burger, pizza, sandwich, Mexican or Asian places separately.'
   };
+  // what the page does not know, for the kind on screen: bank branches swap the OpenStreetMap line for the FDIC list's
+  const notKnownFor = (kind) => WORDS.notKnown.map((t) => (kind === 'bank' && /OpenStreetMap/.test(t) ? WORDS.notKnownBank : t));
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   const km1 = (x) => (x < 10 ? x.toFixed(2) : x.toFixed(1));
   // the spot sent to the server: 4 decimals (about 11 m), like perfect_city_summary_for; half away from zero, as Postgres round() does
@@ -54,7 +75,7 @@
     if (have()) return Promise.resolve(have());
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = `/assets/perfect-city/${county}.census.js?v=20261127pcf2`;      // pcf2: sources.income_years added (b: the County Business Patterns counts)
+      s.src = `/assets/perfect-city/${county}.census.js?v=20261127pcm1`;      // pcm1: sources.income_years (pcf2) with not_counted naming sandwich, mexican and asian and the bank count (more-kinds d); b: the County Business Patterns counts
       s.onload = () => (have() ? resolve(have()) : reject(new Error('no data')));
       s.onerror = () => reject(new Error('no data'));
       document.head.append(s);
@@ -83,6 +104,7 @@
     const results = h('div', { class: 'pc-results', id: 'pc-results' });
     const status = h('p', { class: 'form-note', id: 'pc-status', role: 'status' });
     const credits = h('p', { class: 'meta', id: 'pc-credits' });
+    const notKnownList = h('ul', { class: 'soon-more', id: 'pc-not-known' }, notKnownFor(state.kind).map((t) => h('li', {}, t)));      // redrawn with the credits when the kind changes
     const latIn = h('input', { id: 'pc-lat', type: 'text', inputmode: 'decimal', size: '9', placeholder: '39.7589', autocomplete: 'off' });
     const lonIn = h('input', { id: 'pc-lon', type: 'text', inputmode: 'decimal', size: '9', placeholder: '-84.1916', autocomplete: 'off' });
     const targetWrap = h('span');
@@ -108,7 +130,7 @@
 
     function kindSelect() {
       const c = COUNTIES.find((x) => x.id === state.county);
-      if (!c.kinds.includes(state.kind)) { state.kindNote = `${KINDS[state.kind]}: no places of this kind are loaded for ${c.label} yet, so the page shows ${KINDS[c.kinds[0]].toLowerCase()} instead.`; state.kind = c.kinds[0]; }
+      if (!c.kinds.includes(state.kind)) { state.kindNote = `${KINDS[state.kind]}: no places of this kind are loaded for ${c.label} yet, so the page shows ${kindLower(c.kinds[0])} instead.`; state.kind = c.kinds[0]; }
       const hadFocus = document.activeElement && document.activeElement.id === 'pc-kind';
       kindWrap.replaceChildren(select('pc-kind', 'Business', c.kinds.map((k) => [k, KINDS[k]]), state.kind, (v) => { state.kind = v; refresh(); }));
       if (hadFocus) document.getElementById('pc-kind')?.focus();
@@ -219,25 +241,33 @@
       const keys = FILL.map((f, i) => h('li', {}, h('span', { class: 'pc-swatch', 'data-fill': f }), ' ',
         i === 0 ? `under ${lab(br[0])}` : i === FILL.length - 1 ? `${lab(br[i - 1])} or more` : `${lab(br[i - 1])} to ${lab(br[i])}`));
       const legend = h('div', { class: 'pc-legend' }, h('p', { class: 'meta' }, legendTitle), h('ul', { class: 'pc-keys' }, keys),
-        h('p', { class: 'meta' }, 'Grey: no published figure.' + (inA && inB ? ' Rings: 1, 2 and 5 km around each spot (A: white circle, yellow dashes; B: cyan square, cyan dotted rings).' : inA ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : inB ? ' Cyan dotted rings: 1, 2 and 5 km around spot B (cyan square).' : '') + (!anyPlaces ? '' : two ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of either spot, and the nearest five to each.' : ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.')));
+        h('p', { class: 'meta' }, 'Grey: no published figure.' + (inA && inB ? ' Rings: 1, 2 and 5 km around each spot (A: white circle, yellow dashes; B: cyan square, cyan dotted rings).' : inA ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : inB ? ' Cyan dotted rings: 1, 2 and 5 km around spot B (cyan square).' : '') + (!anyPlaces ? '' : two ? ' Orange dots: ' + kindLower(state.kind) + ' within 5 km of either spot, and the nearest five to each.' : ' Orange dots: ' + kindLower(state.kind) + ' within 5 km of the spot, and the nearest five.')));
       // the swatch colours are attributes on SVG squares (the page's CSP allows no inline style)
       legend.querySelectorAll('.pc-swatch').forEach((s) => { const f = s.getAttribute('data-fill'); s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: f })])); });
       mapBox.replaceChildren(root, legend);
     }
 
     // The official count beside the map data (County Business Patterns, public domain), so a stranger can see how complete the map data is.
-    // A code with no published row is 'fewer than 3 or none (not published)', never 0. There is no CBP code for chicken, burger or pizza.
+    // A code with no published row is 'fewer than 3 or none (not published)', never 0. There is no CBP code for chicken, burger, pizza, sandwich, Mexican or Asian places.
     function officialLine() {
       const o = state.census.official;
       if (!o || !o.kinds) return null;
       const k = o.kinds[state.kind];
       if (!k) return o.not_counted && o.not_counted.includes(state.kind) ? h('p', { class: 'meta', id: 'pc-official' }, WORDS.notCounted) : null;
+      if (OFFICIAL_PLAIN[state.kind]) {      // plain words, no code: "the Census Bureau's count of bank offices"
+        const n = Number.isFinite(k.est) ? fmt(k.est) : 'fewer than 3 or none (not published)';
+        const m = state.loaded == null ? 'the number of FDIC branches loaded is not known' : `the FDIC branch list has ${fmt(state.loaded)} loaded`;
+        return h('p', { class: 'meta', id: 'pc-official' }, `The Census Bureau's count of ${OFFICIAL_PLAIN[state.kind]} in this county is ${n} (observed, County Business Patterns ${o.year}); ${m}.`);
+      }
       const what = OFFICIAL_KIND[state.kind] || k.label.toLowerCase();      // plain words: the industry code stays in the data file, off the page
       const n = Number.isFinite(k.est) ? fmt(k.est) : 'fewer than 3 or none (not published)';
       const m = state.loaded == null ? 'The map data count is not known' : `The map data has ${fmt(state.loaded)} of this kind loaded`;
       return h('p', { class: 'meta', id: 'pc-official' }, `The Census Bureau's count of ${what} in this county (County Business Patterns ${o.year}, observed): ${n}. ${m}.`);
     }
 
+
+    // What the food sub-kind's sorting rule misses (KIND_LIMITS), or nothing for a base kind.
+    const kindLimitsLine = () => (KIND_LIMITS[state.kind] ? h('p', { class: 'meta', id: 'pc-kind-limits' }, KIND_LIMITS[state.kind]) : null);
 
     // area weighting counts any block group the ring touches; if none is touched, say so instead of a bare 0.
     const peopleCell = (p) => (p.blockGroups === 0 ? 'none counted (see the method below)' : `about ${fmt(p.about)}`);
@@ -261,7 +291,7 @@
         row("People in the spot's block group", 'observed, 2020 Census', (k) => cell(k, (x) => (x.u.pop == null ? 'not published' : fmt(x.u.pop)))),
         row('People per square kilometre in the block group', 'calculated', (k) => cell(k, (x) => (x.u.density == null ? 'not available' : fmt(x.u.density)))),
         row('Median household income in the block group', `estimated, ${acsWords()}`, (k) => cell(k, (x) => (x.u.income ? '$' + fmt(x.u.income[0]) + (x.u.income[1] ? ` (plus or minus $${fmt(x.u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'))),
-        row(`Nearest ${kind.toLowerCase()}`, 'observed, from OpenStreetMap; distance calculated, straight line', (k) => placesCell(k, (x) => (x.near ? `${km1(x.near.km)} km (${x.near.name || 'no name in the map data'})` : 'none found'))),
+        row(`Nearest ${kindLower(state.kind)}`, `observed, from ${sourceOf(state.kind)}; distance calculated, straight line`, (k) => placesCell(k, (x) => (x.near ? `${km1(x.near.km)} km (${x.near.name || 'no name in the map data'})` : 'none found'))),
         ...pc.RINGS_KM.map((r, i) => row(`${kind} within ${r} km`, 'calculated', (k) => placesCell(k, (x) => countText(x.counts[i])))),
         ...pc.RINGS_KM.map((r, i) => row(`People within ${r} km`, 'estimated', (k) => cell(k, (x) => peopleCell(x.people[i]))))
       ];
@@ -272,6 +302,7 @@
         h('p', { class: 'meta' }, WORDS.compareNote),
         ...[[state.capKm, state.within], [state.b.capKm, state.b.within]].filter(([k]) => k != null).map(([, w]) => (w ? WORDS.mapCapped : WORDS.capped))
           .filter((t, i, all) => all.indexOf(t) === i).map((t) => h('p', { class: 'form-note' }, t)),
+        ...[kindLimitsLine()].filter(Boolean),      // replaceChildren would write a bare null as the text 'null'
         h('p', { class: 'meta' }, 'People within a ring: ' + pc.peopleWithinArea(state.spot, []).at(0).method + ', rounded to the nearest 100.'));
     }
 
@@ -347,7 +378,7 @@
       const people = pc.peopleWithinArea(state.spot, c.units);
       if (state.places) {
         const near = pc.nearest(state.spot, state.places, 5), counts = ringCounts(state.spot, state.places, state.within, state.capKm);
-        out.push(h('h3', {}, `Nearest ${KINDS[state.kind].toLowerCase()}`, h('span', { class: 'pc-label' }, ' observed, from OpenStreetMap')),
+        out.push(h('h3', {}, `Nearest ${kindLower(state.kind)}`, h('span', { class: 'pc-label' }, ` observed, from ${sourceOf(state.kind)}`)),
           h('ol', { class: 'pc-facts', id: 'pc-nearest' }, near.map((p) => h('li', {}, `${p.name || '(no name in the map data)'}: ${km1(p.km)} km`, h('span', { class: 'pc-label' }, ' calculated, straight line')))));
         out.push(h('h3', {}, 'Within 1, 2 and 5 km'),
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, KINDS[state.kind] + ' (calculated)'), h('th', { scope: 'col' }, 'People (estimated)'))),
@@ -360,6 +391,8 @@
       }
       const off = officialLine();
       if (off) out.push(off);
+      const lim = kindLimitsLine();
+      if (lim) out.push(lim);
       out.push(h('p', { class: 'meta' }, 'People within a ring: ' + people[0].method + ', rounded to the nearest 100.'));
       results.replaceChildren(...out.filter((x) => x != null && x !== false));      // a null part (no cap note) must not print 'null' (FACES 09:31)
     }
@@ -372,9 +405,11 @@
       // each source in plain words: no file, table or industry codes (CC1 09:48); the survey years come from the data
       const plain = ['U.S. Census Bureau block group boundaries (2020 geography)', 'U.S. Census Bureau, 2020 Census population counts (observed)',
         `U.S. Census Bureau, ${acsWords()} median household income (estimated)`].concat(o && o.year ? [`U.S. Census Bureau, County Business Patterns ${o.year} business counts (observed)`] : []);
-      credits.replaceChildren(`Sources: ${plain.join('; ')}. Area and people per square kilometre are calculated here from the boundaries; the shapes are simplified for the page.${credit ? ' ' + credit + ' ' : ''}`,
-        credit ? h('span', { class: 'pc-credit-link' }, '(', h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright'), ').') : '',
+      const osm = OSM_CREDIT.test(credit);      // the server's credit for this kind: OpenStreetMap (with its link) or FDIC for bank branches (no link)
+      credits.replaceChildren(`Sources: ${plain.join('; ')}. Area and people per square kilometre are calculated here from the boundaries; the shapes are simplified for the page.${credit ? ' ' + credit + (osm ? ' ' : '.') : ''}`,
+        osm ? h('span', { class: 'pc-credit-link' }, '(', h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright'), ').') : '',
         ' This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.');
+      notKnownList.replaceChildren(...notKnownFor(state.kind).map((t) => h('li', {}, t)));
     }
 
     // which: 'A' or 'B'. Only the spot that moved is asked about again (each spot is its own server call).
@@ -463,9 +498,9 @@
     kindSelect();
     await refresh();
     return [h('h1', { tabindex: '-1' }, 'Perfect City'), h('p', { class: 'form-intro' }, WORDS.intro), controls, status, retryWrap, mapBox, compareBar, typed, results,
-      h('h2', {}, 'What this does not know'), h('ul', { class: 'soon-more', id: 'pc-not-known' }, WORDS.notKnown.map((t) => h('li', {}, t))), credits,
+      h('h2', {}, 'What this does not know'), notKnownList, credits,
       h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.')];
   }
 
-  window.ryagramPerfectCityPage = Object.freeze({ view, COUNTIES, KINDS, WORDS });
+  window.ryagramPerfectCityPage = Object.freeze({ view, COUNTIES, KINDS, KIND_LIMITS, WORDS, OFFICIAL_PLAIN, notKnownFor, creditLinked: (c) => OSM_CREDIT.test(String(c || '')) });
 })();

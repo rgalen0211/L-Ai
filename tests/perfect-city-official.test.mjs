@@ -10,8 +10,8 @@ import readline from 'node:readline';
 
 const read = (p) => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const COUNTIES = { montgomery_oh: ['39', '113'], greene_oh: ['39', '057'] };
-const NAICS = { fast_food: '722513', restaurant: '722511', grocery: '445110' };
-const PINNED = { year: 2023, montgomery_oh: { fast_food: 515, restaurant: 302, grocery: 77 }, greene_oh: { fast_food: 154, restaurant: 118, grocery: 19 } };
+const NAICS = { fast_food: '722513', restaurant: '722511', grocery: '445110', bank: '522110' };      // bank: commercial banking (credit unions, 522130, are not counted)
+const PINNED = { year: 2023, montgomery_oh: { fast_food: 515, restaurant: 302, grocery: 77, bank: 106 }, greene_oh: { fast_food: 154, restaurant: 118, grocery: 19, bank: 36 } };
 const CBP = 'C:/Users/Ryan/Ryagram-cache/cbp_bulk/cbp23co.zip';
 
 function pageDoc(county) {
@@ -27,7 +27,7 @@ test('the page data files carry the pinned County Business Patterns counts, labe
     assert.equal(o.year, PINNED.year);
     assert.match(o.source, /County Business Patterns 2023/);
     assert.match(o.source, /Public domain/);
-    assert.deepEqual(o.not_counted, ['chicken', 'burger', 'pizza']);
+    assert.deepEqual(o.not_counted, ['chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian']);      // no NAICS code of their own
     assert.deepEqual(Object.keys(o.kinds), Object.keys(NAICS));
     for (const [kind, code] of Object.entries(NAICS)) {
       assert.equal(o.kinds[kind].naics, code, `${county} ${kind}`);
@@ -73,12 +73,23 @@ test('the counts equal the County Business Patterns 2023 county file in the loca
   }
 });
 
-test('the page says the official count beside the loaded count, and says the Census does not count chicken, burger or pizza', () => {
+test('the page says the official count beside the loaded count, and says the Census does not count chicken, burger, pizza, sandwich, Mexican or Asian places', () => {
   const src = read('assets/app-perfect-city.js');
   // plain words, no industry code on the page (CC1 09:48): the code stays in the data file
   assert.match(src, /The Census Bureau's count of \$\{what\} in this county \(County Business Patterns \$\{o\.year\}, observed\): \$\{n\}\. \$\{m\}\./);
   assert.match(src, /The map data has \$\{fmt\(state\.loaded\)\} of this kind loaded/);
   assert.doesNotMatch(src, /NAICS \$\{|k\.naics/);
   assert.match(src, /'fewer than 3 or none \(not published\)'/);
-  assert.match(src, /The Census does not count chicken, burger or pizza places separately\./);
+  assert.match(src, /The Census does not count chicken, burger, pizza, sandwich, Mexican or Asian places separately\./);
+});
+
+test('bank branches: the official line is the Census Bureau\'s count of bank offices (County Business Patterns 2023, NAICS 522110), in plain words with no code', () => {
+  for (const county of Object.keys(COUNTIES)) {
+    const k = pageDoc(county).official.kinds.bank;
+    assert.deepEqual([k.naics, k.label, k.est], ['522110', 'Commercial banking', PINNED[county].bank], county);
+  }
+  const src = read('assets/app-perfect-city.js');
+  assert.match(src, /const OFFICIAL_PLAIN = \{ bank: 'bank offices' \};/);
+  assert.ok(src.includes("`The Census Bureau's count of ${OFFICIAL_PLAIN[state.kind]} in this county is ${n} (observed, County Business Patterns ${o.year}); ${m}.`"));
+  assert.ok(src.includes('`the FDIC branch list has ${fmt(state.loaded)} loaded`'));
 });

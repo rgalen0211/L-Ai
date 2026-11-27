@@ -141,11 +141,11 @@ const CHECKS = {
 // the old line put back, one per check (C has two: the official line and the credits)
 const PLANTS = {
   noNull: [['results.replaceChildren(...out.filter((x) => x != null && x !== false));', 'results.replaceChildren(...out);']],
-  singular: [['const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : KINDS[kind].toLowerCase());', 'const kindWords = (kind, n) => KINDS[kind].toLowerCase();']],
+  singular: [['const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : kindLower(kind));', 'const kindWords = (kind, n) => kindLower(kind);']],
   plainWords: [
     ['const what = OFFICIAL_KIND[state.kind] || k.label.toLowerCase();', 'const what = `${OFFICIAL_KIND[state.kind]} (NAICS ${k.naics})`;'],
     ["${plain.join('; ')}", '${s.boundaries}; ${s.population}; ${s.income}'],
-    ["`Nearest ${KINDS[state.kind].toLowerCase()}`, h('span', { class: 'pc-label' }, ' observed, from OpenStreetMap')", '`Nearest ${KINDS[state.kind].toLowerCase()}`']
+    ["`Nearest ${kindLower(state.kind)}`, h('span', { class: 'pc-label' }, ` observed, from ${sourceOf(state.kind)}`)", '`Nearest ${kindLower(state.kind)}`']
   ],
   yearsFromData: [["return y ? `American Community Survey ${y}`", "return y ? 'American Community Survey 2019 to 2023'"]],
   badWithin: [['if (!Number.isInteger(n) || n < 0) return null;', '']],

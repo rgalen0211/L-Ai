@@ -2,12 +2,13 @@
 -- What it adds, and nothing else:
 --   * ryagram_private.perfect_city_places: one row per business place (county, kind, osm_ref, name, lat, lon). EMPTY here: the rows are OpenStreetMap
 --     data (ODbL; attorney row G11 open), loaded by the dashboard from a file OUTSIDE every repo (live step PC2). Closed to every API role.
+--     Kind 'bank' is NOT OpenStreetMap: FDIC Summary of Deposits branch offices as of June 30, 2026 (public domain), in the same file; its credit is FDIC's.
 --   * ryagram_private.perfect_city_units: the Census block groups' centres and populations (public domain), loaded from
 --     supabase/live-steps/perfect_city_units_seed.sql (live step PC2b), generated from the page's own data. Used for the county box check only: no
 --     people figure is given by the server (the page's area-weighted estimate is on the page only).
 --   * public.perfect_city_places(county, kind, lat, lon): for ONE spot, the places within 5 km of it plus the nearest five (never a whole county in one
 --     call: RENDERER 08:24, the licence question), with how many are loaded, the true counts within 1, 2 and 5 km ('within', counted before the 60 cap),
---     and the OpenStreetMap credit; never the osm_ref. Signed in only, and only for
+--     and the credit of the kind's source (OpenStreetMap, or FDIC for bank); never the osm_ref. Signed in only, and only for
 --     an account whose per-account switch list names 'perfectCity', an app admin, or everyone once the department is 'working' (the public flip); else 42501. Unknown county or kind, or a spot outside the county: 22023.
 --   * ryagram_private.perfect_city_summary_for(owner, county, kind, lat, lon): the AI tool's summary (CONNECT wraps it with its token check), the same gate
 --     for that owner, schema ryagram.perfect-city-summary/0 (proposals/CONNECT-DEPT-PERFECT-CITY-1127.md part B).
@@ -23,8 +24,8 @@ begin;
 
 create table ryagram_private.perfect_city_places (
   county text not null check (county in ('montgomery_oh', 'greene_oh')),
-  kind text not null check (kind in ('fast_food', 'restaurant', 'grocery', 'chicken', 'burger', 'pizza')),
-  osm_ref text not null,
+  kind text not null check (kind in ('fast_food', 'restaurant', 'grocery', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian', 'bank')),
+  osm_ref text not null,      -- the row's stable source id: an OpenStreetMap ref (n123, w456), or for kind 'bank' 'fdic:<FDIC unique branch number>'; never returned by any API
   name text not null default '',
   lat double precision not null check (lat between -90 and 90),
   lon double precision not null check (lon between -180 and 180),
@@ -84,8 +85,8 @@ begin
   if p_county is null or p_county not in ('montgomery_oh', 'greene_oh') then
     raise exception 'Choose a county: montgomery_oh or greene_oh.' using errcode = '22023';
   end if;
-  if p_kind is null or p_kind not in ('fast_food', 'restaurant', 'grocery', 'chicken', 'burger', 'pizza') or (p_county = 'greene_oh' and p_kind = 'grocery') then
-    raise exception 'Choose a kind this county has: fast_food, restaurant, chicken, burger or pizza (grocery in montgomery_oh only).' using errcode = '22023';
+  if p_kind is null or p_kind not in ('fast_food', 'restaurant', 'grocery', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian', 'bank') or (p_county = 'greene_oh' and p_kind = 'grocery') then
+    raise exception 'Choose a kind this county has: fast_food, restaurant, chicken, burger, pizza, sandwich, mexican, asian or bank (grocery in montgomery_oh only).' using errcode = '22023';
   end if;
   select min(u.lat) - 0.05 as lat0, max(u.lat) + 0.05 as lat1, min(u.lon) - 0.05 as lon0, max(u.lon) + 0.05 as lon1 into box
     from ryagram_private.perfect_city_units u where u.county = p_county;
@@ -99,6 +100,7 @@ end $$;
 revoke execute on function ryagram_private.perfect_city_check(uuid, text, text, double precision, double precision) from public, anon, authenticated, service_role;
 
 -- The page's call: the places near ONE spot (within 5 km, plus the nearest five), never a whole county.
+-- The credit follows the kind's SOURCE: bank branches come from the FDIC Summary of Deposits (public domain), every other kind from OpenStreetMap.
 create function public.perfect_city_places(p_county text, p_kind text, p_lat double precision, p_lon double precision) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_signed_in();       -- no visitor, no worker account
@@ -106,7 +108,8 @@ begin
   perform ryagram_private.perfect_city_check(me, p_county, p_kind, p_lat, p_lon);
   -- 'within': the TRUE counts within 1, 2 and 5 km, over every loaded place of this county and kind, counted BEFORE the 60-place cap (RENDERER 09:12: the page
   -- undercounted a dense cluster from the capped list). Only 'places' is capped, by its aggregate filter; the counts see every row of n.
-  return (select jsonb_build_object('county', p_county, 'kind', p_kind, 'radius_km', 5, 'max_places', 60, 'credit', 'Map data (c) OpenStreetMap contributors (ODbL)',
+  return (select jsonb_build_object('county', p_county, 'kind', p_kind, 'radius_km', 5, 'max_places', 60,
+                                    'credit', case when p_kind = 'bank' then 'Bank branches: FDIC Summary of Deposits, June 30, 2026' else 'Map data (c) OpenStreetMap contributors (ODbL)' end,
                                     'loaded', (select count(*) from ryagram_private.perfect_city_places a where a.county = p_county and a.kind = p_kind),
                                     'within', jsonb_build_object('1', count(*) filter (where n.km <= 1), '2', count(*) filter (where n.km <= 2), '5', count(*) filter (where n.km <= 5)),
                                     'places', coalesce(jsonb_agg(jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon) order by n.km, n.name, n.osm_ref)
@@ -153,13 +156,15 @@ begin
               from (values (1), (2), (5)) r(km)),
     'not_known', jsonb_build_array(
       'Distances are straight lines, not drive or walk times.',
-      'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
+      case when p_kind = 'bank' then 'The bank branches come from the FDIC Summary of Deposits, a yearly list as of June 30: FDIC-insured banks only, so credit unions are not included, and a branch opened or closed since then can be missing or still listed.'
+           else 'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.' end,
       'No count of people is given here. The Perfect City page shows an estimate of the people around the spot, made with an area method this summary does not have.',
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.'),
     'credits', jsonb_build_array(
       'U.S. Census Bureau, 2020 Census block groups (used to check that the spot is inside the county).',
       'This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.',
-      'Map data (c) OpenStreetMap contributors (ODbL)'));
+      case when p_kind = 'bank' then 'Bank branches: FDIC Summary of Deposits, June 30, 2026'
+           else 'Map data (c) OpenStreetMap contributors (ODbL)' end));
 end $$;
 revoke execute on function ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision) from public, anon, authenticated, service_role;
 

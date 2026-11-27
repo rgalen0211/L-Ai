@@ -389,17 +389,24 @@
       perfect_city_places(args) {
         const q = typeof location !== 'undefined' ? (location.search || '') : '';
         if (!/[?&]perfectcity/.test(q) || /[?&]placeserr/.test(q)) return fail('not allowed');
-        const mid = { montgomery_oh: [-84.2, 39.76], greene_oh: [-83.98, 39.70] }[args && args.p_county] || [-84.2, 39.76];
+        // like the real perfect_city_check: only the kinds the migration's lists name (grocery in Montgomery only), else refused in its words
+        const KINDS_OK = ['fast_food', 'restaurant', 'grocery', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian', 'bank'];
+        if (!args || !KINDS_OK.includes(args.p_kind) || (args.p_county === 'greene_oh' && args.p_kind === 'grocery')) {
+          return fail('Choose a kind this county has: fast_food, restaurant, chicken, burger, pizza, sandwich, mexican, asian or bank (grocery in montgomery_oh only).');
+        }
+        const mid ={ montgomery_oh: [-84.2, 39.76], greene_oh: [-83.98, 39.70] }[args && args.p_county] || [-84.2, 39.76];
         const n = (args && args.p_kind) === 'grocery' ? 6 : 14;
         const dense = /[?&]denseplaces/.test(q) ? Array.from({ length: 80 }, (_, i) => ({ name: `Test Dense ${i + 1}`, lat: mid[1] + (i % 9) * 0.0015, lon: mid[0] + Math.floor(i / 9) * 0.0015 })) : [];
-        const all = /[?&]noplaces/.test(q) ? [] : Array.from({ length: n }, (_, i) => ({ name: i % 5 === 4 ? '' : `Test Place ${i + 1}`, lat: mid[1] + Math.sin(i * 2.4) * 0.012 * (1 + i % 4), lon: mid[0] + Math.cos(i * 2.4) * 0.016 * (1 + i % 4) })).concat(dense);
+        const all = /[?&]noplaces/.test(q) ? [] : Array.from({ length: n }, (_, i) => ({ name: i % 5 === 4 ? '' : args.p_kind === 'bank' ? `Test Bank Branch ${i + 1}` : `Test Place ${i + 1}`, lat: mid[1] + Math.sin(i * 2.4) * 0.012 * (1 + i % 4), lon: mid[0] + Math.cos(i * 2.4) * 0.016 * (1 + i % 4) })).concat(dense);
         // like the real function: only the places within 5 km of the spot, plus the nearest five (never the whole county), at most 60; 'within' counts EVERY place, before the cap
         const rad = (d) => d * Math.PI / 180, km = (p) => 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(Math.sin(rad(p.lat - args.p_lat) / 2) ** 2 + Math.cos(rad(args.p_lat)) * Math.cos(rad(p.lat)) * Math.sin(rad(p.lon - args.p_lon) / 2) ** 2)));
         const byKm = all.map((p) => ({ p, d: km(p) })).sort((x, y) => x.d - y.d);
         const places = byKm.filter((x, i) => (x.d <= 5 || i < 5) && i < 60).map((x) => x.p);
         const within = { 1: 0, 2: 0, 5: 0 };
         for (const x of byKm) for (const r of [1, 2, 5]) if (x.d <= r) within[r]++;
-        const data = { county: args && args.p_county, kind: args && args.p_kind, credit: 'Map data (c) OpenStreetMap contributors (ODbL)', radius_km: 5, max_places: 60, loaded: all.length, within, places };
+        // like the real function: the credit follows the kind's source (bank branches: FDIC, invented branches here; every other kind: OpenStreetMap)
+        const credit = args.p_kind === 'bank' ? 'Bank branches: FDIC Summary of Deposits, June 30, 2026' : 'Map data (c) OpenStreetMap contributors (ODbL)';
+        const data = { county: args && args.p_county, kind: args && args.p_kind, credit, radius_km: 5, max_places: 60, loaded: all.length, within, places };
         if (/[?&]nowithin/.test(q)) delete data.within;
         return { data, error: null };
       },

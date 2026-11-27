@@ -4,6 +4,8 @@ Two outputs, kept apart on purpose:
   census   -> assets/perfect-city/<county>.census.json  (US Census, public domain: committed, served with the page)
   places   -> a SQL file OUTSIDE this repo (OpenStreetMap, ODbL; attorney row G11 is open, so the points are
               never committed or served as a site file; Ryan loads them into a private table with a live step)
+              The same file carries the bank branches (kind 'bank'): FDIC Summary of Deposits, public domain, from D:/Ryagram-cache/fdic_sod,
+              kept beside the OSM points so one file loads every kind.
 
 Usage (system Python with pyshp and pyproj; no network):
   py -I -B tools/perfect-city/export_perfect_city.py census
@@ -132,8 +134,12 @@ def census(args):
 KINDS = {'fast_food': ('amenity', 'fast_food'), 'restaurant': ('amenity', 'restaurant'), 'grocery': ('shop', 'supermarket')}
 
 # Food sub-kinds: a place in one of these is ALSO in fast_food or restaurant. The rules are COPIED from the Ryagram engine,
-# ryagram/geo/categories.py DEFAULT (rows chicken, burger, pizza: requires, cuisine and brands, unchanged), and applied the same way as its
-# classify(): the FIRST row that matches wins, so a place is in at most one of the three. Keep them in step with that file; do not add rules here.
+# ryagram/geo/categories.py DEFAULT (rows chicken, burger, pizza, sandwich, mexican, asian, in that order: requires, match, cuisine and brands,
+# unchanged), and applied the same way as its classify(): the FIRST row that matches wins, so a place is in at most one sub-kind, and sandwich,
+# mexican and asian are checked in that order AFTER chicken, burger and pizza. Rows with "match": "words" need a WHOLE cuisine token (the tag split
+# on ; and ,) or a brand as whole words in the name, brand or operator (a curly apostrophe counts as a plain one); the older rows match substrings.
+# Keep them in step with that file; do not add rules here. With RYAGRAM_ENGINE set to a Ryagram checkout, `places` compares these rows with that
+# checkout's categories.py first and refuses on any difference (engine_drift below).
 SUBKINDS = (
     {"id": "chicken", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "cuisine": ["chicken"],
      "brands": ["kfc", "kentucky fried", "popeyes", "chick-fil-a", "raising cane", "wingstop", "bojangles", "zaxby", "church's chicken", "churchs chicken", "el pollo loco", "golden chick", "slim chickens", "bonchon", "lee's famous recipe"]},
@@ -141,7 +147,43 @@ SUBKINDS = (
      "brands": ["mcdonald", "burger king", "wendy's", "wendys", "white castle", "five guys", "culver", "whataburger", "sonic drive", "jack in the box", "carl's jr", "hardee", "smashburger", "steak n shake", "in-n-out", "habit burger"]},
     {"id": "pizza", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "cuisine": ["pizza"],
      "brands": ["domino", "pizza hut", "papa john", "little caesars", "marco's pizza", "papa murphy", "jet's pizza", "cici's"]},
+    {"id": "sandwich", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "match": "words", "cuisine": ["sandwich", "sub", "deli"],
+     "brands": ["subway", "jimmy john's", "jersey mike's", "firehouse subs", "potbelly", "penn station", "quiznos", "jason's deli", "arby's"]},
+    {"id": "mexican", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "match": "words", "cuisine": ["mexican", "tex-mex", "tex_mex", "tacos", "taco", "burrito"],
+     "brands": ["taco bell", "chipotle", "qdoba", "moe's southwest", "taco john's", "el toro"]},
+    {"id": "asian", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "match": "words", "cuisine": ["chinese", "japanese", "sushi", "thai", "vietnamese", "korean", "asian", "ramen", "pho"],
+     "brands": ["panda express", "p.f. chang's", "pf chang's"]},
 )
+APOSTROPHES = str.maketrans({chr(0x2019): "'", chr(0x2018): "'"})
+
+
+def engine_drift(engine):
+    """[] when SUBKINDS equal the matching rows of <engine>/ryagram/geo/categories.py DEFAULT (same ids in the same relative order, same
+    requires, tags, match, cuisine and brands); else the differences in words. categories.py imports only json and re."""
+    import importlib.util
+    path = pathlib.Path(engine) / 'ryagram' / 'geo' / 'categories.py'
+    if not path.exists():
+        return [f'{path} does not exist']
+    spec = importlib.util.spec_from_file_location('_ryagram_categories', path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mine = [c['id'] for c in SUBKINDS]
+    theirs = {c['id']: c for c in mod.DEFAULT}
+    out = [f'{i}: not in the engine table' for i in mine if i not in theirs]
+    order = [c['id'] for c in mod.DEFAULT if c['id'] in mine]
+    if not out and order != mine:
+        out.append(f'order differs: engine {order}, export {mine}')
+    def norm(c):
+        d = {k: [(a, list(b)) for a, b in c.get(k, [])] for k in ('requires', 'tags')}
+        d.update({k: list(c.get(k, [])) for k in ('cuisine', 'brands')}, match=c.get('match'))
+        return d
+    out += [f'{c["id"]}: the rule differs from the engine' for c in SUBKINDS if c['id'] in theirs and norm(c) != norm(theirs[c['id']])]
+    return out
+
+
+def has_words(text, fragment):
+    """True if `fragment` appears in `text` as a whole word run (no letter or digit just before or after it), as the engine's _has_words."""
+    return re.search(r'(?<![a-z0-9])' + re.escape(fragment) + r'(?![a-z0-9])', text) is not None
 
 
 def subkind(tags):
@@ -153,7 +195,12 @@ def subkind(tags):
             continue
         if any(tags.get(k) in vals for k, vals in c.get('tags', [])):
             return c['id']
-        if any(w in cuisine for w in c.get('cuisine', [])) or any(b in name for b in c.get('brands', [])):
+        if c.get('match') == 'words':
+            tokens = {t.strip() for t in re.split(r'[;,]', cuisine) if t.strip()}
+            words = name.translate(APOSTROPHES)
+            if (tokens & set(c.get('cuisine', []))) or any(has_words(words, b) for b in c.get('brands', [])):
+                return c['id']
+        elif any(w in cuisine for w in c.get('cuisine', [])) or any(b in name for b in c.get('brands', [])):
             return c['id']
     return None
 
@@ -167,11 +214,64 @@ def kinds_of(tags):
     return out
 
 
+# Bank branches (GEO 11-27): NOT OpenStreetMap. The FDIC Summary of Deposits branch list (U.S. government data, public domain), read from Ryagram's
+# fdic_sod cache, D:/Ryagram-cache/fdic_sod/<year>/page_*.json (plain JSON lists, one dict per branch office; only json.loads, never unpickled).
+# A branch is kept when its STCNTYBR is the county's FIPS code AND its point is inside the county's block groups (the same test as the OSM points).
+# The stable ref is FDIC's unique branch number (UNINUMBR), written as 'fdic:<n>' into the osm_ref column (the API never returns it). The list is a
+# snapshot as of June 30 of its year; credit unions are not FDIC-insured, so they are not in it. The kind is FDIC_KIND, outside KINDS/SUBKINDS on purpose.
+FDIC_DIR = pathlib.Path(r'D:/Ryagram-cache/fdic_sod')
+FDIC_KIND = 'bank'
+MIGRATION = REPO / 'supabase' / 'migrations' / '20261127000900_perfect_city_places.sql'
+
+
+def fdic_credit(year):
+    return f'Bank branches: FDIC Summary of Deposits, June 30, {year}'
+
+
+def fdic_branches():
+    """(year, [branch dict, ...]) from the newest cached year; refuses unless every row carries that same YEAR."""
+    years = sorted((int(p.name) for p in FDIC_DIR.iterdir() if p.is_dir() and p.name.isdigit()), reverse=True) if FDIC_DIR.exists() else []
+    if not years:
+        sys.exit('REFUSED: no FDIC Summary of Deposits pages in ' + str(FDIC_DIR))
+    year = years[0]
+    rows = []
+    for f in sorted((FDIC_DIR / str(year)).glob('page_*.json')):
+        doc = json.loads(f.read_text(encoding='utf-8'))
+        if not isinstance(doc, list):
+            sys.exit(f'REFUSED: {f} is not a list of branches')
+        rows += doc
+    if not rows or {r.get('YEAR') for r in rows} != {year}:
+        sys.exit(f'REFUSED: the FDIC pages in {FDIC_DIR / str(year)} do not all say YEAR {year}')
+    if fdic_credit(year) not in MIGRATION.read_text(encoding='utf-8'):
+        sys.exit(f'REFUSED: the migration does not carry the credit "{fdic_credit(year)}" for this data; update it first')
+    return year, rows
+
+
+def fdic_name(r):
+    """The branch's name as the person would look for it: the bank's name, then the branch's own name when it adds something."""
+    bank, branch = (r.get('NAMEFULL') or '').strip(), (r.get('NAMEBR') or '').strip()
+    if not branch or branch.lower().startswith(bank.lower()):
+        return (branch or bank)[:120]
+    return f'{bank} ({branch})'[:120]
+
+
 def places(args):
     out = pathlib.Path(args.out).resolve()
     if REPO in out.parents or out == REPO:
         sys.exit('REFUSED: the OpenStreetMap points must never be written inside the repo (attorney row G11).')
+    fdic_year, fdic_rows = fdic_branches()
+    print('FDIC Summary of Deposits', fdic_year, len(fdic_rows), 'branches nationwide')
+    import os
+    engine = os.environ.get('RYAGRAM_ENGINE')
+    if engine:
+        drift = engine_drift(engine)
+        if drift:
+            sys.exit('REFUSED: SUBKINDS are not the Ryagram engine\'s rows (' + engine + '): ' + '; '.join(drift))
+        print('SUBKINDS match the engine at', engine)
+    else:
+        print('RYAGRAM_ENGINE not set: SUBKINDS were NOT compared with the engine')
     rows, outside = [], 0
+    fdic_outside = {k: 0 for k in COUNTIES}
     for key in COUNTIES:
         # keep only the points INSIDE the county's own block groups (the queries used a box wider than the county; GAMES 08:44 LOW)
         js = (REPO / 'assets' / 'perfect-city' / f'{key}.census.js').read_text(encoding='utf-8')
@@ -206,10 +306,22 @@ def places(args):
                 for kind in kinds_of(tags):
                     name = (tags.get('name') or '')[:120]
                     rows.append((key, kind, f"{e['type'][0]}{e['id']}", name, round(lat, 6), round(lon, 6)))
+        fips = int(COUNTIES[key]['state'] + COUNTIES[key]['county'])
+        in_fips = [r for r in fdic_rows if r.get('STCNTYBR') == fips]
+        kept = 0
+        for r in in_fips:
+            lat, lon = r.get('SIMS_LATITUDE'), r.get('SIMS_LONGITUDE')
+            if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)) or not inside(lon, lat):
+                fdic_outside[key] += 1
+                continue
+            rows.append((key, FDIC_KIND, f"fdic:{int(r['UNINUMBR'])}", fdic_name(r), round(lat, 6), round(lon, 6)))
+            kept += 1
+        print(f'{key}: FDIC branches with county code {fips}: {len(in_fips)}; inside the block groups: {kept}; left out: {fdic_outside[key]}')
     rows = sorted(set(rows))
-    print('left out (outside the county):', outside, 'elements')
+    print('left out (outside the county):', outside, 'OpenStreetMap elements')
     q = lambda s: "'" + s.replace("'", "''") + "'"
     lines = ['-- Perfect City places (OpenStreetMap contributors, ODbL 1.0). PRIVATE until attorney row G11: never commit this file.',
+             f"-- Rows of kind '{FDIC_KIND}' are NOT OpenStreetMap: FDIC Summary of Deposits branch offices as of June 30, {fdic_year} (U.S. government data, public domain); osm_ref holds 'fdic:<FDIC unique branch number>'.",
              'begin;', 'delete from ryagram_private.perfect_city_places;']
     for i in range(0, len(rows), 200):
         chunk = rows[i:i + 200]
@@ -245,11 +357,11 @@ def units_seed(args):
 
 
 # The OFFICIAL count of each kind in the county (GEO 11-27): U.S. Census Bureau, County Business Patterns (CBP), public domain,
-# read from the bulk county files already in the cache (no network). There is no CBP code for chicken, burger or pizza places.
+# read from the bulk county files already in the cache (no network). There is no CBP code for chicken, burger, pizza, sandwich, Mexican or Asian places.
 CBP_DIR = pathlib.Path(r'C:/Users/Ryan/Ryagram-cache/cbp_bulk')
-CBP_NAICS = {'fast_food': '722513', 'restaurant': '722511', 'grocery': '445110'}
+CBP_NAICS = {'fast_food': '722513', 'restaurant': '722511', 'grocery': '445110', 'bank': '522110'}      # bank: commercial banking (NAICS 2017); credit unions are 522130, not counted
 CBP_LABELS = {'722513': 'Limited-service restaurants', '722511': 'Full-service restaurants',
-              '445110': 'Supermarkets and other grocery (except convenience) stores'}
+              '445110': 'Supermarkets and other grocery (except convenience) stores', '522110': 'Commercial banking'}
 
 
 def cbp_years():
@@ -288,7 +400,7 @@ def official_block(year, meta):
             kinds[kind]['note'] = 'fewer than 3 or none (not published)'
     return {'year': year,
             'source': f'U.S. Census Bureau, County Business Patterns {year}, county file cbp{year % 100:02d}co (establishments, by NAICS industry code): OBSERVED. Public domain (U.S. government work).',
-            'not_counted': ['chicken', 'burger', 'pizza'],
+            'not_counted': ['chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian'],
             'kinds': kinds}
 
 

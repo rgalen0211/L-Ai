@@ -57,6 +57,14 @@ FAULTS = [
      "'basis', 'calculated'), 'people_about', jsonb_build_object('value', (select (round(coalesce(sum(u.pop), 0) / 100.0) * 100)::int"
      " from ryagram_private.perfect_city_units u where u.county = p_county and ryagram_private.perfect_city_km(v_lat, v_lon, u.lat, u.lon) <= r.km),"
      " 'basis', 'estimated'))\n                order by r.km)"),
+    # 2026-11-27: the table accepts the newest kind but perfect_city_check's list forgot it (the two lists drifted), so the page's bank branches are refused
+    # (first written for asian; since bank was added after asian, the dropped kind is bank, which test_bank_branches_... asks for in both counties)
+    ("a new kind missing from the check list", PLACES,
+     "'mexican', 'asian', 'bank') or (p_county = 'greene_oh' and p_kind = 'grocery') then", "'mexican', 'asian') or (p_county = 'greene_oh' and p_kind = 'grocery') then"),
+    # 2026-11-27: bank branches come from the FDIC Summary of Deposits, not OpenStreetMap; a fixed credit would put OpenStreetMap's name on FDIC data
+    ("banks carry the OSM credit", PLACES,
+     "'credit', case when p_kind = 'bank' then 'Bank branches: FDIC Summary of Deposits, June 30, 2026' else 'Map data (c) OpenStreetMap contributors (ODbL)' end,",
+     "'credit', 'Map data (c) OpenStreetMap contributors (ODbL)',"),
     ("the spot box check is removed", PLACES, BOX, ""),
 ]
 

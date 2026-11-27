@@ -170,7 +170,8 @@ def main():
                 p.screenshot(path=str(out / f'4-greene-typed-{name}.png'), full_page=True)
                 # a food sub-kind (the Ryagram engine's chicken rule): offered in both counties, and picking it shows results for the same spot
                 labels = [o.inner_text() for o in p.locator('#pc-kind option').all()]
-                check(all(x in labels for x in ('Chicken places', 'Burger places', 'Pizza places')), 'chicken, burger and pizza places are offered')
+                check(all(x in labels for x in ('Chicken places', 'Burger places', 'Pizza places', 'Sandwich places', 'Mexican places', 'Asian places')),
+                      'chicken, burger, pizza, sandwich, Mexican and Asian places are offered in Greene')
                 p.select_option('#pc-kind', label='Chicken places')
                 for _ in range(100):
                     if 'Nearest chicken places' in p.inner_text('#pc-results'): break
@@ -180,9 +181,51 @@ def main():
                 check('Chicken places (calculated)' in p.inner_text('#pc-rings'), 'Chicken places: the rings count them, labelled calculated')
                 official_chicken = p.inner_text('#pc-official') if p.locator('#pc-official').count() == 1 else ''
                 check("The Census Bureau's count of limited-service restaurants (fast food) in this county (County Business Patterns 2023, observed): 515. The map data has 14 of this kind loaded." == official_fast_food
-                      and official_chicken == 'The Census does not count chicken, burger or pizza places separately.',
+                      and official_chicken == 'The Census does not count chicken, burger, pizza, sandwich, Mexican or Asian places separately.',
                       f'the official Census count is said beside the loaded count (Montgomery fast food), and chicken says the Census does not count it ({official_fast_food!r}, {official_chicken!r})')
                 p.screenshot(path=str(out / f'4b-greene-chicken-{name}.png'), full_page=True)
+                # a new food sub-kind (2026-11-27): Asian places, with its limits sentence (independents often untagged, so undercounted)
+                p.select_option('#pc-kind', label='Asian places')
+                for _ in range(100):
+                    if 'Nearest Asian places' in p.inner_text('#pc-results'): break
+                    p.wait_for_timeout(100)
+                check('Nearest Asian places' in p.inner_text('#pc-results') and p.locator('#pc-nearest li').count() == 5
+                      and 'Asian places (calculated)' in p.inner_text('#pc-rings'), 'Asian places: the five nearest are listed and the rings count them, labelled calculated')
+                limits_asian = p.inner_text('#pc-kind-limits') if p.locator('#pc-kind-limits').count() == 1 else ''
+                official_asian = p.inner_text('#pc-official') if p.locator('#pc-official').count() == 1 else ''
+                check('Independent places are often not tagged with a cuisine, so Asian places are undercounted.' in limits_asian
+                      and official_asian == 'The Census does not count chicken, burger, pizza, sandwich, Mexican or Asian places separately.',
+                      f'Asian places: the limits sentence says they are undercounted, and the Census does not count them ({limits_asian!r}, {official_asian!r})')
+                # bank branches (2026-11-27): FDIC Summary of Deposits, not OpenStreetMap; the credit, the not-known line and the official line follow the kind
+                check('Bank branches' in [o.inner_text() for o in p.locator('#pc-kind option').all()], 'Bank branches are offered in Greene')
+                p.select_option('#pc-kind', label='Bank branches')
+                for _ in range(100):
+                    if 'Nearest bank branches' in p.inner_text('#pc-results') and 'FDIC' in p.inner_text('#pc-credits'): break
+                    p.wait_for_timeout(100)
+                check('Nearest bank branches' in p.inner_text('#pc-results') and p.locator('#pc-nearest li').count() == 5
+                      and 'Bank branches (calculated)' in p.inner_text('#pc-rings') and 'Test Bank Branch' in p.inner_text('#pc-nearest'),
+                      'Bank branches: the five nearest (invented) branches are listed and the rings count them, labelled calculated')
+                limits_bank = p.inner_text('#pc-kind-limits') if p.locator('#pc-kind-limits').count() == 1 else ''
+                official_bank = p.inner_text('#pc-official') if p.locator('#pc-official').count() == 1 else ''
+                check(limits_bank == 'FDIC-insured bank branches only. Credit unions are not included.', f'Bank branches: the limits line ({limits_bank!r})')
+                check(official_bank == "The Census Bureau's count of bank offices in this county is 36 (observed, County Business Patterns 2023); the FDIC branch list has 14 loaded."
+                      and 'NAICS' not in official_bank and '522110' not in official_bank, f'Bank branches: the official line in plain words, no code ({official_bank!r})')
+                cr_bank, nk_bank = p.inner_text('#pc-credits'), p.inner_text('#pc-not-known')
+                check('Bank branches: FDIC Summary of Deposits, June 30, 2026' in cr_bank and 'OpenStreetMap' not in cr_bank
+                      and p.locator('#pc-credits a[href*="openstreetmap"]').count() == 0, f'Bank branches: the credit is FDIC, with no OpenStreetMap credit or link ({cr_bank[-160:]!r})')
+                check('FDIC Summary of Deposits' in nk_bank and 'OpenStreetMap' not in nk_bank, 'Bank branches: what it does not know names the FDIC list, not OpenStreetMap')
+                p.screenshot(path=str(out / f'4d-greene-bank-{name}.png'), full_page=True)
+                p.select_option('#pc-kind', 'fast_food')
+                for _ in range(100):
+                    if 'OpenStreetMap' in p.inner_text('#pc-credits'): break
+                    p.wait_for_timeout(100)
+                cr_food = p.inner_text('#pc-credits')
+                check('OpenStreetMap contributors' in cr_food and 'FDIC' not in cr_food and p.locator('#pc-credits a[href*="openstreetmap"]').count() == 1
+                      and 'OpenStreetMap' in p.inner_text('#pc-not-known'), 'back to fast food: the OpenStreetMap credit, its link and its not-known line return')
+                p.wait_for_timeout(300)
+                check(p.locator('#pc-kind-limits').count() == 0, 'a base kind (fast food) has no food sub-kind limits sentence')
+                check('null' not in p.inner_text('#pc-results').split(), 'no bare "null" is written into the results (below 60 places there is no cap note)')
+                p.screenshot(path=str(out / f'4c-greene-asian-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()
                 # 2. places not loaded: the page still works and says why

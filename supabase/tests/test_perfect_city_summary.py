@@ -110,6 +110,21 @@ class PerfectCitySummary(core.Base):
         self.assertIn("Map data (c) OpenStreetMap contributors (ODbL)", s["credits"])
         self.assertNotIn("osm_ref", str(s))
 
+    def test_04b_bank_branches_carry_the_fdic_credit_and_not_known_line(self):
+        # kind 'bank' is the FDIC Summary of Deposits (public domain), not OpenStreetMap: an INVENTED branch 0.5 km north of the spot
+        self.switch_on(OTHER)
+        self.owner("insert into ryagram_private.perfect_city_places (county, kind, osm_ref, name, lat, lon) values ('montgomery_oh', 'bank', 'fdic:9000009', 'Invented Test Bank', %s, %s)",
+                   self.spot[0] + 0.5 / 111.195, self.spot[1])
+        s = self.summary(OTHER, kind="bank")
+        self.assertEqual((s["business_type"], s["places_loaded"]["count"], len(s["nearest"])), ("bank", 1, 1))
+        self.assertIn("Bank branches: FDIC Summary of Deposits, June 30, 2026", s["credits"])
+        self.assertNotIn("OpenStreetMap", str(s["credits"]) + str(s["not_known"]), "no OpenStreetMap credit or line for bank branches")
+        self.assertTrue(any("credit unions are not included" in t for t in s["not_known"]))
+        self.assertTrue(any("No count of people is given here" in t for t in s["not_known"]), "bank branches give no people figure either")
+        self.assertNotIn("fdic:", str(s))
+        self.assertNotIn("Invented Test Bank", str(s))
+        self.assertIn("Map data (c) OpenStreetMap contributors (ODbL)", self.summary(OTHER)["credits"], "fast food keeps the OpenStreetMap credit")
+
     def test_05_no_people_figure_anywhere_and_the_ai_is_told_the_estimate_is_on_the_page_only(self):
         self.switch_on(OTHER)
         for lat, lon in SPOTS:
