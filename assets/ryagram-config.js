@@ -109,7 +109,8 @@ window.ryagramConfig = Object.freeze({
   // The live editor (#/editor/data and #/editor/compilation): scrub, change the look, edit tracks, ask your AI; NEXT-WEB 152, proposals/WEB-LIVE-EDITOR.md. Off until Ryan has seen it; this first version runs on a stand-in drawing and clip list.
   liveEditor: 'account',
   // The Compilations department (phrase finder: find every time a phrase is said in the person's OWN footage; the footage, the matches and the film stay on their computer): a working page for an account that has this switch (WEB 11-27, wave 8, branch web-compilations-1127). Needs BUILDER's set_my_compilation_request. OFF for everyone until Ryan flips it for his own account; the department stays Coming soon for everybody else.
-  compilations: 'account',
+  // LAUNCH 11-27 (compilations-on-games-flip-1127; CC1-AFTER-RESET-1127): compilations is now true = OPEN FOR EVERYONE, in the same step the server opens the department for everyone (otherwise others get the generic working page). Undo: 'account' (only named accounts) or false.
+  compilations: true,
   // The lyric card choice (three designs) in the live editor's Look panel (NEXT-WEB 189). Needs liveEditor and SQL 20261031000200_lyric_card_look.sql. OFF until Ryan has seen it; the song film does not draw the cards yet.
   lyricCards: false,
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.
