@@ -217,7 +217,7 @@ body:has(.home-films) footer{margin-top:8px}
 #library .home-films .site-section-head h2,#library .home-more h2{margin-top:0}
 /* Version page (Ryan 11-20 amendment 2): a short band, slim key facts, the template picker and the own-data pointer on one row, tight step cards; every section within 1.4 screens (desktop) and 1.8 (phone) */
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero{padding:8px 28px 12px;margin-bottom:10px}
-:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:32px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:40px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero h1{margin:0}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .meta{margin:0}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{margin-bottom:10px;gap:12px}
