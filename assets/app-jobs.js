@@ -15,7 +15,7 @@
     return words ? words[0].toUpperCase() + words.slice(1) : 'Job';
   };
   const STATE_LABELS = {
-    awaiting_approval: 'Waiting for approval', queued: 'Queued', claimed: 'Starting', running: 'Rendering', validating: 'Checking', uploading: 'Uploading',
+    queued: 'Queued', claimed: 'Starting', running: 'Rendering', validating: 'Checking', uploading: 'Uploading',
     complete: 'Complete', failed: 'Failed', editorial_action_required: 'Stopped', cancelled: 'Cancelled'
   };
 
