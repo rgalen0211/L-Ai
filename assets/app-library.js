@@ -386,7 +386,9 @@
     let editorCache = null;
     const editorUi = () => editorCache || (editorCache = window.ryagramEditorPage.create({ h, data }));
     let deptCache = null;
-    const deptUi = () => deptCache || (deptCache = window.ryagramDepartments.create({ h, data, startUi }));
+    let compCache = null;      // the Compilations page (assets/app-compilations.js), built once; the department module shows it only behind the 'compilations' account switch
+    const compUi = () => compCache || (compCache = window.ryagramCompilations.create({ h, data, busy, showError, errorLine, date }));
+    const deptUi = () => deptCache || (deptCache = window.ryagramDepartments.create({ h, data, startUi, pages: window.ryagramCompilations ? { compilations: () => compUi().pageView() } : {} }));
     const startUi = () => startCache || (startCache = window.ryagramStart.create({ h, data, refresh: () => route() }));
     const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
     let deviceCache = null;

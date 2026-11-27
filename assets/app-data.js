@@ -577,6 +577,16 @@
       adminFunnel(weeks) { return run(client.rpc('admin_funnel', { p_weeks: weeks || 8 }), 'Couldn\u2019t load the funnel.'); },
       // Render orders (PIPE-1, SQL 20261017000500/600): a full render is REQUESTED, never inserted. While auto_render is off the order waits for Ryan's approval with the credits held.
       requestFinalRender(previewJobId, key) { return run(client.rpc('request_final_render', { p_preview_job: previewJobId, p_idempotency_key: key }), 'Couldn\u2019t request the full render.'); },
+      // Compilations (WEB 11-27; the page is behind the account switch 'compilations'): a person saves a REQUEST (words + folder NAMES, never a path or a video) with BUILDER's set_my_compilation_request,
+      // and reads their own under RLS. The Ryagram app on their computer builds from it; the site never receives a clip.
+      setMyCompilationRequest(projectId, request) { return run(client.rpc('set_my_compilation_request', { p_project: projectId, p_request: request }), 'Couldn’t save the request.'); },
+      async myCompilationRequests() {
+        const rows = await run(client.from('compilation_requests').select('project_id, request, updated_at').order('updated_at', { ascending: false }).limit(50), 'Couldn’t load your requests.');
+        if (!Array.isArray(rows) || !rows.length) return [];
+        const titles = await run(client.from('projects').select('id, title').in('id', rows.map(r => r.project_id)), 'Couldn’t load your requests.').catch(() => []);
+        const by = Object.fromEntries((titles || []).map(p => [p.id, p.title]));
+        return rows.map(r => ({ ...r, title: by[r.project_id] || 'A compilation' }));
+      },
       listOrders(versionId) { return run(client.from('render_orders').select('id, state, want, error_code, created_at, ended_at, version_id').eq('version_id', versionId).order('created_at', { ascending: false }), 'Couldn\u2019t load the render requests.'); },
       orderStatus(id) { return run(client.rpc('render_order_status', { p_order: id }), 'Couldn\u2019t load that render request.'); },
       cancelOrder(id) { return run(client.rpc('cancel_render_order', { p_order: id }), 'Couldn\u2019t cancel that render request.'); },
