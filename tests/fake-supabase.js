@@ -31,7 +31,7 @@
   }
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], engine_profiles: [], render_orders: [], compilation_requests: [],
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], engine_profiles: [], render_orders: [],
                  account_settings: [], credit_ledger: [], funnel_events: mockFunnelEvents(), version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // ?aiconnected in the address starts the mock with one connected AI (Claude), so the AI-first door can be walked in Chrome without the consent redirect leaving the page.
     if (typeof location !== 'undefined' && /[?&]aiconnected/.test(location.search || '')) db.connected = [{ client_id: 'client-claude', client_name: 'Claude', scopes: ['read', 'write', 'render_free'], connected_at: new Date().toISOString(), last_used_at: null, calls_30d: 0 }];
@@ -382,7 +382,7 @@
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
         const extra = typeof location !== 'undefined' && /[?&]gameson/.test(location.search || '') ? ['games'] : [];      // ?gameson (GAMES 11-27): this account is on the games list too
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]compon/.test(location.search || '') ? ['myFilms', 'compilations', ...extra] : typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor', ...extra] : ['myFilms', ...extra]), error: null };      // ?editoron: this account is on the live-editor list too
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor', ...extra] : ['myFilms', ...extra]), error: null };      // ?editoron: this account is on the live-editor list too
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
@@ -765,25 +765,6 @@
 
       // Mock of the order functions (PIPE-1, SQL 20261017000600). With seed.autoRender === false a full render waits for approval (credits held); otherwise it starts at once through the
       // direct path, so the older mock flows keep working. The real rules are tested against Postgres.
-      // Mock of BUILDER's my_compilation_set (builder-compilations-server-1127, 11-27): an app-session writer for the person's OWN project; the schema, the 32 KB cap and the account switch 'compilations' are checked like the connector's twin.
-      my_compilation_set({ p_project, p_request }) {
-        const p = db.projects.find(x => x.id === p_project);
-        if (!p) return fail('That project is not yours.');
-        if (typeof location !== 'undefined' && /[?&]compfail/.test(location.search || '')) return fail('Couldn’t save the request.');      // ?compfail: the save error state
-        if (!p_request || typeof p_request !== 'object' || p_request.schema !== 'ryagram.compilation-request/0' || JSON.stringify(p_request).length > 32768) return fail('That request is not valid.');
-        if (typeof location !== 'undefined' && !/[?&]compon/.test(location.search || '') && !seed.compilationsOn) return fail('Compilations are not on for this account yet.');
-        const row = { project_id: p_project, owner_id: user.id, request: structuredClone(p_request), request_sha256: 'sha-' + JSON.stringify(p_request).length, updated_at: now() };
-        const i = db.compilation_requests.findIndex(r => r.project_id === p_project);
-        if (i >= 0) db.compilation_requests[i] = row; else db.compilation_requests.push(row);
-        return { data: row.request_sha256, error: null };
-      },
-      // Mock of my_compilation_get: {request, sha256, updated_at, run}; the mock's run advances when the URL has ?comprun=<state> (a stand-in for the desktop app's report).
-      my_compilation_get({ p_project }) {
-        const r = db.compilation_requests.find(x => x.project_id === p_project);
-        if (!r) return { data: null, error: null };
-        const st = typeof location !== 'undefined' ? (/[?&]comprun=([a-z]+)/.exec(location.search || '') || [])[1] : null;
-        return { data: { request: r.request, sha256: r.request_sha256, updated_at: r.updated_at, run: st ? { state: st, matches: st === 'planning' ? null : 7, clips: st === 'done' ? 7 : null, film_seconds: st === 'done' ? 41 : null, error_code: st === 'failed' ? ((/[?&]compcode=([a-z_]+)/.exec(location.search || '') || [])[1] || 'not_said') : null } : null }, error: null };
-      },
       request_final_render({ p_preview_job, p_idempotency_key }) {
         if (!/^[A-Za-z0-9_-]{8,100}$/.test(p_idempotency_key || '')) return fail('The idempotency key must be 8 to 100 letters, digits, - or _.');
         if (db.render_orders.some(o => o.idempotency_key === p_idempotency_key)) return fail('key_reused: this key belongs to another request; use a new key.');
