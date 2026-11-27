@@ -280,6 +280,45 @@ test('over MCP both tools are listed with the read-only hint, and a call goes th
   assert.equal(call.structuredContent.page, '#/d/compilations');
 });
 
+// BUILDER's migration 20261127000300 lets an account with the 'compilations' switch sign in its own computer, but connect_whoami's desktop_app is still the tester/administrator rule (20261123000500), so a
+// switch-only account says desktop_app false. The AI's writer and the next-step tool must not refuse that account; an account with neither the switch nor the app is still refused.
+test('COMPAT with BUILDER: an account whose Compilations switch is on is not refused for "no desktop app" (set_compilation_request, suggest_next_step); an account with neither still is', async () => {
+  const { w, call } = world();
+  w.setDesktopApp(A.userId, false);                                          // switch on, desktop_app false: BUILDER's switch-only account
+  const id = (await call(A, 'create_project', { title: 'Switch only' })).data.project_id;
+  const r = await call(A, 'set_compilation_request', { project_id: id, phrase: 'hello', folders: ['Clips'] });
+  assert.equal(r.isError, undefined, r.text); assert.equal(r.data.saved, true);
+  const n = await call(A, 'suggest_next_step', { kind: 'compilation' });
+  assert.equal(n.isError, undefined, n.text); assert.notEqual(n.data.step, 'not_available');
+  // neither the switch nor the app: refused, nothing saved, no next step offered
+  const none = world({ open: false });
+  none.w.setDesktopApp(A.userId, false);
+  const id2 = (await none.call(A, 'create_project', { title: 'Neither' })).data.project_id;
+  const r2 = await none.call(A, 'set_compilation_request', { project_id: id2, phrase: 'hello', folders: ['Clips'] });
+  assert.equal(r2.code, 'not_available'); assert.equal(r2.data.saved, false); assert.equal(none.w.users.get(A.userId).requests.has(id2), false);
+  assert.equal((await none.call(A, 'suggest_next_step', { kind: 'compilation' })).data.step, 'not_available');
+});
+
+// What BUILDER's public.my_compilation_get answers (migration 20261127000300, branch builder-compilations-server-1127, checked 11-27 08:55): a run object with exactly these keys; film_seconds is a numeric.
+test('COMPAT with BUILDER: a run in exactly the shape my_compilation_get gives (id, state, counts, film_seconds, error_code, started/updated/ended, current) is read, and the words follow its state', async () => {
+  const { w, call } = world();
+  const id = await asked(call);
+  const run = (over) => ({ id: 17, state: 'done', matches: 9, clips: 8, film_seconds: 41.5, error_code: null, started_at: '2026-11-27T13:00:00+00:00', updated_at: '2026-11-27T13:05:00+00:00', ended_at: '2026-11-27T13:05:00+00:00', current: true, ...over });
+  w.setCompilationRun(A.userId, id, run({}));
+  let r = await call(A, 'get_compilation_status', { project_id: id });
+  assert.equal(r.isError, undefined, r.text); assert.match(r.text, /Done: 8 clips, 42 seconds/); assert.equal(r.data.run.state, 'done');
+  for (const state of ['planning', 'matching', 'building', 'cancelled']) {              // BUILDER's whole state list (compilation_runs.state check): every one has words
+    w.setCompilationRun(A.userId, id, run({ state, ended_at: null, clips: null, film_seconds: null }));
+    r = await call(A, 'get_compilation_status', { project_id: id });
+    assert.equal(r.data.run.state, state, state); assert.doesNotMatch(r.text, /no plain words|Waiting for the Ryagram app/, state);
+  }
+  // 'stale' is the code BUILDER's node_compilation_report gives a build silent for two hours: it has plain words (not the general sentence)
+  w.setCompilationRun(A.userId, id, run({ state: 'failed', error_code: 'stale', matches: null, clips: null, film_seconds: null }));
+  r = await call(A, 'get_compilation_status', { project_id: id });
+  assert.match(r.text, /Stopped: the person's computer stopped reporting for two hours/); assert.doesNotMatch(r.text, /no plain words|stale/);
+  assert.equal(r.data.run.error_code, 'stale');
+});
+
 test('runWords: every state has words and none holds a path or a code', () => {
   for (const state of ['planning', 'matching', 'building', 'done', 'failed', 'cancelled']) {
     const t = runWords({ state, matches: 2, clips: 2, film_seconds: 3, error_code: 'crash' }, true);
@@ -287,7 +326,7 @@ test('runWords: every state has words and none holds a path or a code', () => {
     assert.doesNotMatch(t, /crash|_|[A-Za-z]:\\/);
   }
   // every reason of the closed list has its own plain words, none of them the code itself
-  for (const code of ['request_invalid', 'song_request', 'folder_not_chosen', 'folder_missing', 'folder_empty', 'folders_overlap', 'no_speech', 'not_said', 'edit_failed', 'build_failed', 'crash']) {
+  for (const code of ['request_invalid', 'song_request', 'folder_not_chosen', 'folder_missing', 'folder_empty', 'folders_overlap', 'no_speech', 'not_said', 'edit_failed', 'build_failed', 'crash', 'stale']) {
     const t = runWords({ state: 'failed', matches: null, clips: null, film_seconds: null, error_code: code }, true);
     assert.match(t, /^Stopped: /, code);
     assert.doesNotMatch(t, /no plain words/, code + ' is a known reason');

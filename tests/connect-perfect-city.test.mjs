@@ -128,8 +128,8 @@ test('list_perfect_city_options (switch on): the places and what each covers, th
   assert.equal(r.isError, undefined, r.text);
   const d = r.data;
   assert.equal(d.department.id, 'geo_intelligence'); assert.equal(d.department.label, 'Perfect City'); assert.equal(d.department.switch, 'perfectCity');
-  assert.deepEqual(d.places.map((p) => [p.id, p.business_types]), [['montgomery_oh', ['fast_food', 'restaurant', 'grocery']], ['greene_oh', ['fast_food', 'restaurant']]], 'supermarkets are in Montgomery County only');
-  assert.deepEqual(d.business_types.map((b) => b.id), ['fast_food', 'restaurant', 'grocery'], 'the database\'s kind ids (not food_places)');
+  assert.deepEqual(d.places.map((p) => [p.id, p.business_types]), [['montgomery_oh', ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'grocery']], ['greene_oh', ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza']]], 'supermarkets are in Montgomery County only');
+  assert.deepEqual(d.business_types.map((b) => b.id), ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'grocery'], 'the database\'s kind ids (GEO\'s migration 20261127000900 and page), not food_places');
   assert.deepEqual(d.layers.map((l) => [l.id, l.basis]), [['population', 'observed'], ['population_density', 'calculated'], ['median_household_income', 'estimated']]);
   assert.deepEqual(d.measures.map((m) => [m.id, m.basis]), [['nearest_distance', 'calculated'], ['businesses_within_rings', 'calculated'], ['people_within_rings', 'estimated']]);
   assert.deepEqual(d.rings_km, [1, 2, 5]); assert.deepEqual(d.basis_words, ['observed', 'calculated', 'estimated']);
@@ -144,7 +144,7 @@ test('honesty of the options: GEO\'s not-known sentences travel with them, every
   const { call } = world();
   const r = await call(NAMES[0]);
   const t = r.text;
-  for (const re of [/straight lines, not drive or walk times/, /volunteers: a place can be missing, closed or out of date/, /a block group counts in full when its centre is inside the ring/, /survey estimate with a margin of error/,
+  for (const re of [/straight lines, not drive or walk times/, /volunteers: a place can be missing, closed or out of date/, /shared by the part of its area inside the ring/, /survey estimate with a margin of error/,
     /no success score and no prediction/, /not whether a business would do well/, /within 5 km, and the nearest five/]) assert.match(t, re);
   for (const w of ['observed', 'calculated', 'estimated']) assert.match(t, new RegExp(w));
   assert.match(t, /never give a number for a place that did not come from perfect_city_summary/);
@@ -213,15 +213,17 @@ test('perfect_city_summary: the numbers come back as the database gave them, eac
   const t = r.text;
   assert.match(t, /Montgomery County, Ohio \(Dayton\)/); assert.match(t, /Fast food/); assert.match(t, /Spot: 39\.7589, -84\.1916/);
   assert.match(t, /Places of this kind loaded for Montgomery County, Ohio \(Dayton\): 12/);
-  for (const re of [/1\. [\s\S]*Example Burgers[\s\S]*: 0\.41 km/, /2\. [\s\S]*Sample Subs[\s\S]*: 0\.93 km/, /3\. [\s\S]*Test Tacos[\s\S]*: 1\.7 km/,
-    /1 km: 2 similar places \(calculated\); about 4100 people \(estimated\)/, /2 km: 3 similar places \(calculated\); about 12850 people \(estimated\)/, /5 km: 9 similar places \(calculated\); about 61230 people \(estimated\)/,
-    /How the people are estimated:[\s\S]*A block group counts in full when its centre is inside the ring\./, /What this does not know:[\s\S]*Distances are straight lines/, /not whether a business would do well/,
+  for (const re of [/\n  1\. 0\.41 km/, /\n  2\. 0\.93 km/, /\n  3\. 1\.7 km/,
+    /1 km: 2 similar places \(calculated\); people not given for this ring \([\s\S]*not given for rings under 5 km[\s\S]*\)/, /2 km: 3 similar places \(calculated\); people not given for this ring/, /5 km: 9 similar places \(calculated\); about 61200 people \(estimated\)/,
+    /How the people are estimated:[\s\S]*block groups whose centre is inside the ring, counted in full/, /What this does not know:[\s\S]*Distances are straight lines/, /not whether a business would do well/,
     /Where the data comes from:[\s\S]*U\.S\. Census Bureau[\s\S]*OpenStreetMap contributors \(ODbL\)/]) assert.match(t, re);
+  assert.ok(!/Example Burgers|Sample Subs|Test Tacos/.test(t + JSON.stringify(r.data)), 'no business name: the database sends none (attorney row G11)');
   assert.match(t, /no score, no ranking/); assert.match(t, /Do not add a score, a ranking or advice/);
   const d = r.data;
   assert.equal(d.looked_up, true); assert.equal(d.score_given, false); assert.equal(d.ranking_given, false); assert.equal(d.businesses_loaded, true); assert.equal(d.places_loaded, 12);
-  assert.deepEqual(d.nearest.map((n) => [n.km, n.basis]), [[0.41, 'calculated'], [0.93, 'calculated'], [1.7, 'calculated']]);
-  assert.deepEqual(d.rings.map((x) => [x.km, x.places.value, x.places.basis, x.people_about.value, x.people_about.basis]), [[1, 2, 'calculated', 4100, 'estimated'], [2, 3, 'calculated', 12850, 'estimated'], [5, 9, 'calculated', 61230, 'estimated']]);
+  assert.deepEqual(d.nearest.map((n) => [n.rank, n.km, n.basis, 'name' in n]), [[1, 0.41, 'calculated', false], [2, 0.93, 'calculated', false], [3, 1.7, 'calculated', false]]);
+  assert.deepEqual(d.rings.map((x) => [x.km, x.places.value, x.places.basis, x.people_about.value, x.people_about.basis]), [[1, 2, 'calculated', null, 'estimated'], [2, 3, 'calculated', null, 'estimated'], [5, 9, 'calculated', 61200, 'estimated']]);
+  assert.match(d.rings[0].people_about.note, /not given for rings under 5 km/); assert.ok(!('method' in d.rings[0].people_about)); assert.match(d.rings[2].people_about.method, /inside the ring/);
   assert.equal(d.names_are_untrusted_text, true);
   // the question the database layer got: the person's own account, the ids and the spot, nothing else
   assert.deepEqual(w.perfectCityAsked, [{ owner: A.userId, county: 'montgomery_oh', kind: 'fast_food', lat: 39.7589, lon: -84.1916 }]);
@@ -229,10 +231,10 @@ test('perfect_city_summary: the numbers come back as the database gave them, eac
 
 test('perfect_city_summary: nothing is rounded, reordered, scored or ranked here: awkward numbers are shown as they came', async () => {
   const { w, call } = world();
-  w.perfectCityAnswer = (q) => doc({ spot: { lat: q.lat, lon: q.lon }, nearest: [{ name: 'Example Burgers', km: 0.4137291, basis: 'calculated' }, { name: 'Sample Subs', km: 0.4137291, basis: 'calculated' }],
-    rings: [{ km: 1, places: { value: 0, basis: 'calculated' }, people_about: { value: 4100.5, basis: 'estimated', method: 'A made-up method sentence.' } },
-      { km: 2, places: { value: 7, basis: 'calculated' }, people_about: { value: 0, basis: 'estimated', method: 'A made-up method sentence.' } },
-      { km: 5, places: { value: 1234567, basis: 'calculated' }, people_about: { value: 1e9, basis: 'estimated', method: 'A different made-up method sentence.' } }] });
+  w.perfectCityAnswer = (q) => doc({ spot: { lat: q.lat, lon: q.lon }, nearest: [{ rank: 1, name: 'Example Burgers', km: 0.4137291, basis: 'calculated' }, { rank: 2, name: 'Sample Subs', km: 0.4137291, basis: 'calculated' }],
+    rings: [{ km: 1, places: { count: 0, basis: 'calculated' }, people_about: { value: 4100.5, basis: 'estimated', method: 'A made-up method sentence.' } },
+      { km: 2, places: { count: 7, basis: 'calculated' }, people_about: { value: 0, basis: 'estimated', method: 'A made-up method sentence.' } },
+      { km: 5, places: { count: 1234567, basis: 'calculated' }, people_about: { value: 1e9, basis: 'estimated', method: 'A different made-up method sentence.' } }] });
   const r = await call(NAMES[2]);
   assert.equal(r.isError, undefined, r.text);
   for (const s of ['0.4137291 km', '1 km: 0 similar places (calculated); about 4100.5 people (estimated)', '2 km: 7 similar places (calculated); about 0 people (estimated)', '5 km: 1234567 similar places (calculated); about 1000000000 people (estimated)', 'A made-up method sentence.', 'A different made-up method sentence.']) assert.ok(r.text.includes(s), s);
@@ -242,8 +244,8 @@ test('perfect_city_summary: nothing is rounded, reordered, scored or ranked here
 
 test('perfect_city_summary: businesses not loaded yet is said plainly, with no distance and no count of businesses, and the people numbers still come', async () => {
   const { w, call } = world();
-  w.perfectCityAnswer = (q) => doc({ spot: { lat: q.lat, lon: q.lon }, places_loaded: 0, nearest: [],
-    rings: [1, 2, 5].map((km) => ({ km, places: { value: 0, basis: 'calculated' }, people_about: { value: 1000 * km, basis: 'estimated', method: 'A block group counts in full when its centre is inside the ring.' } })) });
+  w.perfectCityAnswer = (q) => doc({ spot: { lat: q.lat, lon: q.lon }, places_loaded: { count: 0, basis: 'calculated' }, nearest: [],
+    rings: [1, 2, 5].map((km) => ({ km, places: { count: 0, basis: 'calculated' }, people_about: { value: 1000 * km, basis: 'estimated', method: 'A block group counts in full when its centre is inside the ring.' } })) });
   const r = await call(NAMES[2]);
   assert.equal(r.isError, undefined, r.text);
   assert.match(r.text, /businesses for this place and kind are not loaded yet/); assert.match(r.text, /no distance and no count of businesses/);
@@ -258,9 +260,17 @@ test('perfect_city_summary: an answer that breaks a rule is refused whole, and n
     'a nearest distance not labelled calculated': (d) => { d.nearest[0].basis = 'estimated'; },
     'a nearest distance without its label': (d) => { delete d.nearest[1].basis; },
     'a place count not labelled calculated': (d) => { d.rings[0].places.basis = 'estimated'; },
-    'a people number labelled calculated': (d) => { d.rings[1].people_about.basis = 'calculated'; },
+    'a place count without its label': (d) => { delete d.rings[1].places.basis; },
+    'a place count under the old key (value, not count)': (d) => { d.rings[0].places = { value: 2, basis: 'calculated' }; },
+    'a people number labelled calculated': (d) => { d.rings[2].people_about.basis = 'calculated'; },
     'a people number labelled observed': (d) => { d.rings[2].people_about.basis = 'observed'; },
-    'a people number without its method': (d) => { delete d.rings[0].people_about.method; },
+    'a people number without its method': (d) => { delete d.rings[2].people_about.method; },
+    'a ring without a people figure and without its reason': (d) => { delete d.rings[0].people_about.note; },
+    'a ring without a people figure labelled calculated': (d) => { d.rings[1].people_about.basis = 'calculated'; },
+    'places loaded as a bare number (not the database\'s object)': (d) => { d.places_loaded = 12; },
+    'places loaded without its label': (d) => { delete d.places_loaded.basis; },
+    'places loaded labelled estimated': (d) => { d.places_loaded.basis = 'estimated'; },
+    'a nearest rank that is not its place in the list': (d) => { d.nearest[1].rank = 5; },
     'no not-known sentences': (d) => { d.not_known = []; },
     'not-known sentences missing': (d) => { delete d.not_known; },
     'no credits': (d) => { d.credits = []; },
@@ -269,14 +279,14 @@ test('perfect_city_summary: an answer that breaks a rule is refused whole, and n
     'more than five nearest places': (d) => { d.nearest = [1, 2, 3, 4, 5, 6].map((k) => ({ name: 'Example ' + k, km: k / 10, basis: 'calculated' })); },
     'a ring of the wrong size': (d) => { d.rings[1].km = 3; },
     'only two rings': (d) => { d.rings.pop(); },
-    'a fractional place count': (d) => { d.rings[0].places.value = 2.5; },
-    'a negative people number': (d) => { d.rings[0].people_about.value = -5; },
+    'a fractional place count': (d) => { d.rings[0].places.count = 2.5; },
+    'a negative people number': (d) => { d.rings[2].people_about.value = -5; },
     'the wrong schema': (d) => { d.schema = 'ryagram.something-else/0'; },
     'an answer for another place': (d) => { d.place = 'greene_oh'; },
     'an answer for another kind': (d) => { d.business_type = 'grocery'; },
     'a spot out of range': (d) => { d.spot.lat = 95; },
-    'places loaded not a whole number': (d) => { d.places_loaded = '12'; },
-    'a nearest place when none are loaded': (d) => { d.places_loaded = 0; },
+    'places loaded not a whole number': (d) => { d.places_loaded.count = '12'; },
+    'a nearest place when none are loaded': (d) => { d.places_loaded.count = 0; },
     'a spot missing': (d) => { delete d.spot; },
     'not an object': () => 'text',
   };
@@ -286,7 +296,7 @@ test('perfect_city_summary: an answer that breaks a rule is refused whole, and n
     const r = await call(NAMES[2]);
     assert.equal(r.isError, true, name); assert.equal(r.code, 'bad_report', name);
     assert.match(r.text, /so none of it is shown/, name);
-    assert.ok(!/Example Burgers|4100|12850|61230/.test(r.text + JSON.stringify(r.data ?? {})), name + ': nothing of the answer leaks');
+    assert.ok(!/Example Burgers|4100|12850|61230|61200/.test(r.text + JSON.stringify(r.data ?? {})), name + ': nothing of the answer leaks');
   }
 });
 
@@ -420,5 +430,68 @@ test('the home panel says Perfect City, and leaves the department\'s status to t
 test('the constants file names GEO as the owner and the page as the source of its words', () => {
   const src = read('supabase/functions/connect-core/perfect_city.ts');
   assert.match(src, /GEO OWNS/); assert.match(src, /GEO changes this file/);
-  assert.equal(PC_PLACES.length, 2); assert.equal(PC_BUSINESS_TYPES.length, 3); assert.equal(PC_LAYERS.length, 3); assert.equal(PC_MEASURES.length, 3);
+  assert.equal(PC_PLACES.length, 2); assert.equal(PC_BUSINESS_TYPES.length, 6); assert.equal(PC_LAYERS.length, 3); assert.equal(PC_MEASURES.length, 3);
+});
+
+// ------------------------------------------------------------------------------------------------ compatibility with GEO's real helper (CONNECT 11-27 09:00)
+// The literal below is what GEO's ryagram_private.perfect_city_summary_for builds (migration 20261127000900_perfect_city_places.sql on origin/geo-perfect-city-1127, a2abdeb1; its own test
+// supabase/tests/test_perfect_city_summary.py pins the same keys), with invented numbers. It is NOT built from the stand-in, so a change of the stand-in cannot hide a mismatch with GEO.
+const GEO_REAL = (q) => ({
+  schema: 'ryagram.perfect-city-summary/0', place: q.county, business_type: q.kind,
+  spot: { lat: q.lat, lon: q.lon, is_default: false },
+  places_loaded: { count: 6, basis: 'calculated' },
+  nearest: [{ rank: 1, km: 0.5, basis: 'calculated' }, { rank: 2, km: 1.5, basis: 'calculated' }, { rank: 3, km: 1.9, basis: 'calculated' }, { rank: 4, km: 3, basis: 'calculated' }, { rank: 5, km: 4.99, basis: 'calculated' }],
+  rings: [
+    { km: 1, places: { count: 1, basis: 'calculated' }, people_about: { value: null, basis: 'estimated', note: 'not given for rings under 5 km: too rough from block-group centres; the Perfect City page shows an area-weighted figure' } },
+    { km: 2, places: { count: 3, basis: 'calculated' }, people_about: { value: null, basis: 'estimated', note: 'not given for rings under 5 km: too rough from block-group centres; the Perfect City page shows an area-weighted figure' } },
+    { km: 5, places: { count: 5, basis: 'calculated' }, people_about: { value: 100700, basis: 'estimated', method: 'block groups whose centre is inside the ring, counted in full, rounded to the nearest 100; typically within about 10 percent at 5 km' } }],
+  not_known: ['Distances are straight lines, not drive or walk times.', 'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
+    'People are given for the 5 km ring only, as an estimate from block-group centres.', 'There is no success score and no prediction. This shows what is there, not whether a business would do well.'],
+  credits: ['U.S. Census Bureau, 2020 Census, table P1 (total population), block groups.', 'This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.', 'Map data (c) OpenStreetMap contributors (ODbL)'],
+});
+
+test('GEO\'s real helper answer (rank only, places_loaded and places as {count, basis}, people at 5 km only) is read and shown, not refused', async () => {
+  const { w, call } = world();
+  w.perfectCityAnswer = GEO_REAL;
+  const r = await call(NAMES[2]);
+  assert.equal(r.isError, undefined, r.text);
+  assert.match(r.text, /Places of this kind loaded for Montgomery County, Ohio \(Dayton\): 6/);
+  assert.match(r.text, /\n  1\. 0\.5 km/); assert.match(r.text, /\n  5\. 4\.99 km/);
+  assert.match(r.text, /1 km: 1 similar places \(calculated\); people not given for this ring/); assert.match(r.text, /5 km: 5 similar places \(calculated\); about 100700 people \(estimated\)/);
+  assert.match(r.text, /How the people are estimated: [\s\S]*rounded to the nearest 100/); assert.match(r.text, /Map data \(c\) OpenStreetMap contributors \(ODbL\)/);
+  assert.equal(r.data.places_loaded, 6); assert.equal(r.data.nearest.length, 5); assert.ok(r.data.nearest.every((n) => !('name' in n)), 'no business name anywhere');
+});
+
+test('GEO\'s real answer for a county with nothing loaded: no nearest, every count 0, still read; and the people figure at 5 km still comes', async () => {
+  const { w, call } = world();
+  w.perfectCityAnswer = (q) => { const d = GEO_REAL(q); d.places_loaded.count = 0; d.nearest = []; d.rings.forEach((x) => { x.places.count = 0; }); return d; };
+  const r = await call(NAMES[2]);
+  assert.equal(r.isError, undefined, r.text);
+  assert.match(r.text, /not loaded yet/); assert.match(r.text, /5 km: businesses not loaded; about 100700 people \(estimated\)/); assert.equal(r.data.businesses_loaded, false);
+});
+
+test('the other kinds GEO\'s page and database have (chicken, burger, pizza) are accepted; grocery still only in Montgomery County', async () => {
+  for (const kind of ['chicken', 'burger', 'pizza']) {
+    for (const place of ['montgomery_oh', 'greene_oh']) {
+      const { w, call } = world();
+      const r = await call(NAMES[2], { ...SUM, place, business_type: kind, ...(place === 'greene_oh' ? { lat: 39.69, lon: -83.9 } : {}) });
+      assert.equal(r.isError, undefined, kind + ' ' + place + ': ' + r.text); assert.equal(w.perfectCityAsked[0].kind, kind);
+    }
+  }
+  const { call } = world();
+  assert.equal((await call(NAMES[2], { ...SUM, place: 'greene_oh', business_type: 'grocery' })).code, 'args');
+});
+
+test('the daily cap in GEO\'s helper (54000) is said in plain words, with none of the database\'s numbers or text, and counts as a rate refusal', async () => {
+  const { call } = world();
+  const r = await call(NAMES[2], SUM, A, { perfectCitySummary: async () => { throw sqlErr('Perfect City has answered 300 questions for this account today, the most it gives in a day. Try again tomorrow.', '54000'); } });
+  assert.equal(r.isError, true); assert.equal(r.code, 'rate'); assert.equal(r.data.looked_up, false);
+  assert.match(r.text, /Do not ask again today; tell the person to try tomorrow\. Nothing was looked up\./); assert.ok(!/300/.test(r.text));
+});
+
+test('the tool refuses what GEO\'s answer must not hold: a name that is not text is shown as "no name", and the old stand-in shape (bare places_loaded, places.value, people at every ring) is refused', async () => {
+  const { w, call } = world();
+  w.perfectCityAnswer = (q) => ({ ...GEO_REAL(q), places_loaded: 6, rings: GEO_REAL(q).rings.map((x) => ({ ...x, places: { value: x.places.count, basis: 'calculated' } })) });
+  const r = await call(NAMES[2]);
+  assert.equal(r.code, 'bad_report'); assert.match(r.text, /so none of it is shown/);
 });
