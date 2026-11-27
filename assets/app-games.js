@@ -234,13 +234,13 @@
     (async () => {
       // the room code is made from this screen's own key (codeOf): a phone pins a host key only when it gives the code the player typed. No signing, no room: never unsigned.
       // WEB polish 11-27 (web-games-polish-1127 1dcf25a5, folded by GAMES): nothing is drawn until the room is open, and a failure shows its reason with a Try again button.
-      const failed = text => { status.textContent = text; status.setAttribute('role', 'alert');
+      const failed = text => { status.setAttribute('role', 'alert'); status.textContent = text;        // role first, so the words are announced when they arrive (WEB polish3)
         const again = h('button', { class: 'button primary', type: 'button', id: 'gh-retry', onclick: () => location.reload() }, 'Try again');
         stage.replaceChildren(again); if (again.focus) again.focus(); };
       try { s.pair = await Room.keyPair(); s.code = await Room.codeOf(s.pair.pub); if (!s.code) throw new Error('no code'); } catch { s.pair = null; failed('This browser cannot sign the game\u2019s messages, so it cannot open a room. Try an up-to-date browser.'); return; }
       const opts = roomOptions(cfg, s.code);
-      if (!opts) { failed('This page could not open a game room. Press Try again.'); return; }
-      try { s.conn = await Room.connect(opts); } catch { failed('This page could not open a game room. Check your connection and press Try again.'); return; }
+      if (!opts) { failed('This page could not open a game room. Try again.'); return; }
+      try { s.conn = await Room.connect(opts); } catch { failed('This page could not open a game room. Check your connection and try again.'); return; }
       if (s.closed) { s.conn.close(); return; }
       s.off = s.conn.onMessage(take);
       status.textContent = `Room ${s.code} is open.`;
