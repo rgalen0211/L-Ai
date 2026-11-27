@@ -24,4 +24,5 @@ union all select 'IF GEO''s helper exists, the connector login cannot run it dir
        coalesce(to_regprocedure('ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)') is null
                 or (not has_function_privilege('connect_runner', 'ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)', 'execute')
                     and not has_function_privilege('authenticated', 'ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)', 'execute')
-                    and not has_function_privilege('anon', 'ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)', 'execute')), false);
+                    and not has_function_privilege('anon', 'ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)', 'execute')
+                    and not has_function_privilege('service_role', 'ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)', 'execute')), false);

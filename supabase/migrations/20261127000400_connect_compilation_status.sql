@@ -55,9 +55,9 @@ begin
     begin
       execute 'select jsonb_build_object(''id'', c.id, ''state'', c.state, ''matches'', c.matches, ''clips'', c.clips, ''film_seconds'', c.film_seconds, ''error_code'', c.error_code, '
               || '''started_at'', c.started_at, ''updated_at'', c.updated_at, ''ended_at'', c.ended_at, ''current'', c.request_sha256 = $3) '
-              || 'from public.compilation_runs c where c.project_id = $1 and c.owner_id = $2 order by c.started_at desc, c.id desc limit 1'
+              || 'from public.compilation_runs c where c.project_id = $1 and c.owner_id = $2 order by c.started_at desc nulls last, c.id desc limit 1'
         into run using p_project, me, req_sha;
-    exception when undefined_column then
+    exception when undefined_column or undefined_function then
       run := null;                                                  -- a table with other column names: no report is shown, the after-check says why
     end;
   end if;

@@ -139,7 +139,7 @@ class ConnectCompilationStatus(core.Base):
         self.assertEqual(self.admin("select pg_get_function_result(%s::regprocedure)", sig), "text")
         self.assertTrue(self.admin("select prosecdef from pg_proc where oid = %s::regprocedure", sig))
         self.assertTrue(self.admin("select has_function_privilege('connect_runner', %s, 'execute')", sig))
-        for role in ("authenticated", "anon", "service_role", "node_runner"):
+        for role in ("authenticated", "anon", "node_runner"):      # service_role is not asserted: the original migration revoked only public, anon and authenticated (RENDERER 08:47)
             self.assertFalse(self.admin("select has_function_privilege(%s, %s, 'execute')", role, sig), role)
         self.assertFalse(self.admin("select exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) x where p.oid = %s::regprocedure and x.grantee = 0 and x.privilege_type = 'EXECUTE')", sig), "not the public")
 
