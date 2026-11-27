@@ -4,7 +4,7 @@
 
 1. Settings, Apps/Connectors, Create (custom MCP). Name: Ryagram. URL: `<CONNECT_URL>`. Authentication: OAuth.
 2. Accept the risk notice for a custom server.
-3. Create, Connect, sign in to Ryagram, check the address, Allow.
+3. Create, Connect, sign in to Ryagram, check the address, Approve.
 4. In a chat, add Ryagram from the + menu and ask "show my Ryagram credits".
 5. ChatGPT asks you to confirm write actions (saving a story, starting a sheet). Read what it will do before you confirm.
 

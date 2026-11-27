@@ -37,7 +37,7 @@
     <li><strong>It cannot start a full render.</strong> Full renders are always started by you, in Ryagram.</li>
     <li><strong>It cannot change your account</strong> (your email, password or settings). It cannot delete your account or your films; it can replace a film's saved story.</li>
     <li><strong>It cannot spend your credits.</strong> If something would cost credits, your AI is refused and you start it yourself in Ryagram.</li>
-    <li>The first time it connects, a Ryagram page asks you to sign in and shows the name Ryagram knows the assistant by, the name it calls itself, and the web address it will send you back to. Press Allow only if these match the assistant you are using.</li>
+    <li>The first time it connects, a Ryagram page asks you to sign in and shows the name Ryagram knows the assistant by, the name it calls itself, and the web address it will send you back to. Press Approve only if these match the assistant you are using.</li>
   </ul>
 
   <a id="claude"></a><h2>Claude (claude.ai, Claude Desktop, phone)</h2>
@@ -47,7 +47,7 @@
   <ol>
     <li>Open Customize, then Connectors. Press + Add, then Add custom connector. (A Free plan can have one custom connector.)</li>
     <li>Name it Ryagram. For the address, paste <code>https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp</code>. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically. Claude’s own first choice, “Use Claude’s published identity (Recommended)”, does not work with Ryagram yet.</li>
-    <li>Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Allow.</li>
+    <li>Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Approve.</li>
     <li>In a chat, turn the Ryagram connector on and try: "Using Ryagram, show my credits."</li>
   </ol>
 
@@ -55,7 +55,7 @@
   <ol>
     <li>An Owner or Primary Owner opens Organization settings, then Connectors, and presses Add, then Custom, then Web. (On Enterprise, a person with a custom role that includes Manage access to Libraries can do this too.)</li>
     <li>They name it Ryagram and paste <code>https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp</code> as the address. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically. Claude’s own first choice, “Use Claude’s published identity (Recommended)”, does not work with Ryagram yet.</li>
-    <li>Each person then opens Customize, then Connectors, finds Ryagram, and presses Connect. Sign in to Ryagram, check the page says Claude, then press Allow.</li>
+    <li>Each person then opens Customize, then Connectors, finds Ryagram, and presses Connect. Sign in to Ryagram, check the page says Claude, then press Approve.</li>
     <li>In a chat, turn the Ryagram connector on and try: "Using Ryagram, show my credits."</li>
   </ol>
   <p>Source for these steps: <a href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp" rel="noopener noreferrer">Anthropic’s help page on custom connectors</a>.</p>
@@ -70,7 +70,7 @@
   <p>This works <strong>only on plans that allow custom MCP connectors</strong>. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan; use the Ryagram app directly.</p>
   <ol>
     <li>In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste <code>https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp</code>, and choose OAuth for authentication.</li>
-    <li>Accept the notice about custom servers, then Create and Connect. Sign in to Ryagram, check the address, and press Allow.</li>
+    <li>Accept the notice about custom servers, then Create and Connect. Sign in to Ryagram, check the address, and press Approve.</li>
     <li>ChatGPT asks you to confirm actions that save or start something. Read what it will do before you confirm.</li>
   </ol>
   <p class="form-note">Use the connector option above, not a Custom GPT.</p>

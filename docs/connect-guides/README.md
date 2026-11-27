@@ -4,7 +4,7 @@ Ryagram has one server address. Every guide below uses the same one:
 
     <CONNECT_URL>      (filled in at launch; for example https://<project>.supabase.co/functions/v1/connect/mcp)
 
-You need a Ryagram account that Ryan has invited (ordinary accounts and admin accounts cannot be connected). The first time an assistant connects, a Ryagram page asks you to sign in and shows who is asking: the name Ryagram knows it by, in large type, then the name it calls itself, then the web address it will send you back to. Press Allow only if the name and address match the assistant you are using. You can disconnect any time on your Ryagram settings page, and the assistant is cut off on its very next call.
+You need a Ryagram account that Ryan has invited (ordinary accounts and admin accounts cannot be connected). The first time an assistant connects, a Ryagram page asks you to sign in and shows who is asking: the name Ryagram knows it by, in large type, then the name it calls itself, then the web address it will send you back to. Press Approve only if the name and address match the assistant you are using. You can disconnect any time on your Ryagram settings page, and the assistant is cut off on its very next call.
 
 | Assistant | Works? | Guide |
 |---|---|---|

@@ -172,11 +172,11 @@ test('CONNECT AN AI: the steps for Claude and ChatGPT are the reviewed ones from
   const claude = plain(C.CONNECT_STEPS.claude), gpt = plain(C.CONNECT_STEPS.chatgpt), guide = read('connect-ai/index.html').replace(/&[a-z]+;|<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.equal(claude.steps.length, 4); assert.equal(gpt.steps.length, 4);
   assert.match(claude.steps.join(' '), /Customize, then Connectors\. Press \+ Add, then Add custom connector\./);
-  assert.match(claude.steps.join(' '), /Register automatically/); assert.match(claude.steps.join(' '), /check the page says Claude, then press Allow/);
+  assert.match(claude.steps.join(' '), /Register automatically/); assert.match(claude.steps.join(' '), /check the page says Claude, then press Approve/);
   assert.match(gpt.steps.join(' '), /Create \(custom MCP\)/); assert.match(gpt.steps.join(' '), /OAuth/);
   assert.match(gpt.note, /only on plans that allow custom MCP connectors/);
   for (const phrase of ['Customize, then Connectors. Press + Add, then Add custom connector.', 'choose Register automatically', 'choose Create (custom MCP)', 'only on plans that allow custom MCP connectors']) assert.ok(guide.includes(phrase), `the public guide does not say: ${phrase}`);
-  assert.equal(C.AFTER_ALLOW, 'After you press Allow, your AI appears in the list above.');
+  assert.equal(C.AFTER_ALLOW, 'After you press Approve, your AI appears in the list above.');
   assert.match(C.ADDRESS_TIP, /\/mcp at the end/);
 });
 
