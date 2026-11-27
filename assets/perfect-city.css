@@ -10,7 +10,8 @@
 .pc-typed { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 16px; }
 .pc-typed input { width: 9em; max-width: 40vw; }
 .pc-facts { padding-left: 1.2em; }
-.pc-label { opacity: 0.75; font-size: 0.9em; }
+.pc-label { font-size: 0.9em; }
 .pc-table { border-collapse: collapse; margin: 8px 0; max-width: 100%; }
 .pc-table th, .pc-table td { padding: 4px 12px 4px 0; text-align: left; }
 .pc-table th[scope="row"] { white-space: nowrap; }
+.pc-typed label { display: inline-flex; gap: 6px; align-items: center; }

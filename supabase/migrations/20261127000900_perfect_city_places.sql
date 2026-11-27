@@ -6,7 +6,7 @@
 --     supabase/live-steps/perfect_city_units_seed.sql (live step PC2b), generated from the page's own data so the server's numbers match the page's.
 --   * public.perfect_city_places(county, kind, lat, lon): for ONE spot, the places within 5 km of it plus the nearest five (never a whole county in one
 --     call: RENDERER 08:24, the licence question), with how many are loaded and the OpenStreetMap credit; never the osm_ref. Signed in only, and only for
---     an account whose per-account switch list names 'perfectCity', or an app admin; else 42501. Unknown county or kind, or a spot outside the county: 22023.
+--     an account whose per-account switch list names 'perfectCity', an app admin, or everyone once the department is 'working' (the public flip); else 42501. Unknown county or kind, or a spot outside the county: 22023.
 --   * ryagram_private.perfect_city_summary_for(owner, county, kind, lat, lon): the AI tool's summary (CONNECT wraps it with its token check), the same gate
 --     for that owner, schema ryagram.perfect-city-summary/0 (proposals/CONNECT-DEPT-PERFECT-CITY-1127.md part B).
 --   * ryagram_private.perfect_city_km and perfect_city_check: the haversine distance (the same formula as assets/perfect-city-core.js) and the shared gate.
@@ -50,8 +50,10 @@ create function ryagram_private.perfect_city_check(p_owner uuid, p_county text, 
 returns void language plpgsql stable security definer set search_path = '' as $$
 declare box record;
 begin
+  -- Who may: the owner's own switch, an app admin, or the department opened for everyone (departments.status 'working', the public flip; CC1 08:10).
   if p_owner is null or not (exists (select 1 from public.app_admins a where a.user_id = p_owner)
-                             or exists (select 1 from public.account_settings s where s.owner_id = p_owner and 'perfectCity' = any (s.switches_on))) then
+                             or exists (select 1 from public.account_settings s where s.owner_id = p_owner and 'perfectCity' = any (s.switches_on))
+                             or exists (select 1 from public.departments d where d.id = 'geo_intelligence' and d.status = 'working')) then
     raise exception 'Perfect City is not switched on for this account.' using errcode = '42501';
   end if;
   if p_county is null or p_county not in ('montgomery_oh', 'greene_oh') then
@@ -103,9 +105,11 @@ begin
     'schema', 'ryagram.perfect-city-summary/0',
     'place', p_county, 'business_type', p_kind,
     'spot', jsonb_build_object('lat', v_lat, 'lon', v_lon, 'is_default', false),
-    'places_loaded', loaded,
-    'nearest', coalesce((select jsonb_agg(jsonb_build_object('name', n.name, 'km', round(n.km::numeric, 2), 'basis', 'calculated') order by n.km, n.name)
-                           from (select p.name, ryagram_private.perfect_city_km(v_lat, v_lon, p.lat, p.lon) as km
+    'places_loaded', jsonb_build_object('count', loaded, 'basis', 'calculated'),
+    -- no business NAMES reach a person's AI while attorney row G11 is open (CONNECT's rule): rank and distance only; the page shows names to its own account
+    'nearest', coalesce((select jsonb_agg(jsonb_build_object('rank', n.rk, 'km', round(n.km::numeric, 2), 'basis', 'calculated') order by n.rk)
+                           from (select row_number() over (order by ryagram_private.perfect_city_km(v_lat, v_lon, p.lat, p.lon), p.name, p.osm_ref) as rk,
+                                        ryagram_private.perfect_city_km(v_lat, v_lon, p.lat, p.lon) as km
                                    from ryagram_private.perfect_city_places p where p.county = p_county and p.kind = p_kind
                                   order by 2, p.name, p.osm_ref limit 5) n), '[]'::jsonb),
     'rings', (select jsonb_agg(jsonb_build_object(

@@ -17,7 +17,7 @@
   const NO_DATA = '#4a4a52';
   const W = 640, H = 480;
   const WORDS = {
-    intro: 'Pick a county and a kind of business, then click the map to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
+    intro: 'Pick a county and a kind of business, then click the map, or type a latitude and longitude, to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
     notKnown: ['Distances are straight lines, not drive or walk times.',
       'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
       'People within a ring are an estimate: a block group counts in full when its centre is inside the ring.',
@@ -25,7 +25,8 @@
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.',
       'The map shows the places near your spot only: within 5 km, and the nearest five.'],
     noPlaces: 'The business points are not loaded on this account yet, so the map shows people and income only.',
-    placesError: 'The business points could not be loaded. The map shows people and income only.',
+    placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
+    badTyped: 'Type a latitude and a longitude as numbers, for example 39.7589 and -84.1916.',
     pickSpot: 'Click the map, or type a latitude and longitude, to put a spot on it.',
     outside: 'That spot is outside the county. Put it inside the shaded area.'
   };
@@ -60,22 +61,29 @@
       return h('label', { class: 'pc-control', for: id }, label, ' ', sel);
     };
     const mapBox = h('div', { class: 'pc-map', id: 'pc-map' });
-    const results = h('div', { class: 'pc-results', id: 'pc-results', 'aria-live': 'polite' });
+    const results = h('div', { class: 'pc-results', id: 'pc-results' });
     const status = h('p', { class: 'form-note', id: 'pc-status', role: 'status' });
     const credits = h('p', { class: 'meta', id: 'pc-credits' });
-    const latIn = h('input', { id: 'pc-lat', type: 'text', inputmode: 'decimal', size: '9', 'aria-label': 'Latitude' });
-    const lonIn = h('input', { id: 'pc-lon', type: 'text', inputmode: 'decimal', size: '9', 'aria-label': 'Longitude' });
+    const latIn = h('input', { id: 'pc-lat', type: 'text', inputmode: 'decimal', size: '9', placeholder: '39.7589', autocomplete: 'off' });
+    const lonIn = h('input', { id: 'pc-lon', type: 'text', inputmode: 'decimal', size: '9', placeholder: '-84.1916', autocomplete: 'off' });
+    const num = (v) => (/^\s*-?\d+(\.\d+)?\s*$/.test(v) ? Number(v) : NaN);
     const typed = h('form', { class: 'pc-typed', onsubmit: (e) => {
       e.preventDefault();
-      const lat = Number(latIn.value), lon = Number(lonIn.value);
+      const lat = num(latIn.value), lon = num(lonIn.value);
       if (Number.isFinite(lat) && Number.isFinite(lon)) place([lon, lat]);
-    } }, h('span', { class: 'meta' }, 'Or type a spot: '), latIn, ' ', lonIn, ' ', h('button', { class: 'button secondary', type: 'submit', id: 'pc-go' }, 'Put the spot here'));
+      else { status.textContent = WORDS.badTyped; latIn.focus(); }
+    } }, h('span', { class: 'meta' }, 'Or type a spot: '),
+      h('label', { class: 'pc-control', for: 'pc-lat' }, 'Latitude ', latIn), ' ',
+      h('label', { class: 'pc-control', for: 'pc-lon' }, 'Longitude ', lonIn), ' ',
+      h('button', { class: 'button secondary', type: 'submit', id: 'pc-go' }, 'Put the spot here'));
     let kindWrap = h('span');
 
     function kindSelect() {
       const c = COUNTIES.find((x) => x.id === state.county);
       if (!c.kinds.includes(state.kind)) state.kind = c.kinds[0];
+      const hadFocus = document.activeElement && document.activeElement.id === 'pc-kind';
       kindWrap.replaceChildren(select('pc-kind', 'Business', c.kinds.map((k) => [k, KINDS[k]]), state.kind, (v) => { state.kind = v; refresh(); }));
+      if (hadFocus) document.getElementById('pc-kind')?.focus();
     }
 
     // The server answers only for a spot: the places within 5 km of it and the nearest five (never a whole county: RENDERER 08:24, the licence question).
@@ -94,7 +102,7 @@
       const c = state.census, P = pc.projector(c.bbox, W, H);
       const value = state.shade === 'density' ? (u) => u.density : (u) => (u.income ? u.income[0] : null);
       const br = pc.bands(c.units, value);
-      const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pc-svg', role: 'img', 'aria-label': `Map of ${c.name}: block groups shaded by ${SHADES[state.shade].toLowerCase()}${state.places ? `, with ${state.places.length} ${KINDS[state.kind].toLowerCase()} marked` : ''}` });
+      const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pc-svg', role: 'img', 'aria-label': `Map of ${c.name}: block groups shaded by ${SHADES[state.shade].toLowerCase()}${state.spot ? `, a spot at ${state.spot[1].toFixed(4)}, ${state.spot[0].toFixed(4)} with rings at 1, 2 and 5 km` : ''}${state.places ? `, and ${state.places.length} ${KINDS[state.kind].toLowerCase()} near it marked` : ''}` });
       for (const u of c.units) {
         const d = u.rings.map((r) => 'M' + r.map((p) => P.fwd(p).map((v) => v.toFixed(1)).join(',')).join('L') + 'Z').join('');
         const b = pc.band(value(u), br);
@@ -102,11 +110,16 @@
       }
       if (state.places) for (const p of state.places) {
         const [x, y] = P.fwd([p.lon, p.lat]);
-        root.append(svg('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: '2.6', fill: '#ff9f43', stroke: '#14141a', 'stroke-width': '0.8', class: 'pc-place' }));
+        root.append(svg('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: '4.5', fill: '#ff9f43', stroke: '#14141a', 'stroke-width': '1.2', class: 'pc-place' }));
       }
       if (state.spot) {
         const [x, y] = P.fwd(state.spot);
-        for (const r of pc.RINGS_KM) root.append(svg('circle', { cx: x, cy: y, r: P.kmToPx(r).toFixed(1), fill: 'none', stroke: '#ffd166', 'stroke-width': '2', 'stroke-dasharray': '6 3', class: 'pc-ring' }));
+        for (const r of pc.RINGS_KM) {
+          root.append(svg('circle', { cx: x, cy: y, r: P.kmToPx(r).toFixed(1), fill: 'none', stroke: '#ffd166', 'stroke-width': '2', 'stroke-dasharray': '6 3', class: 'pc-ring' }));
+          const t = svg('text', { x: x + 3, y: (y - P.kmToPx(r) - 3).toFixed(1), fill: '#ffd166', 'font-size': '13', 'font-weight': '700', stroke: '#14141a', 'stroke-width': '3', 'paint-order': 'stroke', 'aria-hidden': 'true', class: 'pc-ring-label' });
+          t.textContent = `${r} km`;
+          root.append(t);
+        }
         root.append(svg('circle', { cx: x, cy: y, r: '5', fill: '#ffffff', stroke: '#14141a', 'stroke-width': '1.5', id: 'pc-spot' }));
       }
       root.addEventListener('click', (e) => {
@@ -124,6 +137,9 @@
       legend.querySelectorAll('.pc-swatch').forEach((s) => { const f = s.getAttribute('data-fill'); s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: f })])); });
       mapBox.replaceChildren(root, legend);
     }
+
+    // 'about 0' would contradict the block group's own count: when no block-group centre is inside a ring, say so instead.
+    const peopleCell = (p) => (p.blockGroups === 0 ? 'no block-group centre inside (see the method below)' : `about ${fmt(p.about)}`);
 
     function drawResults() {
       const c = state.census;
@@ -145,11 +161,11 @@
           h('ol', { class: 'pc-facts', id: 'pc-nearest' }, near.map((p) => h('li', {}, `${p.name || '(no name in the map data)'}: ${km1(p.km)} km`, h('span', { class: 'pc-label' }, ' calculated, straight line')))));
         out.push(h('h3', {}, 'Within 1, 2 and 5 km'),
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, KINDS[state.kind] + ' (calculated)'), h('th', { scope: 'col' }, 'People (estimated)'))),
-            h('tbody', {}, counts.map((cnt, i) => h('tr', {}, h('th', { scope: 'row' }, `${cnt.km} km`), h('td', {}, fmt(cnt.count)), h('td', {}, `about ${fmt(people[i].about)}`))))));
+            h('tbody', {}, counts.map((cnt, i) => h('tr', {}, h('th', { scope: 'row' }, `${cnt.km} km`), h('td', {}, fmt(cnt.count)), h('td', {}, peopleCell(people[i])))))));
       } else {
         out.push(h('h3', {}, 'Within 1, 2 and 5 km'),
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, 'People (estimated)'))),
-            h('tbody', {}, people.map((p) => h('tr', {}, h('th', { scope: 'row' }, `${p.km} km`), h('td', {}, `about ${fmt(p.about)}`))))));
+            h('tbody', {}, people.map((p) => h('tr', {}, h('th', { scope: 'row' }, `${p.km} km`), h('td', {}, peopleCell(p)))))));
       }
       out.push(h('p', { class: 'meta' }, 'People within a ring: ' + people[0].method + ', rounded to the nearest 100.'));
       results.replaceChildren(...out);
@@ -163,16 +179,35 @@
     async function place(pt) {
       state.spot = pt; latIn.value = pt[1].toFixed(5); lonIn.value = pt[0].toFixed(5);
       await loadPlaces();
-      status.textContent = state.placesNote;
       drawMap(); drawResults(); drawCredits();
+      status.textContent = state.placesNote || summaryLine();
+    }
+
+    function summaryLine() {
+      const u = state.census && state.spot ? pc.unitAt(state.spot, state.census.units) : null;
+      if (!u) return WORDS.outside;
+      if (!state.places) return 'Spot placed. People and income are below.';
+      const c5 = pc.countsWithin(state.spot, state.places)[2].count, n = pc.nearest(state.spot, state.places, 1)[0];
+      return `Spot placed: ${c5} ${KINDS[state.kind].toLowerCase()} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}. Details are below.`;
+    }
+
+    // Is anything loaded at all? Asked once per county and kind, at the county's middle, so the note shows before any spot (MEDIUM 6).
+    async function checkLoaded() {
+      if (state.spot) return;
+      const [x0, y0, x1, y1] = state.census.bbox;
+      try {
+        const r = await data.perfectCityPlaces(state.county, state.kind, (y0 + y1) / 2, (x0 + x1) / 2);
+        state.placesNote = r && r.loaded > 0 ? '' : WORDS.noPlaces;
+      } catch { state.placesNote = WORDS.placesError; }
     }
 
     async function refresh() {
       status.textContent = 'Loading...';
       try { state.census = await loadCensus(state.county); } catch { status.textContent = 'The map data could not be loaded. Try again later.'; return; }
       kindSelect();
-      await loadPlaces();
       if (state.spot && !pc.unitAt(state.spot, state.census.units)) state.spot = null;
+      await loadPlaces();
+      await checkLoaded();
       status.textContent = state.placesNote;
       drawMap(); drawResults(); drawCredits();
     }

@@ -112,11 +112,12 @@
       if (!hasAny(model)) { model = normalize(FALLBACK); }       // the server did not answer or listed nothing this page knows: the page's own default, never an empty bar
       for (const id of PAGE_ONLY) if (!model.working.includes(id) && !model.soon.includes(id)) model.soon = ORDER.filter(x => model.soon.includes(x) || x === id);
       // Perfect City works for an account whose switch perfectCity is on (an admin account gets no server list, so the switch decides here; GEO 11-27).
-      // The switch is the ONLY key: a server row saying 'working' does not open the page without it (it stays Coming soon).
+      // Two keys, the same two the server's perfect_city_check accepts (CC1 08:10 one-switch design): the account's own switch, or the department
+      // opened for everyone (departments.status 'working': the public flip, live step 82c, NOT before attorney row G11 is answered). Without the page file, never.
       if (window.ryagramSwitches?.featureOn('perfectCity') === true && window.ryagramPerfectCityPage) {
         model.soon = model.soon.filter((x) => x !== 'geo_intelligence');
         if (!model.working.includes('geo_intelligence')) model.working = ORDER.filter((x) => model.working.includes(x) || x === 'geo_intelligence');
-      } else if (model.working.includes('geo_intelligence')) {
+      } else if (model.working.includes('geo_intelligence') && !window.ryagramPerfectCityPage) {
         model.working = model.working.filter((x) => x !== 'geo_intelligence');
         if (!model.soon.includes('geo_intelligence')) model.soon = ORDER.filter((x) => model.soon.includes(x) || x === 'geo_intelligence');
       }

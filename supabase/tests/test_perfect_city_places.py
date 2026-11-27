@@ -122,6 +122,12 @@ class PerfectCityPlaces(core.Base):
         self.assertEqual((empty["places"], empty["credit"], empty["loaded"]), ([], CREDIT, 0))
         self.assertNotIn("n10", str(got), "no osm_ref anywhere in the answer")
 
+    def test_the_public_flip_opens_it_for_every_signed_in_account(self):
+        self.refused(OTHER, "montgomery_oh", "fast_food", code="42501")
+        self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
+        self.assertEqual(self.get(OTHER)["loaded"], 4)
+        self.refused("anon", "montgomery_oh", "fast_food", code="42501")                     # a visitor still cannot
+
     # ---------------------------------------------------------------------------------------------- (c) an admin
     def test_an_app_admin_without_the_switch_is_allowed(self):
         self.make_admin(RYAN)

@@ -72,6 +72,10 @@ class PerfectCitySummary(core.Base):
         self.assertEqual(self.summary(OTHER)["schema"], "ryagram.perfect-city-summary/0")
         self.owner("insert into public.app_admins (user_id, note) values (%s, 'test')", RYAN)
         self.assertEqual(self.summary(RYAN)["place"], "montgomery_oh")                     # an admin without the switch
+        third = "00000000-0000-4000-8000-000000000333"
+        self.refused("42501", third, "montgomery_oh", "fast_food", *self.spot)            # anyone else: no
+        self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
+        self.assertEqual(self.summary(third)["place"], "montgomery_oh")                    # the public flip opens it for everyone
 
     def test_03_refusals_in_words(self):
         self.switch_on(OTHER)
@@ -82,9 +86,11 @@ class PerfectCitySummary(core.Base):
     def test_04_numbers_on_invented_points(self):
         self.switch_on(OTHER)
         s = self.summary(OTHER)
-        self.assertEqual(s["places_loaded"], 6)
+        self.assertEqual(s["places_loaded"], {"count": 6, "basis": "calculated"})
         self.assertEqual(s["spot"], {"lat": 39.7589, "lon": -84.1916, "is_default": False})
-        self.assertEqual([p["name"] for p in s["nearest"]], ["Test Place 0", "Test Place 1", "Test Place 2", "Test Place 3", "Test Place 4"])
+        self.assertEqual([p["rank"] for p in s["nearest"]], [1, 2, 3, 4, 5])
+        self.assertTrue(all(set(p) == {"rank", "km", "basis"} for p in s["nearest"]), "no business names reach a person's AI (G11)")
+        self.assertNotIn("Test Place", str(s))
         self.assertAlmostEqual(s["nearest"][0]["km"], 0.5, places=2)
         self.assertTrue(all(p["basis"] == "calculated" for p in s["nearest"]))
         self.assertEqual([(r["km"], r["places"]["count"], r["places"]["basis"]) for r in s["rings"]], [(1, 1, "calculated"), (2, 3, "calculated"), (5, 5, "calculated")])
