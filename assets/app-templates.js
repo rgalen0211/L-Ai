@@ -49,10 +49,7 @@
     { id: 'line', view: 'line', label: 'Line', blurb: 'How a handful of places move over time.',
       datasets: ['bls_state_unemployment'], settings: { line_top_n: 6 }, confirmed: true },
     { id: 'map', view: 'map', label: 'Map', blurb: 'Where it is high and low, and how that shifts.',
-      datasets: ['state_obesity_fastfood'], confirmed: true,
-      // 2026-11-27 (Ryan, after the first full film): shaded states, light = low, dark = high, 5 steps, instead of hatching. ENGINE checked this exact story on engine 4e38bd99 (sheet-path, failed 0).
-      // Only THIS dataset: the same banded shade fails the engine's the_film_actually_moves on 16 of the 18 other state maps (proposals/post-engine-shade-fill-result.txt), so it is not a default.
-      style: { choropleth: { mode: 'solid', steps: 5, low: '#dfe6f3', high: '#2f3f73' } } },       // 2026-11-23: no county permits map (it fails the engine's legend_separability check)
+      datasets: ['state_obesity_fastfood'], confirmed: true },       // 2026-11-23: no county permits map (it fails the engine's legend_separability check)
     // 2026-11-23: the 'Bars' template (bls_state_unemployment bars) is gone: the engine's rows_move_smoothly check fails it (proposals/ENGINE-CATALOG-BLOCK-LIST-1123.json,
     // tools/data/engine-catalog-block-list-1123.json (v2)). tests/engine-block-list.test.cjs fails if a template offers a pair on that list.
     { id: 'paired', view: 'paired', label: 'Paired', blurb: 'A map and a bar race side by side, one timeline.',

@@ -132,8 +132,6 @@
     if ((MEASURED.blocked[entry.id] || {})[view]) throw new Error('That view isn\u2019t offered for this dataset.');
     const style = {};
     if (view === 'map' && /counties/i.test(entry.level)) style.choropleth = { mode: 'solid', continuous: true };   // too small to hatch
-    // 2026-11-27: the obesity map is drawn as five light-to-dark shades, not hatching (Ryan). ENGINE checked this exact story; the banded shade fails the engine's gate on the other state maps, so it is this dataset only.
-    if (view === 'map' && entry.id === 'state_obesity_fastfood') style.choropleth = { mode: 'solid', steps: 5, low: '#dfe6f3', high: '#2f3f73' };
     if (view === 'bars') style.bars = { swap_seconds: 0.5 };
     const settings = view === 'bars' ? { top_n: 10, axis: 'fixed' } : view === 'line' ? { line_top_n: 6 } : undefined;
     return { id: entry.id, label: entry.title, start: entry.window[0], end: entry.window[1], view, settings, style,
