@@ -135,11 +135,11 @@ test('queue: every waiting job says one at a time; the hours line is said only w
       assert.doesNotMatch(s, /The machine|render machine/, `${type}/${pos}`);
     }
   }
-  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 2), /so it may take longer. Your place can move back/);
+  assert.match(J.progressNote({ state: 'queued', attempt: 1, job_type: 'contact_sheet' }, 2), /so it may take longer.$/);
 });
 
 test('Help "Why is my film still Queued?" says it can be hours at busy times, on both Help pages', () => {
-  const A = 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour, so a long line can mean hours, or a day or more when many people join at once, such as a launch day. A full film is checked by a person before it starts; when an earlier one is approved, your place in line can move back. The Render panel shows your place in line. You can have 2 films waiting at once. We do not send an email when a film is ready, so come back to this page to check.';
+  const A = 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour, so a long line can mean hours, or a day or more when many people join at once, such as a launch day. A full film is checked by a person before it starts, and it joins the end of the line when it is approved. The Render panel shows your place in line. You can have 2 films waiting at once. We do not send an email when a film is ready, so come back to this page to check.';
   assert.ok(read('help/index.html').includes(A));
   assert.ok(read('assets/app-library.js').includes(A));
 });
