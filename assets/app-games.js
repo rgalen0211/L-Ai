@@ -34,7 +34,8 @@
     return players.map(p => {
       const text = guesses.get(p.pid) || '';
       const r = Score.scoreGuess(round, text);
-      return { name: p.name, points: r.points, verdict: r.verdict, text, marks: r.marks };
+      const verdict = round.answer.length === 1 && r.marks[0] && r.marks[0].mark === 'near' ? 'close (near form)' : r.verdict;        // one-word answers (Fill the gap): 'a few words' read oddly; the points are the engine's, unchanged
+      return { name: p.name, points: r.points, verdict, text, marks: r.marks };
     });
   }
 

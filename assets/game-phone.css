@@ -30,3 +30,7 @@
 
 /* GAMES 11-27: the live final list carries its own places ("1. Ana: 434"): no bullets, inside the card */
 #ph-totals{list-style:none;padding:0}
+.ph-stage ul{list-style:none;padding:0}
+.ph-screen h1.ph-compact{font-size:1.1rem;margin:2px 0 4px}
+.ph-leave{margin-top:22px}
+.ph-join-note{font-weight:700}
