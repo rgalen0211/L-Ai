@@ -5,7 +5,8 @@ Same setup as test_compilation_requests.py (its helpers are borrowed, the OAuth 
 
 Rules proved (each with a control that passes and a fault that must be refused)
   * THE GATE, on BOTH the reader (connect_compilation_get) and the AI's writer (connect_set_compilation_request): an account Compilations are not open for is refused in words (42501, 'Compilations are not open for this account yet.')
-    and nothing is read or written; an invited tester (local_compute), an administrator, or BUILDER's ryagram_private.compilations_on (when it exists) is let in; a read-only or invalid token is still refused first, by the token's own rules
+    and nothing is read or written. ONE gate with BUILDER's ryagram_private.compilations_on: when it exists it is THE rule (an administrator is open only if it says yes) plus ONE kept tester door (local_compute: his function does not cover testers);
+    when it does not exist yet, today's rule (invited tester or administrator). A read-only or invalid token is still refused first, by the token's own rules. The writer also runs his compilation_request_problem when it exists (no file, path or link; 22023)
   * the writer keeps its signature, its answer, its grants (the connector login only) and every other behaviour: someone else's project looks absent, a wrong-schema or oversize request is refused (22023), the hash is the SHA-256, a second save replaces
   * the token's own person only: a project that is not theirs, or does not exist, answers null; a token that is not valid is refused; the reader takes no owner argument
   * an own project with no request answers {request: null, run: null}; a saved request comes back exactly as saved with its hash
@@ -148,9 +149,64 @@ class ConnectCompilationStatus(core.Base):
         def body(text):
             return re.search(r"create (?:or replace )?function public\.connect_set_compilation_request.*?end \$\$;", text.replace("\r\n", "\n"), re.S).group(0)
         gate = "  if not ryagram_private.connect_compilations_open(me) then\n    raise exception 'Compilations are not open for this account yet.' using errcode = '42501';\n  end if;\n"
+        problem = re.compile(r"  if to_regprocedure\('ryagram_private\.compilation_request_problem\(jsonb\)'\) is not null then.*?\n  end if;\n", re.S)
         live = body(OLD.read_text(encoding="utf-8")).replace("create function", "create or replace function")
-        self.assertEqual(body(MIG.read_text(encoding="utf-8")).replace(gate, ""), live)
+        mine = body(MIG.read_text(encoding="utf-8")).replace(gate, "").replace(" sha text; why text;", " sha text;")
+        self.assertEqual(problem.sub("", mine), live, "the live definition plus the gate and the data-only check, nothing else")
+        self.assertEqual(len(problem.findall(mine)), 1)
         self.assertEqual(body(RB.read_text(encoding="utf-8")), live, "the rollback restores today's definition exactly")
+
+    # ---------------------------------------------------------------------------------------------- ONE gate with BUILDER's compilations_on (GEO 09:18), and his data-only rule on the writer
+    def stand_in_off(self):
+        """BUILDER's ryagram_private.compilations_on as a stand-in that says NO to everyone (it exists, and nobody has the switch)."""
+        self.run_sql("create or replace function ryagram_private.compilations_on(p uuid) returns boolean language sql as $$ select false $$")
+
+    def test_before_compilations_on_exists_an_administrator_and_a_tester_are_open_and_after_it_exists_only_its_yes_and_the_tester_door(self):
+        gate = "select ryagram_private.connect_compilations_open(%s)"
+        self.assertIsNone(self.admin("select to_regprocedure('ryagram_private.compilations_on(uuid)')"), "the template does not have his function")
+        self.assertTrue(self.admin(gate, tc.ADMIN), "today's rule: an administrator is open when his function is not there")
+        self.assertFalse(self.admin(gate, tc.NOBODY))
+        self.open_for(ALICE)
+        self.assertTrue(self.admin(gate, ALICE), "today's rule: an invited tester is open")
+        self.stand_in_off()                                                        # his function now exists and says no to everyone
+        self.assertFalse(self.admin(gate, tc.ADMIN), "once it exists it is THE rule: an administrator is open only if it says yes")
+        self.assertFalse(self.admin(gate, BOB))
+        self.assertTrue(self.admin(gate, ALICE), "the one door kept: an invited tester (his compilations_on does not cover local_compute), said plainly in the migration header")
+        self.stand_in_switch(BOB)
+        self.assertTrue(self.admin(gate, BOB), "his yes opens the account")
+        self.assertFalse(self.admin(gate, tc.ADMIN))
+
+    def test_the_writer_follows_the_same_single_gate_once_his_function_exists(self):
+        _, a, _ = self.connect(ALICE)
+        _, b, _ = self.connect(BOB)
+        pa, pb = self.project_for(a), self.project_for(b)
+        self.stand_in_off()
+        self.runner()
+        self.fails(WRITE, h(b), pb, json.dumps(REQ), code="42501")                 # no switch, not a tester: refused, nothing saved
+        self.assertEqual(self.admin("select count(*) from public.compilation_requests"), 0)
+        self.open_for(ALICE)
+        self.assertRegex(self.save(a, pa, REQ), r"^[0-9a-f]{64}$")                 # a tester keeps the AI writer
+        self.stand_in_switch(BOB)
+        self.assertRegex(self.save(b, pb, REQ), r"^[0-9a-f]{64}$")                 # the switch opens it
+
+    def stand_in_problem(self):
+        """BUILDER's ryagram_private.compilation_request_problem, reduced to the one rule this test needs: a key named 'path' anywhere in the request is refused, in his words."""
+        self.run_sql("create or replace function ryagram_private.compilation_request_problem(p jsonb) returns text language sql as $$ select case when p::text ~* '\"path\"\\s*:' "
+                     "then 'A compilation request holds folder names and a phrase only, never a file, a path or a link.' else null end $$")
+
+    def test_the_writer_refuses_a_request_that_holds_a_path_when_his_data_only_rule_exists_and_skips_it_when_it_does_not(self):
+        self.open_for(ALICE)
+        _, a, _ = self.connect(ALICE)
+        p = self.project_for(a)
+        bad = dict(REQ, rules=[{"phrase": "x", "picture": "p.png", "seconds": 2, "mode": "full", "path": "C:/x"}])
+        self.assertRegex(self.save(a, p, bad), r"^[0-9a-f]{64}$", "his function is not there: skipped, as before")
+        self.run_sql("delete from public.compilation_requests")
+        self.stand_in_problem()
+        self.runner()
+        err = self.fails(WRITE, h(a), p, json.dumps(bad), code="22023")
+        self.assertIn("never a file, a path or a link", str(err))
+        self.assertEqual(self.admin("select count(*) from public.compilation_requests"), 0, "nothing was written")
+        self.assertRegex(self.save(a, p, REQ), r"^[0-9a-f]{64}$", "a clean request still saves")
 
     # ---------------------------------------------------------------------------------------------- the reader's answers
     def test_a_saved_request_comes_back_exactly_and_with_its_hash_and_no_report_is_null(self):
@@ -227,7 +283,7 @@ class ConnectCompilationStatus(core.Base):
 
     def test_the_after_check_is_all_true_and_the_rollback_restores_the_writer_and_removes_the_two_new_functions(self):
         rows = self.db.as_(None).c.execute(CHECK.read_text(encoding="utf-8")).fetchall()
-        self.assertEqual(len(rows), 10)
+        self.assertEqual(len(rows), 12)
         self.assertTrue(all(ok for _, ok in rows), rows)
         before = self.admin("select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'ryagram_private')")
         self.run_sql(RB.read_text(encoding="utf-8"))

@@ -268,12 +268,16 @@ test('Compilations has a THIRD way to be open: an account with the desktop-app f
   assert.equal((await h.call('open_compilations_page')).code, 'not_available', 'undo = switch off: refuses again at once');
 });
 
-test('set_compilation_request is NOT flipped by the switch: the desktop-app flag alone decides (pinned; a change here must be deliberate)', async () => {
-  const noApp = await world({ switches: ['compilations'], desktop: false });
+test('set_compilation_request: the desktop-app flag OR the Compilations switch opens it (11-27 09:30: BUILDER lets a switch-only account sign in its own computer); with neither it refuses', async () => {
+  const noApp = await world({ switches: [], desktop: false });
   const id = (await noApp.call('create_project', { title: 'T' })).data.project_id;
   const refused = await noApp.call('set_compilation_request', { project_id: id, phrase: 'great news', folders: ['My Videos'] });
   assert.equal(refused.isError, true); assert.equal(refused.code, 'not_available');
   assert.equal(refused.data.reason, 'desktop_app_not_open');
+  const sw = await world({ switches: ['compilations'], desktop: false });
+  const id3 = (await sw.call('create_project', { title: 'T' })).data.project_id;
+  const viaSwitch = await sw.call('set_compilation_request', { project_id: id3, phrase: 'great news', folders: ['My Videos'] });
+  assert.equal(viaSwitch.isError, undefined, viaSwitch.text);
   const app = world({ switches: [], desktop: true });
   const id2 = (await app.call('create_project', { title: 'T' })).data.project_id;
   const ok = await app.call('set_compilation_request', { project_id: id2, phrase: 'great news', folders: ['My Videos'] });

@@ -32,12 +32,15 @@ export interface PcMeasure { id: string; label: string; basis: Basis; note: stri
 export const PC_BUSINESS_TYPES: readonly PcBusinessType[] = Object.freeze([
   { id: "fast_food", label: "Fast food" },
   { id: "restaurant", label: "Restaurants" },
+  { id: "chicken", label: "Chicken places" },      // chicken, burger, pizza: GEO's page and database (migration 20261127000900) list them too
+  { id: "burger", label: "Burger places" },
+  { id: "pizza", label: "Pizza places" },
   { id: "grocery", label: "Supermarkets" },
 ]);
 /** The places the first path covers: counties, because that is the geography the data covers today. A county is not a city; the page says so. Supermarkets are in Montgomery County only. */
 export const PC_PLACES: readonly PcPlace[] = Object.freeze([
-  { id: "montgomery_oh", label: "Montgomery County, Ohio (Dayton)", note: "The whole county, which includes Dayton.", business_types: Object.freeze(["fast_food", "restaurant", "grocery"]) },
-  { id: "greene_oh", label: "Greene County, Ohio (Beavercreek, Xenia)", note: "The whole county, which includes Beavercreek and Xenia.", business_types: Object.freeze(["fast_food", "restaurant"]) },
+  { id: "montgomery_oh", label: "Montgomery County, Ohio (Dayton)", note: "The whole county, which includes Dayton.", business_types: Object.freeze(["fast_food", "restaurant", "chicken", "burger", "pizza", "grocery"]) },
+  { id: "greene_oh", label: "Greene County, Ohio (Beavercreek, Xenia)", note: "The whole county, which includes Beavercreek and Xenia.", business_types: Object.freeze(["fast_food", "restaurant", "chicken", "burger", "pizza"]) },
 ]);
 /** What the page draws, and the word each is labelled with. */
 export const PC_LAYERS: readonly PcLayer[] = Object.freeze([
@@ -50,13 +53,13 @@ export const PC_RINGS_KM: readonly number[] = Object.freeze([1, 2, 5]);
 export const PC_MEASURES: readonly PcMeasure[] = Object.freeze([
   { id: "nearest_distance", label: "Straight-line distance from the spot to the nearest similar places", basis: "calculated", note: "Straight line only, not a drive or a walk. The nearest five, within 5 km." },
   { id: "businesses_within_rings", label: "How many similar places lie within 1, 2 and 5 kilometres of the spot", basis: "calculated", note: "Worked out from the mapped points, which come from OpenStreetMap volunteers." },
-  { id: "people_within_rings", label: "About how many people live within 1, 2 and 5 kilometres of the spot", basis: "estimated", note: "An estimate: a block group counts in full when its centre is inside the ring." },
+  { id: "people_within_rings", label: "About how many people live within 1, 2 and 5 kilometres of the spot", basis: "estimated", note: "An estimate: on the page each block group's people are shared by the part of its area inside the ring. perfect_city_summary gives the 5 km figure only." },
 ]);
 /** What the department does NOT know or do: GEO's page sentences, word for word. The AI must say these when it describes the department. */
 export const PC_NOT_KNOWN: readonly string[] = Object.freeze([
   "Distances are straight lines, not drive or walk times.",
   "The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.",
-  "People within a ring are an estimate: a block group counts in full when its centre is inside the ring.",
+  "People within a ring are an estimate: each block group's people are shared by the part of its area inside the ring, as if they were spread evenly.",
   "Median income is a survey estimate with a margin of error, for the whole block group.",
   "There is no success score and no prediction. This shows what is there, not whether a business would do well.",
   "The map shows the places near your spot only: within 5 km, and the nearest five.",
@@ -121,12 +124,16 @@ const pick = <T extends { id: string }>(list: readonly T[], v: unknown): T | nul
 const choices = () => `Places: ${PC_PLACES.map((p) => `${p.id} (${p.label})`).join("; ")}. Kinds of business: ${PC_BUSINESS_TYPES.map((b) => `${b.id} (${b.label})`).join("; ")}. Supermarkets (grocery) are covered in montgomery_oh only.`;
 
 // ---------------------------------------------------------------------------------------------- the numbers for one spot
-interface Ring { km: number; places: number; people: number; method: string }
-interface Near { name: string; km: number }
+// THE SHAPE IS GEO'S REAL ONE (migration 20261127000900, ryagram_private.perfect_city_summary_for, branch geo-perfect-city-1127 a2abdeb1, checked by CONNECT 11-27 09:00):
+//   places_loaded {count, basis:'calculated'}; nearest [{rank, km, basis}] (NO business name: attorney row G11); rings [{km, places:{count, basis}, people_about:{value, basis:'estimated', method}}] where the 1 km and 2 km rings
+//   carry people_about {value:null, basis:'estimated', note} (people are given at 5 km only). A name is still accepted when one is sent (fenced, cut), but none is needed.
+interface Ring { km: number; places: number; people: number | null; method: string | null; note: string | null }
+interface Near { rank: number; name: string | null; km: number }
 interface Summary { lat: number; lon: number; placesLoaded: number; nearest: Near[]; rings: Ring[]; notKnown: string[]; credits: string[] }
 const BASIS_PLACES = "calculated", BASIS_PEOPLE = "estimated";
-/** A place's name comes from OpenStreetMap volunteers: untrusted text, at most 80 characters, and never a reason to refuse the numbers. */
-function nameOf(v: unknown): string {
+/** A place's name (only if the database sends one) comes from OpenStreetMap volunteers: untrusted text, at most 80 characters, and never a reason to refuse the numbers. null = no name sent. */
+function nameOf(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
   if (typeof v !== "string" || v.trim() === "") return "(no name in the map data)";
   const cut = v.trim().slice(0, 80);
   return textOk(cut, 80) ? cut : "(name not shown)";
@@ -138,25 +145,35 @@ export function readPerfectCitySummary(doc: unknown, place: string, kind: string
   if (!isObj(spot)) return null;
   const lat = num(spot.lat), lon = num(spot.lon);
   if (lat === null || lon === null || lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
-  const loaded = num(doc.places_loaded);
+  if (!isObj(doc.places_loaded) || doc.places_loaded.basis !== BASIS_PLACES) return null;
+  const loaded = num(doc.places_loaded.count);
   if (loaded === null || !Number.isInteger(loaded) || loaded < 0 || loaded > 1e7) return null;
   if (!Array.isArray(doc.nearest) || doc.nearest.length > 5 || !Array.isArray(doc.rings) || doc.rings.length !== PC_RINGS_KM.length) return null;
   const nearest: Near[] = [];
   let prev = 0;
-  for (const n of doc.nearest) {
+  for (const [i, n] of doc.nearest.entries()) {
     if (!isObj(n) || n.basis !== "calculated") return null;
     const km = num(n.km);
     if (km === null || km < prev || km > 1000) return null;                   // sorted, nearest first: a list that is not is not one this connection vouches for
+    if (n.rank !== undefined && n.rank !== i + 1) return null;                // a rank, when the database gives one, is the place in that list
     prev = km;
-    nearest.push({ name: nameOf(n.name), km });
+    nearest.push({ rank: i + 1, name: nameOf(n.name), km });
   }
   const rings: Ring[] = [];
   for (const [i, r] of doc.rings.entries()) {
     if (!isObj(r) || r.km !== PC_RINGS_KM[i] || !isObj(r.places) || !isObj(r.people_about)) return null;
     if (r.places.basis !== BASIS_PLACES || r.people_about.basis !== BASIS_PEOPLE) return null;
-    const places = num(r.places.value), people = num(r.people_about.value), method = str(r.people_about.method, 600);
-    if (places === null || !Number.isInteger(places) || places < 0 || places > 1e7 || people === null || people < 0 || people > 1e10 || method === null) return null;
-    rings.push({ km: r.km as number, places, people, method });
+    const places = num(r.places.count), pv = r.people_about.value;
+    if (places === null || !Number.isInteger(places) || places < 0 || places > 1e7) return null;
+    if (pv === null) {                                                         // people are given at 5 km only: a ring without a figure must say why, in the database's own words
+      const note = str(r.people_about.note, 600);
+      if (note === null) return null;
+      rings.push({ km: r.km as number, places, people: null, method: null, note });
+      continue;
+    }
+    const people = num(pv), method = str(r.people_about.method, 600);
+    if (people === null || people < 0 || people > 1e10 || method === null) return null;
+    rings.push({ km: r.km as number, places, people, method, note: null });
   }
   const words = (v: unknown, atLeast: number): string[] | null => {
     if (!Array.isArray(v) || v.length < atLeast || v.length > 12) return null;
@@ -217,7 +234,7 @@ export function makePerfectCityTools(friendlyError: (e: unknown) => string): Too
   const perfectCitySummary: ToolDef = {
     name: "perfect_city_summary", title: "The Perfect City numbers for one spot", scope: "read", readOnly: true, idempotent: true,
     description: "Reads the Perfect City numbers for ONE spot the person gives (a latitude and longitude) in one place and for one kind of business, from Ryagram's own data: the nearest similar places with their straight-line distance, how many lie within 1, 2 and 5 kilometres, "
-      + "and about how many people live within each ring. Every number comes back labelled calculated or estimated, with the method, what it does not know and where the data comes from, all of which belong with the numbers when the person is told. It gives no score, no ranking and no view on whether a business would do well. "
+      + "and about how many people live within 5 kilometres (the smaller rings give no people figure here). The nearest places come with their distance and rank, not their names. Every number comes back labelled calculated or estimated, with the method, what it does not know and where the data comes from, all of which belong with the numbers when the person is told. It gives no score, no ranking and no view on whether a business would do well. "
       + "If the business points are not loaded yet it says so and gives no distance or count of businesses. Use list_perfect_city_options for the place and kind ids. Read-only: it changes nothing and spends no credits. It only works for an account that has Perfect City switched on, and says so plainly when it is not.",
     inputSchema: obj({
       place: { type: "string", pattern: ID, description: "A place id from list_perfect_city_options." },
@@ -249,6 +266,7 @@ export function makePerfectCityTools(friendlyError: (e: unknown) => string): Too
         const code = (e as { code?: string })?.code;
         if (code === "unavailable") return unavailable();                                         // the database has no such function yet (migration not applied): none of the database's text is passed on
         if (code === "PT503" || code === "42501") return unavailable(friendlyError(e));           // 'not available yet' / the account's switch is off in the database: its own plain sentence
+        if (code === "54000") return refuse("Perfect City has answered all it gives this account for today. Do not ask again today; tell the person to try tomorrow. Nothing was looked up.", "rate", { data: { ok: false, looked_up: false, retry_after_seconds: 86400 } });   // GEO's per-account daily cap (300 with the switch): the database's number is not repeated
         if (code === "22023") return refuse(friendlyError(e) + " Nothing was looked up.", "args", { data: { ok: false, looked_up: false } });   // an unknown place or kind, a spot outside the county
         throw e;
       }
@@ -263,18 +281,19 @@ export function makePerfectCityTools(friendlyError: (e: unknown) => string): Too
       } else {
         out.push(`Places of this kind loaded for ${place.label}: ${s.placesLoaded}.`);
         out.push(s.nearest.length ? "Nearest similar places (straight line, calculated):" : "No nearest places came back for this spot.");
-        s.nearest.forEach((n, i) => out.push(`  ${i + 1}. ${untrusted("place-name", n.name)}: ${n.km} km`));
+        s.nearest.forEach((n) => out.push(`  ${n.rank}. ${n.name === null ? "" : untrusted("place-name", n.name) + ": "}${n.km} km`));
       }
       out.push("Within each ring around the spot:");
-      for (const r of s.rings) out.push(`  ${r.km} km: ${s.placesLoaded === 0 ? "businesses not loaded" : `${r.places} similar places (calculated)`}; about ${r.people} people (estimated)`);
-      for (const m of [...new Set(s.rings.map((r) => r.method))]) out.push(`How the people are estimated: ${untrusted("report-sentence", m)}`);
+      for (const r of s.rings) out.push(`  ${r.km} km: ${s.placesLoaded === 0 ? "businesses not loaded" : `${r.places} similar places (calculated)`}; ${r.people === null ? `people not given for this ring (${untrusted("report-sentence", r.note ?? "")})` : `about ${r.people} people (estimated)`}`);
+      for (const m of [...new Set(s.rings.map((r) => r.method).filter((m): m is string => m !== null))]) out.push(`How the people are estimated: ${untrusted("report-sentence", m)}`);
       out.push("What this does not know:", ...s.notKnown.map((n) => `  - ${untrusted("report-sentence", n)}`));
       out.push("Where the data comes from:", ...s.credits.map((c) => `  - ${untrusted("report-sentence", c)}`));
       out.push("Tell the person each number with its word (calculated or estimated), the method, and what is not known. Do not add a score, a ranking or advice about where to open.");
       return ok(out.join("\n"), {
         ok: true, looked_up: true, place: place.id, business_type: biz.id, spot: { lat: s.lat, lon: s.lon }, places_loaded: s.placesLoaded, businesses_loaded: s.placesLoaded > 0,
-        nearest: s.placesLoaded > 0 ? s.nearest.map((n) => ({ name: n.name, km: n.km, basis: "calculated" })) : [], names_are_untrusted_text: true,
-        rings: s.rings.map((r) => ({ km: r.km, places: s.placesLoaded > 0 ? { value: r.places, basis: "calculated" } : null, people_about: { value: r.people, basis: "estimated", method: r.method } })),
+        nearest: s.placesLoaded > 0 ? s.nearest.map((n) => ({ rank: n.rank, ...(n.name === null ? {} : { name: n.name }), km: n.km, basis: "calculated" })) : [], names_are_untrusted_text: true,
+        rings: s.rings.map((r) => ({ km: r.km, places: s.placesLoaded > 0 ? { value: r.places, basis: "calculated" } : null,
+          people_about: r.people === null ? { value: null, basis: "estimated", note: r.note } : { value: r.people, basis: "estimated", method: r.method } })),
         not_known: s.notKnown, credits: s.credits, score_given: false, ranking_given: false,
       });
     },

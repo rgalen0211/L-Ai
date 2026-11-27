@@ -13,7 +13,13 @@ const TL = 'supabase/functions/connect-core/tools.ts', DB = 'supabase/functions/
 const HIT = 'if (!(await ctx.policy.hit(ctx.principal, "compilation_reads", LIMITS.compilationReadsPerHourPerUser, 3600))) {';
 const GATE_STATUS = 'if (!(await compilationsOpen(ctx))) return closedResult();\n    const unavailable';
 const GATE_PAGE = 'if (!(await compilationsOpen(ctx))) return closedResult();\n    ' + HIT + '\n      return refuse(`The limit of ${LIMITS.compilationReadsPerHourPerUser} compilation checks';
+const MISSING = 'code === "42883" || code === "PGRST202") throw Object.assign(new Error("Compilation status is not available just now.")';     // the compilation read's own check (the Perfect City read has one just like it)
 const mutants = [
+  // compatibility with BUILDER's real branch (11-27 09:10): the 'stale' reason and the switch-only account
+  ['the stale reason BUILDER\'s report gives has no plain words', TL, '  stale: "the person\'s computer stopped reporting for two hours, so Ryagram closed this build; they can start it again in the Ryagram app",', ''],
+  ['set_compilation_request refuses an account that has only the Compilations switch', TL, 'noDesktopApp(ctx, "A compilation request", true)', 'noDesktopApp(ctx, "A compilation request")'],
+  ['suggest_next_step refuses an account that has only the Compilations switch', TL, ' && !(await compilationsOpen(ctx))) {\n      return ok("A compilation is made in the Ryagram desktop app', ') {\n      return ok("A compilation is made in the Ryagram desktop app'],
+  ['the desktop-app gate lets every account through on a compilation request', TL, 'if (viaCompilations && (await compilationsOpen(ctx))) return null;', 'if (viaCompilations) return null;'],
   ['the status tool no longer asks whether Compilations is open', TL, GATE_STATUS, 'const unavailable'],
   ['the page tool no longer asks whether Compilations is open', TL, GATE_PAGE, GATE_PAGE.replace('if (!(await compilationsOpen(ctx))) return closedResult();\n    ', '')],
   ['an account with the desktop app is no longer open (the invited testers lose it)', TL, 'return !!w && w.desktop_app === true;', 'return false;'],
@@ -41,10 +47,9 @@ const mutants = [
   ['the status tool is no longer in the registry', TL, 'setCompilationRequest, getCompilationStatus, openCompilationsPage,', 'setCompilationRequest, openCompilationsPage,'],
   ['the page tool is no longer read-only', TL, 'name: "open_compilations_page", title: "Where to make a compilation", scope: "read", readOnly: true', 'name: "open_compilations_page", title: "Where to make a compilation", scope: "read", readOnly: false'],
   ['the status tool needs the write permission', TL, 'name: "get_compilation_status", title: "Where a compilation stands", scope: "read"', 'name: "get_compilation_status", title: "Where a compilation stands", scope: "write"'],
-  // db.ts holds this pattern twice since perfectCitySummary was merged (11-27): each text names the Compilations line by its message, so it occurs exactly once
-  ['a missing function is no longer recognised (42883)', DB, 'code === "42883" || code === "PGRST202") throw Object.assign(new Error("Compilation status', 'code === "PGRST202") throw Object.assign(new Error("Compilation status'],
-  ['a missing function through PostgREST is no longer recognised', DB, 'code === "42883" || code === "PGRST202") throw Object.assign(new Error("Compilation status', 'code === "42883") throw Object.assign(new Error("Compilation status'],
-  ['every database fault is called a missing function', DB, 'code === "42883" || code === "PGRST202") throw Object.assign(new Error("Compilation status', 'true) throw Object.assign(new Error("Compilation status'],
+  ['a missing function is no longer recognised (42883)', DB, MISSING, MISSING.replace('code === "42883" || code === "PGRST202"', 'code === "PGRST202"')],
+  ['a missing function through PostgREST is no longer recognised', DB, MISSING, MISSING.replace('code === "42883" || code === "PGRST202"', 'code === "42883"')],
+  ['every database fault is called a missing function', DB, MISSING, MISSING.replace('code === "42883" || code === "PGRST202"', 'true')],
   ['the tool does not catch the unavailable code', TL, 'if ((e as { code?: string })?.code === "unavailable") return unavailable(); throw e;', 'throw e;'],
   ['a reason of the closed list has no plain words any more', TL, `  not_said: "the person's videos do not say it",
 `, ''],

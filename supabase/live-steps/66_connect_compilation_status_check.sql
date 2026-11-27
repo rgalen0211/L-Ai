@@ -39,4 +39,10 @@ union all select 'the gate helper connect_compilations_open(uuid) exists and no 
        coalesce(to_regprocedure('ryagram_private.connect_compilations_open(uuid)') is not null
                 and not has_function_privilege('connect_runner', 'ryagram_private.connect_compilations_open(uuid)', 'execute') and not has_function_privilege('authenticated', 'ryagram_private.connect_compilations_open(uuid)', 'execute')
                 and not has_function_privilege('anon', 'ryagram_private.connect_compilations_open(uuid)', 'execute') and not has_function_privilege('service_role', 'ryagram_private.connect_compilations_open(uuid)', 'execute')
-                and not exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) x where p.oid = to_regprocedure('ryagram_private.connect_compilations_open(uuid)') and x.grantee = 0 and x.privilege_type = 'EXECUTE'), false);
+                and not exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) x where p.oid = to_regprocedure('ryagram_private.connect_compilations_open(uuid)') and x.grantee = 0 and x.privilege_type = 'EXECUTE'), false)
+union all select 'ONE gate: connect_compilations_open asks BUILDER''s ryagram_private.compilations_on when that function exists (looked up by name), keeps today''s tester/administrator rule only for when it does not, and keeps the one tester door',
+       coalesce((select p.prosrc like '%to_regprocedure(''ryagram_private.compilations_on(uuid)'')%' and p.prosrc like '%ryagram_private.compilations_on($1)%' and p.prosrc like '%local_compute%' and p.prosrc like '%app_admins%'
+                 from pg_proc p where p.oid = to_regprocedure('ryagram_private.connect_compilations_open(uuid)')), false)
+union all select 'the AI''s writer runs BUILDER''s data-only rule (ryagram_private.compilation_request_problem) when that function exists, found by name and skipped when absent; a refusal is 22023 in his words',
+       coalesce((select p.prosrc like '%to_regprocedure(''ryagram_private.compilation_request_problem(jsonb)'')%' and p.prosrc like '%ryagram_private.compilation_request_problem($1)%' and p.prosrc like '%errcode = ''22023''%'
+                 from pg_proc p where p.oid = to_regprocedure('public.connect_set_compilation_request(text, uuid, jsonb)')), false);
