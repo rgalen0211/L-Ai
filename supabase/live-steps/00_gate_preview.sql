@@ -4,6 +4,7 @@
 --   that was added since the last gate run (for example by hand in the dashboard), not only the migration's own new ones.
 -- WHEN: run THIS file BEFORE pasting any migration that ends with gate_apply. Its FIRST row should say NOTHING. If it says LOOK, read the list: every line is something the gate would change now,
 --   on top of the migration's own new functions. If you do not recognise a line, STOP and send the list to CC1 before pasting. After pasting, run it again: it should say NOTHING again.
+-- It also lists the gate's three special edits when they would happen: grant_credits (the waiting-account hold), connect_person_ok (account_active) and connect_consent_check (the waiting words).
 -- It reads the gate's own two lists (the allowed functions and the open tables) from the live gate_apply text, so it stays in step with the gate. If it cannot read them it says STOP.
 with g as (
   select pg_get_functiondef(to_regprocedure('ryagram_private.gate_apply()')) as def
@@ -22,6 +23,19 @@ with g as (
    where pc.schemaname in ('public', 'storage') and pc.permissive = 'PERMISSIVE' and ('authenticated' = any (pc.roles) or 'public' = any (pc.roles))
      and pc.tablename <> all (lists.open_tables)
      and not exists (select 1 from pg_policies q where q.schemaname = pc.schemaname and q.tablename = pc.tablename and q.policyname = 'account_gate')
+  union
+  -- the gate's three special edits (20261104000100 263-299), each only when its function exists and its marker is missing (the same tests the gate uses)
+  select 'edit grant_credits (adds the waiting-account hold)'
+   where to_regprocedure('public.grant_credits(uuid,public.credit_entry,integer,text,text,text,text,text)') is not null
+     and pg_get_functiondef(to_regprocedure('public.grant_credits(uuid,public.credit_entry,integer,text,text,text,text,text)')) not like '%ryagram_private.hold_grant%'
+  union
+  select 'edit connect_person_ok (adds account_active)'
+   where to_regprocedure('ryagram_private.connect_person_ok(uuid)') is not null
+     and pg_get_functiondef(to_regprocedure('ryagram_private.connect_person_ok(uuid)')) not like '%account_active%'
+  union
+  select 'edit connect_consent_check (adds the waiting words)'
+   where to_regprocedure('public.connect_consent_check(uuid)') is not null
+     and pg_get_functiondef(to_regprocedure('public.connect_consent_check(uuid)')) not like '%account_active(me)%'
 )
 select 0 as n,
        case when (select def from g) is null then 'STOP: there is no ryagram_private.gate_apply on this database'

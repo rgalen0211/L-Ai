@@ -61,6 +61,27 @@ class GatePreview(unittest.TestCase):
         self.assertEqual(len(rows), 1, rows)
         self.assertTrue(rows[0][1].startswith("NOTHING"), "the gate guarded all three")
 
+    def test_the_gates_special_edits_are_listed_when_they_would_happen(self):
+        gc = "public.grant_credits(uuid,public.credit_entry,integer,text,text,text,text,text)"
+        d0 = self.d().execute("select pg_get_functiondef(to_regprocedure(%s))", (gc,)).fetchone()[0]
+        self.assertIn("ryagram_private.hold_grant", d0, "after a gate run grant_credits carries the hold")
+        self.d().execute(d0.replace("  if ryagram_private.hold_grant(p_owner, p_entry::text, p_credits, p_reason, p_created_by, p_stripe_event_id, p_period_key, p_price_code) then return null; end if;\n", ""))
+        self.assertNotIn("ryagram_private.hold_grant", self.d().execute("select pg_get_functiondef(to_regprocedure(%s))", (gc,)).fetchone()[0], "the test removed the hold")
+        rows = self.preview()
+        self.assertTrue(rows[0][1].startswith("LOOK: the gate would change 1 things"), rows)
+        self.assertEqual([r[1] for r in rows[1:]], ["edit grant_credits (adds the waiting-account hold)"])
+        po = "ryagram_private.connect_person_ok(uuid)"
+        p0 = self.d().execute("select pg_get_functiondef(to_regprocedure(%s))", (po,)).fetchone()[0]
+        if p0 is not None and "account_active" in p0:
+            self.d().execute(p0.replace("\n     and ryagram_private.account_active(p_owner)", ""))
+            if "account_active" not in self.d().execute("select pg_get_functiondef(to_regprocedure(%s))", (po,)).fetchone()[0]:
+                rows = self.preview()
+                self.assertIn("edit connect_person_ok (adds account_active)", [r[1] for r in rows[1:]], rows)
+        self.d().execute("select ryagram_private.gate_apply()")
+        rows = self.preview()
+        self.assertEqual(len(rows), 1, rows)
+        self.assertTrue(rows[0][1].startswith("NOTHING"), "the gate made its special edits again")
+
     def test_allowed_names_closed_functions_and_open_tables_are_never_listed(self):
         allowed = file_list("allowed")
         self.d().execute(f"create or replace function public.{allowed[0]}__probe() returns int language plpgsql as $f$ begin return 1; end $f$")
