@@ -7,7 +7,7 @@
 import http from 'node:http';
 
 const MAX_BODY = 8192;
-const ROOM = /^[A-Z]{6}$/;          // GAMES 11-27: a room code is 6 letters (made from the host's key, assets/game-room.js codeOf)
+const ROOM = /^[A-Z]{8}$/;          // GAMES 11-27: a room code is 8 letters (made from the host's key, assets/game-room.js codeOf; was 6 until the launch holds)
 const SID = /^[A-Za-z0-9]{8,32}$/;
 const LOCAL_ORIGIN = /^http:\/\/127\.0\.0\.1(:\d{1,5})?$/;
 const rooms = new Map();                                   // room code -> Set of open stream responses

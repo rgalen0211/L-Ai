@@ -22,6 +22,7 @@ function load(extra = {}) {
 }
 const R = load();
 const PID_A = 'AnaPhone01', PID_B = 'BenPhone02';
+const NONCE_A = 'AnaNonce_0123456789-xy';          // 22 base64url characters, invented
 
 // A tiny EventSource over node http: enough for the relay (open, message, error, close).
 class TinyEventSource {
@@ -49,31 +50,35 @@ class TinyEventSource {
   close() { this.req.destroy(); }
 }
 
-test('MUST FAIL: a room code is 6 letters with no I and no O, made from the host key (codeOf, unbiased), forgiving spaces, dashes and lower case', async () => {
-  assert.equal(R.CODE_LETTERS, 'ABCDEFGHJKLMNPQRSTUVWXYZ'); assert.equal(R.CODE_LEN, 6); assert.equal(R.MAX_BYTES, 8192);
+test('MUST FAIL: a room code is 8 letters with no I and no O, made from the host key (codeOf, unbiased), forgiving spaces, dashes and lower case, shown as ABCD EFGH', async () => {
+  assert.equal(R.CODE_LETTERS, 'ABCDEFGHJKLMNPQRSTUVWXYZ'); assert.equal(R.CODE_LEN, 8); assert.equal(R.MAX_BYTES, 8192);
   const seen = new Set();
-  for (let i = 0; i < 8; i++) { const k = await R.keyPair(); const c = await R.codeOf(k.pub); assert.match(c, /^[ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/); assert.equal(await R.codeOf(k.pub), c, 'the same key, the same code'); seen.add(c); }
+  for (let i = 0; i < 8; i++) { const k = await R.keyPair(); const c = await R.codeOf(k.pub); assert.match(c, /^[ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/); assert.equal(await R.codeOf(k.pub), c, 'the same key, the same code'); seen.add(c); }
   assert.ok(seen.size >= 7, 'codes vary with the key');          // 8 keys, not 40: codeOf is slow on purpose now (PBKDF2, about 60 ms each)
-  // the mapping by hand (11-27 v2): PBKDF2-HMAC-SHA-256 of the raw key, salt ryagram-game-room-v2, 300,000 rounds, 32 bytes; bytes below 240 in order, mod 24
+  // the mapping by hand (11-27 v3): PBKDF2-HMAC-SHA-256 of the raw key, salt ryagram-game-room-v3, 300,000 rounds, 32 bytes; bytes below 240 in order, mod 24
   const k = await R.keyPair(); const raw = Buffer.from(k.pub, 'base64url');
-  const h = (await import('node:crypto')).pbkdf2Sync(raw, 'ryagram-game-room-v2', 300000, 32, 'sha256'); let want = '';
-  for (const b of h) if (b < 240 && want.length < 6) want += R.CODE_LETTERS[b % 24];
+  const h = (await import('node:crypto')).pbkdf2Sync(raw, 'ryagram-game-room-v3', 300000, 32, 'sha256'); let want = '';
+  for (const b of h) if (b < 240 && want.length < 8) want += R.CODE_LETTERS[b % 24];
   assert.equal(await R.codeOf(k.pub), want);
   assert.equal(await R.codeOf('not a key'), '');
   assert.ok(!('newCode' in R), 'no random code: the code is made from the key');
   assert.ok(!/Math\.random/.test(SRC));
-  assert.equal(R.normCode(' ab-cd ef '), 'ABCDEF'); assert.equal(R.normCode('w x y z a b'), 'WXYZAB'); assert.equal(R.normCode(null), '');
-  assert.equal(R.channelName('ABCDEF'), 'ryagram-game-ABCDEF');
-  assert.ok(Object.isFrozen(R)); assert.deepEqual(Object.keys(R).sort(), ['CODE_KDF', 'CODE_LEN', 'CODE_LETTERS', 'MAX_BYTES', 'channelName', 'codeOf', 'connect', 'keyPair', 'normCode', 'pidOf', 'sign', 'validate', 'verify']);
+  assert.equal(R.normCode(' ab-cd ef gh '), 'ABCDEFGH'); assert.equal(R.normCode('w x y z a b c d'), 'WXYZABCD'); assert.equal(R.normCode(null), '');
+  assert.equal(R.showCode('ABCDEFGH'), 'ABCD EFGH'); assert.equal(R.showCode('abcd-efgh'), 'ABCD EFGH'); assert.equal(R.normCode(R.showCode('WXYZABCD')), 'WXYZABCD', 'the shown code types back in');
+  assert.equal(R.channelName('ABCDEFGH'), 'ryagram-game-ABCDEFGH');
+  assert.ok(Object.isFrozen(R)); assert.deepEqual(Object.keys(R).sort(), ['CODE_KDF', 'CODE_LEN', 'CODE_LETTERS', 'LIMITS', 'LIMIT_PIDS', 'MAX_BYTES', 'channelName', 'codeOf', 'connect', 'keyPair', 'makeLimits', 'newNonce', 'normCode', 'pidOf', 'showCode', 'sign', 'validate', 'verify']);
 });
 
 test('MUST FAIL: validate accepts each good kind and returns a clean copy with unknown fields dropped', () => {
   const v = m => J(R.validate(m));
-  assert.deepEqual(v({ t: 'join', pid: PID_A, name: '  Ana  ', extra: 'x', admin: true }), { t: 'join', pid: PID_A, name: 'Ana' });
-  assert.deepEqual(v({ t: 'join', pid: 'a'.repeat(8), name: 'x'.repeat(16) }), { t: 'join', pid: 'a'.repeat(8), name: 'x'.repeat(16) });
-  assert.deepEqual(v({ t: 'join', pid: 'Z'.repeat(32), name: '\u{1F600}'.repeat(16) }), { t: 'join', pid: 'Z'.repeat(32), name: '\u{1F600}'.repeat(16) }, 'counted in letters, not code units');
-  assert.deepEqual(v({ t: 'welcome', pid: PID_A, ok: true }), { t: 'welcome', pid: PID_A, ok: true });
-  assert.deepEqual(v({ t: 'welcome', pid: PID_A, ok: false, problem: 'That name is taken.' }), { t: 'welcome', pid: PID_A, ok: false, problem: 'That name is taken.' });
+  assert.deepEqual(v({ t: 'join', pid: PID_A, name: '  Ana  ', nonce: NONCE_A, extra: 'x', admin: true }), { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A });
+  assert.deepEqual(v({ t: 'join', pid: 'a'.repeat(8), name: 'x'.repeat(16), nonce: NONCE_A }), { t: 'join', pid: 'a'.repeat(8), name: 'x'.repeat(16), nonce: NONCE_A });
+  assert.deepEqual(v({ t: 'join', pid: 'Z'.repeat(32), name: '\u{1F600}'.repeat(16), nonce: NONCE_A }), { t: 'join', pid: 'Z'.repeat(32), name: '\u{1F600}'.repeat(16), nonce: NONCE_A }, 'counted in letters, not code units');
+  assert.deepEqual(v({ t: 'welcome', pid: PID_A, ok: true, nonce: NONCE_A }), { t: 'welcome', pid: PID_A, ok: true, nonce: NONCE_A });
+  assert.deepEqual(v({ t: 'welcome', pid: PID_A, ok: false, problem: 'That name is taken.', why: 'name', nonce: NONCE_A }), { t: 'welcome', pid: PID_A, ok: false, nonce: NONCE_A, problem: 'That name is taken.', why: 'name' });
+  for (const why of ['removed', 'full', 'locked', 'started', 'name', 'closed']) assert.equal(R.validate({ t: 'welcome', pid: PID_A, ok: false, why, nonce: NONCE_A }).why, why);
+  for (const why of ['idle', 'host', 'newcode']) assert.deepEqual(v({ t: 'state', phase: 'closed', round: 0, of: 5, players: [], why }), { t: 'state', phase: 'closed', round: 0, of: 5, players: [], why });
+  assert.deepEqual(v({ t: 'state', phase: 'closed', round: 0, of: 5, players: [] }), { t: 'state', phase: 'closed', round: 0, of: 5, players: [] }, 'closed with no reason');
   assert.deepEqual(v({ t: 'guess', pid: PID_B, round: 0, text: 'the cat sat down' }), { t: 'guess', pid: PID_B, round: 0, text: 'the cat sat down' });
   assert.deepEqual(v({ t: 'guess', pid: PID_B, round: 99, text: 'y'.repeat(120) }), { t: 'guess', pid: PID_B, round: 99, text: 'y'.repeat(120) });
   assert.deepEqual(v({ t: 'got', pid: PID_B, round: 3 }), { t: 'got', pid: PID_B, round: 3 });
@@ -88,17 +93,24 @@ test('MUST FAIL: validate accepts each good kind and returns a clean copy with u
   assert.ok(!('host_secret' in out) && !('other' in out.reveal) && !('secret' in out.reveal.results[0]));
   assert.deepEqual(out.reveal.results[0], { name: 'Ana', points: 100, verdict: 'exact', text: 'over the hill' });
   assert.deepEqual(out.totals, full.totals); assert.equal(out.words_left, 3); assert.equal(out.left_s, 0);
-  for (const phase of ['lobby', 'question', 'reveal', 'final']) assert.ok(R.validate({ t: 'state', phase, round: 0, of: 0, players: ['Ana'] }), phase);
+  for (const phase of ['lobby', 'question', 'reveal', 'final', 'closed']) assert.ok(R.validate({ t: 'state', phase, round: 0, of: 0, players: ['Ana'] }), phase);
   assert.ok(R.validate({ t: 'state', phase: 'final', round: 0, of: 0, players: Array.from({ length: 12 }, (_, i) => 'P' + i) }), '12 players');
-  const copy = { t: 'join', pid: PID_A, name: 'Ana' }; assert.notEqual(R.validate(copy), copy, 'a copy, not the same object');
+  const copy = { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A }; assert.notEqual(R.validate(copy), copy, 'a copy, not the same object');
 });
 
 test('MUST FAIL: validate refuses bad messages', () => {
   const bad = [
     null, undefined, 'join', 42, [], { }, { t: 'hello', pid: PID_A }, { t: 'toString' }, { t: '__proto__' }, { t: 'constructor', pid: PID_A },
-    { t: 'join', pid: PID_A, name: 'x'.repeat(17) }, { t: 'join', pid: PID_A, name: '' }, { t: 'join', pid: PID_A, name: ' \u200b\u0000 ' }, { t: 'join', pid: PID_A }, { t: 'join', pid: PID_A, name: 7 },
-    { t: 'join', pid: 'short', name: 'Ana' }, { t: 'join', pid: 'a'.repeat(33), name: 'Ana' }, { t: 'join', pid: 'Ana-Phone-1', name: 'Ana' }, { t: 'join', pid: 12345678, name: 'Ana' }, { t: 'join', name: 'Ana' },
-    { t: 'welcome', pid: PID_A, ok: 'yes' }, { t: 'welcome', pid: PID_A }, { t: 'welcome', pid: PID_A, ok: false, problem: 'p'.repeat(201) },
+    { t: 'join', pid: PID_A, name: 'x'.repeat(17), nonce: NONCE_A }, { t: 'join', pid: PID_A, name: '', nonce: NONCE_A }, { t: 'join', pid: PID_A, name: ' \u200b\u0000 ', nonce: NONCE_A }, { t: 'join', pid: PID_A, nonce: NONCE_A }, { t: 'join', pid: PID_A, name: 7, nonce: NONCE_A },
+    { t: 'join', pid: 'short', name: 'Ana', nonce: NONCE_A }, { t: 'join', pid: 'a'.repeat(33), name: 'Ana', nonce: NONCE_A }, { t: 'join', pid: 'Ana-Phone-1', name: 'Ana', nonce: NONCE_A }, { t: 'join', pid: 12345678, name: 'Ana', nonce: NONCE_A }, { t: 'join', name: 'Ana', nonce: NONCE_A },
+    { t: 'join', pid: PID_A, name: 'Ana' }, { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A.slice(1) }, { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A + 'z' }, { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A.slice(1) + '+' },
+    { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A.slice(1) + '=' }, { t: 'join', pid: PID_A, name: 'Ana', nonce: 12 }, { t: 'join', pid: PID_A, name: 'Ana', nonce: ' ' + NONCE_A.slice(1) },
+    { t: 'welcome', pid: PID_A, ok: 'yes', nonce: NONCE_A }, { t: 'welcome', pid: PID_A, nonce: NONCE_A }, { t: 'welcome', pid: PID_A, ok: false, problem: 'p'.repeat(201), nonce: NONCE_A },
+    { t: 'welcome', pid: PID_A, ok: true }, { t: 'welcome', pid: PID_A, ok: false, problem: 'That name is taken.' }, { t: 'welcome', pid: PID_A, ok: true, nonce: 'short' },
+    { t: 'welcome', pid: PID_A, ok: false, why: 'banned', nonce: NONCE_A }, { t: 'welcome', pid: PID_A, ok: false, why: 'Full', nonce: NONCE_A }, { t: 'welcome', pid: PID_A, ok: false, why: 'idle', nonce: NONCE_A },
+    { t: 'welcome', pid: PID_A, ok: true, why: 'full', nonce: NONCE_A },
+    { t: 'state', phase: 'lobby', round: 0, of: 5, players: [], why: 'idle' }, { t: 'state', phase: 'final', round: 0, of: 5, players: [], why: 'host' }, { t: 'state', phase: 'closed', round: 0, of: 5, players: [], why: 'removed' },
+    { t: 'state', phase: 'closed', round: 0, of: 5, players: [], why: 'Idle' }, { t: 'state', phase: 'Closed', round: 0, of: 5, players: [] },
     { t: 'guess', pid: PID_A, round: 100, text: 'hi' }, { t: 'guess', pid: PID_A, round: -1, text: 'hi' }, { t: 'guess', pid: PID_A, round: 1.5, text: 'hi' }, { t: 'guess', pid: PID_A, round: '1', text: 'hi' },
     { t: 'guess', pid: PID_A, round: 1, text: '' }, { t: 'guess', pid: PID_A, round: 1, text: 'y'.repeat(121) }, { t: 'guess', pid: PID_A, round: 1 },
     { t: 'got', pid: PID_A }, { t: 'leave' },
@@ -115,19 +127,19 @@ test('MUST FAIL: validate refuses bad messages', () => {
   ];
   for (const m of bad) assert.equal(R.validate(m), null, JSON.stringify(m));
   // over MAX_BYTES as JSON, even when the extra size is in a field that would be dropped
-  assert.equal(R.validate({ t: 'join', pid: PID_A, name: 'Ana', pad: 'z'.repeat(8200) }), null);
+  assert.equal(R.validate({ t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A, pad: 'z'.repeat(8200) }), null);
   assert.equal(R.validate({ t: 'state', phase: 'reveal', round: 0, of: 5, players: [], heard_text: '\u{1F600}'.repeat(400), reveal: { answer_text: '\u{1F600}'.repeat(400), results: [] },
     totals: [], answered: [], pad: '\u00e9'.repeat(3000) }), null, 'counted in bytes, not characters');
-  const loop = { t: 'join', pid: PID_A, name: 'Ana' }; loop.self = loop; assert.equal(R.validate(loop), null, 'a message that cannot be JSON is refused');
+  const loop = { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A }; loop.self = loop; assert.equal(R.validate(loop), null, 'a message that cannot be JSON is refused');
 });
 
 test('MUST FAIL: control and invisible characters are cleaned out of every string', () => {
-  assert.equal(R.validate({ t: 'join', pid: PID_A, name: 'A\u0000n\u200ba\u202e' }).name, 'A n a');
+  assert.equal(R.validate({ t: 'join', pid: PID_A, name: 'A\u0000n\u200ba\u202e', nonce: NONCE_A }).name, 'A n a');
   assert.equal(R.validate({ t: 'guess', pid: PID_A, round: 1, text: '\tone\r\ntwo\u0007  three\ufeff' }).text, 'one two three');
   const s = R.validate({ t: 'state', phase: 'reveal', round: 1, of: 2, players: ['Cy\u2066'], heard_text: 'went\u0000 up', reveal: { answer_text: 'the\u200d end', results: [{ name: '\u200fBen', points: 5, verdict: 'close\u0001', text: 'the\u0085end' }] }, totals: [{ name: 'Ana\u0009', total: 5 }] });
   assert.deepEqual(J(s.players), ['Cy']); assert.equal(s.heard_text, 'went up'); assert.equal(s.reveal.answer_text, 'the end');
   assert.deepEqual(J(s.reveal.results[0]), { name: 'Ben', points: 5, verdict: 'close', text: 'the end' }); assert.equal(s.totals[0].name, 'Ana');
-  assert.equal(R.validate({ t: 'welcome', pid: PID_A, ok: false, problem: 'a\u001bb' }).problem, 'a b');
+  assert.equal(R.validate({ t: 'welcome', pid: PID_A, ok: false, problem: 'a\u001bb', nonce: NONCE_A }).problem, 'a b');
 });
 
 // A FAKE supabase-js v2 client: channels on one shared bus, broadcast honouring config.broadcast.self the way the real server does.
@@ -171,28 +183,29 @@ const soon = p => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(
 test('MUST FAIL: realtime: the channel is ryagram-game-CODE with self false and no ack; a message reaches the other side only, never its sender; invalid ones are refused and dropped', async () => {
   const bus = fakeBus();
   const hostClient = bus.client(), phoneClient = bus.client(), otherRoom = bus.client();
-  const host = await R.connect({ kind: 'realtime', client: hostClient, code: 'ab-cd-ef' });
-  const phone = await R.connect({ kind: 'realtime', client: phoneClient, code: 'ABCDEF' });
-  const stranger = await R.connect({ kind: 'realtime', client: otherRoom, code: 'WXYZAB' });
-  assert.equal(bus.made[0].name, 'ryagram-game-ABCDEF'); assert.equal(bus.made[2].name, 'ryagram-game-WXYZAB');
+  const host = await R.connect({ kind: 'realtime', client: hostClient, code: 'ab-cd ef-gh' });
+  const phone = await R.connect({ kind: 'realtime', client: phoneClient, code: 'ABCD EFGH' });
+  const stranger = await R.connect({ kind: 'realtime', client: otherRoom, code: 'WXYZABCD' });
+  assert.equal(bus.made[0].name, 'ryagram-game-ABCDEFGH'); assert.equal(bus.made[1].name, 'ryagram-game-ABCDEFGH'); assert.equal(bus.made[2].name, 'ryagram-game-WXYZABCD');
   for (const ch of bus.made) assert.deepEqual(J(ch.cfg), { config: { broadcast: { self: false, ack: false } } });
   for (const ch of bus.made) assert.deepEqual(J(ch.handlers.map(h => [h.type, h.filter])), [['broadcast', { event: 'msg' }]]);
   const got = { host: [], phone: [], stranger: [] };
   host.onMessage(m => got.host.push(J(m))); const unsub = phone.onMessage(m => got.phone.push(J(m))); stranger.onMessage(m => got.stranger.push(J(m)));
 
-  await phone.send({ t: 'join', pid: PID_A, name: ' Ana ', junk: 1 });
+  await phone.send({ t: 'join', pid: PID_A, name: ' Ana ', nonce: NONCE_A, junk: 1 });
   await tick();
-  assert.deepEqual(got.host, [{ t: 'join', pid: PID_A, name: 'Ana' }]);
+  assert.deepEqual(got.host, [{ t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A }]);
   assert.deepEqual(got.phone, [], 'the sender never hears itself'); assert.deepEqual(got.stranger, [], 'another room hears nothing');
-  assert.deepEqual(J(bus.made[1].sent), [{ type: 'broadcast', event: 'msg', payload: { t: 'join', pid: PID_A, name: 'Ana' } }], 'only the clean copy is sent');
+  assert.deepEqual(J(bus.made[1].sent), [{ type: 'broadcast', event: 'msg', payload: { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A } }], 'only the clean copy is sent');
 
-  await host.send({ t: 'welcome', pid: PID_A, ok: true });
+  await host.send({ t: 'welcome', pid: PID_A, ok: true, nonce: NONCE_A });
   await tick();
-  assert.deepEqual(got.phone, [{ t: 'welcome', pid: PID_A, ok: true }]); assert.equal(got.host.length, 1, 'the host never hears itself');
+  assert.deepEqual(got.phone, [{ t: 'welcome', pid: PID_A, ok: true, nonce: NONCE_A }]); assert.equal(got.host.length, 1, 'the host never hears itself');
 
   // invalid outgoing: refused with an Error and nothing sent
   const before = bus.made[1].sent.length;
-  await assert.rejects(phone.send({ t: 'join', pid: PID_A, name: 'x'.repeat(17) }), err => /not one the game sends/.test(err.message));
+  await assert.rejects(phone.send({ t: 'join', pid: PID_A, name: 'x'.repeat(17), nonce: NONCE_A }), err => /not one the game sends/.test(err.message));
+  await assert.rejects(phone.send({ t: 'join', pid: PID_A, name: 'Ana' }), err => /not one the game sends/.test(err.message), 'a join with no nonce is not sent');
   await assert.rejects(phone.send({ t: 'cheat', pid: PID_A }), err => err instanceof Error || /not one/.test(String(err)));
   assert.equal(bus.made[1].sent.length, before);
   // invalid incoming (from a client that does not use game-room.js): dropped silently
@@ -214,13 +227,15 @@ test('MUST FAIL: realtime: CHANNEL_ERROR and TIMED_OUT reject in plain words and
   const bus = fakeBus();
   for (const [status, words] of [['CHANNEL_ERROR', /Could not reach the room/], ['TIMED_OUT', /took too long/]]) {
     const c = bus.client({ status });
-    await assert.rejects(R.connect({ kind: 'realtime', client: c, code: 'ABCDEF' }), err => words.test(err.message));
+    await assert.rejects(R.connect({ kind: 'realtime', client: c, code: 'ABCDEFGH' }), err => words.test(err.message));
     assert.equal(c.removed.length, 1, `${status}: the channel is removed`);
   }
-  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'AB1DEF' }), /room code/);
-  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'ABIOEF' }), /room code/);
-  await assert.rejects(R.connect({ kind: 'realtime', code: 'ABCDEF' }), /Supabase/);
-  await assert.rejects(R.connect({ kind: 'carrier-pigeon', code: 'ABCDEF' }), /realtime' or 'relay/);
+  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'AB1DEFGH' }), /room code/);
+  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'ABIOEFGH' }), /room code/);
+  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'ABCDEF' }), /room code is 8 letters/, 'an old 6-letter code is refused');
+  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'ABCDEFGHJ' }), /room code/);
+  await assert.rejects(R.connect({ kind: 'realtime', code: 'ABCDEFGH' }), /Supabase/);
+  await assert.rejects(R.connect({ kind: 'carrier-pigeon', code: 'ABCDEFGH' }), /realtime' or 'relay/);
   await assert.rejects(R.connect(null), /options/);
 });
 
@@ -230,10 +245,11 @@ test('MUST FAIL: relay is for this computer only: a page or a relay anywhere els
   const at = host => load({ location: { hostname: host }, EventSource: ES, fetch: () => { opened++; return Promise.resolve({ ok: true }); } });
   for (const [page, base] of [['uselai.com', 'http://127.0.0.1:9000'], ['127.0.0.1', 'https://uselai.com'], ['127.0.0.1', 'http://127.0.0.2:9000'], ['192.168.1.5', 'http://192.168.1.5:9000'],
     ['127.0.0.1', 'http://localhost.evil.test:9000'], ['127.0.0.1', 'http://127.0.0.1.nip.io:9000'], ['localhost', 'not a url'], ['', 'http://127.0.0.1:9000'], ['127.0.0.1', 'file:///C:/x']]) {
-    await assert.rejects(soon(at(page).connect({ kind: 'relay', base, code: 'ABCDEF' })), err => /this computer|web address/.test(err.message), `${page} ${base}`);
+    await assert.rejects(soon(at(page).connect({ kind: 'relay', base, code: 'ABCDEFGH' })), err => /this computer|web address/.test(err.message), `${page} ${base}`);
   }
-  await assert.rejects(soon(load({ location: undefined, EventSource: ES }).connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABCDEF' })), /this computer/);
-  await assert.rejects(soon(at('127.0.0.1').connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABCDE' })), /room code/);
+  await assert.rejects(soon(load({ location: undefined, EventSource: ES }).connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABCDEFGH' })), /this computer/);
+  await assert.rejects(soon(at('127.0.0.1').connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABCDEFG' })), /room code/);
+  await assert.rejects(soon(at('127.0.0.1').connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABCDEF' })), /room code/, 'an old 6-letter code');
   assert.equal(opened, 0, 'no stream opened and nothing sent');
 });
 
@@ -248,32 +264,32 @@ test('MUST FAIL: end to end through tools/game-relay.mjs: two phones in one room
     });
     const base = `http://127.0.0.1:${port}`;
     const ctx = () => load({ location: { hostname: '127.0.0.1' }, EventSource: TinyEventSource, fetch });
-    const ana = await ctx().connect({ kind: 'relay', base, code: 'ab-cd-ef' });
-    const ben = await ctx().connect({ kind: 'relay', base: base + '/', code: 'ABCDEF' });
-    const cy = await ctx().connect({ kind: 'relay', base, code: 'WXYZAB' });
+    const ana = await ctx().connect({ kind: 'relay', base, code: 'ab-cd ef-gh' });
+    const ben = await ctx().connect({ kind: 'relay', base: base + '/', code: 'ABCDEFGH' });
+    const cy = await ctx().connect({ kind: 'relay', base, code: 'WXYZABCD' });
     const got = { ana: [], ben: [], cy: [] };
     ana.onMessage(m => got.ana.push(J(m))); ben.onMessage(m => got.ben.push(J(m))); cy.onMessage(m => got.cy.push(J(m)));
-    await ana.send({ t: 'join', pid: PID_A, name: 'Ana', note: 'dropped' });
+    await ana.send({ t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A, note: 'dropped' });
     const until = async ok => { for (let i = 0; i < 200 && !ok(); i++) await new Promise(r => setTimeout(r, 10)); };
     await until(() => got.ben.length > 0);
     await new Promise(r => setTimeout(r, 150));
-    assert.deepEqual(got.ben, [{ t: 'join', pid: PID_A, name: 'Ana' }]);
+    assert.deepEqual(got.ben, [{ t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A }]);
     assert.deepEqual(got.ana, [], 'the sender never hears itself'); assert.deepEqual(got.cy, [], 'another room hears nothing');
-    await assert.rejects(ana.send({ t: 'join', pid: PID_A, name: 'x'.repeat(17) }), /not one the game sends/);
+    await assert.rejects(ana.send({ t: 'join', pid: PID_A, name: 'x'.repeat(17), nonce: NONCE_A }), /not one the game sends/);
 
     // the relay itself: a raw invalid payload is passed on, and the client drops it
     const post = (path, body, headers = {}) => fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body });
-    assert.equal((await post('/send?room=ABCDEF&sid=RawSender01', JSON.stringify({ t: 'guess', pid: PID_B, round: 999, text: 'hi' }))).status, 204);
+    assert.equal((await post('/send?room=ABCDEFGH&sid=RawSender01', JSON.stringify({ t: 'guess', pid: PID_B, round: 999, text: 'hi' }))).status, 204);
     await new Promise(r => setTimeout(r, 150));
     assert.equal(got.ben.length, 1, 'invalid incoming dropped');
     // limits and CORS
-    assert.equal((await post('/send?room=ABCDEF&sid=RawSender01', JSON.stringify({ pad: 'z'.repeat(9000) }))).status, 413);
-    assert.equal((await post('/send?room=ABCDEF&sid=RawSender01', '{not json')).status, 400);
-    assert.equal((await post('/send?room=abcdef&sid=x', '{}')).status, 400);
-    const okOrigin = await post('/send?room=ABCDEF&sid=RawSender01', '{}', { origin: 'http://127.0.0.1:5173' });
+    assert.equal((await post('/send?room=ABCDEFGH&sid=RawSender01', JSON.stringify({ pad: 'z'.repeat(9000) }))).status, 413);
+    assert.equal((await post('/send?room=ABCDEFGH&sid=RawSender01', '{not json')).status, 400);
+    assert.equal((await post('/send?room=abcdefgh&sid=x', '{}')).status, 400);
+    const okOrigin = await post('/send?room=ABCDEFGH&sid=RawSender01', '{}', { origin: 'http://127.0.0.1:5173' });
     assert.equal(okOrigin.headers.get('access-control-allow-origin'), 'http://127.0.0.1:5173');
     for (const o of ['https://uselai.com', 'http://127.0.0.1.evil.test', 'http://localhost:5173']) {
-      const r = await post('/send?room=ABCDEF&sid=RawSender01', '{}', { origin: o });
+      const r = await post('/send?room=ABCDEFGH&sid=RawSender01', '{}', { origin: o });
       assert.equal(r.headers.get('access-control-allow-origin'), null, o);
     }
     ana.close(); ben.close(); cy.close();
