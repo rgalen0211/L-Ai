@@ -130,9 +130,14 @@
   window.ryagramGamePhone = Object.freeze({ on, normCode, codeProblem, nameProblem, answerProblem, counterText, clean, sampleRoom, mount, CODE_LETTERS, CODE_LEN, NAME_MAX, ANSWER_MAX, SAMPLE_CODE });
   const root = document.getElementById('game-phone'), off = document.getElementById('not-available'), S = window.ryagramGameTvSample;
   if (root) {
-    const enabled = on(window.ryagramConfig);
+    // GAMES 11-27: a LIVE room (assets/game-phone-live.js + assets/game-room.js) when the site switch `games` is on ('account' too: the phone page needs no sign-in, but a room only
+    // exists while a host whose own list names `games` has one open, so for anyone else every code answers "No room with that code"). Otherwise the sample room, exactly as before.
+    const L = window.ryagramGamePhoneLive, R = window.ryagramGameRoom;
+    const live = !!(L && R && L.liveOn(window.ryagramConfig));
+    const enabled = live || on(window.ryagramConfig);
     root.hidden = !enabled; if (off) off.hidden = enabled;
-    if (enabled) document.title = "Guess the next line, phone (draft) | L'Ai";          // GAMES 11-19: the HTML's title names no draft game while it is off; the game's own title only when it is on
-    if (enabled) { const room = sampleRoom(S); if (!room) root.textContent = 'The sample room could not be made, so nothing is shown.'; else mount(root, [room]); }
+    if (enabled) document.title = live ? 'Guess the next line, phone | Ryagram' : "Guess the next line, phone (draft) | L'Ai";          // GAMES 11-19: the HTML's title names no draft game while it is off; the game's own title only when it is on
+    if (live) L.mount(root, { clean, codeProblem, nameProblem, answerProblem, counterText, NAME_MAX, ANSWER_MAX }, R, window.ryagramConfig);
+    else if (enabled) { const room = sampleRoom(S); if (!room) root.textContent = 'The sample room could not be made, so nothing is shown.'; else mount(root, [room]); }
   }
 })();

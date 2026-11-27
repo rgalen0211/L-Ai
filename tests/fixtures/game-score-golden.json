@@ -1,0 +1,5635 @@
+{
+ "credit": [
+  {
+   "a": "box",
+   "credit": 0.6,
+   "g": "boxes",
+   "one_edit": false
+  },
+  {
+   "a": "bus",
+   "credit": 0.6,
+   "g": "buses",
+   "one_edit": false
+  },
+  {
+   "a": "church",
+   "credit": 0.6,
+   "g": "churches",
+   "one_edit": false
+  },
+  {
+   "a": "wish",
+   "credit": 0.6,
+   "g": "wishes",
+   "one_edit": false
+  },
+  {
+   "a": "buzz",
+   "credit": 0.6,
+   "g": "buzzes",
+   "one_edit": false
+  },
+  {
+   "a": "make",
+   "credit": 0.6,
+   "g": "makes",
+   "one_edit": true
+  },
+  {
+   "a": "make",
+   "credit": 0.6,
+   "g": "making",
+   "one_edit": false
+  },
+  {
+   "a": "like",
+   "credit": 0.6,
+   "g": "liked",
+   "one_edit": true
+  },
+  {
+   "a": "run",
+   "credit": 0.6,
+   "g": "running",
+   "one_edit": false
+  },
+  {
+   "a": "stop",
+   "credit": 0.6,
+   "g": "stopped",
+   "one_edit": false
+  },
+  {
+   "a": "locke",
+   "credit": 0.6,
+   "g": "locked",
+   "one_edit": true
+  },
+  {
+   "a": "lock",
+   "credit": 0.6,
+   "g": "locked",
+   "one_edit": false
+  },
+  {
+   "a": "fall",
+   "credit": 0.6,
+   "g": "falling",
+   "one_edit": false
+  },
+  {
+   "a": "pass",
+   "credit": 0.6,
+   "g": "passes",
+   "one_edit": false
+  },
+  {
+   "a": "clas",
+   "credit": 0.0,
+   "g": "class",
+   "one_edit": true
+  },
+  {
+   "a": "club",
+   "credit": 0.6,
+   "g": "clubs",
+   "one_edit": true
+  },
+  {
+   "a": "here",
+   "credit": 0.0,
+   "g": "hear",
+   "one_edit": false
+  },
+  {
+   "a": "cart",
+   "credit": 0.0,
+   "g": "cat",
+   "one_edit": true
+  },
+  {
+   "a": "rate",
+   "credit": 0.0,
+   "g": "rat",
+   "one_edit": true
+  },
+  {
+   "a": "hate",
+   "credit": 0.0,
+   "g": "hat",
+   "one_edit": true
+  },
+  {
+   "a": "reed",
+   "credit": 0.0,
+   "g": "red",
+   "one_edit": true
+  },
+  {
+   "a": "hat",
+   "credit": 0.6,
+   "g": "hating",
+   "one_edit": false
+  },
+  {
+   "a": "seventeen",
+   "credit": 0.6,
+   "g": "17",
+   "one_edit": false
+  },
+  {
+   "a": "7",
+   "credit": 0.6,
+   "g": "seven",
+   "one_edit": false
+  },
+  {
+   "a": "twenty",
+   "credit": 0.6,
+   "g": "20",
+   "one_edit": false
+  },
+  {
+   "a": "twentyone",
+   "credit": 0.0,
+   "g": "21",
+   "one_edit": false
+  },
+  {
+   "a": "zero",
+   "credit": 0.6,
+   "g": "0",
+   "one_edit": false
+  },
+  {
+   "a": "seagulls",
+   "credit": 0.6,
+   "g": "seagull",
+   "one_edit": true
+  },
+  {
+   "a": "gardn",
+   "credit": 0.6,
+   "g": "garden",
+   "one_edit": true
+  },
+  {
+   "a": "harbor",
+   "credit": 0.6,
+   "g": "harbour",
+   "one_edit": true
+  },
+  {
+   "a": "midnite",
+   "credit": 0.0,
+   "g": "midnight",
+   "one_edit": false
+  },
+  {
+   "a": "pianos",
+   "credit": 0.6,
+   "g": "piano",
+   "one_edit": true
+  },
+  {
+   "a": "sleeps",
+   "credit": 0.6,
+   "g": "sleepy",
+   "one_edit": true
+  },
+  {
+   "a": "don't",
+   "credit": 0.6,
+   "g": "dont",
+   "one_edit": true
+  },
+  {
+   "a": "its",
+   "credit": 0.6,
+   "g": "it's",
+   "one_edit": true
+  },
+  {
+   "a": "se",
+   "credit": 0.0,
+   "g": "ses",
+   "one_edit": true
+  },
+  {
+   "a": "go",
+   "credit": 0.0,
+   "g": "goes",
+   "one_edit": false
+  },
+  {
+   "a": "towers",
+   "credit": 0.6,
+   "g": "tower",
+   "one_edit": true
+  },
+  {
+   "a": "tuned",
+   "credit": 0.6,
+   "g": "tune",
+   "one_edit": true
+  },
+  {
+   "a": "hum",
+   "credit": 0.6,
+   "g": "hummed",
+   "one_edit": false
+  },
+  {
+   "a": "hum",
+   "credit": 0.6,
+   "g": "hums",
+   "one_edit": true
+  },
+  {
+   "a": "hum",
+   "credit": 0.6,
+   "g": "humming",
+   "one_edit": false
+  },
+  {
+   "a": "play",
+   "credit": 0.6,
+   "g": "playing",
+   "one_edit": false
+  },
+  {
+   "a": "say",
+   "credit": 0.6,
+   "g": "saying",
+   "one_edit": false
+  },
+  {
+   "a": "fix",
+   "credit": 0.6,
+   "g": "fixed",
+   "one_edit": false
+  },
+  {
+   "a": "fizz",
+   "credit": 0.6,
+   "g": "fizzing",
+   "one_edit": false
+  },
+  {
+   "a": "vote",
+   "credit": 0.6,
+   "g": "voting",
+   "one_edit": false
+  },
+  {
+   "a": "abcdf",
+   "credit": 0.6,
+   "g": "abcde",
+   "one_edit": true
+  },
+  {
+   "a": "abce",
+   "credit": 0.0,
+   "g": "abcd",
+   "one_edit": true
+  }
+ ],
+ "loose_keys": [
+  {
+   "keys": [
+    "zero"
+   ],
+   "word": "0"
+  },
+  {
+   "keys": [
+    "seventeen"
+   ],
+   "word": "17"
+  },
+  {
+   "keys": [
+    "twenty"
+   ],
+   "word": "20"
+  },
+  {
+   "keys": [
+    "21"
+   ],
+   "word": "21"
+  },
+  {
+   "keys": [
+    "seven"
+   ],
+   "word": "7"
+  },
+  {
+   "keys": [
+    "abcd"
+   ],
+   "word": "abcd"
+  },
+  {
+   "keys": [
+    "abcde"
+   ],
+   "word": "abcde"
+  },
+  {
+   "keys": [
+    "abcdf"
+   ],
+   "word": "abcdf"
+  },
+  {
+   "keys": [
+    "abce"
+   ],
+   "word": "abce"
+  },
+  {
+   "keys": [
+    "box"
+   ],
+   "word": "box"
+  },
+  {
+   "keys": [
+    "box",
+    "boxes"
+   ],
+   "word": "boxes"
+  },
+  {
+   "keys": [
+    "bus"
+   ],
+   "word": "bus"
+  },
+  {
+   "keys": [
+    "bus",
+    "buses"
+   ],
+   "word": "buses"
+  },
+  {
+   "keys": [
+    "buzz"
+   ],
+   "word": "buzz"
+  },
+  {
+   "keys": [
+    "buzz",
+    "buzzes"
+   ],
+   "word": "buzzes"
+  },
+  {
+   "keys": [
+    "cart"
+   ],
+   "word": "cart"
+  },
+  {
+   "keys": [
+    "cat"
+   ],
+   "word": "cat"
+  },
+  {
+   "keys": [
+    "church"
+   ],
+   "word": "church"
+  },
+  {
+   "keys": [
+    "church",
+    "churches"
+   ],
+   "word": "churches"
+  },
+  {
+   "keys": [
+    "cla",
+    "clas"
+   ],
+   "word": "clas"
+  },
+  {
+   "keys": [
+    "class"
+   ],
+   "word": "class"
+  },
+  {
+   "keys": [
+    "club"
+   ],
+   "word": "club"
+  },
+  {
+   "keys": [
+    "club",
+    "clubs"
+   ],
+   "word": "clubs"
+  },
+  {
+   "keys": [
+    "dont"
+   ],
+   "word": "don't"
+  },
+  {
+   "keys": [
+    "dont"
+   ],
+   "word": "dont"
+  },
+  {
+   "keys": [
+    "fall"
+   ],
+   "word": "fall"
+  },
+  {
+   "keys": [
+    "fall",
+    "falling"
+   ],
+   "word": "falling"
+  },
+  {
+   "keys": [
+    "fix"
+   ],
+   "word": "fix"
+  },
+  {
+   "keys": [
+    "fix",
+    "fixed"
+   ],
+   "word": "fixed"
+  },
+  {
+   "keys": [
+    "fizz"
+   ],
+   "word": "fizz"
+  },
+  {
+   "keys": [
+    "fizz",
+    "fizzing"
+   ],
+   "word": "fizzing"
+  },
+  {
+   "keys": [
+    "garden"
+   ],
+   "word": "garden"
+  },
+  {
+   "keys": [
+    "gardn"
+   ],
+   "word": "gardn"
+  },
+  {
+   "keys": [
+    "go"
+   ],
+   "word": "go"
+  },
+  {
+   "keys": [
+    "goe",
+    "goes"
+   ],
+   "word": "goes"
+  },
+  {
+   "keys": [
+    "harbor"
+   ],
+   "word": "harbor"
+  },
+  {
+   "keys": [
+    "harbour"
+   ],
+   "word": "harbour"
+  },
+  {
+   "keys": [
+    "hat"
+   ],
+   "word": "hat"
+  },
+  {
+   "keys": [
+    "hate"
+   ],
+   "word": "hate"
+  },
+  {
+   "keys": [
+    "hat",
+    "hate",
+    "hating"
+   ],
+   "word": "hating"
+  },
+  {
+   "keys": [
+    "hear"
+   ],
+   "word": "hear"
+  },
+  {
+   "keys": [
+    "here"
+   ],
+   "word": "here"
+  },
+  {
+   "keys": [
+    "hum"
+   ],
+   "word": "hum"
+  },
+  {
+   "keys": [
+    "hum",
+    "humm",
+    "hummed"
+   ],
+   "word": "hummed"
+  },
+  {
+   "keys": [
+    "hum",
+    "humm",
+    "humming"
+   ],
+   "word": "humming"
+  },
+  {
+   "keys": [
+    "hum",
+    "hums"
+   ],
+   "word": "hums"
+  },
+  {
+   "keys": [
+    "its"
+   ],
+   "word": "it's"
+  },
+  {
+   "keys": [
+    "its"
+   ],
+   "word": "its"
+  },
+  {
+   "keys": [
+    "like"
+   ],
+   "word": "like"
+  },
+  {
+   "keys": [
+    "lik",
+    "like",
+    "liked"
+   ],
+   "word": "liked"
+  },
+  {
+   "keys": [
+    "lock"
+   ],
+   "word": "lock"
+  },
+  {
+   "keys": [
+    "locke"
+   ],
+   "word": "locke"
+  },
+  {
+   "keys": [
+    "lock",
+    "locked"
+   ],
+   "word": "locked"
+  },
+  {
+   "keys": [
+    "make"
+   ],
+   "word": "make"
+  },
+  {
+   "keys": [
+    "make",
+    "makes"
+   ],
+   "word": "makes"
+  },
+  {
+   "keys": [
+    "mak",
+    "make",
+    "making"
+   ],
+   "word": "making"
+  },
+  {
+   "keys": [
+    "midnight"
+   ],
+   "word": "midnight"
+  },
+  {
+   "keys": [
+    "midnite"
+   ],
+   "word": "midnite"
+  },
+  {
+   "keys": [
+    "pass"
+   ],
+   "word": "pass"
+  },
+  {
+   "keys": [
+    "pass",
+    "passes"
+   ],
+   "word": "passes"
+  },
+  {
+   "keys": [
+    "piano"
+   ],
+   "word": "piano"
+  },
+  {
+   "keys": [
+    "piano",
+    "pianos"
+   ],
+   "word": "pianos"
+  },
+  {
+   "keys": [
+    "play"
+   ],
+   "word": "play"
+  },
+  {
+   "keys": [
+    "play",
+    "playing"
+   ],
+   "word": "playing"
+  },
+  {
+   "keys": [
+    "rat"
+   ],
+   "word": "rat"
+  },
+  {
+   "keys": [
+    "rate"
+   ],
+   "word": "rate"
+  },
+  {
+   "keys": [
+    "red"
+   ],
+   "word": "red"
+  },
+  {
+   "keys": [
+    "reed"
+   ],
+   "word": "reed"
+  },
+  {
+   "keys": [
+    "run"
+   ],
+   "word": "run"
+  },
+  {
+   "keys": [
+    "run",
+    "runn",
+    "running"
+   ],
+   "word": "running"
+  },
+  {
+   "keys": [
+    "say"
+   ],
+   "word": "say"
+  },
+  {
+   "keys": [
+    "say",
+    "saying"
+   ],
+   "word": "saying"
+  },
+  {
+   "keys": [
+    "se"
+   ],
+   "word": "se"
+  },
+  {
+   "keys": [
+    "seagull"
+   ],
+   "word": "seagull"
+  },
+  {
+   "keys": [
+    "seagull",
+    "seagulls"
+   ],
+   "word": "seagulls"
+  },
+  {
+   "keys": [
+    "ses"
+   ],
+   "word": "ses"
+  },
+  {
+   "keys": [
+    "seven"
+   ],
+   "word": "seven"
+  },
+  {
+   "keys": [
+    "seventeen"
+   ],
+   "word": "seventeen"
+  },
+  {
+   "keys": [
+    "sleep",
+    "sleeps"
+   ],
+   "word": "sleeps"
+  },
+  {
+   "keys": [
+    "sleepy"
+   ],
+   "word": "sleepy"
+  },
+  {
+   "keys": [
+    "stop"
+   ],
+   "word": "stop"
+  },
+  {
+   "keys": [
+    "stop",
+    "stopp",
+    "stopped"
+   ],
+   "word": "stopped"
+  },
+  {
+   "keys": [
+    "tower"
+   ],
+   "word": "tower"
+  },
+  {
+   "keys": [
+    "tower",
+    "towers"
+   ],
+   "word": "towers"
+  },
+  {
+   "keys": [
+    "tune"
+   ],
+   "word": "tune"
+  },
+  {
+   "keys": [
+    "tun",
+    "tune",
+    "tuned"
+   ],
+   "word": "tuned"
+  },
+  {
+   "keys": [
+    "twenty"
+   ],
+   "word": "twenty"
+  },
+  {
+   "keys": [
+    "twentyone"
+   ],
+   "word": "twentyone"
+  },
+  {
+   "keys": [
+    "vote"
+   ],
+   "word": "vote"
+  },
+  {
+   "keys": [
+    "vot",
+    "vote",
+    "voting"
+   ],
+   "word": "voting"
+  },
+  {
+   "keys": [
+    "wish"
+   ],
+   "word": "wish"
+  },
+  {
+   "keys": [
+    "wish",
+    "wishes"
+   ],
+   "word": "wishes"
+  },
+  {
+   "keys": [
+    "zero"
+   ],
+   "word": "zero"
+  }
+ ],
+ "note": "The real engine's score_guess for invented guesses on the rounds of assets/game-rounds.js (tools/make-game-rounds.py). Do not edit by hand.",
+ "phrases": [
+  {
+   "phrase": "a b",
+   "words": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "phrase": "a\u00a0b",
+   "words": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "phrase": "a\u3000b",
+   "words": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "phrase": "a\u0085b",
+   "words": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "phrase": "a\u001cb\u001dc\u001ed\u001fe",
+   "words": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e"
+   ]
+  },
+  {
+   "phrase": "a\ufeffb",
+   "words": [
+    "ab"
+   ]
+  },
+  {
+   "phrase": "a\u200bb",
+   "words": [
+    "ab"
+   ]
+  },
+  {
+   "phrase": "a\u2028b\u2029c",
+   "words": [
+    "a",
+    "b",
+    "c"
+   ]
+  },
+  {
+   "phrase": "a\u202fb\u205fc\u1680d",
+   "words": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ]
+  },
+  {
+   "phrase": " lead and trail ",
+   "words": [
+    "lead",
+    "and",
+    "trail"
+   ]
+  },
+  {
+   "phrase": "a\t\n\u000b\fb\rc",
+   "words": [
+    "a",
+    "b",
+    "c"
+   ]
+  },
+  {
+   "phrase": "a--b",
+   "words": [
+    "ab"
+   ]
+  },
+  {
+   "phrase": "a,b c.",
+   "words": [
+    "ab",
+    "c"
+   ]
+  }
+ ],
+ "rounds": [
+  {
+   "cases": [
+    {
+     "guess": "seventeen sleepy seagulls on the roof",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "seventeen sleepy seagulls on the roof.",
+     "label": "exact, as written with capitals and the full stop",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "SEVENTEEN SLEEPY SEAGULLS ON THE ROOF",
+     "label": "all capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "seventeens sleepy seagulls on the roof",
+     "label": "plural of the first word",
+     "result": {
+      "accuracy": 0.8718,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 75,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "seventeen sleepy seagulls on the roofing",
+     "label": "-ing on the last word",
+     "result": {
+      "accuracy": 0.8645,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "near",
+        "word": "roof."
+       }
+      ],
+      "points": 75,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "seventeened sleepy seagulls on the roof",
+     "label": "-ed on the first word",
+     "result": {
+      "accuracy": 0.8718,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 75,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "seventeen sleepy seagulls on the rooffing",
+     "label": "doubled consonant and -ing on the last word",
+     "result": {
+      "accuracy": 0.8645,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "near",
+        "word": "roof."
+       }
+      ],
+      "points": 75,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "seventeenes sleepy seagulls on the roof",
+     "label": "-es on the longest word",
+     "result": {
+      "accuracy": 0.6959,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 60,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "seveqteen sleepy seagulls on the roof",
+     "label": "one letter changed in the longest word",
+     "result": {
+      "accuracy": 0.8718,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 75,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "seveteen sleepy seagulls on the roof",
+     "label": "one letter dropped from the longest word",
+     "result": {
+      "accuracy": 0.8718,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 75,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "hear here cat cart seventeen sleepy seagulls on the roof",
+     "label": "short words that are not near: hear here cat cart",
+     "result": {
+      "accuracy": 0.6,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 52,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "17 sleepy seagulls on the roof",
+     "label": "number words as digits",
+     "result": {
+      "accuracy": 0.8718,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 75,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "roof the on seagulls sleepy seventeen",
+     "label": "wrong order",
+     "result": {
+      "accuracy": 0.0307,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "seventeen"
+       },
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "missed",
+        "word": "on"
+       },
+       {
+        "mark": "missed",
+        "word": "the"
+       },
+       {
+        "mark": "missed",
+        "word": "roof."
+       }
+      ],
+      "points": 3,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "seventeen sleepy seagulls on the roof and then a purple kettle waltzed away",
+     "label": "padded with extra invented words",
+     "result": {
+      "accuracy": 0.4615,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 40,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "seventeen"
+       },
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "seagulls"
+       },
+       {
+        "mark": "missed",
+        "word": "on"
+       },
+       {
+        "mark": "missed",
+        "word": "the"
+       },
+       {
+        "mark": "missed",
+        "word": "roof."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   \t \n ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "seventeen"
+       },
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "seagulls"
+       },
+       {
+        "mark": "missed",
+        "word": "on"
+       },
+       {
+        "mark": "missed",
+        "word": "the"
+       },
+       {
+        "mark": "missed",
+        "word": "roof."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "!!! ,,, ... ?",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "seventeen"
+       },
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "seagulls"
+       },
+       {
+        "mark": "missed",
+        "word": "on"
+       },
+       {
+        "mark": "missed",
+        "word": "the"
+       },
+       {
+        "mark": "missed",
+        "word": "roof."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "seventeen, sleepy, seagulls, on, the, roof!?",
+     "label": "punctuation around words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "seventeen-sleepy\u2014seagulls/on\u2026the...roof",
+     "label": "hyphen, dash, slash and ellipsis between words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "seventeen sleepy seagulls on theroof",
+     "label": "two answer words typed joined",
+     "result": {
+      "accuracy": 0.5588,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "missed",
+        "word": "the"
+       },
+       {
+        "mark": "missed",
+        "word": "roof."
+       }
+      ],
+      "points": 48,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "it\u2019s seventeen sleepy seagulls on the roof",
+     "label": "smart apostrophe word in front",
+     "result": {
+      "accuracy": 0.8571,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 74,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "caf\u00e9 s\u00e9venteen sleepy seagulls on the roof",
+     "label": "accented letters: cafe with an acute, and an accent on the first word",
+     "result": {
+      "accuracy": 0.8571,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 74,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "seventeen\u00a0sleepy\u00a0seagulls\u00a0on\u00a0the\u00a0roof",
+     "label": "odd spaces between words: no-break, ideographic, next-line, zero-width no-break",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "\uff53\uff45\uff56\uff45\uff4e\uff54\uff45\uff45\uff4e stra\u00dfe \ufb01ddle sleepy seagulls on the roof",
+     "label": "folded letters: fullwidth, ligature, sharp s",
+     "result": {
+      "accuracy": 0.75,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 65,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "seventeen sleepy seagulls",
+     "label": "only the first half",
+     "result": {
+      "accuracy": 0.5142,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "missed",
+        "word": "on"
+       },
+       {
+        "mark": "missed",
+        "word": "the"
+       },
+       {
+        "mark": "missed",
+        "word": "roof."
+       }
+      ],
+      "points": 44,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "sleepy seagulls on the roof",
+     "label": "one word missing",
+     "result": {
+      "accuracy": 0.8351,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 72,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "seventeen sleepy seagulls on the roof purple umbrella kettle marble quickly banjo waffle lantern pebble zigzag velvet noodle thimble crayon meadow yonder purple umbrella kettle marble quickly banjo waffle lantern",
+     "label": "far too long (truncated)",
+     "result": {
+      "accuracy": 0.2609,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "seventeen"
+       },
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "seagulls"
+       },
+       {
+        "mark": "exact",
+        "word": "on"
+       },
+       {
+        "mark": "exact",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 22,
+      "truncated": true,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "purple lantern velvet pebble kettle thimble waffle lantern",
+     "label": "word salad",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "seventeen"
+       },
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "seagulls"
+       },
+       {
+        "mark": "missed",
+        "word": "on"
+       },
+       {
+        "mark": "missed",
+        "word": "the"
+       },
+       {
+        "mark": "missed",
+        "word": "roof."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "velvet zigzag thimble roof marble quickly",
+     "label": "word salad with one right word",
+     "result": {
+      "accuracy": 0.0307,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "seventeen"
+       },
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "seagulls"
+       },
+       {
+        "mark": "missed",
+        "word": "on"
+       },
+       {
+        "mark": "missed",
+        "word": "the"
+       },
+       {
+        "mark": "exact",
+        "word": "roof."
+       }
+      ],
+      "points": 3,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    }
+   ],
+   "id": "185e6ced0c97"
+  },
+  {
+   "cases": [
+    {
+     "guess": "clock tower hums a different cheerful tune",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 90,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "clock tower hums a different cheerful tune.",
+     "label": "exact, as written with capitals and the full stop",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 90,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "CLOCK TOWER HUMS A DIFFERENT CHEERFUL TUNE",
+     "label": "all capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 90,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "clocks tower hums a different cheerful tune",
+     "label": "plural of the first word",
+     "result": {
+      "accuracy": 0.8855,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 80,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "clock tower hums a different cheerful tuneing",
+     "label": "-ing on the last word",
+     "result": {
+      "accuracy": 0.8916,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "near",
+        "word": "tune."
+       }
+      ],
+      "points": 81,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "clocked tower hums a different cheerful tune",
+     "label": "-ed on the first word",
+     "result": {
+      "accuracy": 0.8855,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 80,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "clock tower hums a different cheerful tuneing",
+     "label": "doubled consonant and -ing on the last word",
+     "result": {
+      "accuracy": 0.8916,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "near",
+        "word": "tune."
+       }
+      ],
+      "points": 81,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "clock tower hums a differentes cheerful tune",
+     "label": "-es on the longest word",
+     "result": {
+      "accuracy": 0.7268,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 66,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "clock tower hums a diffqrent cheerful tune",
+     "label": "one letter changed in the longest word",
+     "result": {
+      "accuracy": 0.8855,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "near",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 80,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "clock tower hums a diffrent cheerful tune",
+     "label": "one letter dropped from the longest word",
+     "result": {
+      "accuracy": 0.8855,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "near",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 80,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "hear here cat cart clock tower hums a different cheerful tune",
+     "label": "short words that are not near: hear here cat cart",
+     "result": {
+      "accuracy": 0.6364,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 58,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "clock tower hums a different cheerful tune",
+     "label": "number words as digits",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 90,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "tune cheerful different a hums tower clock",
+     "label": "wrong order",
+     "result": {
+      "accuracy": 0.0217,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "missed",
+        "word": "tower"
+       },
+       {
+        "mark": "missed",
+        "word": "hums"
+       },
+       {
+        "mark": "missed",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "missed",
+        "word": "tune."
+       }
+      ],
+      "points": 2,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "clock tower hums a different cheerful tune and then a purple kettle waltzed away",
+     "label": "padded with extra invented words",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 45,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "clock"
+       },
+       {
+        "mark": "missed",
+        "word": "tower"
+       },
+       {
+        "mark": "missed",
+        "word": "hums"
+       },
+       {
+        "mark": "missed",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "missed",
+        "word": "tune."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   \t \n ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "clock"
+       },
+       {
+        "mark": "missed",
+        "word": "tower"
+       },
+       {
+        "mark": "missed",
+        "word": "hums"
+       },
+       {
+        "mark": "missed",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "missed",
+        "word": "tune."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "!!! ,,, ... ?",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "clock"
+       },
+       {
+        "mark": "missed",
+        "word": "tower"
+       },
+       {
+        "mark": "missed",
+        "word": "hums"
+       },
+       {
+        "mark": "missed",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "missed",
+        "word": "tune."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "clock, tower, hums, a, different, cheerful, tune!?",
+     "label": "punctuation around words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 90,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "clock-tower\u2014hums/a\u2026different...cheerful\u2013tune",
+     "label": "hyphen, dash, slash and ellipsis between words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 90,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "clock tower hums a different cheerfultune",
+     "label": "two answer words typed joined",
+     "result": {
+      "accuracy": 0.6067,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "missed",
+        "word": "tune."
+       }
+      ],
+      "points": 55,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "it\u2019s clock tower hums a different cheerful tune",
+     "label": "smart apostrophe word in front",
+     "result": {
+      "accuracy": 0.875,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 79,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "caf\u00e9 cl\u00f3ck tower hums a different cheerful tune",
+     "label": "accented letters: cafe with an acute, and an accent on the first word",
+     "result": {
+      "accuracy": 0.875,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 79,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "clock\u3000tower\u3000hums\u3000a\u3000different\u3000cheerful\u3000tune",
+     "label": "odd spaces between words: no-break, ideographic, next-line, zero-width no-break",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 90,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "\uff43\uff4c\uff4f\uff43\uff4b stra\u00dfe \ufb01ddle tower hums a different cheerful tune",
+     "label": "folded letters: fullwidth, ligature, sharp s",
+     "result": {
+      "accuracy": 0.7778,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 70,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "clock tower hums",
+     "label": "only the first half",
+     "result": {
+      "accuracy": 0.4561,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "missed",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "missed",
+        "word": "tune."
+       }
+      ],
+      "points": 41,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "tower hums a different cheerful tune",
+     "label": "one word missing",
+     "result": {
+      "accuracy": 0.848,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 77,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "clock tower hums a different cheerful tune purple umbrella kettle marble quickly banjo waffle lantern pebble zigzag velvet noodle thimble crayon meadow yonder purple umbrella kettle marble quickly banjo waffle lantern pebble zigzag velvet",
+     "label": "far too long (truncated)",
+     "result": {
+      "accuracy": 0.2692,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "clock"
+       },
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 24,
+      "truncated": true,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "zigzag umbrella waffle umbrella banjo thimble quickly yonder noodle",
+     "label": "word salad",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "clock"
+       },
+       {
+        "mark": "missed",
+        "word": "tower"
+       },
+       {
+        "mark": "missed",
+        "word": "hums"
+       },
+       {
+        "mark": "missed",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "missed",
+        "word": "tune."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "crayon yonder thimble tune crayon marble",
+     "label": "word salad with one right word",
+     "result": {
+      "accuracy": 0.0227,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "clock"
+       },
+       {
+        "mark": "missed",
+        "word": "tower"
+       },
+       {
+        "mark": "missed",
+        "word": "hums"
+       },
+       {
+        "mark": "missed",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 2,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    }
+   ],
+   "id": "767bdffc5620"
+  },
+  {
+   "cases": [
+    {
+     "guess": "garden shed",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 84,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "garden shed.",
+     "label": "exact, as written with capitals and the full stop",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 84,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "GARDEN SHED",
+     "label": "all capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 84,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "gardens shed",
+     "label": "plural of the first word",
+     "result": {
+      "accuracy": 0.64,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 54,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "garden sheding",
+     "label": "-ing on the last word",
+     "result": {
+      "accuracy": 0.64,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "near",
+        "word": "shed."
+       }
+      ],
+      "points": 54,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "gardened shed",
+     "label": "-ed on the first word",
+     "result": {
+      "accuracy": 0.64,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 54,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "garden shedding",
+     "label": "doubled consonant and -ing on the last word",
+     "result": {
+      "accuracy": 0.64,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "near",
+        "word": "shed."
+       }
+      ],
+      "points": 54,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "gardenes shed",
+     "label": "-es on the longest word",
+     "result": {
+      "accuracy": 0.25,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 21,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "garqen shed",
+     "label": "one letter changed in the longest word",
+     "result": {
+      "accuracy": 0.64,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 54,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "garen shed",
+     "label": "one letter dropped from the longest word",
+     "result": {
+      "accuracy": 0.64,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 54,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "hear here cat cart garden shed",
+     "label": "short words that are not near: hear here cat cart",
+     "result": {
+      "accuracy": 0.3333,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 28,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "garden shed",
+     "label": "number words as digits",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 84,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "shed garden",
+     "label": "wrong order",
+     "result": {
+      "accuracy": 0.25,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "missed",
+        "word": "shed."
+       }
+      ],
+      "points": 21,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "garden shed and then a purple kettle waltzed away",
+     "label": "padded with extra invented words",
+     "result": {
+      "accuracy": 0.2222,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 19,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "garden"
+       },
+       {
+        "mark": "missed",
+        "word": "shed."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   \t \n ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "garden"
+       },
+       {
+        "mark": "missed",
+        "word": "shed."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "!!! ,,, ... ?",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "garden"
+       },
+       {
+        "mark": "missed",
+        "word": "shed."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "garden, shed!?",
+     "label": "punctuation around words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 84,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "garden-shed",
+     "label": "hyphen, dash, slash and ellipsis between words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 84,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "gardenshed",
+     "label": "two answer words typed joined",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "garden"
+       },
+       {
+        "mark": "missed",
+        "word": "shed."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "it\u2019s garden shed",
+     "label": "smart apostrophe word in front",
+     "result": {
+      "accuracy": 0.6667,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 56,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "caf\u00e9 g\u00e1rden shed",
+     "label": "accented letters: cafe with an acute, and an accent on the first word",
+     "result": {
+      "accuracy": 0.6667,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 56,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "garden\u0085shed",
+     "label": "odd spaces between words: no-break, ideographic, next-line, zero-width no-break",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 84,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "\uff47\uff41\uff52\uff44\uff45\uff4e stra\u00dfe \ufb01ddle shed",
+     "label": "folded letters: fullwidth, ligature, sharp s",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 42,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "garden",
+     "label": "only the first half",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "missed",
+        "word": "shed."
+       }
+      ],
+      "points": 42,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "shed",
+     "label": "one word missing",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 42,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "garden shed purple umbrella kettle marble quickly banjo waffle lantern pebble zigzag velvet noodle",
+     "label": "far too long (truncated)",
+     "result": {
+      "accuracy": 0.1818,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 15,
+      "truncated": true,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "zigzag umbrella crayon velvet",
+     "label": "word salad",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "garden"
+       },
+       {
+        "mark": "missed",
+        "word": "shed."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "yonder purple umbrella shed pebble quickly",
+     "label": "word salad with one right word",
+     "result": {
+      "accuracy": 0.0833,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "garden"
+       },
+       {
+        "mark": "exact",
+        "word": "shed."
+       }
+      ],
+      "points": 7,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    }
+   ],
+   "id": "0e024c39312b"
+  },
+  {
+   "cases": [
+    {
+     "guess": "sleepy harbour at midnight",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnight.",
+     "label": "exact, as written with capitals and the full stop",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "SLEEPY HARBOUR AT MIDNIGHT",
+     "label": "all capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "sleepys harbour at midnight",
+     "label": "plural of the first word",
+     "result": {
+      "accuracy": 0.8173,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 71,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnighting",
+     "label": "-ing on the last word",
+     "result": {
+      "accuracy": 0.8076,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "near",
+        "word": "midnight."
+       }
+      ],
+      "points": 70,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "sleepyed harbour at midnight",
+     "label": "-ed on the first word",
+     "result": {
+      "accuracy": 0.8173,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 71,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnightting",
+     "label": "doubled consonant and -ing on the last word",
+     "result": {
+      "accuracy": 0.8076,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "near",
+        "word": "midnight."
+       }
+      ],
+      "points": 70,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnightes",
+     "label": "-es on the longest word",
+     "result": {
+      "accuracy": 0.5574,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 48,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnqght",
+     "label": "one letter changed in the longest word",
+     "result": {
+      "accuracy": 0.8076,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "near",
+        "word": "midnight."
+       }
+      ],
+      "points": 70,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnght",
+     "label": "one letter dropped from the longest word",
+     "result": {
+      "accuracy": 0.8076,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "near",
+        "word": "midnight."
+       }
+      ],
+      "points": 70,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "hear here cat cart sleepy harbour at midnight",
+     "label": "short words that are not near: hear here cat cart",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 43,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnight",
+     "label": "number words as digits",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "midnight at harbour sleepy",
+     "label": "wrong order",
+     "result": {
+      "accuracy": 0.0642,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 6,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnight and then a purple kettle waltzed away",
+     "label": "padded with extra invented words",
+     "result": {
+      "accuracy": 0.3636,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 31,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   \t \n ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "!!! ,,, ... ?",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "sleepy, harbour, at, midnight!?",
+     "label": "punctuation around words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "sleepy-harbour\u2014at/midnight",
+     "label": "hyphen, dash, slash and ellipsis between words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "sleepy harbour atmidnight",
+     "label": "two answer words typed joined",
+     "result": {
+      "accuracy": 0.3243,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 28,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "it\u2019s sleepy harbour at midnight",
+     "label": "smart apostrophe word in front",
+     "result": {
+      "accuracy": 0.8,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 69,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "caf\u00e9 sl\u00e9epy harbour at midnight",
+     "label": "accented letters: cafe with an acute, and an accent on the first word",
+     "result": {
+      "accuracy": 0.8,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 69,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "sleepy\ufeffharbour\ufeffat\ufeffmidnight",
+     "label": "odd spaces between words: no-break, ideographic, next-line, zero-width no-break",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "\uff53\uff4c\uff45\uff45\uff50\uff59 stra\u00dfe \ufb01ddle harbour at midnight",
+     "label": "folded letters: fullwidth, ligature, sharp s",
+     "result": {
+      "accuracy": 0.6667,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 58,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "sleepy harbour",
+     "label": "only the first half",
+     "result": {
+      "accuracy": 0.4865,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 42,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "harbour at midnight",
+     "label": "one word missing",
+     "result": {
+      "accuracy": 0.7703,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 67,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "sleepy harbour at midnight purple umbrella kettle marble quickly banjo waffle lantern pebble zigzag velvet noodle thimble crayon meadow yonder purple umbrella",
+     "label": "far too long (truncated)",
+     "result": {
+      "accuracy": 0.2353,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "sleepy"
+       },
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 20,
+      "truncated": true,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "lantern waffle thimble kettle quickly thimble",
+     "label": "word salad",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "banjo velvet crayon midnight umbrella crayon",
+     "label": "word salad with one right word",
+     "result": {
+      "accuracy": 0.0428,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "sleepy"
+       },
+       {
+        "mark": "missed",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 4,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    }
+   ],
+   "id": "599e6434ca7b"
+  },
+  {
+   "cases": [
+    {
+     "guess": "was made of sourdough",
+     "label": "exact",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 88,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "was made of sourdough.",
+     "label": "exact, as written with capitals and the full stop",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 88,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "WAS MADE OF SOURDOUGH",
+     "label": "all capitals",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 88,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "wass made of sourdough",
+     "label": "plural of the first word",
+     "result": {
+      "accuracy": 0.5625,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 50,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "was made of sourdoughing",
+     "label": "-ing on the last word",
+     "result": {
+      "accuracy": 0.81,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "near",
+        "word": "sourdough."
+       }
+      ],
+      "points": 71,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "wased made of sourdough",
+     "label": "-ed on the first word",
+     "result": {
+      "accuracy": 0.81,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 71,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "was made of sourdoughhing",
+     "label": "doubled consonant and -ing on the last word",
+     "result": {
+      "accuracy": 0.81,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "near",
+        "word": "sourdough."
+       }
+      ],
+      "points": 71,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "was made of sourdoughes",
+     "label": "-es on the longest word",
+     "result": {
+      "accuracy": 0.5625,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 50,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "was made of sourqough",
+     "label": "one letter changed in the longest word",
+     "result": {
+      "accuracy": 0.81,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "near",
+        "word": "sourdough."
+       }
+      ],
+      "points": 71,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "was made of sourough",
+     "label": "one letter dropped from the longest word",
+     "result": {
+      "accuracy": 0.81,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "near",
+        "word": "sourdough."
+       }
+      ],
+      "points": 71,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "hear here cat cart was made of sourdough",
+     "label": "short words that are not near: hear here cat cart",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 44,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "was made of sourdough",
+     "label": "number words as digits",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 88,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "sourdough of made was",
+     "label": "wrong order",
+     "result": {
+      "accuracy": 0.0625,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "missed",
+        "word": "made"
+       },
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 6,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "was made of sourdough and then a purple kettle waltzed away",
+     "label": "padded with extra invented words",
+     "result": {
+      "accuracy": 0.3636,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 32,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "",
+     "label": "empty",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "was"
+       },
+       {
+        "mark": "missed",
+        "word": "made"
+       },
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "   \t \n ",
+     "label": "only spaces",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "was"
+       },
+       {
+        "mark": "missed",
+        "word": "made"
+       },
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "!!! ,,, ... ?",
+     "label": "punctuation only",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "was"
+       },
+       {
+        "mark": "missed",
+        "word": "made"
+       },
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     }
+    },
+    {
+     "guess": "was, made, of, sourdough!?",
+     "label": "punctuation around words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 88,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "was-made\u2014of/sourdough",
+     "label": "hyphen, dash, slash and ellipsis between words",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 88,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "was made ofsourdough",
+     "label": "two answer words typed joined",
+     "result": {
+      "accuracy": 0.3333,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 29,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "it\u2019s was made of sourdough",
+     "label": "smart apostrophe word in front",
+     "result": {
+      "accuracy": 0.8,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 70,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "caf\u00e9 w\u00e1s made of sourdough",
+     "label": "accented letters: cafe with an acute, and an accent on the first word",
+     "result": {
+      "accuracy": 0.8,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 70,
+      "truncated": false,
+      "verdict": "close"
+     }
+    },
+    {
+     "guess": "was\u00a0made\u00a0of\u00a0sourdough",
+     "label": "odd spaces between words: no-break, ideographic, next-line, zero-width no-break",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 88,
+      "truncated": false,
+      "verdict": "exact"
+     }
+    },
+    {
+     "guess": "\uff57\uff41\uff53 stra\u00dfe \ufb01ddle made of sourdough",
+     "label": "folded letters: fullwidth, ligature, sharp s",
+     "result": {
+      "accuracy": 0.6667,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 59,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "was made",
+     "label": "only the first half",
+     "result": {
+      "accuracy": 0.5,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 44,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "made of sourdough",
+     "label": "one word missing",
+     "result": {
+      "accuracy": 0.75,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 66,
+      "truncated": false,
+      "verdict": "partial"
+     }
+    },
+    {
+     "guess": "was made of sourdough purple umbrella kettle marble quickly banjo waffle lantern pebble zigzag velvet noodle thimble crayon meadow yonder purple umbrella",
+     "label": "far too long (truncated)",
+     "result": {
+      "accuracy": 0.2353,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "was"
+       },
+       {
+        "mark": "exact",
+        "word": "made"
+       },
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 21,
+      "truncated": true,
+      "verdict": "a few words"
+     }
+    },
+    {
+     "guess": "waffle quickly marble noodle lantern marble",
+     "label": "word salad",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "was"
+       },
+       {
+        "mark": "missed",
+        "word": "made"
+       },
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     }
+    },
+    {
+     "guess": "yonder noodle marble sourdough meadow purple",
+     "label": "word salad with one right word",
+     "result": {
+      "accuracy": 0.0417,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "was"
+       },
+       {
+        "mark": "missed",
+        "word": "made"
+       },
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 4,
+      "truncated": false,
+      "verdict": "a few words"
+     }
+    }
+   ],
+   "id": "8c11b61bfc9e"
+  }
+ ],
+ "schema": "ryagram.game-score-golden/0",
+ "seed": "game-rounds-38",
+ "words": [
+  {
+   "norm": "cafe",
+   "word": "caf\u00e9"
+  },
+  {
+   "norm": "cafe",
+   "word": "CAF\u00c9"
+  },
+  {
+   "norm": "cafe",
+   "word": "cafe\u0301"
+  },
+  {
+   "norm": "naive",
+   "word": "na\u00efve"
+  },
+  {
+   "norm": "don't",
+   "word": "don\u2019t"
+  },
+  {
+   "norm": "don't",
+   "word": "don\u2018t"
+  },
+  {
+   "norm": "don't",
+   "word": "don\u02bct"
+  },
+  {
+   "norm": "dont",
+   "word": "don\u00b4t"
+  },
+  {
+   "norm": "don't",
+   "word": "don`t"
+  },
+  {
+   "norm": "quoted",
+   "word": "'quoted'"
+  },
+  {
+   "norm": "",
+   "word": "''"
+  },
+  {
+   "norm": "strasse",
+   "word": "stra\u00dfe"
+  },
+  {
+   "norm": "ss",
+   "word": "\u1e9e"
+  },
+  {
+   "norm": "aether",
+   "word": "\u00e6ther"
+  },
+  {
+   "norm": "aether",
+   "word": "\u00c6THER"
+  },
+  {
+   "norm": "smorrebrod",
+   "word": "sm\u00f8rrebr\u00f8d"
+  },
+  {
+   "norm": "oeuvre",
+   "word": "\u0153uvre"
+  },
+  {
+   "norm": "lodz",
+   "word": "\u0141\u00f3d\u017a"
+  },
+  {
+   "norm": "dd",
+   "word": "\u0111\u0110"
+  },
+  {
+   "norm": "thinth",
+   "word": "\u00fein\u00de"
+  },
+  {
+   "norm": "fine",
+   "word": "\ufb01ne"
+  },
+  {
+   "norm": "good",
+   "word": "\uff27\uff4f\uff4f\uff44"
+  },
+  {
+   "norm": "1",
+   "word": "\u2460"
+  },
+  {
+   "norm": "12",
+   "word": "\u00bd"
+  },
+  {
+   "norm": "x2",
+   "word": "x\u00b2"
+  },
+  {
+   "norm": "angstrom",
+   "word": "\u212bngstr\u00f6m"
+  },
+  {
+   "norm": "istanbul",
+   "word": "\u0130stanbul"
+  },
+  {
+   "norm": "",
+   "word": "\u0131"
+  },
+  {
+   "norm": "music",
+   "word": "[Music]"
+  },
+  {
+   "norm": "",
+   "word": "--"
+  },
+  {
+   "norm": "",
+   "word": "\u266a"
+  },
+  {
+   "norm": "",
+   "word": "\u65e5\u672c"
+  },
+  {
+   "norm": "",
+   "word": "\u0645\u0631\u062d\u0628\u0627"
+  },
+  {
+   "norm": "e",
+   "word": "e\u0301\u0302\u0323"
+  },
+  {
+   "norm": "s",
+   "word": "\u1e9b\u0323"
+  },
+  {
+   "norm": "abcd",
+   "word": "ab\u200bcd"
+  },
+  {
+   "norm": "abcd",
+   "word": "ab\ufeffcd"
+  },
+  {
+   "norm": "abcd",
+   "word": "ab\u00adcd"
+  },
+  {
+   "norm": "iii",
+   "word": "\u2160\u2161"
+  },
+  {
+   "norm": "mhz",
+   "word": "\u3392"
+  },
+  {
+   "norm": "kk",
+   "word": "k\u212a"
+  },
+  {
+   "norm": "dz",
+   "word": "\u01c4"
+  },
+  {
+   "norm": "",
+   "word": "\u0e01\u0e34"
+  },
+  {
+   "norm": "resumes",
+   "word": "r\u00e9sum\u00e9s"
+  },
+  {
+   "norm": "cooperate",
+   "word": "co\u00f6perate"
+  },
+  {
+   "norm": "",
+   "word": "\ua7f1"
+  },
+  {
+   "norm": "xy",
+   "word": "x\ud833\udcd6y"
+  },
+  {
+   "norm": "ab",
+   "word": "a\ud833\udcf0b"
+  },
+  {
+   "norm": "abc",
+   "word": "\ud835\udc00\ud835\udc01c"
+  },
+  {
+   "norm": "a",
+   "word": "a\u0308\u0304"
+  }
+ ]
+}
