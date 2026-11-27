@@ -11,6 +11,7 @@ import datasetInfo from "../_shared/dataset_info.ts";
 import { BLOCKED_VIEWS } from "../_shared/blocked_views.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
+import { makeGamesTools } from "./games_tools.ts";
 import { homeView } from "./home_panel.ts";
 import { LIMITS, type ChecklistItem, type CompilationRequest, type Data, type GeoRow, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
@@ -1448,4 +1449,6 @@ const listMyData: ToolDef = {
 };
 
 export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, submitPrepared, listMyData, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome];
+// GAMES (CONNECT 11-27): two read-only tools in games_tools.ts, each gated by the account's own `games` switch; one line of their own so department branches merge cleanly
+TOOLS.push(...makeGamesTools());
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
