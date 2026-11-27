@@ -8,7 +8,7 @@ Windows, which gave this check 0 to 335 findings on a busy PC, CC1 11-06 12:02).
 
     python tools/check-live-editor-phone.py [outdir]        (default D:/Ryagram-scratch/WEB/live-editor-phone-shots)
 """
-import importlib.util, re, sys
+import importlib.util, os, re, sys
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -65,6 +65,7 @@ def main():
             p.on('pageerror', lambda e: errors.append(str(e)))
             for mode, url in (('data', '/app/?mock&standin#/editor/data'), ('compilation', '/app/?mock#/editor/compilation')):
                 for stretch in (False, True):
+                    if os.environ.get('LOOKV2') == '1': url = url.replace('?mock', '?mock&lookv2', 1)     # the new Text size / Legend position controls are dark behind this flag
                     p.goto(f'http://127.0.0.1:{port}{url}', wait_until='load')
                     p.wait_for_selector('#library .le h1:not([hidden])', timeout=20000)         # the editor's own heading, not whatever page heading came first
                     st = p.evaluate(SETTLE)
