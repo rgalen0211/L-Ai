@@ -3,7 +3,8 @@
 --   * ryagram_private.perfect_city_places: one row per business place (county, kind, osm_ref, name, lat, lon). EMPTY here: the rows are OpenStreetMap
 --     data (ODbL; attorney row G11 open), loaded by the dashboard from a file OUTSIDE every repo (live step PC2). Closed to every API role.
 --   * ryagram_private.perfect_city_units: the Census block groups' centres and populations (public domain), loaded from
---     supabase/live-steps/perfect_city_units_seed.sql (live step PC2b), generated from the page's own data so the server's numbers match the page's.
+--     supabase/live-steps/perfect_city_units_seed.sql (live step PC2b), generated from the page's own data. Used for the county box check only: no
+--     people figure is given by the server (the page's area-weighted estimate is on the page only).
 --   * public.perfect_city_places(county, kind, lat, lon): for ONE spot, the places within 5 km of it plus the nearest five (never a whole county in one
 --     call: RENDERER 08:24, the licence question), with how many are loaded, the true counts within 1, 2 and 5 km ('within', counted before the 60 cap),
 --     and the OpenStreetMap credit; never the osm_ref. Signed in only, and only for
@@ -114,11 +115,15 @@ begin
                          row_number() over (order by ryagram_private.perfect_city_km(p_lat, p_lon, p.lat, p.lon), p.name, p.osm_ref) as rn
                     from ryagram_private.perfect_city_places p where p.county = p_county and p.kind = p_kind) n);
 end $$;
-revoke all on function public.perfect_city_places(text, text, double precision, double precision) from public, anon, authenticated;
+revoke all on function public.perfect_city_places(text, text, double precision, double precision) from public, anon, authenticated, service_role;   -- service_role too, like the helpers
 grant execute on function public.perfect_city_places(text, text, double precision, double precision) to authenticated;
 
 -- For ONE owner (the connector resolves the owner from its token first): the summary for a spot, in CONNECT's shape ryagram.perfect-city-summary/0.
--- Every number carries its basis word; distances are straight lines; people are the page's own estimate (block groups whose centre is inside the ring).
+-- Every number carries its basis word; distances are straight lines. NO people figure (GEO 11-27 decision, after CC1 09:43/09:48): the server has only
+-- block-group centres, and the centre method is not the page's estimate (the page shares each block group by the part of its area inside the ring).
+-- Measured on different spot samples, the centre method was off at 5 km by a median of about 4% (GEO's population-weighted spots) and about 8%, up to 40%
+-- at the edges (RENDERER's uniform spots), and far worse at 1 and 2 km. So the summary says the people estimate is on the page only, and the page and
+-- the AI cannot disagree.
 create function ryagram_private.perfect_city_summary_for(p_owner uuid, p_county text, p_kind text, p_lat double precision, p_lon double precision)
 returns jsonb language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -143,28 +148,16 @@ begin
                 'km', r.km,
                 'places', jsonb_build_object('count', (select count(*) from ryagram_private.perfect_city_places p
                                                         where p.county = p_county and p.kind = p_kind and ryagram_private.perfect_city_km(v_lat, v_lon, p.lat, p.lon) <= r.km),
-                                             'basis', 'calculated'),
-                -- People only for the 5 km ring: the server has block-group CENTRES only, and GEO's 11-27 check (proposals/GEO-PERFECT-CITY-ESTIMATE-CHECK-1127.md)
-                -- found the centre method off by a median 4% at 5 km but 18% at 2 km and 58% at 1 km, with false zeros. Both figures were measured, on different
-                -- spot samples: GEO's population-weighted spots gave about 4% at 5 km; RENDERER's uniform spots gave about 8% at 5 km, up to 40% at the edges
-                -- (the 'method' text below quotes the uniform figure). The page itself uses area weighting.
-                'people_about', case when r.km = 5 then
-                    jsonb_build_object('value', (select (round(coalesce(sum(u.pop), 0) / 100.0) * 100)::int from ryagram_private.perfect_city_units u
-                                                  where u.county = p_county and ryagram_private.perfect_city_km(v_lat, v_lon, u.lat, u.lon) <= r.km),
-                                       'basis', 'estimated',
-                                       'method', 'block groups whose centre is inside the ring, counted in full, rounded to the nearest 100; off by a median of about 8 percent at 5 km, up to 40 percent at the edges')
-                  else jsonb_build_object('value', null, 'basis', 'estimated',
-                                          'note', 'not given for rings under 5 km: too rough from block-group centres; the Perfect City page shows an area-weighted figure')
-                  end)
+                                             'basis', 'calculated'))
                 order by r.km)
               from (values (1), (2), (5)) r(km)),
     'not_known', jsonb_build_array(
       'Distances are straight lines, not drive or walk times.',
       'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
-      'People are given for the 5 km ring only, as an estimate from block-group centres.',
+      'No count of people is given here. The Perfect City page shows an estimate of the people around the spot, made with an area method this summary does not have.',
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.'),
     'credits', jsonb_build_array(
-      'U.S. Census Bureau, 2020 Census, table P1 (total population), block groups.',
+      'U.S. Census Bureau, 2020 Census block groups (used to check that the spot is inside the county).',
       'This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.',
       'Map data (c) OpenStreetMap contributors (ODbL)'));
 end $$;

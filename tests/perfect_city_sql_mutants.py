@@ -51,7 +51,12 @@ FAULTS = [
      "jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon)", "jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon, 'osm_ref', n.osm_ref)"),
     ("the AI summary nearest carries a name", SUMMARY,
      "jsonb_build_object('rank', n.rk, 'km',", "jsonb_build_object('rank', n.rk, 'name', 'x', 'km',"),
-    ("people at 1 km are given in the summary", SUMMARY, "case when r.km = 5 then", "case when r.km >= 1 then"),
+    # the summary gives no people figure at all (GEO 11-27): the fault puts the old block-group-centre figure back on every ring
+    ("any people figure is given in the summary", SUMMARY,
+     "'basis', 'calculated'))\n                order by r.km)",
+     "'basis', 'calculated'), 'people_about', jsonb_build_object('value', (select (round(coalesce(sum(u.pop), 0) / 100.0) * 100)::int"
+     " from ryagram_private.perfect_city_units u where u.county = p_county and ryagram_private.perfect_city_km(v_lat, v_lon, u.lat, u.lon) <= r.km),"
+     " 'basis', 'estimated'))\n                order by r.km)"),
     ("the spot box check is removed", PLACES, BOX, ""),
 ]
 

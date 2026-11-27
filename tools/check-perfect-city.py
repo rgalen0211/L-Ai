@@ -7,6 +7,7 @@ Local only: a server on 127.0.0.1 with its own port, nothing sent anywhere. Scre
 import argparse
 import http.server
 import pathlib
+import re
 import socketserver
 import sys
 import threading
@@ -69,7 +70,7 @@ def main():
                 check(p.locator('.soon-tag-big').count() == 0, 'not the Coming soon page')
                 check(p.locator('#pc-map svg.pc-svg path').count() == 422, 'Montgomery County: 422 block groups drawn')
                 check(p.locator('#pc-map circle.pc-place').count() == 0, 'before a spot: no business points are asked for or drawn (never a whole county)')
-                check('Click the map' in p.inner_text('#pc-results'), 'before a spot: the page asks for one')
+                check('Tap or click the map' in p.inner_text('#pc-results'), 'before a spot: the page asks for one (tap or click)')
                 p.screenshot(path=str(out / f'1-start-{name}.png'), full_page=True)
                 box = p.locator('svg.pc-svg').bounding_box()
                 p.locator('svg.pc-svg').click(position={'x': box['width'] * 0.55, 'y': box['height'] * 0.5}, timeout=5000)
@@ -87,6 +88,11 @@ def main():
                 check('straight lines' in nk and 'OpenStreetMap' in nk and 'no success score' in nk, 'what it does not know is said')
                 cr = p.inner_text('#pc-credits')
                 check('OpenStreetMap contributors' in cr and 'Census' in cr and 'not endorsed or certified' in cr, 'the credits name the Census, its API notice and OpenStreetMap')
+                check(not re.search(r'NAICS|\b\d{6}\b|cb_20\d\d|B19013|\bP1\b|cbp\d\dco', cr + p.inner_text('#pc-results')), 'no source or industry codes in the credits or the results (plain words)')
+                check('American Community Survey 2019 to 2023' in t + cr, f'the survey years from the data ({[x for x in (t + cr).split(chr(10)) if "Survey" in x][:2]})')
+                stray = [w for w in ('null', 'undefined', 'NaN') if w in t]
+                check(not stray, f'no null, undefined or NaN printed ({stray})')
+                check('observed, from OpenStreetMap' in t, 'the nearest places carry their source word')
                 scroll = p.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
                 check(scroll, 'no sideways scroll')
                 p.screenshot(path=str(out / f'2-spot-{name}.png'), full_page=True)
@@ -173,7 +179,7 @@ def main():
                       'Chicken places: the five nearest are listed for the spot')
                 check('Chicken places (calculated)' in p.inner_text('#pc-rings'), 'Chicken places: the rings count them, labelled calculated')
                 official_chicken = p.inner_text('#pc-official') if p.locator('#pc-official').count() == 1 else ''
-                check('Census County Business Patterns 2023 counts 515 limited-service restaurant (fast food, NAICS 722513) establishments in this county (observed); the map data has 14 of this kind loaded.' == official_fast_food
+                check("The Census Bureau's count of limited-service restaurants (fast food) in this county (County Business Patterns 2023, observed): 515. The map data has 14 of this kind loaded." == official_fast_food
                       and official_chicken == 'The Census does not count chicken, burger or pizza places separately.',
                       f'the official Census count is said beside the loaded count (Montgomery fast food), and chicken says the Census does not count it ({official_fast_food!r}, {official_chicken!r})')
                 p.screenshot(path=str(out / f'4b-greene-chicken-{name}.png'), full_page=True)

@@ -8,6 +8,7 @@ Two outputs, kept apart on purpose:
 Usage (system Python with pyshp and pyproj; no network):
   py -I -B tools/perfect-city/export_perfect_city.py census
   py -I -B tools/perfect-city/export_perfect_city.py official   (after census: adds County Business Patterns counts to the same files)
+  py -I -B tools/perfect-city/export_perfect_city.py income-years   (sets sources.income_years from the ACS receipt; census does this too)
   py -I -B tools/perfect-city/export_perfect_city.py places --out D:/Ryagram-scratch/GEO/perfect-city/places.sql
 Labels: population is OBSERVED (2020 Census P1); area and density are CALCULATED here from the boundary;
 median household income is an ESTIMATE (ACS B19013, with its margin of error).
@@ -17,6 +18,7 @@ import io
 import json
 import math
 import pathlib
+import re
 import sys
 import zipfile
 
@@ -115,7 +117,8 @@ def census(args):
                 'population': 'U.S. Census Bureau, 2020 Census, table P1 (total population): OBSERVED',
                 'income': 'U.S. Census Bureau, American Community Survey 5-year, table B19013 (median household income, with margin of error): ESTIMATE',
                 'calculated': 'Area and people per square kilometre are CALCULATED here from the boundary file; shapes are simplified for the page.',
-                'licence': 'Public domain (U.S. government work).'},
+                'licence': 'Public domain (U.S. government work).',
+                'income_years': acs_years(key)},
             'units': feats}
         # A script, not a .json fetch: the app's CSP allows scripts from 'self' but its connect-src is Supabase only.
         path = out_dir / f'{key}.census.js'
@@ -305,6 +308,25 @@ def write_page_doc(key, doc):
     return path
 
 
+def acs_years(key):
+    """The ACS 5-year span of the cached income table, read from its receipt's source URL (data/<last year>/acs/acs5): '2019 to 2023' for 2023."""
+    rec = json.loads((CACHE / key / 'income_b19013.json.receipt.json').read_text(encoding='utf-8'))
+    m = re.search(r'/data/(\d{4})/acs/acs5\?', rec.get('source_url', ''))
+    if not m:
+        sys.exit(f'REFUSED: {key}: the income receipt does not name an ACS 5-year vintage')
+    last = int(m.group(1))
+    return f'{last - 4} to {last}'
+
+
+def income_years(args):
+    """Adds (or replaces) sources.income_years in each page data file; every other field is read back and written unchanged."""
+    for key in COUNTIES:
+        doc = read_page_doc(key)
+        doc['sources']['income_years'] = acs_years(key)
+        path = write_page_doc(key, doc)
+        print(path.relative_to(REPO), doc['sources']['income_years'])
+
+
 def official(args):
     """Adds (or replaces) the key 'official' in each page data file; every other field is read back and written unchanged."""
     years = cbp_years()
@@ -324,6 +346,7 @@ if __name__ == '__main__':
     sub.add_parser('census')
     sub.add_parser('units-seed')
     sub.add_parser('official')
+    sub.add_parser('income-years')
     p = sub.add_parser('places'); p.add_argument('--out', required=True)
     a = ap.parse_args()
-    {'census': census, 'places': places, 'units-seed': units_seed, 'official': official}[a.cmd](a)
+    {'census': census, 'places': places, 'units-seed': units_seed, 'official': official, 'income-years': income_years}[a.cmd](a)

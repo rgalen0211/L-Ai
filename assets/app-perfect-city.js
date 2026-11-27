@@ -12,13 +12,15 @@
     { id: 'greene_oh', label: 'Greene County, Ohio (Beavercreek, Xenia)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza'] }
   ];
   const KINDS = { fast_food: 'Fast food', restaurant: 'Restaurants', chicken: 'Chicken places', burger: 'Burger places', pizza: 'Pizza places', grocery: 'Supermarkets' };      // chicken, burger, pizza: the Ryagram engine's rules (tools/perfect-city/export_perfect_city.py SUBKINDS)
-  const OFFICIAL_KIND = { fast_food: 'limited-service restaurant (fast food)', restaurant: 'full-service restaurant', grocery: 'supermarket and grocery store' };      // the County Business Patterns industry, said as a noun before 'establishments'
+  const KIND_ONE = { fast_food: 'fast food place', restaurant: 'restaurant', chicken: 'chicken place', burger: 'burger place', pizza: 'pizza place', grocery: 'supermarket' };      // one of a kind: '1 restaurant', never '1 restaurants' (CC1 09:43)
+  const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : KINDS[kind].toLowerCase());
+  const OFFICIAL_KIND = { fast_food: 'limited-service restaurants (fast food)', restaurant: 'full-service restaurants', grocery: 'supermarkets and grocery stores' };      // the County Business Patterns industry in plain words: no industry code on the page (CC1 09:48)
   const SHADES = { density: 'People per square kilometre', income: 'Median household income' };
   const FILL = ['#dfe6f3', '#b3c2e0', '#8299c7', '#55699f', '#2f3f73'];      // pale to dark blue (FACES' shade palette B)
   const NO_DATA = '#4a4a52';
   const W = 640, H = 480;
   const WORDS = {
-    intro: 'Pick a county and a kind of business, then click the map, or type a latitude and longitude, to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
+    intro: 'Pick a county and a kind of business, then tap or click the map, or type a latitude and longitude, to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
     notKnown: ['Distances are straight lines, not drive or walk times.',
       'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
       "People within a ring are an estimate: each block group's people are shared by the part of its area inside the ring, as if they were spread evenly.",
@@ -28,16 +30,16 @@
       'One county at a time: places and people across the county line are not counted, even inside a ring.'],
     noPlaces: 'The business points are not loaded yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
-    badTyped: 'Type a latitude and a longitude as numbers, with a point before the decimals (a comma is not accepted), for example 39.7589 and -84.1916.',
+    badTyped: 'Type a latitude (from -90 to 90) and a longitude (from -180 to 180) as numbers, with a point before the decimals (a comma is not accepted), for example 39.7589 and -84.1916.',
     retry: 'Try again',
     looking: 'Looking up the places near this spot...',
     capped: 'There are more places near this spot than one answer carries (the nearest 60), so counts that reach past the 60th place say at least.',
     mapCapped: 'The map shows only the nearest 60 places. The counts within 1, 2 and 5 km are of every place loaded.',
-    pickSpot: 'Click the map, or type a latitude and longitude, to put a spot on it.',
+    pickSpot: 'Tap or click the map, or type a latitude and longitude, to put a spot on it.',
     outside: 'That spot is outside the county. Put it inside the shaded area.',
     compareAdd: 'Compare with a second spot',
     compareRemove: 'Remove the second spot',
-    pickB: 'Click the map, or type a latitude and longitude, to put spot B.',
+    pickB: 'Tap or click the map, or type a latitude and longitude, to put spot B.',
     compareMarks: 'Spot A: white circle, yellow dashed rings. Spot B: cyan square, cyan dotted rings.',
     compareNote: 'Each spot is looked up on its own. This shows what is around each spot side by side; it does not say which spot is better.',
     notCounted: 'The Census does not count chicken, burger or pizza places separately.'
@@ -52,7 +54,7 @@
     if (have()) return Promise.resolve(have());
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = `/assets/perfect-city/${county}.census.js?v=20261127b`;      // b: the County Business Patterns counts (official) added
+      s.src = `/assets/perfect-city/${county}.census.js?v=20261127pcf2`;      // pcf2: sources.income_years added (b: the County Business Patterns counts)
       s.onload = () => (have() ? resolve(have()) : reject(new Error('no data')));
       s.onerror = () => reject(new Error('no data'));
       document.head.append(s);
@@ -177,7 +179,7 @@
       const inA = !!(state.spot && pc.unitAt(state.spot, c.units)), inB = !!(two && pc.unitAt(state.b.spot, c.units));
       const spotsWords = inA && inB ? `, spot A at ${at(state.spot)} and spot B at ${at(state.b.spot)}, each with rings at 1, 2 and 5 km`
         : inA ? `, ${two ? 'spot A' : 'a spot'} at ${at(state.spot)} with rings at 1, 2 and 5 km` : inB ? `, spot B at ${at(state.b.spot)} with rings at 1, 2 and 5 km` : '';
-      const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pc-svg', role: 'img', 'aria-label': `Map of ${c.name}: block groups shaded by ${SHADES[state.shade].toLowerCase()}${spotsWords}${anyPlaces ? `, and ${shown.length} ${KINDS[state.kind].toLowerCase()} near ${two ? 'them' : 'it'} marked` : ''}` });
+      const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pc-svg', role: 'img', 'aria-label': `Map of ${c.name}: block groups shaded by ${SHADES[state.shade].toLowerCase()}${spotsWords}${anyPlaces ? `, and ${shown.length} ${kindWords(state.kind, shown.length)} near ${two ? 'them' : 'it'} marked` : ''}` });
       for (const u of c.units) {
         const d = u.rings.map((r) => 'M' + r.map((p) => P.fwd(p).map((v) => v.toFixed(1)).join(',')).join('L') + 'Z').join('');
         const b = pc.band(value(u), br);
@@ -230,11 +232,10 @@
       if (!o || !o.kinds) return null;
       const k = o.kinds[state.kind];
       if (!k) return o.not_counted && o.not_counted.includes(state.kind) ? h('p', { class: 'meta', id: 'pc-official' }, WORDS.notCounted) : null;
-      const name = OFFICIAL_KIND[state.kind] || k.label.toLowerCase();
-      const what = name.endsWith(')') ? `${name.slice(0, -1)}, NAICS ${k.naics})` : `${name} (NAICS ${k.naics})`;      // 'restaurant (fast food, NAICS 722513)'
+      const what = OFFICIAL_KIND[state.kind] || k.label.toLowerCase();      // plain words: the industry code stays in the data file, off the page
       const n = Number.isFinite(k.est) ? fmt(k.est) : 'fewer than 3 or none (not published)';
-      const m = state.loaded == null ? 'the map data count is not known' : `the map data has ${fmt(state.loaded)} of this kind loaded`;
-      return h('p', { class: 'meta', id: 'pc-official' }, `Census County Business Patterns ${o.year} counts ${n} ${what} establishments in this county (observed); ${m}.`);
+      const m = state.loaded == null ? 'The map data count is not known' : `The map data has ${fmt(state.loaded)} of this kind loaded`;
+      return h('p', { class: 'meta', id: 'pc-official' }, `The Census Bureau's count of ${what} in this county (County Business Patterns ${o.year}, observed): ${n}. ${m}.`);
     }
 
 
@@ -259,8 +260,8 @@
         row('Census block group', '', (k) => cell(k, (x) => x.u.id)),
         row("People in the spot's block group", 'observed, 2020 Census', (k) => cell(k, (x) => (x.u.pop == null ? 'not published' : fmt(x.u.pop)))),
         row('People per square kilometre in the block group', 'calculated', (k) => cell(k, (x) => (x.u.density == null ? 'not available' : fmt(x.u.density)))),
-        row('Median household income in the block group', 'estimated, American Community Survey 2019 to 2023', (k) => cell(k, (x) => (x.u.income ? '$' + fmt(x.u.income[0]) + (x.u.income[1] ? ` (plus or minus $${fmt(x.u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'))),
-        row(`Nearest ${kind.toLowerCase()}`, 'calculated, straight line', (k) => placesCell(k, (x) => (x.near ? `${km1(x.near.km)} km (${x.near.name || 'no name in the map data'})` : 'none found'))),
+        row('Median household income in the block group', `estimated, ${acsWords()}`, (k) => cell(k, (x) => (x.u.income ? '$' + fmt(x.u.income[0]) + (x.u.income[1] ? ` (plus or minus $${fmt(x.u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'))),
+        row(`Nearest ${kind.toLowerCase()}`, 'observed, from OpenStreetMap; distance calculated, straight line', (k) => placesCell(k, (x) => (x.near ? `${km1(x.near.km)} km (${x.near.name || 'no name in the map data'})` : 'none found'))),
         ...pc.RINGS_KM.map((r, i) => row(`${kind} within ${r} km`, 'calculated', (k) => placesCell(k, (x) => countText(x.counts[i])))),
         ...pc.RINGS_KM.map((r, i) => row(`People within ${r} km`, 'estimated', (k) => cell(k, (x) => peopleCell(x.people[i]))))
       ];
@@ -281,6 +282,8 @@
         : { ...c, exact: !(capKm != null && c.km > capKm) }));
     }
     const countText = (cnt) => (cnt.exact ? fmt(cnt.count) : `at least ${fmt(cnt.count)}`);
+    // the survey's years come from the data file (sources.income_years), never typed here
+    const acsWords = () => { const y = state.census && state.census.sources && state.census.sources.income_years; return y ? `American Community Survey ${y}` : 'American Community Survey, 5-year'; };
 
     function drawCompareBar() {
       // a second spot is offered only once spot A is inside the county (an outside spot has nothing to compare)
@@ -339,12 +342,12 @@
         h('ul', { class: 'pc-facts', id: 'pc-unit' },
           h('li', {}, `People: ${u.pop == null ? 'not published' : fmt(u.pop)}`, u.pop == null ? null : h('span', { class: 'pc-label' }, ' observed, 2020 Census')),
           h('li', {}, `People per square kilometre: ${u.density == null ? 'not available' : fmt(u.density)}`, u.density == null ? null : h('span', { class: 'pc-label' }, ' calculated')),
-          h('li', {}, `Median household income: ${u.income ? '$' + fmt(u.income[0]) + (u.income[1] ? ` (plus or minus $${fmt(u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'}`, u.income ? h('span', { class: 'pc-label' }, ' estimated, American Community Survey 2019 to 2023') : null),
+          h('li', {}, `Median household income: ${u.income ? '$' + fmt(u.income[0]) + (u.income[1] ? ` (plus or minus $${fmt(u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'}`, u.income ? h('span', { class: 'pc-label' }, ` estimated, ${acsWords()}`) : null),
           h('li', { class: 'meta' }, `Census block group ${u.id}`))];
       const people = pc.peopleWithinArea(state.spot, c.units);
       if (state.places) {
         const near = pc.nearest(state.spot, state.places, 5), counts = ringCounts(state.spot, state.places, state.within, state.capKm);
-        out.push(h('h3', {}, `Nearest ${KINDS[state.kind].toLowerCase()}`),
+        out.push(h('h3', {}, `Nearest ${KINDS[state.kind].toLowerCase()}`, h('span', { class: 'pc-label' }, ' observed, from OpenStreetMap')),
           h('ol', { class: 'pc-facts', id: 'pc-nearest' }, near.map((p) => h('li', {}, `${p.name || '(no name in the map data)'}: ${km1(p.km)} km`, h('span', { class: 'pc-label' }, ' calculated, straight line')))));
         out.push(h('h3', {}, 'Within 1, 2 and 5 km'),
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, KINDS[state.kind] + ' (calculated)'), h('th', { scope: 'col' }, 'People (estimated)'))),
@@ -358,7 +361,7 @@
       const off = officialLine();
       if (off) out.push(off);
       out.push(h('p', { class: 'meta' }, 'People within a ring: ' + people[0].method + ', rounded to the nearest 100.'));
-      results.replaceChildren(...out);
+      results.replaceChildren(...out.filter((x) => x != null && x !== false));      // a null part (no cap note) must not print 'null' (FACES 09:31)
     }
 
     function drawCredits() {
@@ -366,7 +369,10 @@
       const o = state.census.official;
       const credit = state.credit || (state.compare ? state.b.credit : '');
       // the brackets and the link are one unbreakable inline piece, so a line never ends on '(' or starts with ')' (RENDERER 09:19)
-      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}${o && o.source ? '; ' + o.source.replace(/\.$/, '') : ''}. ${s.calculated}${credit ? ' ' + credit + ' ' : ''}`,
+      // each source in plain words: no file, table or industry codes (CC1 09:48); the survey years come from the data
+      const plain = ['U.S. Census Bureau block group boundaries (2020 geography)', 'U.S. Census Bureau, 2020 Census population counts (observed)',
+        `U.S. Census Bureau, ${acsWords()} median household income (estimated)`].concat(o && o.year ? [`U.S. Census Bureau, County Business Patterns ${o.year} business counts (observed)`] : []);
+      credits.replaceChildren(`Sources: ${plain.join('; ')}. Area and people per square kilometre are calculated here from the boundaries; the shapes are simplified for the page.${credit ? ' ' + credit + ' ' : ''}`,
         credit ? h('span', { class: 'pc-credit-link' }, '(', h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright'), ').') : '',
         ' This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.');
     }
@@ -396,8 +402,8 @@
       if (!spot) return `${name}: not placed yet.`;
       if (!pc.unitAt(spot, state.census.units)) return `${name}: outside the county.`;
       if (!places) return `${name}: placed, people and income only.`;
-      const c5 = countText(ringCounts(spot, places, within, capKm)[2]), n = pc.nearest(spot, places, 1)[0];
-      return `${name}: ${c5} ${KINDS[state.kind].toLowerCase()} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}.`;
+      const r5 = ringCounts(spot, places, within, capKm)[2], n = pc.nearest(spot, places, 1)[0];
+      return `${name}: ${countText(r5)} ${kindWords(state.kind, r5.count)} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}.`;
     }
 
     function summaryLine() {
@@ -407,8 +413,8 @@
       const u = state.census && state.spot ? pc.unitAt(state.spot, state.census.units) : null;
       if (!u) return WORDS.outside;
       if (!state.places) return 'Spot placed. People and income are below.';
-      const c5 = countText(ringCounts(state.spot, state.places, state.within, state.capKm)[2]), n = pc.nearest(state.spot, state.places, 1)[0];
-      return `Spot placed: ${c5} ${KINDS[state.kind].toLowerCase()} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}. Details are below.`;
+      const r5 = ringCounts(state.spot, state.places, state.within, state.capKm)[2], n = pc.nearest(state.spot, state.places, 1)[0];
+      return `Spot placed: ${countText(r5)} ${kindWords(state.kind, r5.count)} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}. Details are below.`;
     }
 
     // Is anything loaded at all? Asked once per county and kind, at the county's middle, so the note shows before any spot (MEDIUM 6).

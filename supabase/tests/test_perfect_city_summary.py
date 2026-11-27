@@ -4,10 +4,10 @@ GEO 2026-11-27. CONNECT wraps this helper with its token check (proposals/CONNEC
 Run: pgvenv/Scripts/python -m unittest supabase/tests/test_perfect_city_summary.py -v
 
 What this proves: the same gate as the page (switch perfectCity or an app admin; else 42501); unknown county or kind, grocery in Greene, a spot outside
-the county or no county data: 22023; the nearest places (straight-line km, basis calculated), the counts within 1, 2 and 5 km (calculated) and the
-people within each ring (estimated, block-group centre method) are right on invented points; and, with the REAL Census seed file
-(supabase/live-steps/perfect_city_units_seed.sql, public domain), the people within each ring EQUAL what the page computes in the browser for the same
-spot (assets/perfect-city-core.js peopleWithin, values pinned below from node). No OpenStreetMap data is used: every place is invented.
+the county or no county data: 22023; the nearest places (straight-line km, basis calculated) and the counts within 1, 2 and 5 km (calculated) are
+right on invented points; and NO people figure is given anywhere in the summary (GEO 11-27 decision: the server has only block-group centres, the page
+uses an area method, so the AI says the people estimate is on the page only and the two cannot disagree). The REAL Census seed file
+(supabase/live-steps/perfect_city_units_seed.sql, public domain) is loaded for the county box. No OpenStreetMap data is used: every place is invented.
 """
 import math
 import sys
@@ -24,11 +24,20 @@ setUpModule = core.setUpModule
 ROOT = Path(__file__).resolve().parent.parent
 SEED = ROOT / "live-steps" / "perfect_city_units_seed.sql"
 CALL = "select ryagram_private.perfect_city_summary_for(%s, %s, %s, %s, %s)"
+# two spots near Dayton (the second one west of the first): no people figure for either
+SPOTS = [(39.7589, -84.1916), (39.7509, -84.2374)]
 
-# The page's own numbers (node, assets/perfect-city-core.js peopleWithin on assets/perfect-city/montgomery_oh.census.js), 11-27:
-PAGE_PEOPLE = {(-84.1916, 39.7589): [4200, 13300, 100700], (-84.2374, 39.7509): [2200, 11500, 66300]}
-# The page's own AREA-WEIGHTED 5 km figures for the same spots (assets/perfect-city-core.js peopleWithinArea), 11-27:
-PAGE_AREA_5KM = {(-84.1916, 39.7589): 104000, (-84.2374, 39.7509): 65100}
+
+def keys_and_numbers(x, path=""):
+    """Every (key path, value) in a JSON value, so a people figure under any key name is found."""
+    if isinstance(x, dict):
+        for k, v in x.items():
+            yield from keys_and_numbers(v, f"{path}.{k}")
+    elif isinstance(x, list):
+        for i, v in enumerate(x):
+            yield from keys_and_numbers(v, f"{path}[{i}]")
+    else:
+        yield path, x
 
 
 def km(lat1, lon1, lat2, lon2):
@@ -96,24 +105,21 @@ class PerfectCitySummary(core.Base):
         self.assertAlmostEqual(s["nearest"][0]["km"], 0.5, places=2)
         self.assertTrue(all(p["basis"] == "calculated" for p in s["nearest"]))
         self.assertEqual([(r["km"], r["places"]["count"], r["places"]["basis"]) for r in s["rings"]], [(1, 1, "calculated"), (2, 3, "calculated"), (5, 5, "calculated")])
-        for r in s["rings"]:
-            self.assertEqual(r["people_about"]["basis"], "estimated")
-            if r["km"] == 5:
-                self.assertIn("centre is inside the ring", r["people_about"]["method"])
-            else:
-                self.assertIsNone(r["people_about"]["value"], "no people figure under 5 km: too rough from centres")
-                self.assertIn("not given for rings under 5 km", r["people_about"]["note"])
+        self.assertTrue(all(set(r) == {"km", "places"} for r in s["rings"]), [sorted(r) for r in s["rings"]])
         self.assertTrue(any("straight lines" in t for t in s["not_known"]) and any("no success score" in t for t in s["not_known"]))
         self.assertIn("Map data (c) OpenStreetMap contributors (ODbL)", s["credits"])
         self.assertNotIn("osm_ref", str(s))
 
-    def test_05_people_at_5_km_match_the_centre_method_and_stay_near_the_pages_area_weighting(self):
+    def test_05_no_people_figure_anywhere_and_the_ai_is_told_the_estimate_is_on_the_page_only(self):
         self.switch_on(OTHER)
-        for (lon, lat), expected in PAGE_PEOPLE.items():
+        for lat, lon in SPOTS:
             s = self.summary(OTHER, lat=lat, lon=lon)
-            five = [r["people_about"]["value"] for r in s["rings"] if r["km"] == 5][0]
-            self.assertEqual(five, expected[2], (lat, lon))                                  # the centre method, exactly as node computes it
-            self.assertLess(abs(five - PAGE_AREA_5KM[(lon, lat)]) / PAGE_AREA_5KM[(lon, lat)], 0.10, (lat, lon))   # within 10% of the page's figure
+            people_keys = [p for p, _ in keys_and_numbers(s) if any(w in p.lower() for w in ("people", "pop", "resident", "centre", "method"))]
+            self.assertEqual(people_keys, [], (lat, lon))
+            texts = [v for _, v in keys_and_numbers(s) if isinstance(v, str)]
+            self.assertFalse(any("centre" in t.lower() for t in texts), "no centre-method text")
+            self.assertTrue(any("No count of people is given here" in t and "Perfect City page" in t for t in s["not_known"]), s["not_known"])
+            self.assertFalse(any("table P1" in t or "total population" in t for t in s["credits"]), s["credits"])
 
     def test_06_distance_formula_matches_python(self):
         got = self.db.as_(None).one("select ryagram_private.perfect_city_km(39.7589, -84.1916, 39.6848, -83.9297)")

@@ -11,7 +11,10 @@ const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const hash = f => crypto.createHash('sha256').update(read(`assets/${f}`).replace(/\r\n/g, '\n')).digest('hex');
 const record = JSON.parse(read('tests/asset-versions.json'));
-const loaded = new Map([...read('app/index.html').matchAll(/\/assets\/(app-[a-z-]+\.js)\?v=([0-9a-z]+)/g)].map(m => [m[1], m[2]]));
+// perfect-city-core.js too: the Perfect City page's own maths, loaded beside app-perfect-city.js (CC1 09:48: it had no row)
+const loaded = new Map([...read('app/index.html').matchAll(/\/assets\/(app-[a-z-]+\.js|perfect-city-core\.js)\?v=([0-9a-z]+)/g)].map(m => [m[1], m[2]]));
+
+test('perfect-city-core.js is checked like the app scripts', () => assert.ok(loaded.has('perfect-city-core.js') && loaded.has('app-perfect-city.js')));
 
 test('every app script the page loads is in the version record', () => {
   for (const f of loaded.keys()) assert.ok(record[f], `${f} is loaded by app/index.html but missing from tests/asset-versions.json`);

@@ -14,7 +14,7 @@ import { handleMcp, toolList } from '../supabase/functions/connect-core/mcp.ts';
 import { HOME_BUILD, HOME_MAX_BYTES, HOME_ORDER, HOME_URI, HOME_WORDS, homeEntries, homeHtml, homeView, isHomeUri } from '../supabase/functions/connect-core/home_panel.ts';
 import { readResource, resourceList } from '../supabase/functions/connect-core/mcp_app.ts';
 
-const GEO_LINE = 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.';
+const GEO_LINE = 'Ask about places with free public data: who lives near a spot and what is close by, in two Ohio counties for now. Every number says whether it was counted, calculated or estimated.';
 const compile = makeCompile(Ajv2020);
 const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
 function world() {
