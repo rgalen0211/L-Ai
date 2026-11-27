@@ -768,7 +768,7 @@ class OpsLedger(unittest.TestCase):
         self.grant(100)
         _, job = self.final("paired")
         self.assertEqual(self.available(), 90)
-        self.admin("update public.jobs set created_at = now() - interval '2 hours', joined_line_at = now() - interval '2 hours' where id = %s returning 1", job)   # the wait in line (BUILDER 11-25: 20261125000100)
+        self.admin("update public.jobs set created_at = now() - interval '2 hours' where id = %s returning 1", job)
         self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)      # service 'unknown': never cancels
         self.admin("update public.workers set last_seen_at = now() - interval '10 minutes' where name = 'ryan-pc' returning 1")
         self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)      # a 10-minute outage never cancels an hour-old backlog

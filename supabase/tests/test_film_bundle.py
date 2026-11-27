@@ -26,7 +26,6 @@ LEDGER = core.ROOT / "phase-2b" / "credits_ledger.sql"
 MIG = core.ROOT / "migrations" / "20261113000400_film_bundles.sql"
 RB = core.ROOT / "rollbacks" / "20261113000400_film_bundles_rollback.sql"
 CHECK = core.ROOT / "live-steps" / "27_film_bundle_after_check.sql"
-ORDER_RB = core.ROOT / "rollbacks" / "20261125000100_queue_order_joined_line_rollback.sql"   # BUILDER 11-25: it rewrites this file's claim line, so it is undone FIRST
 W = "0:10"
 
 
@@ -266,7 +265,7 @@ class Bundles(core.Base):
 
     def test_a_render_that_has_waited_two_minutes_goes_before_a_later_window(self):
         final = self.queued_final()
-        self.admin("update jobs set created_at = now() - interval '3 minutes', joined_line_at = now() - interval '3 minutes' where id = %s returning 1", final)   # the wait in line (BUILDER 11-25: 20261125000100)
+        self.admin("update jobs set created_at = now() - interval '3 minutes' where id = %s returning 1", final)
         _, vid = self.project_with_version()
         window = self.request(vid)[1]
         self.assertEqual(self.claim(), final, "a film that has waited two minutes is not overtaken by editing")
@@ -275,7 +274,7 @@ class Bundles(core.Base):
 
     def test_a_render_that_has_waited_a_minute_is_still_overtaken_and_windows_keep_their_own_order(self):
         final = self.queued_final()
-        self.admin("update jobs set created_at = now() - interval '110 seconds', joined_line_at = now() - interval '110 seconds' where id = %s returning 1", final)   # the wait in line (BUILDER 11-25: 20261125000100)
+        self.admin("update jobs set created_at = now() - interval '110 seconds' where id = %s returning 1", final)
         _, v1 = self.project_with_version()
         _, v2 = self.project_with_version()
         w1 = self.request(v1)[1]
@@ -288,7 +287,7 @@ class Bundles(core.Base):
 
     def test_a_waiting_job_of_a_disabled_type_does_not_hold_windows_back(self):
         final = self.queued_final()
-        self.admin("update jobs set created_at = now() - interval '5 minutes', joined_line_at = now() - interval '5 minutes' where id = %s returning 1", final)   # the wait in line (BUILDER 11-25: 20261125000100)
+        self.admin("update jobs set created_at = now() - interval '5 minutes' where id = %s returning 1", final)
         _, vx = self.project_with_version()
         x = self.db.as_(RYAN).one("select id from submit_job(%s, 'contact_sheet', '{\"periods\": [\"2016\", \"2018\", \"2020\"]}')", vx)       # an enabled job, older than the window
         _, vid = self.project_with_version()
@@ -432,12 +431,6 @@ class Bundles(core.Base):
             self.db.c.execute("rollback")
             self.assertIn("A film bundle job exists", str(e))
         self.admin("delete from jobs where job_type = 'film_bundle' returning 1")
-        if ORDER_RB.exists():                                                            # the later queue-order change first (BUILDER 11-25): this undo refuses until it is undone
-            with self.assertRaises(psycopg.Error) as cm:
-                self.admin(RB.read_text(encoding="utf-8"))
-            self.db.c.execute("rollback")
-            self.assertIn("Undo 20261125000100 first", str(cm.exception))
-            self.apply(ORDER_RB.read_text(encoding="utf-8"), "the queue-order undo")
         self.apply(RB.read_text(encoding="utf-8"), "the rollback")
         self.assertIsNone(self.admin("select to_regprocedure('public.request_film_bundle(uuid,text)')"))
         self.assertEqual(self.admin("select count(*) from pg_trigger where tgname = 'jobs_film_bundle_by_request'"), 0)
@@ -532,8 +525,6 @@ class BundlesAreFree(core.Base):
         self.assertEqual(self.db.as_(None).one("select count(*) from credit_prices where code = 'film_bundle'"), 1)
 
     def test_a_claim_function_that_is_not_the_expected_one_is_refused_in_words_and_nothing_is_changed(self):
-        if ORDER_RB.exists():
-            self.db.as_(None).c.execute(ORDER_RB.read_text(encoding="utf-8"))         # the later queue-order change first (BUILDER 11-25)
         self.db.as_(None).c.execute(RB.read_text(encoding="utf-8"))                   # the claim as it was before this change
         drifted = self.db.as_(None).one("select replace(pg_get_functiondef(to_regprocedure('public.claim_next_job()')), E'order by created_at, id\n    for update skip locked', E'order by created_at desc, id\n    for update skip locked')")
         self.assertIn("created_at desc", drifted)
