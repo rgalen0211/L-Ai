@@ -575,8 +575,6 @@
         return { rows, truncated: true };
       },
       adminFunnel(weeks) { return run(client.rpc('admin_funnel', { p_weeks: weeks || 8 }), 'Couldn\u2019t load the funnel.'); },
-      // The launch funnel by day (SQL 20261127000200, live step 80; behind launchFunnel): counted from the tables the site already fills, no tracking. Admin only; numbers per day only.
-      adminLaunchFunnel(days) { return run(client.rpc('admin_launch_funnel', { p_days: Math.min(Math.max(Number(days) || 14, 1), 60) }), 'Couldn\u2019t load the launch funnel.'); },
       // Render orders (PIPE-1, SQL 20261017000500/600): a full render is REQUESTED, never inserted. While auto_render is off the order waits for Ryan's approval with the credits held.
       requestFinalRender(previewJobId, key) { return run(client.rpc('request_final_render', { p_preview_job: previewJobId, p_idempotency_key: key }), 'Couldn\u2019t request the full render.'); },
       listOrders(versionId) { return run(client.from('render_orders').select('id, state, want, error_code, created_at, ended_at, version_id').eq('version_id', versionId).order('created_at', { ascending: false }), 'Couldn\u2019t load the render requests.'); },

@@ -381,7 +381,7 @@
       // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list.
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']).concat(typeof location !== 'undefined' && /[?&]funnelon/.test(location.search || '') ? ['launchFunnel'] : []), error: null };      // ?editoron: this account is on the live-editor list too
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
@@ -616,16 +616,6 @@
         return { data: { claims_enabled: true, disabled_job_types: [], workers: [
           { name: 'ryan-pc', state: 'ok', enabled: true, last_seen_at: iso(30000), last_engine_commit: { commit: 'a1b2c3d4e5f6', ended_at: iso(3600000) }, running: { job_type: 'preview', claimed_at: iso(60000) }, last_claim_at: iso(60000), free_gb: 120 },
           { name: 'spare', state: 'delayed', enabled: true, last_seen_at: iso(2 * 3600000), last_engine_commit: null, running: null, last_claim_at: iso(86400000), free_gb: 8 }] }, error: null };
-      },
-      // Mock of the launch funnel (SQL 20261127000200): admin only; 14 made-up days, sign-up asks only for today and yesterday (kept 2 days), the rest NULL.
-      admin_launch_funnel({ p_days }) {
-        if (!adminMock()) return fail('Only an admin can do this.');
-        const n = Math.min(Math.max(Number(p_days) || 14, 1), 60), out = [];
-        for (let i = 0; i < n; i++) {
-          const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10), k = (i * 7 + 3) % 5;
-          out.push({ day: d, signups_asked: i < 2 ? 4 + k : null, accounts_opened: 2 + (k % 3), first_sheet: 1 + (k % 2), first_preview: k % 2, film_asked: i % 3 === 0 ? 1 : 0, film_approved: i % 3 === 0 ? 1 : 0, film_delivered: i % 6 === 0 ? 1 : 0 });
-        }
-        return { data: out, error: null };
       },
       admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
       // Mock of the Connect-an-AI switch (NEXT-WEB 157, SQL 20261027000900): admin only, a reason, refuses an administrator and a worker, every change in a history. maya@example.com and
