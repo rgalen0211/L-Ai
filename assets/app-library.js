@@ -148,12 +148,6 @@
 
   function mount(root, data) {
     let token = 0;
-    let retriedFor = '';      // a page that fails to build is built once more (a cold reload of the same state works, Claude 11-26 19:28): never the dead end on the first throw
-    function retryOnce(err, mine, hash) {
-      if (err && err.notAvailable) return;
-      try { console.error('Ryagram: the page failed to build', err); } catch { /* no console */ }
-      if (retriedFor !== hash) { retriedFor = hash; setTimeout(() => { if (mine === token) route(); }, 600); }
-    }
     let stopView = () => {};                      // timers and subscriptions of the page on screen
     const stopAdminNav = adminNav(data);
     // Signed in, the logo takes a person to their own home (Your projects), not back to the public page: the signed-in site is one website (WEB 11-20). Put back on sign-out.
@@ -209,7 +203,6 @@
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
-        retryOnce(err, mine, hash);
         // A page that belongs to another account (or was removed) is said plainly, with the way home: never the database's own sentence (live ride 2026-10-26).
         view = err && err.notAvailable
           ? [h('h1', { tabindex: '-1' }, 'This page isn’t available on this account'),
@@ -220,7 +213,6 @@
              h('a', { href: '#/' }, 'Back to your projects')];
       }
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
-      if (!(view && view[0] && view[0].textContent === 'Something went wrong')) retriedFor = '';
       stopView();
       stopView = () => stops.forEach(fn => fn());
       const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
@@ -1870,16 +1862,11 @@
       async function requestOrder(previewJobId) {
         error.hidden = true;
         await busy(finalButton, 'Requesting\u2026', async () => {
-          let requested = false;
           try {
             await data.requestFinalRender(previewJobId, `app-${previewJobId.slice(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
-            requested = true;
             await loadOrders();
             await refresh();
-          } catch (err) {
-            // The request STANDS once it is made (credits held, version queued): a failure while the page re-reads itself must not say 'try again'. Rebuild the whole page from the server instead.
-            if (requested) { try { console.error('Ryagram: the page could not refresh after the full-render request', err); } catch { /* no console */ } versionChanged(); } else showError(error, err);
-          }
+          } catch (err) { showError(error, err); }
         });
       }
       async function loadOrders() {
