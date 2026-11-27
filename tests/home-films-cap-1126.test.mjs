@@ -12,3 +12,6 @@ test('DELIVERY PLAYER: the delivered film is capped to the page (Claude 22:42): 
   const css = fs.readFileSync(new URL('../assets/app.css', import.meta.url), 'utf8');
   assert.match(css, /\.delivery-video\{[^}]*width:100%[^}]*max-height:70vh[^}]*object-fit:contain/);
 });
+test('DELIVERY PLAYER WIDTH: the panel holding it may grow to 820 px on a wide screen (FACES LOW, Claude 22:42 was too big, 480 too small)', () => {
+  assert.match(fs.readFileSync(new URL('../assets/app.css', import.meta.url), 'utf8'), /\.app-panel:has\(\.delivery-video\)\{max-width:820px\}/);
+});
