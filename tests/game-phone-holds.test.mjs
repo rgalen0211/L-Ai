@@ -126,7 +126,7 @@ async function joinScenario(w) {
   try {
     out.hint = t.tx('#ph-code-hint') === 'The 8 letters on the host' + "'" + 's screen.';
     out.roomForSpace = Number(t.q('#ph-code').attrs.maxlength) >= 9;
-    out.statement = t.tx('#ph-statement') === 'A room is a public channel: anyone with the code can join. Do not type anything private. The host can remove players.';
+    out.statement = t.tx('#ph-statement') === 'The room code is the only lock on this game. A room is a public channel: anyone with the code can join. Do not type anything private. The host can remove players.';
     // genuine host states recorded BEFORE this phone's welcome (old seqs), kept to replay later
     const old = [await question(t), await t.hostSigned({ t: 'state', phase: 'lobby', round: 0, of: 3, players: ['Mallory'] })];
     const oldWelcome = await t.hostSigned({ t: 'welcome', pid: 'placeholder', ok: true, nonce: 'A'.repeat(22), pub: t.host.pub });
@@ -401,7 +401,7 @@ test('two-press leave and the silent-host notice are still there', () => {
 
 test('the phone page loads the new phone script and stylesheet versions', () => {
   const html = read('game-phone/index.html');
-  assert.match(html, /\/assets\/game-phone-live\.js\?v=20261127g10"/); assert.match(html, /\/assets\/game-phone\.css\?v=20261127g4"/);
+  assert.match(html, /\/assets\/game-phone-live\.js\?v=20261127p1b"/); assert.match(html, /\/assets\/game-phone\.css\?v=20261127g4"/);
 });
 
 test('the 11-27 holds lines added to the phone script are plain ASCII', () => {

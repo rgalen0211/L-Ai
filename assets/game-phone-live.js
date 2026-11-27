@@ -41,7 +41,7 @@
     idle: 'The host' + "'" + 's room closed because nothing happened for 15 minutes. Ask the host for the new code.',
     newcode: 'The host started a new room. Type the new code.',
     host: 'The host closed the room.',
-    statement: 'A room is a public channel: anyone with the code can join. Do not type anything private. The host can remove players.',          // FACES 5 (phone) + RENDERER 11:45
+    statement: 'The room code is the only lock on this game. A room is a public channel: anyone with the code can join. Do not type anything private. The host can remove players.',          // FACES 5 (phone) + RENDERER 11:45
   });
   const WHYS = ['removed', 'full', 'locked', 'started', 'name', 'closed'];
   // Why a host said no: the fixed code it sent (game-room.js welcome.why), or, from a host built before the codes, read from its words.
@@ -316,7 +316,7 @@
       show([el('h2', { tabindex: '-1' }, `Round ${m.round + 1}: the answer`), el('p', { class: 'ph-heard', id: 'ph-answer' }, `“${m.reveal ? m.reveal.answer_text : ''}”`),
         el('p', { id: 'ph-mine' }, mine ? `You: ${mine.points} points (${mine.verdict}).` : 'You sent no guess this round.'),
         el('ul', { class: 'ph-meta' }, (m.reveal && m.reveal.results || []).map(r => el('li', {}, `${r.name}: ${r.points}`))),
-        el('p', { class: 'ph-meta' }, 'The host starts the next round.'),
+        el('p', { class: 'ph-meta' }, m.round + 1 >= m.of ? 'That was the last round. The final scores come next.' : 'The host starts the next round.'),          // GAMES 11-27 (FACES walk)
         twoStepLeave()]);
     }
 
@@ -396,7 +396,7 @@
       if (m.phase === 'final') { if (s.phase !== 'final') final(m); }
     }
 
-    const banner = el('p', { class: 'ph-banner', role: 'note' }, el('strong', {}, 'DRAFT. '), 'Text only: no microphone and no camera. The game saves nothing to an account or a file. Your name and guesses go to everyone in this room, and this tab remembers your seat until you close it. Anyone with the room code can join.');
+    const banner = el('p', { class: 'ph-banner', role: 'note' }, 'Text only: no microphone and no camera. The game saves nothing to an account or a file. Your name and guesses go to everyone in this room, and this tab remembers your seat until you close it. Anyone with the room code can join.');
     const title = el('h1', { id: 'ph-title' }, 'Guess the next line');
     const setTitle = (mode, compact) => { title.textContent = mode === 'gap' ? 'Fill the gap' : 'Guess the next line'; title.classList.toggle('ph-compact', !!compact); };        // the page's own title says which game (8-player test LOW); small during a round so Send stays higher
     root.replaceChildren(el('div', { class: 'ph-screen' }, banner, title, live, stage));

@@ -423,6 +423,7 @@
       for (const p of s.players) if (p.gone) unseat(p.pid);
       s.players = active(); s.phase = 'lobby'; s.round = -1; s.guesses = new Map(); s.results = null; s.locked = s.lockedByHost;          // back to the lobby: the lock is what the host chose before the start
       for (const p of s.players) s.totals.set(p.pid, 0);
+      live.textContent = 'Back in the lobby with the same players. Press Start when everyone is ready.';          // GAMES 11-27 (FACES walk): replaces the old game is over line
       armIdle(); draw(true); broadcast();
     }
 
@@ -440,7 +441,7 @@
           : h('p', { class: 'meta gh-lock-line', id: 'gh-auto-lock' }, AUTO_LOCK_TEXT),
         h('p', { class: 'meta gh-help', id: 'gh-help' }, HELP_TEXT, ' ', COURTESY_TEXT),
         lobby ? h('button', { class: 'button secondary', type: 'button', id: 'gh-newcode', onclick: act(() => newCode()) }, 'New room code') : null,
-      ];
+      ].filter(Boolean);          // GAMES 11-27 (FACES walk): no null may reach replaceChildren, it would print the word null
     }
 
     // Changes that do NOT change the phase (a join, a leave, a guess, a removal) update their own lines in place, so the host's keyboard focus stays where it is (audit HIGH 1).
@@ -579,7 +580,7 @@
     }
     openRoom(false);
 
-    root.replaceChildren(h('p', { class: 'form-note', role: 'note' }, h('strong', {}, 'DRAFT. '), 'Five sample rounds made from a made-up script. The game saves nothing to an account or a file, but every name and guess goes to everyone in this room, and anyone with the room code can join: it is not a password.'),
+    root.replaceChildren(h('p', { class: 'form-note', role: 'note' }, 'Five sample rounds made from a made-up script. The game saves nothing to an account or a file, but every name and guess goes to everyone in this room, and anyone with the room code can join: it is not a password.'),
       status, strikeBox, idleBox, live, stage);        // honest privacy words (CC1 09:33); the stage stays empty until the room is open (WEB polish)
     // the same functions the host's buttons call (tests drive a whole game through them)
     return { close, state: () => s, settled: async () => { for (let i = 0; i < 4; i++) { await s.inQ; await s.outQ; } }, start: act(() => startRound(0)), reveal: act(() => reveal()), kick: pid => { const r = kick(pid); touch(); return r; },
