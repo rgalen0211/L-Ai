@@ -3,7 +3,7 @@
 //   switch name          department id        tools (all scope read)
 //   compilations         compilations         get_compilation_status, open_compilations_page
 //   games                games                list_games, open_games_page
-//   perfectCity          geo_intelligence     list_perfect_city_options, open_perfect_city   (perfect_city_summary joins when its branch lands: see the last test)
+//   perfectCity          geo_intelligence     list_perfect_city_options, open_perfect_city   (perfect_city_summary joined with Perfect City part B)
 // Every closed answer is checked for what it must NOT say: nothing of the department's contents. Planted faults for this file: tests/connect_dept_flip_mutants.mjs.
 // What it found while being written (also in the paper CONNECT-DEPT-FLIP-1127.md): Compilations has a THIRD way to be open, the account's desktop-app flag; set_compilation_request is gated by that flag only, never by the switch.
 import { test } from 'node:test';
@@ -33,7 +33,8 @@ const DEPTS = {
   },
   perfectCity: {
     sw: 'perfectCity', id: 'geo_intelligence',
-    tools: [['list_perfect_city_options', () => ({})], ['open_perfect_city', () => ({})]],
+    tools: [['list_perfect_city_options', () => ({})], ['open_perfect_city', () => ({})], ['perfect_city_summary', () => ({ place: 'montgomery_oh', business_type: 'fast_food', lat: 39.7589, lon: -84.1916 })]],
+    switchOnly: true,                       // GEO's helper refuses 42501 without the switch, so the department being 'working' for everyone does NOT open these tools: the switch is the only key (Perfect City part B decision, 11-27)
     secrets: ['Dayton', 'Montgomery', 'Greene', 'Beavercreek', 'montgomery_oh', 'fast_food', 'Census', 'kilometre', '#/d/geo_intelligence'],
   },
 };
@@ -144,7 +145,7 @@ for (const { dept, d, name, args } of ALL) {
       const r = await h.call(name, args(h));
       assert.equal(r.isError, undefined, `${name} with ${sw}: ${r.text}`);
       assert.ok(r.text.length > 20);
-      assert.ok(h.used.every((m) => ['switches', 'departments', 'whoami', 'compilationGet'].includes(m)), 'opened tools only read: ' + h.used.join());
+      assert.ok(h.used.every((m) => ['switches', 'departments', 'whoami', 'compilationGet', 'perfectCitySummary'].includes(m)), 'opened tools only read: ' + h.used.join());
     }
   });
   test(`${name}: the switch is per account (same call: on for one person, refused for another)`, async () => {
@@ -164,6 +165,7 @@ for (const { dept, d, name, args } of ALL) {
     const h = await withProject(world({ switches: [], desktop: false }));
     h.u.departments = working(h.w, d.id);
     const r = await h.call(name, args(h));
+    if (d.switchOnly) { assert.equal(r.isError, true, name + ' must stay closed on the public flip alone (the switch is its only key): ' + r.text); return; }
     assert.equal(r.isError, undefined, name + ': ' + r.text);
     for (const odd of [{ id: d.id, label: 'x' }, { id: d.id, label: 'x', status: 'Working' }, { id: d.id, label: 'x', status: 'working ' }, { id: d.id + 'x', label: 'x', status: 'working' }, { id: d.id.toUpperCase(), label: 'x', status: 'working' }, { id: d.id, label: 'x', status: 'soon' }, null]) {
       h.u.departments = [odd];
