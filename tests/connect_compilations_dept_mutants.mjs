@@ -41,9 +41,10 @@ const mutants = [
   ['the status tool is no longer in the registry', TL, 'setCompilationRequest, getCompilationStatus, openCompilationsPage,', 'setCompilationRequest, openCompilationsPage,'],
   ['the page tool is no longer read-only', TL, 'name: "open_compilations_page", title: "Where to make a compilation", scope: "read", readOnly: true', 'name: "open_compilations_page", title: "Where to make a compilation", scope: "read", readOnly: false'],
   ['the status tool needs the write permission', TL, 'name: "get_compilation_status", title: "Where a compilation stands", scope: "read"', 'name: "get_compilation_status", title: "Where a compilation stands", scope: "write"'],
-  ['a missing function is no longer recognised (42883)', DB, 'code === "42883" || code === "PGRST202"', 'code === "PGRST202"'],
-  ['a missing function through PostgREST is no longer recognised', DB, 'code === "42883" || code === "PGRST202"', 'code === "42883"'],
-  ['every database fault is called a missing function', DB, 'code === "42883" || code === "PGRST202"', 'true'],
+  // db.ts holds this pattern twice since perfectCitySummary was merged (11-27): each text names the Compilations line by its message, so it occurs exactly once
+  ['a missing function is no longer recognised (42883)', DB, 'code === "42883" || code === "PGRST202") throw Object.assign(new Error("Compilation status', 'code === "PGRST202") throw Object.assign(new Error("Compilation status'],
+  ['a missing function through PostgREST is no longer recognised', DB, 'code === "42883" || code === "PGRST202") throw Object.assign(new Error("Compilation status', 'code === "42883") throw Object.assign(new Error("Compilation status'],
+  ['every database fault is called a missing function', DB, 'code === "42883" || code === "PGRST202") throw Object.assign(new Error("Compilation status', 'true) throw Object.assign(new Error("Compilation status'],
   ['the tool does not catch the unavailable code', TL, 'if ((e as { code?: string })?.code === "unavailable") return unavailable(); throw e;', 'throw e;'],
   ['a reason of the closed list has no plain words any more', TL, `  not_said: "the person's videos do not say it",
 `, ''],
