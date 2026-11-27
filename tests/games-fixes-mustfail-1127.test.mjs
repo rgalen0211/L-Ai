@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import nodeCrypto from 'node:crypto';
 
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const count = (s, f) => s.split(f).length - 1;
@@ -233,3 +234,153 @@ for (const mu of MUTANTS) {
 test('plain ASCII in this test file (no invisible or typographic characters typed in)', () => {
   assert.ok(!/[^\x00-\x7f]/.test(read('tests/games-fixes-mustfail-1127.test.mjs')));
 });
+
+// ===== (c) the PHONE after silence, under forged traffic (GEO c10, 11-27) =====
+// The phone harness of tests/game-phone-holds.test.mjs (its stub room signs with HMAC; Eve is another phone with her own key), in its own scope so its names do not meet the host's.
+const PH = (() => {
+const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const PHONE = 'assets/game-phone-live.js';
+const SCALE = 20;          // the phone's timers run 20 times faster: retry at 150 ms, give up at 300 ms
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function until(ok, ms = 2000) { const t0 = Date.now(); while (!ok()) { if (Date.now() - t0 > ms) return false; await sleep(3); } return true; }
+const CODE = 'HQRMWKTP', TYPED = 'hqrm wktp';
+
+// A tiny fake page: just what the phone script uses.
+class El {
+  constructor(tag) { this.tagName = String(tag).toLowerCase(); this.nodeType = 1; this.children = []; this.attrs = {}; this.listeners = {}; this.hidden = false; this.value = ''; this.disabled = false; this.className = '';
+    this.classList = { toggle() {} }; }
+  setAttribute(k, v) { this.attrs[k] = String(v); if (k === 'id') this.id = String(v); }
+  removeAttribute(k) { delete this.attrs[k]; }
+  addEventListener(t, cb) { (this.listeners[t] = this.listeners[t] || []).push(cb); }
+  append(...k) { this.children.push(...k); }
+  replaceChildren(...k) { this.children = k; }
+  set textContent(v) { this.children = [{ nodeType: 3, textContent: String(v) }]; }
+  get textContent() { return this.children.filter(Boolean).map(c => c.textContent).join(''); }
+  all(pred, out = []) { for (const c of this.children) if (c && c.nodeType === 1) { if (pred(c)) out.push(c); c.all(pred, out); } return out; }
+  querySelector(sel) { const pred = sel.startsWith('#') ? (e => e.id === sel.slice(1) || e.attrs.id === sel.slice(1)) : (e => e.tagName === sel); return this.all(pred)[0] || null; }
+  focus() {}
+}
+
+// The STUB room (contract API). Keys are random strings with an HMAC secret; codeOf gives CODE only for the host's key.
+function stubRoom() {
+  const secrets = new Map(), codes = new Map(), listeners = new Set(), sent = [];
+  const b64 = n => nodeCrypto.randomBytes(n).toString('base64url');
+  const sorted = v => Array.isArray(v) ? v.map(sorted) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sorted(v[k])])) : v;
+  const canon = (code, m) => { const c = { ...m }; delete c.sig; return 'stub-sig-2\n' + code + '\n' + JSON.stringify(sorted(c)); };
+  const mac = (secret, text) => nodeCrypto.createHmac('sha256', secret).update(text).digest('base64url');
+  const R = {
+    CODE_LEN: 8, verifies: 0, connects: 0, closed: 0, codes, sent,
+    normCode: s => String(s ?? '').toUpperCase().replace(/[\s-]/g, ''),
+    newNonce: () => b64(16),
+    validate: m => (m && typeof m === 'object' && typeof m.t === 'string' ? JSON.parse(JSON.stringify(m)) : null),
+    keyPair: async jwk => {
+      if (jwk) { if (!secrets.has(jwk.x)) secrets.set(jwk.x, jwk.d); return { pub: jwk.x, jwk, key: jwk.d }; }
+      const pub = 'B' + b64(64), d = b64(32); secrets.set(pub, d);
+      return { pub, jwk: { kty: 'EC', crv: 'P-256', x: pub, d }, key: d };
+    },
+    pidOf: async pub => nodeCrypto.createHash('sha256').update(String(pub)).digest('hex').slice(0, 20),
+    codeOf: async pub => codes.get(pub) || 'ZZZZZZZZ',
+    sign: async (pair, code, msg) => ({ ...msg, sig: mac(pair.key, canon(code, msg)) }),
+    verify: async (pub, code, m) => { R.verifies++; const sec = secrets.get(pub); return !!sec && typeof m.sig === 'string' && m.sig === mac(sec, canon(code, m)); },
+    connect: async () => { R.connects++; return { send: async m => { sent.push(JSON.parse(JSON.stringify(m))); }, onMessage: cb => { listeners.add(cb); return () => listeners.delete(cb); }, close() { R.closed++; listeners.clear(); } }; },
+    deliver: m => { for (const cb of [...listeners]) cb(R.validate(m)); },
+    from: t => sent.filter(m => m.t === t),
+  };
+  return R;
+}
+
+// One browser world: game-phone.js and the (maybe mutated) live phone script in one context, a session store, fake intervals, faster timeouts.
+function world({ edits = [], names = null, store = new Map() } = {}) {
+  const intervals = new Map(), clock = { off: 0 }; let iid = 0;
+  const ctx = { console, URLSearchParams, URL, Date: class extends Date { static now() { return Date.now() + clock.off; } }, crypto: globalThis.crypto,
+    setTimeout: (fn, ms) => setTimeout(fn, Math.max(0, (ms || 0) / SCALE)), clearTimeout,
+    setInterval: fn => { intervals.set(++iid, fn); return iid; }, clearInterval: id => { intervals.delete(id); },
+    location: { hostname: '127.0.0.1', search: '?relay=http://127.0.0.1:9', hash: '', origin: 'http://127.0.0.1:1' },
+    sessionStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) },
+    document: { createElement: t => new El(t), createTextNode: t => ({ nodeType: 3, textContent: String(t) }), getElementById: () => null },
+    addEventListener() {}, removeEventListener() {} };
+  ctx.window = ctx;
+  if (names) ctx.ryagramGameNames = names;
+  vm.createContext(ctx);
+  vm.runInContext(read('assets/game-phone.js'), ctx, { filename: 'game-phone.js' });
+  let src = read(PHONE);
+  for (const [from, to] of edits) { assert.ok(src.includes(from), `mutant text is in ${PHONE}: ${from}`); src = src.split(from).join(to); }
+  vm.runInContext(src, ctx, { filename: PHONE });
+  return { W: ctx, store, intervals, clock };
+}
+
+// A phone mounted on the stub room, and the real host's key (its code is CODE).
+async function setup(opts = {}) {
+  const w = world(opts), R = opts.R || stubRoom();
+  const host = opts.host || await R.keyPair(); R.codes.set(host.pub, CODE);
+  const Eve = await R.keyPair();          // another phone in the room, with her own key
+  let hseq = opts.hseq || 0;
+  const P = w.W.ryagramGamePhone, H = { ...P, codeProblem: v => P.codeProblem(v, R.CODE_LEN) };          // as assets/game-phone.js passes it in live mode
+  const root = new El('div');
+  const api = w.W.ryagramGamePhoneLive.mount(root, H, R, { games: 'account' });
+  const t = {
+    w, R, host, Eve, root, api, text: () => root.textContent, q: sel => root.querySelector(sel), tx: sel => { const e = root.querySelector(sel); return e ? e.textContent : null; },
+    hostSigned: async m => R.sign(host, CODE, { ...m, seq: ++hseq }),
+    hostSeqNow: () => hseq,
+    seat: () => JSON.parse(w.store.get('ryagram-game-seat') || 'null'),
+    submit: async form => { for (const cb of (form || root.querySelector('form')).listeners.submit || []) await cb({ preventDefault() {} }); },
+    press: async b => { if (!b) throw new Error('no such button'); for (const cb of b.listeners.click || []) await cb({}); },
+    button: re => root.all(e => e.tagName === 'button' && re.test(e.textContent))[0] || null,
+    type: (code, name) => { root.querySelector('#ph-code').value = code; root.querySelector('#ph-name').value = name; },
+  };
+  return t;
+}
+// Type, press Join, wait for the join to be sent; the join finishes when `going` resolves.
+async function startJoin(t, name = 'Ana', code = TYPED) {
+  t.type(code, name);
+  const before = t.R.from('join').length;
+  const going = t.submit();
+  await until(() => t.R.from('join').length > before);
+  return { going, join: t.R.from('join')[before] };
+}
+async function joinOk(t, name = 'Ana') {
+  const { going, join } = await startJoin(t, name);
+  t.R.deliver(await t.hostSigned({ t: 'welcome', pid: join.pid, ok: true, name, nonce: join.nonce, pub: t.host.pub }));
+  await going;
+  return join;
+}
+const question = async (t, round = 0) => t.hostSigned({ t: 'state', phase: 'question', round, of: 3, players: ['Ana', 'Ben'], heard_text: 'down by the old', words_left: 2, left_s: 30 });
+  return { setup, joinOk, PHONE, read };
+})();
+
+// A stranger with the code sends a forged state (signed with Eve's key, not the host's) every 5 s for 40 s of host silence (the limit is 16 s, so 20 s past it and more).
+// Only a VERIFIED host message counts as heard, so the phone must still show the silent-host notice and close its connection, keeping its seat.
+async function forgedSilenceScenario(w) {
+  const out = {};
+  try {
+    const t = await PH.setup(w);
+    const join = await PH.joinOk(t, 'Ana');
+    const v0 = t.R.verifies;
+    for (let i = 0; i < 8; i++) {
+      t.w.clock.off += 5000;
+      t.R.deliver(await t.R.sign(t.Eve, 'HQRMWKTP', { t: 'state', phase: 'lobby', round: 0, of: 3, players: ['Ana', 'Mallory'], seq: 1e6 + i }));
+      await new Promise(r => setTimeout(r, 5));
+      for (const fn of [...t.w.intervals.values()]) fn();
+    }
+    out.forgedWereChecked = t.R.verifies > v0;
+    out.notice = /stopped answering/.test(t.text()) && !!t.q('#ph-again');
+    out.connectionClosed = t.R.closed === 1 && t.w.intervals.size === 0;
+    out.seatKept = !!t.seat() && t.seat().pid === join.pid;
+  } catch (e) { out.crashed = String(e && e.stack || e).slice(0, 300); }
+  return out;
+}
+test('MUST FAIL: the phone after host silence: forged states from another key every 5 s for 40 s do not count as heard; the silent-host notice shows and the connection closes, seat kept', async () => {
+  assert.deepEqual(await forgedSilenceScenario({}), { forgedWereChecked: true, notice: true, connectionClosed: true, seatKept: true });
+});
+
+const PHONE_MUTANTS = [
+  { name: '(c) phone: any message (before fromHost) counts as heard', edits: [['          s.off = s.conn.onMessage(m => {\n', '          s.off = s.conn.onMessage(m => { s.lastHeard = Date.now();\n']], scenario: forgedSilenceScenario, caught: ['notice', 'connectionClosed'] },
+];
+for (const mu of PHONE_MUTANTS) {
+  test(`MUST FAIL (mutant caught): ${mu.name}`, async () => {
+    const src = PH.read(PH.PHONE);
+    for (const [from] of mu.edits) assert.equal(count(src, from), 1, `mutant text is in ${PH.PHONE} exactly once: ${from}`);
+    const out = await mu.scenario({ edits: mu.edits });
+    for (const k of mu.caught) assert.equal(out[k], false, `${mu.name}: ${k} must turn false (got ${JSON.stringify(out)})`);
+  });
+}
