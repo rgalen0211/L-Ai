@@ -23,3 +23,6 @@
 .le-nosketch .le-standin>.le-view,.le-nosketch .le-standin>.le-scrub,.le-nosketch .le-standin>.le-tl-holder,.le-nosketch .le-standin>.le-ticks,.le-nosketch .le-standin>.le-keys,.le-nosketch .le-row.le-waiting{display:none!important}
 .le-nopic{display:none;margin:12px 0 0;padding:12px;border:1px solid var(--line,#3a3a44);border-radius:10px;background:#15151b}
 .le-card[hidden]+.le-nopic{display:block}
+
+/* Narrow chat columns (CONNECT 11-27, wave 8): the four buttons of a clip row fill two even rows instead of leaving one orphan on a third line (320 to 420 px; nothing was clipped or off-screen before, every target stays 44 px; the time readout still wraps in two at 320, left as it was: forcing it onto one line pushed the page sideways) */
+@media (max-width:420px){.le-item .le-mv{flex:1 1 100%}.le-item .le-mv .button{flex:1 1 calc(50% - 3px)}}
