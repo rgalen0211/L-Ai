@@ -24,14 +24,14 @@
     return /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base) ? base + CONNECT_PATH : '';
   }
   const CONNECT_STEPS = {
-    claude: { label: 'Claude', note: 'Claude on the web, Desktop or your phone. On a Free, Pro or Max plan you add it yourself (a Free plan can have one custom connector). On Team or Enterprise an administrator adds it first.',
+    claude: { label: 'Claude', note: 'Claude on the web, Desktop or your phone. On a Free, Pro or Max plan you add it yourself (a Free plan can have one custom connector). On Team or Enterprise an administrator adds it first. If your screen looks different, ask Claude how to add a custom connector and give it the address above.',
       steps: ['Open Customize, then Connectors. Press + Add, then Add custom connector.', 'Name it Ryagram. For the address, paste the address above. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically.',
-        'Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Allow.', 'In a chat, turn the Ryagram connector on and try: “Using Ryagram, show my credits.”'] },
-    chatgpt: { label: 'ChatGPT', note: 'This works only on plans that allow custom MCP connectors. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan.',
-      steps: ['In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste the address above, and choose OAuth for authentication.', 'Accept the notice about custom servers, then Create and Connect.',
-        'Sign in to Ryagram, check the address, and press Allow.', 'ChatGPT asks you to confirm actions that save or start something. Read what it will do before you confirm.'] }
+        'Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Approve.', 'In a chat, turn the Ryagram connector on and try: “Using Ryagram, show my credits.”'] },
+    chatgpt: { label: 'ChatGPT', note: 'This works only on plans that allow custom MCP connectors. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan. If your screen looks different, ask ChatGPT how to add a custom connector and give it the address above.',
+      steps: ['In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste the address above, and choose OAuth for authentication. (MCP is the kind of connector that uses an address; OAuth is the sign-in kind.)', 'Accept the notice about custom servers, then Create and Connect.',
+        'Sign in to Ryagram, check the address, and press Approve.', 'ChatGPT asks you to confirm actions that save or start something. Read what it will do before you confirm.'] }
   };
-  const AFTER_ALLOW = 'After you press Allow, your AI appears in the list above.';
+  const AFTER_ALLOW = 'After you press Approve, your AI appears in the list above.';
   const ADDRESS_TIP = 'Use the whole address. The /mcp at the end is the part people miss.';
   const NOT_ALLOWED = 'This AI can’t be connected.';
   const INVITE_ONLY = 'Connecting an AI is not open to your account yet. To ask for it, write to ryagram@uselai.com.';
@@ -200,7 +200,7 @@
           } }, 'Disconnect')))) : h('p', { class: 'form-note' }, 'No AI is connected to your account.'));
       }
       await draw();
-      // Connect an AI: a button that opens the steps. The list refreshes when the person comes back to this tab, so a new AI shows up after Allow without a reload.
+      // Connect an AI: a button that opens the steps. The list refreshes when the person comes back to this tab, so a new AI shows up after Approve without a reload.
       const address = connectorAddress(window.ryagramConfig), how = h('div', { class: 'connect-how', hidden: true });
       const copyNote = h('p', { class: 'form-note', role: 'status' });
       const want = opts.open === 'chatgpt' ? 'chatgpt' : 'claude';                // the door sends people here with ?connect=claude|chatgpt: the steps open on that assistant

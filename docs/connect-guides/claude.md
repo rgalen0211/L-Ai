@@ -4,7 +4,7 @@ Plans: Free (one custom connector), Pro, Max, Team, Enterprise. On Team and Ente
 
 1. Settings, Connectors, Add custom connector.
 2. Name: Ryagram. URL: `<CONNECT_URL>`. Leave client id and secret empty (Claude registers itself).
-3. Add, then Connect. A Ryagram page opens: sign in, check that it says **Claude** and the return address is `claude.ai`, then press Allow.
+3. Add, then Connect. A Ryagram page opens: sign in, check that it says **Claude** and the return address is `claude.ai`, then press Approve.
 4. In a chat, turn the Ryagram connector on and ask: "Using Ryagram, show my credits."
 5. Claude asks before using each tool the first time. "Allow always" is fine for reading tools; keep asking for anything that saves or starts a sheet or preview.
 

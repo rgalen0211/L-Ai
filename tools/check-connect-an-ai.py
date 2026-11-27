@@ -1,5 +1,5 @@
 """'Connect an AI' on Account > Connected AIs (NEXT-WEB 156) in real Chrome, mock mode, LOCAL server only, desktop and phone: the button opens plain steps for Claude and ChatGPT, the exact
-connector address is shown in full with a Copy button that really copies it, the page says what happens after Allow, the list refreshes when the person comes back to the tab, nothing scrolls sideways. Needs Chrome.
+connector address is shown in full with a Copy button that really copies it, the page says what happens after Approve, the list refreshes when the person comes back to the tab, nothing scrolls sideways. Needs Chrome.
 
     python tools/check-connect-an-ai.py [outdir]        (default D:/Ryagram-scratch/WEB/connect-an-ai-shots)
 """
@@ -73,7 +73,7 @@ def main():
                 check('Customize, then Connectors' in txt and 'Register automatically' in txt, 'the Claude steps are there')
                 p.locator('.connect-app', has_text='ChatGPT').locator('summary').click()
                 check('Create (custom MCP)' in sec.inner_text() and 'only on plans that allow custom MCP connectors' in sec.inner_text(), 'the ChatGPT steps and the plan note are there')
-                check('After you press Allow, your AI appears in the list above.' in sec.inner_text(), 'it says what happens after Allow')
+                check('After you press Approve, your AI appears in the list above.' in sec.inner_text(), 'it says what happens after Approve')
                 check(sec.locator('a[href*="connect-ai"]').count() == 0, 'the unlisted guide is not linked from here')
                 sec.locator('[data-key="copy-address"]').click()
                 p.wait_for_selector('.connect-address .form-note[role="status"]:has-text("Copied")')

@@ -2,7 +2,7 @@
 
 1. chat.mistral.ai, Connectors, Add Connector, Custom MCP Connector.
 2. Name: `ryagram` (no spaces or special characters). URL: `<CONNECT_URL>`.
-3. Le Chat detects OAuth; sign in to Ryagram, check the address, Allow.
+3. Le Chat detects OAuth; sign in to Ryagram, check the address, Approve.
 
 On Free, Pro and Student the account owner is the admin and can add it. Le Chat does not yet support resources or prompts; Ryagram uses tools only.
 
