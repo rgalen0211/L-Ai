@@ -33,7 +33,7 @@ test('DOOR: the Bring your own AI line is CONNECT\'s wording and stays hidden un
   assert.match(html, /<p class="rg-byoai" hidden>Bring your own AI: connect Claude or ChatGPT to your account \(Account, then Connected AIs\) and ask it to build a film\.<\/p>/);
 });
 test('DOOR: the hero is ONE swappable still (FACES pick: the shaded 2017 frame); the Interstate loop moved to the films row', () => {
-  assert.match(html, /<img class="rg-hero-still" src="\/assets\/ryagram-hero-still\.jpg" width="1280" height="720" alt="A map of US states shaded by adult obesity, with dots for new restaurants\.">/);
+  assert.match(html, /<img class="rg-hero-still" src="\/assets\/ryagram-hero-still\.jpg" width="1280" height="720" alt="A map of US states hatched by adult obesity, with dots for new restaurants\.">/);
   assert.ok(fs.statSync(new URL('../assets/ryagram-hero-still.jpg', import.meta.url)).size < 150 * 1024);
   assert.match(html, /Rise of the Interstate Highway/);
 });
