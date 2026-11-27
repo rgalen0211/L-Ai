@@ -81,7 +81,7 @@
 
     function kindSelect() {
       const c = COUNTIES.find((x) => x.id === state.county);
-      if (!c.kinds.includes(state.kind)) state.kind = c.kinds[0];
+      if (!c.kinds.includes(state.kind)) { state.kindNote = `${KINDS[state.kind]} are not available in ${c.label}, so the page shows ${KINDS[c.kinds[0]].toLowerCase()}.`; state.kind = c.kinds[0]; }
       const hadFocus = document.activeElement && document.activeElement.id === 'pc-kind';
       kindWrap.replaceChildren(select('pc-kind', 'Business', c.kinds.map((k) => [k, KINDS[k]]), state.kind, (v) => { state.kind = v; refresh(); }));
       if (hadFocus) document.getElementById('pc-kind')?.focus();
@@ -118,17 +118,14 @@
       }
       if (state.places) for (const p of state.places) {
         const [x, y] = P.fwd([p.lon, p.lat]);
-        root.append(svg('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: '4.5', fill: '#ff9f43', stroke: '#14141a', 'stroke-width': '1.2', class: 'pc-place' }));
+        root.append(svg('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: '6', fill: '#ff9f43', stroke: '#14141a', 'stroke-width': '1.5', class: 'pc-place' }));
       }
       if (state.spot) {
         const [x, y] = P.fwd(state.spot);
         for (const r of pc.RINGS_KM) {
           root.append(svg('circle', { cx: x, cy: y, r: P.kmToPx(r).toFixed(1), fill: 'none', stroke: '#ffd166', 'stroke-width': '2', 'stroke-dasharray': '6 3', class: 'pc-ring' }));
-          const t = svg('text', { x: x + 3, y: (y - P.kmToPx(r) - 3).toFixed(1), fill: '#ffd166', 'font-size': '13', 'font-weight': '700', stroke: '#14141a', 'stroke-width': '3', 'paint-order': 'stroke', 'aria-hidden': 'true', class: 'pc-ring-label' });
-          t.textContent = `${r} km`;
-          root.append(t);
         }
-        root.append(svg('circle', { cx: x, cy: y, r: '5', fill: '#ffffff', stroke: '#14141a', 'stroke-width': '1.5', id: 'pc-spot' }));
+        root.append(svg('circle', { cx: x, cy: y, r: '8', fill: '#ffffff', stroke: '#14141a', 'stroke-width': '2', id: 'pc-spot' }));
       }
       root.addEventListener('click', (e) => {
         const box = root.getBoundingClientRect();
@@ -140,13 +137,13 @@
       const keys = FILL.map((f, i) => h('li', {}, h('span', { class: 'pc-swatch', 'data-fill': f }), ' ',
         i === 0 ? `under ${lab(br[0])}` : i === FILL.length - 1 ? `${lab(br[i - 1])} or more` : `${lab(br[i - 1])} to ${lab(br[i])}`));
       const legend = h('div', { class: 'pc-legend' }, h('p', { class: 'meta' }, legendTitle), h('ul', { class: 'pc-keys' }, keys),
-        h('p', { class: 'meta' }, 'Grey: no published figure.' + (state.places ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.' : '')));
+        h('p', { class: 'meta' }, 'Grey: no published figure.' + (state.spot ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : '') + (state.places ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.' : '')));
       // the swatch colours are attributes on SVG squares (the page's CSP allows no inline style)
       legend.querySelectorAll('.pc-swatch').forEach((s) => { const f = s.getAttribute('data-fill'); s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: f })])); });
       mapBox.replaceChildren(root, legend);
     }
 
-    // 'about 0' would contradict the block group's own count: when no block-group centre is inside a ring, say so instead.
+    // area weighting counts any block group the ring touches; if none is touched, say so instead of a bare 0.
     const peopleCell = (p) => (p.blockGroups === 0 ? 'none counted (see the method below)' : `about ${fmt(p.about)}`);
 
     function drawResults() {
@@ -218,8 +215,9 @@
       if (state.spot && !pc.unitAt(state.spot, state.census.units)) state.spot = null;
       await loadPlaces();
       await checkLoaded();
-      status.textContent = state.placesNote;
       drawMap(); drawResults(); drawCredits();
+      status.textContent = state.placesNote || (state.spot ? summaryLine() : '') || (state.kindNote || '');
+      state.kindNote = '';
     }
 
     const controls = h('div', { class: 'pc-controls' },
