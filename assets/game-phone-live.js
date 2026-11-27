@@ -42,6 +42,11 @@
     newcode: 'The host started a new room. Type the new code.',
     host: 'The host closed the room.',
     statement: 'The room code is the only lock on this game. A room is a public channel: anyone with the code can join. Do not type anything private. The host can remove players.',          // FACES 5 (phone) + RENDERER 11:45
+    // GAMES 11-27 (Ryan's walk 15:43: a player could not tell what the game is): how to play, a hint on every round, and the plain sample-lines sentence. Drafts FOR RYAN'S YES.
+    howto: 'How to play: the host plays or reads a line out loud and stops. Guess how it ends.',
+    roundHint: 'Listen to the host, then type how the line ends.',
+    gapHint: 'Listen to the host, then type the missing word.',
+    sample: 'These are five made-up sample lines. Clips with sound are not here yet.',
   });
   const WHYS = ['removed', 'full', 'locked', 'started', 'name', 'closed'];
   // Why a host said no: the fixed code it sent (game-room.js welcome.why), or, from a host built before the codes, read from its words.
@@ -259,7 +264,7 @@
       const seat = note || keep ? null : readSeat();          // after "Leave the room" the form starts empty
       if (seat) { code.input.value = seat.code; name.input.value = seat.name; }
       if (keep) { code.input.value = keep.code || ''; name.input.value = keep.name || ''; }
-      show([el('h2', { tabindex: '-1' }, 'Join a game'), note ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-note' }, note) : null,
+      show([el('h2', { tabindex: '-1' }, 'Join a game'), el('p', { class: 'ph-meta ph-howto', id: 'ph-howto' }, WORDS.howto), note ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-note' }, note) : null,
         joinNote, seat ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-rejoin' }, `You were in room ${seat.code} as ${seat.name}. Press Join the room to go back in with your score.`) : el('p', { class: 'ph-meta' }, 'The host starts a game on their screen and shows a room code.'),
         el('p', { class: 'ph-meta ph-statement', id: 'ph-statement' }, WORDS.statement), form]);          // FACES 5 (phone): visible on the join screen, not in a tooltip
       return { submit: attempt };
@@ -270,6 +275,7 @@
       s.phase = 'lobby';
       show([el('h2', { tabindex: '-1' }, `You are in room ${s.code}`), el('p', {}, `Your name: `, el('strong', {}, s.name)),
         el('p', { class: 'ph-meta', id: 'ph-lobby-game', 'aria-live': 'polite' }, 'The game: Guess the next line.'),
+        el('p', { class: 'ph-meta ph-howto', id: 'ph-lobby-howto' }, WORDS.howto),          // GAMES 11-27 (Ryan's walk): what the game is, before round 1
         el('p', { class: 'ph-meta', id: 'ph-lobby-players', 'aria-live': 'polite' }, players && players.length ? `Players: ${players.join(', ')}` : 'Waiting for the host to start.'),
         el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
     }
@@ -306,7 +312,8 @@
       const leaveBtn = () => twoStepLeave();        // leave at any time, not only in the lobby (verify H1); a second press is needed so a mis-tap under Send does not drop the player
       s.left = m.left_s || 0;
       live.textContent = gap ? `Round ${m.round + 1} of ${m.of}. Fill the gap: one word is missing.` : `Round ${m.round + 1} of ${m.of}. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left to guess.`;
-      show([el('h2', { tabindex: '-1' }, gap ? `Round ${m.round + 1} of ${m.of}: fill the gap` : `Round ${m.round + 1} of ${m.of}`), clock,
+      show([el('h2', { tabindex: '-1' }, gap ? `Round ${m.round + 1} of ${m.of}: fill the gap` : `Round ${m.round + 1} of ${m.of}`),
+        el('p', { class: 'ph-meta ph-round-hint', id: 'ph-round-hint' }, gap ? WORDS.gapHint : WORDS.roundHint), clock,          // GAMES 11-27 (Ryan's walk): listen to the host
         el('p', { class: 'ph-label' }, gap ? 'The line, with one word missing' : 'What was said so far'), el('p', { class: 'ph-heard', id: 'ph-heard' }, gap ? `“${m.heard_text}”` : `“${m.heard_text} …”`), form, leaveBtn()]);
       tick(clock);
     }
@@ -398,7 +405,7 @@
       if (m.phase === 'final') { if (s.phase !== 'final') final(m); }
     }
 
-    const banner = el('p', { class: 'ph-banner', role: 'note' }, 'Text only: no microphone and no camera. The game saves nothing to an account or a file. Your name and guesses go to everyone in this room, and this tab remembers your seat until you close it. Anyone with the room code can join.');
+    const banner = el('p', { class: 'ph-banner', role: 'note' }, el('strong', { id: 'ph-sample' }, WORDS.sample), ' ', 'Text only: no microphone and no camera. The game saves nothing to an account or a file. Your name and guesses go to everyone in this room, and this tab remembers your seat until you close it. Anyone with the room code can join.');
     const title = el('h1', { id: 'ph-title' }, 'Guess the next line');
     const setTitle = (mode, compact) => { title.textContent = mode === 'gap' ? 'Fill the gap' : 'Guess the next line'; title.classList.toggle('ph-compact', !!compact); };        // the page's own title says which game (8-player test LOW); small during a round so Send stays higher
     root.replaceChildren(el('div', { class: 'ph-screen' }, banner, title, live, stage));

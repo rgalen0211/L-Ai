@@ -401,7 +401,7 @@ test('two-press leave and the silent-host notice are still there', () => {
 
 test('the phone page loads the new phone script and stylesheet versions', () => {
   const html = read('game-phone/index.html');
-  assert.match(html, /\/assets\/game-phone-live\.js\?v=20261127p1d"/); assert.match(html, /\/assets\/game-phone\.css\?v=20261127g4"/);
+  assert.match(html, /\/assets\/game-phone-live\.js\?v=20261127ht2"/); assert.match(html, /\/assets\/game-phone\.css\?v=20261127g4"/);
 });
 
 test('the 11-27 holds lines added to the phone script are plain ASCII', () => {
@@ -410,6 +410,30 @@ test('the 11-27 holds lines added to the phone script are plain ASCII', () => {
   assert.ok(lines.length > 10);
   for (const l of lines) assert.ok(!/[^\x00-\x7f]/.test(l), l.slice(0, 100));
   assert.ok(!/[^\x00-\x7f]/.test(read('tests/game-phone-holds.test.mjs')));
+});
+
+// GAMES 11-27 HOW TO PLAY (Ryan's walk 15:43: "Not sure what game this is"): the how-to line on the join screen and in the lobby, a listen-to-the-host hint under
+// every round heading (its own words for Fill the gap), and the plain sample-lines sentence in the phone's banner. All words drafts FOR RYAN'S YES.
+const HOWTO = 'How to play: the host plays or reads a line out loud and stops. Guess how it ends.';
+async function howtoScenario(w) {
+  const out = {};
+  try {
+    const t = await setup(w);
+    out.joinHowto = t.tx('#ph-howto') === HOWTO && !!t.q('#ph-code');
+    out.bannerSample = t.tx('#ph-sample') === 'These are five made-up sample lines. Clips with sound are not here yet.' && /^These are five made-up sample lines\. Clips with sound are not here yet\. Text only: /.test(t.root.all(e => e.className === 'ph-banner')[0].textContent);
+    await joinOk(t, 'Ana');
+    out.lobbyHowto = /You are in room/.test(t.text()) && t.tx('#ph-lobby-howto') === HOWTO;
+    t.R.deliver(await question(t)); await until(() => !!t.q('#ph-guess'), 300);
+    const h2 = t.root.all(e => e.tagName === 'h2')[0], kids = t.q('#ph-guess') ? t.root.all(e => e.tagName === 'p' || e.tagName === 'h2') : [];
+    out.roundHint = t.tx('#ph-round-hint') === 'Listen to the host, then type how the line ends.' && kids.indexOf(t.q('#ph-round-hint')) === kids.indexOf(h2) + 1;
+    t.R.deliver(await t.hostSigned({ t: 'state', mode: 'gap', phase: 'question', round: 1, of: 3, players: ['Ana'], heard_text: 'down by the ___ mill', words_left: 1, left_s: 30 }));
+    await until(() => /fill the gap/.test(t.text()), 300);
+    out.gapHint = t.tx('#ph-round-hint') === 'Listen to the host, then type the missing word.';
+  } catch (e) { out.crashed = String(e && e.stack || e).slice(0, 300); }
+  return out;
+}
+test('MUST FAIL: how to play on the join screen and in the lobby, the listen-to-the-host hint under every round heading (Fill the gap has its own), the sample-lines sentence in the banner', async () => {
+  assert.deepEqual(await howtoScenario({}), { joinHowto: true, bannerSample: true, lobbyHowto: true, roundHint: true, gapHint: true });
 });
 
 // MUST FAIL: each check taken out (in memory only); the scenario must then see that bad message get through.
@@ -429,6 +453,11 @@ const MUTANTS = [
   { name: 'no got timeout: Sending forever', edits: [['s.gotWait = setTimeout(() => {', 's.gotWait = (() => {']], scenario: gotWaitScenario, caught: ['notSentShown', 'sendingCleared'] },
   { name: 'no wrong-code throttle', edits: [['if (s.misses >= MISSES_MAX) {', 'if (false) {']], scenario: missesScenario, caught: ['tooManyShown', 'sixthNotSent'] },
   { name: 'no names check', edits: [["|| namesProblem(H.clean(name.input.value))", '']], scenario: keptScenario, caught: ['namesChecked'] },
+  { name: 'no how-to line on the join screen', edits: [["el('p', { class: 'ph-meta ph-howto', id: 'ph-howto' }, WORDS.howto), note ?", 'note ?']], scenario: howtoScenario, caught: ['joinHowto'] },
+  { name: 'no how-to line in the lobby', edits: [["        el('p', { class: 'ph-meta ph-howto', id: 'ph-lobby-howto' }, WORDS.howto),", '']], scenario: howtoScenario, caught: ['lobbyHowto'] },
+  { name: 'no round hint', edits: [["el('p', { class: 'ph-meta ph-round-hint', id: 'ph-round-hint' }, gap ? WORDS.gapHint : WORDS.roundHint), clock,", 'clock,']], scenario: howtoScenario, caught: ['roundHint', 'gapHint'] },
+  { name: 'Fill the gap given the next-line hint', edits: [['gap ? WORDS.gapHint : WORDS.roundHint', 'WORDS.roundHint']], scenario: howtoScenario, caught: ['gapHint'] },
+  { name: 'no sample-lines sentence in the banner', edits: [["el('strong', { id: 'ph-sample' }, WORDS.sample), ' ', ", '']], scenario: howtoScenario, caught: ['bannerSample'] },
 ];
 
 for (const mu of MUTANTS) {

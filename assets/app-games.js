@@ -80,6 +80,9 @@
   const STRIKES_TEXT = 'Lots of tries to join this room. Lock the room?';
   const IDLE_WARN_TEXT = 'This room closes in 2 minutes because nothing has happened. Press Keep the room open to stay.';
   const IDLE_CLOSED_TEXT = 'The room closed after 15 minutes with nothing happening. Open a new room to play again.';
+  // GAMES 11-27 (Ryan's walk 15:43): how the host runs it, and the plain sample sentence while the rounds are the bundled made-up ones. Drafts FOR RYAN'S YES.
+  const TV_TEXT = 'Put this screen on a TV or share it, and read each line out loud. Players see the lines on their phones too.';
+  const SAMPLE_TEXT = 'These are five made-up sample lines. Clips with sound are not here yet.';
   const seatsText = n => (n >= MAX_PLAYERS ? `Seats: ${n} of ${MAX_PLAYERS} taken. The room is full.` : `Seats: ${n} of ${MAX_PLAYERS} taken`);
   const lockNoteText = locked => (locked ? 'Locked: nobody new can join. Players already in can still rejoin.' : 'Open: anyone with the code can join.');
 
@@ -291,12 +294,14 @@
     // Only an ACCEPTED message counts as something happening for the idle clock (GEO LOW 11-27): a refused join, a leave or guess that is not taken, or anything that
     // fails its checks never touches it, so someone with the code cannot keep an empty lobby open forever.
     const seen = () => touch();
+    // GAMES 11-27 (Ryan's walk): a seated player whose page reloaded is back in their seat, so the host's '<name> left.' line is replaced, never left standing.
+    const backLine = (name, wasGone) => { const left = `${name} left.`, t = String(live.textContent || ''); if (t.includes(left)) live.textContent = t.split(left).join(`${name} is back.`); else if (wasGone) live.textContent = `${name} is back.`; };
     function onMessage(m) {
       if (s.closed) return;
       if (m.t === 'join') {
         if (s.banned.has(m.pid)) return;
         const known = s.players.find(p => p.pid === m.pid);
-        if (known) { known.gone = false; seatNonce(m.pid, s.joinNonce); welcome(m.pid, true, null, known.name); seen(); broadcast(); refresh(); return; }
+        if (known) { const wasGone = !!known.gone; known.gone = false; seatNonce(m.pid, s.joinNonce); welcome(m.pid, true, null, known.name); seen(); backLine(known.name, wasGone); broadcast(); refresh(); return; }
         if (s.phase !== 'lobby') { welcome(m.pid, false, STARTED_TEXT); return; }
         // F1 (11-27): a pid that held a seat in this room (its key is kept: a lobby leave, a page reload) is not a stranger, so a lock does not keep it out
         // ('Players already in can still rejoin'); it still needs a free seat. A truly new pid gets 'locked'. A removed pid never gets here (banned).
@@ -470,6 +475,7 @@
       if (s.phase === 'lobby') {
         kids = [h('h2', { tabindex: '-1' }, 'Waiting for players'),
           h('p', { class: 'gh-code-line' }, 'Room code ', h('strong', { class: 'gh-code', id: 'gh-code' }, shownCode())),
+          h('p', { class: 'gh-tv', id: 'gh-tv' }, TV_TEXT),
           h('p', { class: 'gh-statement', id: 'gh-statement' }, STATEMENT, ' ', PUBLIC_TEXT),
           h('p', {}, 'On a phone, open ', h('strong', {}, joinUrl), ' and type the room code.'),
           ...panel(),
@@ -580,7 +586,8 @@
     }
     openRoom(false);
 
-    root.replaceChildren(h('p', { class: 'form-note', role: 'note' }, 'Five sample rounds made from a made-up script. The game saves nothing to an account or a file, but every name and guess goes to everyone in this room, and anyone with the room code can join: it is not a password.'),
+    const sampleOnly = [Rounds, MODE_ROUNDS.gap].every(R => !R || /MADE-UP/.test(String(R.note || '')));          // the bundled made-up rounds (game-rounds.js, game-gap-rounds.js): say so plainly
+    root.replaceChildren(h('p', { class: 'form-note', role: 'note', id: 'gh-note' }, ...(sampleOnly ? [h('strong', { id: 'gh-sample' }, SAMPLE_TEXT), ' '] : []), 'The game saves nothing to an account or a file, but every name and guess goes to everyone in this room, and anyone with the room code can join: it is not a password.'),
       status, strikeBox, idleBox, live, stage);        // honest privacy words (CC1 09:33); the stage stays empty until the room is open (WEB polish)
     // the same functions the host's buttons call (tests drive a whole game through them)
     return { close, state: () => s, settled: async () => { for (let i = 0; i < 4; i++) { await s.inQ; await s.outQ; } }, start: act(() => startRound(0)), reveal: act(() => reveal()), kick: pid => { const r = kick(pid); touch(); return r; },
