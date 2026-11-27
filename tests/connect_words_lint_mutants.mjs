@@ -16,7 +16,7 @@ const GAMES_USE = 'Use it when the person asks what games there are.';
 const mutants = [
   // money
   ['money: a dollar sign in a department description', G, GAMES_USE, GAMES_USE + ' It costs $5.'],
-  ['money: the word price in a department description', P, 'It reads no place and gives no numbers about any place.', 'It reads no place and gives no numbers about any place. The price is low.'],
+  ['money: the word price in a department description', P, 'It reads no place and gives no numbers about any place (perfect_city_summary does that for one spot).', 'It reads no place and gives no numbers about any place (perfect_city_summary does that for one spot). The price is low.'],
   // credit amount
   ['credit: a number of credits in a department description', G, GAMES_USE, GAMES_USE + ' It uses 5 credits.'],
   ['credit: a number of credits in a title', G, 'title: "See the games"', 'title: "See the games for 5 credits"'],
@@ -25,7 +25,7 @@ const mutants = [
   ['free: a second "free" beside an allowed one', T, 'Free. If a project with the same title', 'Free. Always free. If a project with the same title'],
   ['free: "free" on a hidden (unlisted) write tool', T, 'Writes down a plan to fetch ONE public-domain video from NASA', 'Writes down a free plan to fetch ONE public-domain video from NASA'],
   // date
-  ['date: a promised day in a description', P, 'It reads no place and gives no numbers about any place.', 'It reads no place and gives no numbers about any place. It opens on 1 December 2026.'],
+  ['date: a promised day in a description', P, 'It reads no place and gives no numbers about any place (perfect_city_summary does that for one spot).', 'It reads no place and gives no numbers about any place (perfect_city_summary does that for one spot). It opens on 1 December 2026.'],
   ['date: "tomorrow" in a description', G, GAMES_USE, GAMES_USE + ' More games arrive tomorrow.'],
   ['date: "will be available" in a description', T, 'To ask for a compilation, use set_compilation_request first.', 'To ask for a compilation, use set_compilation_request first. Songs will be available.'],
   // soon
@@ -33,7 +33,7 @@ const mutants = [
   // jargon
   ['jargon: "scope" in a description', T, 'To ask for a compilation, use set_compilation_request first.', 'To ask for a compilation, use set_compilation_request first (it needs the write scope).'],
   ['jargon: "JWT" in a description', G, 'Read-only; nothing is started.', 'Read-only; nothing is started (a JWT is checked).'],
-  ['jargon: "supabase" in a description', P, 'It reads no place and gives no numbers about any place.', 'It reads no place and gives no numbers about any place (supabase answers).'],
+  ['jargon: "supabase" in a description', P, 'It reads no place and gives no numbers about any place (perfect_city_summary does that for one spot).', 'It reads no place and gives no numbers about any place (perfect_city_summary does that for one spot; supabase answers).'],
   ['jargon: "token" in the no-connection words every department tool returns', W, 'This AI cannot use this Ryagram account right now:', 'This AI cannot use this Ryagram account right now (token problem):'],
   ['jargon: "PT403" in a refusal', G, 'is not available just now. Try again in a minute.', 'is not available just now (PT403). Try again in a minute.'],
   ['jargon: "Postgres" in a refusal', T, 'Compilation status is not available just now. Nothing was looked up.', 'Compilation status is not available just now (Postgres is down). Nothing was looked up.'],
