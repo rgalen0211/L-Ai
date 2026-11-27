@@ -1,8 +1,10 @@
 // GAMES 11-27 (Claude 08:10, the Games department live behind the switch `games`): the PHONE side of a LIVE round of "Guess the next line".
 // A player opens /game-phone/, types the room code the host's screen shows and a name, and sends a typed guess each round. TEXT ONLY: no microphone,
 // no camera, no picture, no file. The phone talks to the host's screen through the room in assets/game-room.js (Supabase Realtime broadcast on
-// uselai.com; a test relay on 127.0.0.1 only): nothing is stored anywhere, and the phone never sees an answer before the host's screen reveals it.
+// uselai.com; a test relay on 127.0.0.1 only): nothing is stored on any server, and the phone never sees an answer before the host's screen reveals it.
 // The host scores; the phone only shows what the host sends. Words are drafts FOR RYAN'S YES.
+// REJOIN: this browser TAB remembers its own seat (room code, its random player id, its name) in sessionStorage, which is gone when the tab is closed,
+// so a phone whose page reloads mid-game (a sleeping screen, a dropped connection) joins again as the same player and keeps its score.
 (function () {
   const local = () => ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
   const liveOn = cfg => !!cfg && (cfg.games === true || cfg.games === 'account');
@@ -17,6 +19,15 @@
     return { kind: 'realtime', client, code };
   }
   const newPid = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); return [...a].map(b => b.toString(36).padStart(2, '0')).join('').slice(0, 20); };
+  const SEAT_KEY = 'ryagram-game-seat';
+  // The tab's seat: { code, pid, name } or null. Any problem reading or writing it (storage blocked, a bad value) means "no seat": the player simply joins as new.
+  function readSeat() {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(SEAT_KEY) || 'null');
+      return v && /^[A-Z]{4}$/.test(v.code) && /^[A-Za-z0-9]{8,32}$/.test(v.pid) && typeof v.name === 'string' && v.name.length <= 16 ? v : null;
+    } catch { return null; }
+  }
+  const writeSeat = seat => { try { if (seat) sessionStorage.setItem(SEAT_KEY, JSON.stringify(seat)); else sessionStorage.removeItem(SEAT_KEY); } catch { /* storage blocked: no rejoin, nothing else changes */ } };
 
   function mount(root, H, Room, cfg) {
     const el = (tag, attrs, ...kids) => {
@@ -50,6 +61,9 @@
         if (cp) return code.input.focus();
         if (np) return name.input.focus();
         s.code = Room.normCode(code.input.value); s.name = H.clean(name.input.value);
+        const seat = readSeat();
+        s.pid = seat && seat.code === s.code && seat.name.toLowerCase() === s.name.toLowerCase() ? seat.pid : newPid();     // the same room and name in this tab: the same player
+        s.welcomed = false;
         const opts = roomOptions(cfg, s.code);
         if (!opts) { showErr(code, 'This page could not reach the game rooms. Reload the page and try again.'); return code.input.focus(); }
         button.disabled = true; button.textContent = 'Joining…';
@@ -63,7 +77,7 @@
           const t = setTimeout(() => resolve(null), JOIN_WAIT_MS);
           s.off = s.conn.onMessage(m => {
             if (m.t === 'welcome' && m.pid === s.pid) { clearTimeout(t); resolve(m); }
-            else if (m.t === 'state') onState(m);
+            else if (m.t === 'state' && s.welcomed) onState(m);          // nothing from the room is shown before the host has let this phone in
           });
           s.conn.send({ t: 'join', pid: s.pid, name: s.name }).catch(() => { clearTimeout(t); resolve(null); });
         });
@@ -74,17 +88,21 @@
           if (answer && /name/i.test(why || '')) { showErr(name, why); return name.input.focus(); }
           showErr(code, why || 'The host did not let you in.'); return code.input.focus();
         }
+        s.welcomed = true; writeSeat({ code: s.code, pid: s.pid, name: s.name });
         live.textContent = `You joined room ${s.code} as ${s.name}.`;
         lobby();
       } }, code.node, name.node, button);
-      show([el('h2', { tabindex: '-1' }, 'Join a game'), note ? el('p', { class: 'ph-meta', role: 'status' }, note) : null, el('p', { class: 'ph-meta' }, 'The host starts a game on their screen and shows a room code.'), form]);
+      const seat = note ? null : readSeat();          // after "Leave the room" the form starts empty
+      if (seat) { code.input.value = seat.code; name.input.value = seat.name; }
+      show([el('h2', { tabindex: '-1' }, 'Join a game'), note ? el('p', { class: 'ph-meta', role: 'status' }, note) : null,
+        seat ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-rejoin' }, `You were in room ${seat.code} as ${seat.name}. Press Join the room to go back in with your score.`) : el('p', { class: 'ph-meta' }, 'The host starts a game on their screen and shows a room code.'), form]);
     }
 
     function lobby(players) {
       s.phase = 'lobby';
       show([el('h2', { tabindex: '-1' }, `You are in room ${s.code}`), el('p', {}, `Your name: `, el('strong', {}, s.name)),
         el('p', { class: 'ph-meta', id: 'ph-lobby-players' }, players && players.length ? `Players: ${players.join(', ')}` : 'Waiting for the host to start.'),
-        el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); join('You left the room.'); } }, 'Leave the room')]);
+        el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
     }
 
     function tick(counter) {
@@ -132,7 +150,7 @@
       const totals = m.totals || [];
       live.textContent = 'The game is over.';
       show([el('h2', { tabindex: '-1' }, 'The game is over'), el('ol', { id: 'ph-totals' }, totals.map(t => el('li', {}, `${t.name}: ${t.total}`))),
-        el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); join('You left the room.'); } }, 'Leave the room')]);
+        el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
     }
 
     function onState(m) {

@@ -66,3 +66,17 @@ test('PHONE: live mode needs games on (true or \'account\'); the sample room is 
   const live = read('assets/game-phone-live.js');
   assert.ok(!/answer_text/.test(live.split('function reveal')[0]), 'no answer is read before the reveal screen');
 });
+
+test('REJOIN: the phone remembers its seat in THIS TAB only (sessionStorage), reuses its player id only for the same room and name, forgets it on Leave, and a bad stored value means a new seat', () => {
+  const src = read('assets/game-phone-live.js');
+  assert.match(src, /sessionStorage\.getItem\(SEAT_KEY\)/); assert.ok(!/localStorage/.test(src), 'never localStorage: the seat dies with the tab');
+  assert.match(src, /s\.pid = seat && seat\.code === s\.code && seat\.name\.toLowerCase\(\) === s\.name\.toLowerCase\(\) \? seat\.pid : newPid\(\);/);
+  assert.equal((src.match(/await leave\(\); writeSeat\(null\); join\('You left the room\.'\)/g) || []).length, 2, 'both Leave buttons forget the seat');
+  assert.match(src, /else if \(m\.t === 'state' && s\.welcomed\) onState\(m\);/, 'nothing from the room is shown before the host lets the phone in');
+  // the stored value is checked before use
+  const store = new Map(); const ss = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
+  const W = load(['assets/game-phone-live.js'], { sessionStorage: ss });
+  assert.equal(typeof W.ryagramGamePhoneLive.mount, 'function');
+  const body = src.slice(src.indexOf('function readSeat'), src.indexOf('const writeSeat'));
+  assert.match(body, /\/\^\[A-Z\]\{4\}\$\/\.test\(v\.code\)/); assert.match(body, /\/\^\[A-Za-z0-9\]\{8,32\}\$\/\.test\(v\.pid\)/); assert.match(body, /catch \{ return null; \}/);
+});
