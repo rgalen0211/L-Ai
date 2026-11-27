@@ -379,8 +379,8 @@
       const pill = h('span', { class: 'le-pill' });
       let histBusy = false;
       const commitOpen = () => !renderBox.hidden;                                  // the 'What will render' panel: no undo or redo behind it
-      const histRun = async fn => { if (histBusy || commitOpen() || locked) return; histBusy = true; paint(); try { stopPlay(); await fn(); saved = false; } finally { histBusy = false; paint(); } };
-      const undoBtn = btn('Undo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } }));
+      const histRun = async fn => { if (histBusy || commitOpen() || locked) return; histBusy = true; paint(); try { stopPlay(); await fn(); saved = false; } catch (e) { say('Could not undo. Try again.'); } finally { histBusy = false; paint(); } };
+      const undoBtn = btn('Undo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.undo(); say(r.ok ? (r.note || 'Undone.') : (r.reason || '')); } else { ed.undo(); say('Undone.'); } }));
       const redoBtn = btn('Redo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } }));
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say(realFilm ? 'Your changes are already kept in this film’s draft.' : 'Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });

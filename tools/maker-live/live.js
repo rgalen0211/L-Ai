@@ -515,22 +515,44 @@
     function redo() { return queued(redoNow); }
     // Undo and Redo run one at a time inside the same queue as sends, and each reads the log only when its turn comes, so two quick presses never read the same last entry.
     function queued(fn) { const run = tail.then(fn); tail = run.then(() => {}, () => {}); return run; }
+    // What the server holds for one op of this page's log (its status), read from the log itself: the undo answer says only "undone 0", which is also what a newer change to the same setting gives.
+    async function serverStatus(id) {
+      const r = await rpc('my_edit_ops_since', { p_project: project, p_mode: mode, p_revision: 0 });
+      if (r.error || !r.data) return null;
+      const o = (r.data.ops || []).find(x => x.id === id);
+      return o ? o.status : null;
+    }
+    // Take these log entries off the screen as undone (newest first, so the oldest ends on top of the redo stack, as editor.undo() leaves it).
+    function dropEntries(list) {
+      for (const e of list) { const i = editor.log.lastIndexOf(e); if (i < 0) continue; editor.log.splice(i, 1); editor.redo.push(e); editor.undone.add(JSON.stringify(e.op)); }
+      editor.state = editor._replay(editor.log).s;
+    }
     async function undoNow() {
       if (ready) await ready;
       const last = [...editor.log].reverse()[0];
       if (!last) return { ok: false };
       // a ready-made look is a group: every op of it is undone on the server too, newest first, so the draft and the screen agree
       const mine = last.group ? editor.log.filter(e => e.group === last.group).reverse() : [last];
+      const done = [];                  // entries that are undone on the server (by this press, or already before it)
+      let already = 0, why = null;
       for (const e of mine) {
-        if (!e.serverId) continue;
-        const r = await rpc('editor_undo', { p_project: project, p_mode: mode, p_op_id: e.serverId });
-        if (r.error) return { ok: false, reason: WORDS[r.error.code] || plainWords(r.error, 'That could not be undone.') };
-        // the server answers ok for an op it had already undone (undone 0): then nothing was undone there, so the screen must not drop it either
-        if (!r.data || !(r.data.undone > 0)) return { ok: false, reason: 'That change was already undone. Nothing was changed.' };
-        state.revision = Math.max(state.revision, r.data.revision || 0);
+        if (!e.serverId) { done.push(e); continue; }
+        let r;
+        try { r = await rpc('editor_undo', { p_project: project, p_mode: mode, p_op_id: e.serverId }); } catch (x) { r = { error: { message: 'Could not undo. Try again.' } }; }
+        if (r.error) { why = WORDS[r.error.code] || plainWords(r.error, 'That could not be undone.'); break; }
+        if (r.data && r.data.undone > 0) { state.revision = Math.max(state.revision, r.data.revision || 0); done.push(e); continue; }
+        // undone 0: ask the server's log. Already undone there (for instance by "Undo my AI's changes"): the screen catches up, so Undo is never stuck on it. Anything else: a real failure, the screen stays.
+        const st = await serverStatus(e.serverId).catch(() => null);
+        if (st === 'undone' || st === 'rejected') { done.push(e); already++; continue; }
+        why = 'That change could not be undone, because a newer change to the same setting stands. Nothing was changed.';
+        break;
       }
-      editor.undo();
-      return { ok: true };
+      if (why === null) {
+        if (mine.every(e => done.includes(e))) { editor.undo(); return already ? { ok: true, note: 'That change was already undone.' } : { ok: true }; }
+      }
+      // failed partway: the ones the server has undone leave the screen too, so screen, draft and server agree
+      if (done.length) { dropEntries(done); return { ok: false, partial: true, reason: (why || 'Part of that could not be undone.') + ' The parts that were undone are off the screen.' }; }
+      return { ok: false, reason: why };
     }
     // Redo the person's last undone step: the server takes the op(s) again (it decides first, like any change); the rest of the redo stack stays, because sending an op clears it.
     async function redoNow() {
@@ -1153,8 +1175,8 @@
       const pill = h('span', { class: 'le-pill' });
       let histBusy = false;
       const commitOpen = () => !renderBox.hidden;                                  // the 'What will render' panel: no undo or redo behind it
-      const histRun = async fn => { if (histBusy || commitOpen() || locked) return; histBusy = true; paint(); try { stopPlay(); await fn(); saved = false; } finally { histBusy = false; paint(); } };
-      const undoBtn = btn('Undo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } }));
+      const histRun = async fn => { if (histBusy || commitOpen() || locked) return; histBusy = true; paint(); try { stopPlay(); await fn(); saved = false; } catch (e) { say('Could not undo. Try again.'); } finally { histBusy = false; paint(); } };
+      const undoBtn = btn('Undo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.undo(); say(r.ok ? (r.note || 'Undone.') : (r.reason || '')); } else { ed.undo(); say('Undone.'); } }));
       const redoBtn = btn('Redo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } }));
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say(realFilm ? 'Your changes are already kept in this film’s draft.' : 'Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
