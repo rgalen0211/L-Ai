@@ -181,7 +181,7 @@
 
     function gotIt(m) {
       if (s.phase !== 'question' || m.round !== s.round) return;
-      const line = stage.querySelector('#ph-sent'); if (line && s.pending) line.textContent = `Sent: “${endDot(s.pending)}”. You can change it until time is up.`;
+      const line = stage.querySelector('#ph-sent'); if (line && s.pending) line.textContent = `Sent: “${s.pending}” You can change it until time is up.`;        // the guess exactly as typed (verify2 LOW)
     }
 
     function silent() {
