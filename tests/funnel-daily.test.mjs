@@ -49,12 +49,10 @@ test('DATA: the events come from funnel_events through the table (no new functio
 test('PAGE: admin only, behind the funnelTracking flag, linked from the admin links, read-only (no buttons that change anything)', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /const funnelOn = \(\) => window\.ryagramConfig\?\.funnelTracking === true \|\| !!window\.ryagramMock;/);
-  assert.match(lib, /const funnelPageOn = \(\) => funnelOn\(\) \|\| launchFunnelOn\(\);/);          // BUILDER 11-27: the page also opens for the launch funnel (launchFunnel, off)
-  assert.match(lib, /funnelPageOn\(\) && hash === '#\/admin\/funnel' && await data\.isAppAdmin\(\)\) view = await funnelAdminView\(onStop\)/);
-  assert.match(lib, /\['#\/admin\/funnel', 'Funnel by day', '[^']*', 'People', funnelPageOn\(\)\]/);
+  assert.match(lib, /funnelOn\(\) && hash === '#\/admin\/funnel' && await data\.isAppAdmin\(\)\) view = await funnelAdminView\(onStop\)/);
+  assert.match(lib, /\['#\/admin\/funnel', 'Funnel by day', '[^']*', 'People', funnelOn\(\)\]/);
   const view = lib.slice(lib.indexOf('async function funnelAdminView'), lib.indexOf('// --- #/admin/renders'));
-  assert.doesNotMatch(view, /data\.(?!adminFunnelEvents\(|adminLaunchFunnel\()[a-zA-Z]+\(/, 'it calls no other data function (the launch funnel reads adminLaunchFunnel only)');
-  assert.match(view, /if \(funnelOn\(\)\) await load\(\);/, 'the event funnel still reads only behind funnelTracking');
+  assert.doesNotMatch(view, /data\.(?!adminFunnelEvents)[a-zA-Z]+\(/, 'it calls no other data function');
   assert.doesNotMatch(view, /replaceChildren\([^;]*: null\)/);
   assert.match(read('assets/ryagram-config.js'), /funnelTracking: false,/, 'ships off');
 });

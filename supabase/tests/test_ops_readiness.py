@@ -365,8 +365,6 @@ class Ops(core.Base):
                            "admin_waitlist_counts()", "admin_waitlist_approve(integer)",
                            # the per-account switch list (20261110000400): Ryan's writer, list and history (each starting with require_admin()) and a person's own list (my_switches(): their row only, empty when none)
                            "admin_account_switch_set(text,text,boolean,text)", "admin_account_switch_list()", "admin_account_switch_audit()", "my_switches()",
-                           # the launch funnel by day (20261127000200): Ryan's read-only counts, starting with require_admin()
-                           "admin_launch_funnel(integer)",
                            # and the visitors' door, join_waitlist: executable by anon ON PURPOSE (the same answer for a new and a repeat address; limits and fixed words inside), never by a signed-in person
                            "join_waitlist(text,text,text)",
                            # geo requests (20261104000300): the house worker's three functions, each starting with require_worker()
