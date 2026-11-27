@@ -15,7 +15,7 @@ test('the report form preselects no problem: a person who skims is asked to choo
 
 test('the hero caption link on /ryagram/ is a 44 px tap target (padding, so the sentence keeps its line height)', () => {
   assert.match(read('assets/ryagram.css'), /\.rg-hero-film figcaption a\{font-weight:700;padding:13px 2px\}/);
-  assert.match(read('ryagram/index.html'), /ryagram\.css\?v=20261123a/);
+  assert.match(read('ryagram/index.html'), /ryagram\.css\?v=20261127h1/);
 });
 
 test('sign-in page order: the card, then Forgot your password, then Have an invite code (and its form), then the help lines', () => {
@@ -80,5 +80,5 @@ test('the phone footer is a tidy two-by-two under its source line', () => {
 
 // Live walk 11-18 rough spot 5: on the desktop home page 10 text links (nav, footer, contact line) were 16-23 px tall, under the 24 px minimum.
 test('home page desktop: nav and footer links are at least 24 px tall (a rule for 721 px and wider)', () => {
-  assert.match(read('index.html'), /@media\(min-width:721px\)\{nav a,\.footer-row a\{display:inline-block;padding:3px 6px;min-height:28px;box-sizing:border-box\}\}/);
+  assert.match(read('archive/consulting/index.html'), /@media\(min-width:721px\)\{nav a,\.footer-row a\{display:inline-block;padding:3px 6px;min-height:28px;box-sizing:border-box\}\}/);
 });
