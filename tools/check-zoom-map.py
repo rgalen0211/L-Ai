@@ -3,13 +3,15 @@ headless Chrome against the mock (?mock&zoommap), at desktop (1280) and phone (3
 counties (loaded only then), click a county, back out (focus to the state list), the same by keyboard (the selects), the Year list
 (default 2024; the numbers, caption, map label and legend year follow it, the band edges do not move), a county file that
 fails to load (a clean whole map, then a click, the list and Try again each reload it), DC winning its own tap, and the page staying shut
-without the switch (one plain line).
+without the switch (one plain line). Also: every legend as plain ranges (Ohio, Rhode Island, Connecticut; DC one colour and one line), a state
+switched mid-load (the old one gone at once), and no orange outline left after Back.
 Local only: a server on 127.0.0.1 with its own port, nothing sent anywhere. Screenshots go to --out (outside the repo).
   py -I -B tools/check-zoom-map.py --out D:/Ryagram-scratch/GEO/zoom-shots
 """
 import argparse
 import http.server
 import pathlib
+import re
 import socketserver
 import sys
 import threading
@@ -74,6 +76,10 @@ def main():
                         p.wait_for_timeout(100)
                     return False
                 no_scroll = lambda: p.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
+                keys_of = lambda: [x.strip() for x in p.locator('#zm-legend .zm-keys li').all_inner_texts()]
+                plain = lambda k: bool(re.fullmatch(r'under [\d,]+|[\d,]+ to [\d,]+|[\d,]+ and over', k))
+                # no path keeps an orange outline (the hover or picked stroke), by the computed stroke, not by class names
+                orange = lambda: p.evaluate("[...document.querySelectorAll('#zm-svg path')].filter((x) => getComputedStyle(x).stroke === 'rgb(255, 209, 102)').map((x) => x.getAttribute('data-id'))")
                 view_box = lambda: p.get_attribute('#zm-svg', 'viewBox')
 
                 # 1. with the switch: the whole map
@@ -116,7 +122,9 @@ def main():
                 check('Ohio' in t and 'estimated' in t and 'observed' in t, 'the state panel: people (estimated), counties (observed)')
                 check('counties of Ohio' in p.inner_text('#zm-legend'), 'the legend bands are this state\'s counties')
                 lg = p.inner_text('#zm-legend')
-                check(' to under ' in lg and 'or more' in lg and 'one fifth' in lg, 'the legend band edges: under X, X to under Y, Y or more')
+                keys = keys_of()
+                check(len(keys) == 5 and keys[0].startswith('under ') and keys[-1].endswith(' and over') and all(' to ' in k for k in keys[1:4])
+                      and 'to under' not in lg and 'or more' not in lg and 'one fifth' in lg, f'the legend as plain ranges: under X, X to Y, ..., Z and over ({keys})')
                 check(no_scroll(), 'no sideways scroll (Ohio)')
                 p.screenshot(path=str(out / f'2-ohio-{name}.png'), full_page=True)
 
@@ -172,14 +180,60 @@ def main():
                 p.select_option('#zm-state', '44')
                 check(counties(5), 'Rhode Island: 5 counties (a small state zooms in too)')
                 check('over all 5 years' in p.inner_text('#zm-bands') and '25 figures' in p.inner_text('#zm-bands'), 'Rhode Island legend: its 5 counties over 5 years, 25 figures')
+                keys = keys_of()
+                check(len(keys) == 5 and all(plain(k) for k in keys) and keys[0].startswith('under ') and keys[-1].endswith(' and over'),
+                      f'Rhode Island legend: plain ranges, no bare numbers ({keys})')
                 p.screenshot(path=str(out / f'5-rhode-island-{name}.png'), full_page=True)
+                p.locator('#zm-legend').screenshot(path=str(out / f'5-rhode-island-legend-{name}.png'))
+                p.select_option('#zm-state', '09')
+                check(counties(9), 'Connecticut: its 9 planning regions drawn')
+                check(p.inner_text('#zm-ct').strip() == "Connecticut's nine planning regions (the Census Bureau's county equivalents since 2022).",
+                      'Connecticut: the planning regions line')
+                keys = keys_of()
+                check(len(keys) == 5 and all(plain(k) for k in keys), f'Connecticut legend: plain ranges ({keys})')
+                check('45 figures' in p.inner_text('#zm-bands'), 'Connecticut legend: 45 figures')
+                p.screenshot(path=str(out / f'5b-connecticut-{name}.png'), full_page=True)
+                p.locator('#zm-legend').screenshot(path=str(out / f'5b-connecticut-legend-{name}.png'))
+                p.select_option('#zm-state', '44')
+                check(counties(5), 'Rhode Island again from the list')
                 nd = p.inner_text('#zm-not-done')
                 check('Five years only' in nd and 'no animation' in nd and 'One value only' in nd and 'Alaska and Hawaii' in nd, 'what the prototype does not do is said (five years)')
                 check('Census Bureau' in p.inner_text('#zm-sources') and 'public domain' in p.inner_text('#zm-sources'), 'the source line')
                 p.click('#zm-back')
-                check('Small states: pick them from the State list.' in p.inner_text('#zm-small'), 'the small-states line under the map')
+                check(p.inner_text('#zm-small').strip() == 'Small states and counties: pick them from the lists.', 'the small-states line under the map')
                 p.locator('#zm-svg path.zm-state[data-id="11"]').click(timeout=5000)     # times out if Virginia or Maryland lies on top of DC
                 check(counties(1) and p.input_value('#zm-state') == '11', 'a tap on DC opens DC, not Virginia')
+                keys = keys_of()
+                check(keys == ['One county equivalent: see its numbers below.'] and 'all' not in keys and p.locator('#zm-legend .zm-swatch').count() == 1,
+                      f'DC legend: one colour and the one-place line ({keys})')
+                dc_fill = p.evaluate("[...new Set([...document.querySelectorAll('#zm-svg path.zm-county')].map((x) => x.getAttribute('fill')))]")
+                swatch = p.evaluate("document.querySelector('#zm-legend .zm-swatch').getAttribute('data-fill')")
+                p.select_option('#zm-year', '2020')
+                dc_fill20 = p.evaluate("document.querySelector('#zm-svg path.zm-county').getAttribute('fill')")
+                p.select_option('#zm-year', '2024')
+                check(dc_fill == [swatch] and dc_fill20 == swatch, f'DC: the map uses the legend\'s one colour in every year ({dc_fill}, {dc_fill20}, {swatch})')
+                p.screenshot(path=str(out / f'5c-dc-{name}.png'), full_page=True)
+                p.locator('#zm-legend').screenshot(path=str(out / f'5c-dc-legend-{name}.png'))
+                p.click('#zm-back')
+
+                # 5d. after Back nothing keeps an outline: Arizona tapped (phone) or hovered and clicked (desktop), then Back
+                az = p.locator('#zm-svg path.zm-state[data-id="04"]')
+                if name == 'phone':      # a phone has no mouse: Playwright's click() moves an emulated mouse, which can rest over a state after the map moves; taps only here
+                    p.mouse.move(0, 0)
+                    az.tap(timeout=5000)
+                    check(counties(15), 'Arizona: its 15 counties drawn')
+                    p.locator('#zm-svg path.zm-county[data-id="04013"]').tap(timeout=5000)
+                    p.locator('#zm-back').tap(timeout=5000)
+                else:
+                    az.hover(timeout=5000)
+                    check(p.locator('path.zm-hover').count() == 1, 'desktop: a mouse over Arizona outlines it')
+                    az.click(timeout=5000)
+                    check(counties(15), 'Arizona: its 15 counties drawn')
+                    p.locator('#zm-svg path.zm-county[data-id="04013"]').click(timeout=5000)
+                    p.click('#zm-back')
+                check(p.locator('path.zm-hover, path.zm-picked').count() == 0 and orange() == [], f'after Back: no state or county keeps an orange outline ({orange()})')
+                check(view_box() == US_BOX and p.locator('path.zm-dim').count() == 0, 'after Back: the whole map, nothing dimmed')
+                p.screenshot(path=str(out / f'5d-after-back-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()
 
@@ -188,6 +242,29 @@ def main():
                 p.wait_for_selector('#zm-svg path.zm-state', timeout=20000)
                 p.select_option('#zm-state', '48')
                 check(counties(254), 'failure: Texas first, its counties drawn')
+                # 5e. a switch mid-load: California is held at the server while Texas is zoomed; at once nothing of Texas is left
+                held = []
+                hold = lambda r: held.append(r)
+                p.route('**/assets/zoom-map/st-06.js*', hold)
+                p.select_option('#zm-state', '06')
+                for _ in range(100):
+                    if held:
+                        break
+                    p.wait_for_timeout(50)
+                check(len(held) == 1 and p.locator('#zm-svg path.zm-county').count() == 0, 'mid-load: California asked for; Texas\'s counties are gone')
+                check(view_box() == US_BOX and p.locator('path.zm-dim').count() == 0 and not p.evaluate("document.getElementById('zm-svg').classList.contains('zm-zoomed')"),
+                      f'mid-load: the whole-map view, nothing dimmed ({view_box()})')
+                check('states on this map' in p.inner_text('#zm-bands') and 'Texas' not in p.inner_text('#zm-legend'), 'mid-load: the states legend, nothing of Texas')
+                check(p.inner_text('#zm-caption').startswith('The contiguous states') and 'Texas' not in p.get_attribute('#zm-svg', 'aria-label'),
+                      'mid-load: the caption and map label are the whole map\'s')
+                check(p.inner_text('#zm-place') == 'California' and 'Loading the counties' in p.inner_text('#zm-status'), 'mid-load: the panel names California, the loading line')
+                p.screenshot(path=str(out / f'5e-mid-load-{name}.png'), full_page=True)
+                if held:
+                    held[0].continue_()
+                check(counties(58) and view_box() != US_BOX and 'counties of California' in p.inner_text('#zm-legend'), 'mid-load: California arrives, 58 counties, zoomed, its legend')
+                p.unroute('**/assets/zoom-map/st-06.js*', hold)
+                p.select_option('#zm-state', '48')
+                check(counties(254), 'failure: Texas again, its counties drawn')
                 pattern = '**/assets/zoom-map/st-39.js*'
                 block = lambda r: r.abort()
                 p.route(pattern, block)

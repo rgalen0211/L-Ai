@@ -9,10 +9,12 @@ Inputs, all already on disk and all US Census Bureau works (public domain, 17 U.
 Geometry is projected once to US Albers equal-area (EPSG:5070) into a fixed 960 x 600 frame, then simplified
 (Douglas-Peucker) and rounded. The counties of a state live in the SAME frame, so zooming is only a new viewBox.
 Alaska (02), Hawaii (15) and Puerto Rico (72) are left out of this prototype (insets are ENGINE's work).
+After writing the data it writes tests/zoom-map-data.json (VERSION and each file's content hash; tools/zoom-map/hash_zoom_map.py).
   py -I -B tools/zoom-map/export_zoom_map.py --geo C:/Users/Ryan/Ryagram-cache/geo --values C:/Users/Ryan/Ryagram-cache/co-est2024-alldata.csv
 """
 import argparse
 import csv
+import importlib.util
 import json
 import math
 import pathlib
@@ -155,6 +157,11 @@ def main():
         'value': {'name': 'Population', 'kind': 'estimated', 'date': 'July 1 of each year', 'years': YEARS,
                   'note': 'The 2020 figure is the July 1, 2020 estimate.'}, 'sources': SOURCES,
         'leftOut': sorted(LEFT_OUT), 'states': index})
+    # The manifest of content hashes (tests/zoom-map-data.json): a data file changed under the same VERSION fails the node test.
+    spec = importlib.util.spec_from_file_location('hash_zoom_map', pathlib.Path(__file__).with_name('hash_zoom_map.py'))
+    hz = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hz)
+    hz.write_manifest()
     print(f'states: {len(index)}  counties: {sum(s["counties"] for s in index)}  without a value: {missing or "none"}')
     print(f'states.js {(OUT / "states.js").stat().st_size} bytes; largest county file '
           f'{max((p.stat().st_size, p.name) for p in OUT.glob("st-*.js"))}')

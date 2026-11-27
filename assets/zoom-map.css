@@ -9,7 +9,7 @@
 .zm-svg path.zm-dim { opacity: 0.3; }
 .zm-svg.zm-zoomed .zm-state { stroke-width: 1.2; }
 .zm-svg path.zm-picked { stroke: #ffd166; stroke-width: 2.5; }
-.zm-svg path:hover { stroke: #ffd166; stroke-width: 1.5; }
+.zm-svg path.zm-hover { stroke: #ffd166; stroke-width: 1.5; }      /* set by a mouse pointer only (assets/app-zoom-map.js); a :hover sticks after a tap */
 .zm-legend { min-width: 200px; flex: 1 1 200px; }
 .zm-keys { list-style: none; padding: 0; margin: 4px 0; }
 .zm-keys li { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
