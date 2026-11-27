@@ -28,7 +28,8 @@
       'One county at a time: places and people across the county line are not counted, even inside a ring.'],
     noPlaces: 'The business points are not loaded yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
-    badTyped: 'Type a latitude and a longitude as numbers, for example 39.7589 and -84.1916.',
+    badTyped: 'Type a latitude and a longitude as numbers, with a point before the decimals (a comma is not accepted), for example 39.7589 and -84.1916.',
+    retry: 'Try again',
     looking: 'Looking up the places near this spot...',
     capped: 'There are more places near this spot than one answer carries (the nearest 60), so counts that reach past the 60th place say at least.',
     mapCapped: 'The map shows only the nearest 60 places. The counts within 1, 2 and 5 km are of every place loaded.',
@@ -84,13 +85,20 @@
     const lonIn = h('input', { id: 'pc-lon', type: 'text', inputmode: 'decimal', size: '9', placeholder: '-84.1916', autocomplete: 'off' });
     const targetWrap = h('span');
     const compareBar = h('div', { class: 'pc-typed', id: 'pc-compare-bar' });
-    const num = (v) => (/^\s*-?\d+(\.\d+)?\s*$/.test(v) ? Number(v) : NaN);
+    // +39.7589, .5 and 39. are numbers; a comma decimal (39,7589) is not, and the message says so
+    const num = (v) => (/^\s*[+-]?(\d+\.?\d*|\.\d+)\s*$/.test(v) ? Number(v) : NaN);
     const typed = h('form', { class: 'pc-typed', onsubmit: (e) => {
       e.preventDefault();
       const lat = num(latIn.value), lon = num(lonIn.value);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) place([lon, lat], state.compare ? state.target : 'A');
-      else { status.textContent = WORDS.badTyped; latIn.focus(); }
-    } }, h('span', { class: 'meta' }, 'Or type a spot: '), targetWrap,
+      if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) place([lon, lat], state.compare ? state.target : 'A');
+      else {
+        // the results stay for the spot already put down: say which one, so the bad text in the box is not read as their spot
+        const shown = state.census && state.spot && pc.unitAt(state.spot, state.census.units) ? state.spot : null;
+        status.textContent = WORDS.badTyped + (!shown ? '' : state.compare ? ' The results below are still for the spots already on the map.'
+          : ` The results below are still for the spot at ${shown[1].toFixed(5)}, ${shown[0].toFixed(5)}.`);
+        latIn.focus();
+      }
+    } },h('span', { class: 'meta' }, 'Or type a spot: '), targetWrap,
       h('label', { class: 'pc-control', for: 'pc-lat' }, 'Latitude ', latIn), ' ',
       h('label', { class: 'pc-control', for: 'pc-lon' }, 'Longitude ', lonIn), ' ',
       h('button', { class: 'button secondary', type: 'submit', id: 'pc-go' }, 'Put the spot here'));
@@ -98,7 +106,7 @@
 
     function kindSelect() {
       const c = COUNTIES.find((x) => x.id === state.county);
-      if (!c.kinds.includes(state.kind)) { state.kindNote = `There is no ${KINDS[state.kind].toLowerCase()} data for ${c.label} yet, so the page shows ${KINDS[c.kinds[0]].toLowerCase()}.`; state.kind = c.kinds[0]; }
+      if (!c.kinds.includes(state.kind)) { state.kindNote = `${KINDS[state.kind]}: no places of this kind are loaded for ${c.label} yet, so the page shows ${KINDS[c.kinds[0]].toLowerCase()} instead.`; state.kind = c.kinds[0]; }
       const hadFocus = document.activeElement && document.activeElement.id === 'pc-kind';
       kindWrap.replaceChildren(select('pc-kind', 'Business', c.kinds.map((k) => [k, KINDS[k]]), state.kind, (v) => { state.kind = v; refresh(); }));
       if (hadFocus) document.getElementById('pc-kind')?.focus();
@@ -165,7 +173,10 @@
       const seen = new Set();
       for (const list of [state.places, two ? state.b.places : null]) if (list) for (const p of list) { const k = p.lat + ',' + p.lon; if (!seen.has(k)) { seen.add(k); shown.push(p); } }
       const anyPlaces = !!(state.places || (two && state.b.places));
-      const spotsWords = !state.spot ? '' : two ? `, spot A at ${at(state.spot)} and spot B at ${at(state.b.spot)}, each with rings at 1, 2 and 5 km` : `, a spot at ${at(state.spot)} with rings at 1, 2 and 5 km`;
+      // a spot outside the county is never drawn (no dot, no rings in the empty corner): the status line says it is outside, once
+      const inA = !!(state.spot && pc.unitAt(state.spot, c.units)), inB = !!(two && pc.unitAt(state.b.spot, c.units));
+      const spotsWords = inA && inB ? `, spot A at ${at(state.spot)} and spot B at ${at(state.b.spot)}, each with rings at 1, 2 and 5 km`
+        : inA ? `, ${two ? 'spot A' : 'a spot'} at ${at(state.spot)} with rings at 1, 2 and 5 km` : inB ? `, spot B at ${at(state.b.spot)} with rings at 1, 2 and 5 km` : '';
       const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pc-svg', role: 'img', 'aria-label': `Map of ${c.name}: block groups shaded by ${SHADES[state.shade].toLowerCase()}${spotsWords}${anyPlaces ? `, and ${shown.length} ${KINDS[state.kind].toLowerCase()} near ${two ? 'them' : 'it'} marked` : ''}` });
       for (const u of c.units) {
         const d = u.rings.map((r) => 'M' + r.map((p) => P.fwd(p).map((v) => v.toFixed(1)).join(',')).join('L') + 'Z').join('');
@@ -181,10 +192,11 @@
         const [x, y] = P.fwd(spot), b = letter === 'B';
         const colour = b ? '#7bdff2' : '#ffd166';
         for (const r of pc.RINGS_KM) {
-          root.append(svg('circle', { cx: x, cy: y, r: P.kmToPx(r).toFixed(1), fill: 'none', stroke: colour, 'stroke-width': '2', 'stroke-dasharray': b ? '2 3' : '6 3', class: b ? 'pc-ring pc-ring-b' : 'pc-ring' }));
+          // B's rings are a little heavier than A's: thin dots read faint on a phone, where the map is drawn at about half size (RENDERER 09:19)
+          root.append(svg('circle', { cx: x, cy: y, r: P.kmToPx(r).toFixed(1), fill: 'none', stroke: colour, 'stroke-width': b ? '3.5' : '2', 'stroke-dasharray': b ? '4 3' : '6 3', class: b ? 'pc-ring pc-ring-b' : 'pc-ring' }));
         }
         // no ring labels on the map: at county scale the 1 and 2 km rings sit a few pixels apart (re-walk HIGH 1); the legend names them
-        if (b) root.append(svg('rect', { x: x - 7, y: y - 7, width: 14, height: 14, fill: colour, stroke: '#14141a', 'stroke-width': '2', id: 'pc-spot-b' }));
+        if (b) root.append(svg('rect', { x: x - 9, y: y - 9, width: 18, height: 18, fill: colour, stroke: '#14141a', 'stroke-width': '3', id: 'pc-spot-b' }));
         else root.append(svg('circle', { cx: x, cy: y, r: '8', fill: '#ffffff', stroke: '#14141a', 'stroke-width': '2', id: 'pc-spot' }));
         if (letter) {
           const t = svg('text', { x: x + 10, y: y + 7, fill: '#ffffff', 'font-size': '22', 'font-weight': '700', stroke: '#14141a', 'stroke-width': '4', 'paint-order': 'stroke', 'aria-hidden': 'true', class: 'pc-spot-letter' });
@@ -192,8 +204,8 @@
           root.append(t);
         }
       };
-      if (state.spot) drawSpot(state.spot, state.compare ? 'A' : '');
-      if (two) drawSpot(state.b.spot, 'B');
+      if (inA) drawSpot(state.spot, state.compare ? 'A' : '');
+      if (inB) drawSpot(state.b.spot, 'B');
       root.addEventListener('click', (e) => {
         if (state.loading) return;                                   // a county is loading: this map is the old one
         const box = root.getBoundingClientRect();
@@ -205,7 +217,7 @@
       const keys = FILL.map((f, i) => h('li', {}, h('span', { class: 'pc-swatch', 'data-fill': f }), ' ',
         i === 0 ? `under ${lab(br[0])}` : i === FILL.length - 1 ? `${lab(br[i - 1])} or more` : `${lab(br[i - 1])} to ${lab(br[i])}`));
       const legend = h('div', { class: 'pc-legend' }, h('p', { class: 'meta' }, legendTitle), h('ul', { class: 'pc-keys' }, keys),
-        h('p', { class: 'meta' }, 'Grey: no published figure.' + (two ? ' Rings: 1, 2 and 5 km around each spot (A: white circle, yellow dashes; B: cyan square, cyan dotted rings).' : state.spot ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : '') + (!anyPlaces ? '' : two ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of either spot, and the nearest five to each.' : ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.')));
+        h('p', { class: 'meta' }, 'Grey: no published figure.' + (inA && inB ? ' Rings: 1, 2 and 5 km around each spot (A: white circle, yellow dashes; B: cyan square, cyan dotted rings).' : inA ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : inB ? ' Cyan dotted rings: 1, 2 and 5 km around spot B (cyan square).' : '') + (!anyPlaces ? '' : two ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of either spot, and the nearest five to each.' : ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.')));
       // the swatch colours are attributes on SVG squares (the page's CSP allows no inline style)
       legend.querySelectorAll('.pc-swatch').forEach((s) => { const f = s.getAttribute('data-fill'); s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: f })])); });
       mapBox.replaceChildren(root, legend);
@@ -271,7 +283,8 @@
     const countText = (cnt) => (cnt.exact ? fmt(cnt.count) : `at least ${fmt(cnt.count)}`);
 
     function drawCompareBar() {
-      if (!state.spot) { compareBar.replaceChildren(); targetWrap.replaceChildren(); return; }
+      // a second spot is offered only once spot A is inside the county (an outside spot has nothing to compare)
+      if (!state.spot || (!state.compare && !pc.unitAt(state.spot, state.census.units))) { compareBar.replaceChildren(); targetWrap.replaceChildren(); return; }
       if (!state.compare) {
         compareBar.replaceChildren(h('button', { class: 'button secondary', type: 'button', id: 'pc-compare-add', onclick: () => {
           state.compare = true; state.target = 'B'; state.b = noB(); latIn.value = ''; lonIn.value = '';
@@ -291,14 +304,35 @@
       }), ' ');
     }
 
-    function drawAll() { drawMap(); drawResults(); drawCredits(); drawCompareBar(); }
+    function drawAll() { drawMap(); drawResults(); drawCredits(); drawCompareBar(); drawRetry(); }
+
+    // the business points failed to load (not the day's limit, not 'none loaded'): a real Try again that asks the server again
+    const retryWrap = h('div', { class: 'pc-retry-wrap', id: 'pc-retry-wrap' });
+    const failed = () => state.placesNote === WORDS.placesError || (state.compare && state.b.note === WORDS.placesError);
+    function drawRetry() {
+      retryWrap.replaceChildren(...(failed() ? [h('button', { class: 'button secondary pc-retry', type: 'button', id: 'pc-retry', onclick: retry }, WORDS.retry)] : []));
+    }
+    async function retry() {
+      if (state.loading || state.retrying) return;
+      state.retrying = true;
+      status.textContent = WORDS.looking;
+      try {
+        if (state.spot) {
+          if (!(await loadPlaces())) return;                         // a newer spot was put down meanwhile: that one draws
+          if (state.compare && state.b.spot && !(await loadPlacesB())) return;
+        } else await checkLoaded();
+      } finally { state.retrying = false; }
+      drawAll();
+      status.textContent = state.compare ? statusLine() : (state.placesNote || (state.spot ? summaryLine() : ''));
+      document.getElementById('pc-retry')?.focus();                  // still failing: the keyboard stays on the button
+    }
 
     function drawResults() {
       const c = state.census;
       if (state.compare && state.spot) { drawCompare(); return; }
       if (!state.spot) { results.replaceChildren(h('p', { class: 'form-intro' }, WORDS.pickSpot)); return; }
       const u = pc.unitAt(state.spot, c.units);
-      if (!u) { results.replaceChildren(h('p', { class: 'form-note' }, WORDS.outside)); return; }
+      if (!u) { results.replaceChildren(h('p', { class: 'form-intro' }, WORDS.pickSpot)); return; }      // the status line says 'outside the county' (once)
       const out = [h('h2', {}, 'Around this spot'),
         h('p', { class: 'meta', id: 'pc-spot-text' }, `Spot: ${state.spot[1].toFixed(5)}, ${state.spot[0].toFixed(5)} (latitude, longitude)`),
         h('h3', {}, 'The block group the spot is in'),
@@ -331,9 +365,10 @@
       const s = state.census.sources;
       const o = state.census.official;
       const credit = state.credit || (state.compare ? state.b.credit : '');
-      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}${o && o.source ? '; ' + o.source.replace(/\.$/, '') : ''}. ${s.calculated}${credit ? ' ' + credit + ' (' : ''}`,
-        credit ? h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright') : '',
-        `${credit ? ').' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
+      // the brackets and the link are one unbreakable inline piece, so a line never ends on '(' or starts with ')' (RENDERER 09:19)
+      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}${o && o.source ? '; ' + o.source.replace(/\.$/, '') : ''}. ${s.calculated}${credit ? ' ' + credit + ' ' : ''}`,
+        credit ? h('span', { class: 'pc-credit-link' }, '(', h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright'), ').') : '',
+        ' This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.');
     }
 
     // which: 'A' or 'B'. Only the spot that moved is asked about again (each spot is its own server call).
@@ -416,12 +451,12 @@
     }
 
     const controls = h('div', { class: 'pc-controls' },
-      select('pc-county', 'County', COUNTIES.map((c) => [c.id, c.label]), state.county, (v) => { state.county = v; state.spot = null; state.compare = false; state.target = 'A'; state.b = noB(); state.kindNote = `County changed to ${COUNTIES.find((c) => c.id === v).label}: put a spot on the map.`; refresh(); }), ' ',
+      select('pc-county', 'County', COUNTIES.map((c) => [c.id, c.label]), state.county, (v) => { state.county = v; state.spot = null; state.compare = false; state.target = 'A'; state.b = noB(); latIn.value = ''; lonIn.value = ''; state.kindNote = `County changed to ${COUNTIES.find((c) => c.id === v).label}: put a spot on the map.`; refresh(); }), ' ',
       kindWrap, ' ',
       select('pc-shade', 'Shade by', Object.entries(SHADES), state.shade, (v) => { state.shade = v; drawMap(); }));
     kindSelect();
     await refresh();
-    return [h('h1', { tabindex: '-1' }, 'Perfect City'), h('p', { class: 'form-intro' }, WORDS.intro), controls, status, mapBox, compareBar, typed, results,
+    return [h('h1', { tabindex: '-1' }, 'Perfect City'), h('p', { class: 'form-intro' }, WORDS.intro), controls, status, retryWrap, mapBox, compareBar, typed, results,
       h('h2', {}, 'What this does not know'), h('ul', { class: 'soon-more', id: 'pc-not-known' }, WORDS.notKnown.map((t) => h('li', {}, t))), credits,
       h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.')];
   }

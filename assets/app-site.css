@@ -54,6 +54,8 @@ body.ryagram-look .dept-card a{color:var(--ink);text-decoration:none;font-size:1
 .dept-card .soon-tag,.dept-card .dept-card-open{margin-left:8px}
 .dept-card p.meta{margin:4px 0 0}
 @media (prefers-reduced-motion:reduce){.dept-card{transition:none}}
+/* a Coming soon page: the COMING SOON tag and the "All projects" link beside it keep a gap, also when they wrap onto two lines (GEO gallery 11-27, shot 34) */
+.soon-tag.soon-tag-big{margin:0 16px 8px 0;vertical-align:middle}
 
 .home-links{display:flex;flex-wrap:wrap;gap:8px 24px;margin:32px 0 8px;padding:0;list-style:none}
 .admin-link{font-weight:600}

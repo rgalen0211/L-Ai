@@ -103,6 +103,8 @@ def main():
                 ct = p.inner_text('#pc-compare')
                 check('observed, 2020 Census' in ct and 'calculated' in ct and 'estimated' in ct and 'plus or minus' in ct, 'compare: every figure carries its label, income with its margin')
                 check('not placed yet' not in ct and 'not loaded' not in ct and 'about' in ct, 'compare: both spots have their figures')
+                fw = p.locator('#pc-compare tbody th').first.bounding_box()['width']
+                check(fw >= 120, f'compare: the Figure column is readable, not one word a line ({fw:.0f} px)')
                 low = ct.lower()
                 check(not any(w in low for w in ('better', 'winner', 'score', 'best')), 'compare: no better, winner or score in the table')
                 check(p.locator('#pc-spot').count() == 1 and p.locator('#pc-spot-b').count() == 1 and p.locator('circle.pc-ring').count() == 6, 'compare: both spots and both ring sets are on the map')
@@ -134,6 +136,17 @@ def main():
                     p.wait_for_timeout(100)
                 check(p.locator('#pc-map svg.pc-svg path').count() == 124, 'Greene County: 124 block groups drawn')
                 check('grocery' not in [o.get_attribute('value') for o in p.locator('#pc-kind option').all()], 'Greene offers no supermarkets (no data downloaded), so none are shown')
+                # GEO gallery 11-27: the county change clears the typed boxes; the longest county name shows whole in its select
+                check(p.input_value('#pc-lat') == '' and p.input_value('#pc-lon') == '', 'county change: the typed boxes are cleared (no old spot left in them)')
+                fit = p.evaluate("""() => { const s = document.getElementById('pc-county'), cs = getComputedStyle(s), c = document.createElement('canvas').getContext('2d');
+                  c.font = cs.font; return c.measureText(s.options[s.selectedIndex].text).width + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 20 <= s.clientWidth; }""")
+                check(fit, 'Greene County, Ohio (Beavercreek, Xenia) fits in the County select (text, padding and arrow)')
+                # a spot outside the county: said once, nothing drawn, no Compare offered
+                p.fill('#pc-lat', '40.5'); p.fill('#pc-lon', '-82.5'); p.click('#pc-go')
+                p.wait_for_timeout(300)
+                check(p.inner_text('main').count('That spot is outside the county.') == 1 and p.locator('#pc-spot').count() == 0
+                      and p.locator('circle.pc-ring').count() == 0 and p.locator('#pc-compare-add').count() == 0,
+                      'a spot outside the county: the sentence once, no dot or rings, no Compare offered')
                 # bad typed input is refused in words, never moved to 0, 0 (a11y walk HIGH 2)
                 p.fill('#pc-lat', ''); p.fill('#pc-lon', ''); p.click('#pc-go')
                 check('as numbers' in p.inner_text('#pc-status') and p.input_value('#pc-lat') == '', 'empty typed spot: refused in words, the box not rewritten')
@@ -200,6 +213,18 @@ def main():
                     p.screenshot(path=str(out / f'5b-dense-{"within" if true_counts else "old-server"}-{name}.png'), full_page=True)
                     check(not errors, f'no page errors ({errors[:2]})')
                     ctx.close()
+                # 2c. places fail (?placeserr): a real Try again button, a 44 px target, that asks again
+                ctx, p, errors = page('&perfectcity&placeserr')
+                p.wait_for_selector('#pc-map svg.pc-svg path', timeout=20000)
+                rb = p.locator('#pc-retry').bounding_box() if p.locator('#pc-retry').count() == 1 else None
+                check(rb is not None and rb['height'] >= 44 and rb['width'] >= 44, f'places fail: a Try again button, at least 44 px ({rb and (round(rb["width"]), round(rb["height"]))})')
+                if rb:
+                    p.click('#pc-retry')
+                    p.wait_for_timeout(500)
+                check(p.locator('#pc-retry').count() == 1 and 'could not be loaded' in p.inner_text('#pc-status'), 'places fail: Try again, still failing, keeps the button and says so')
+                p.screenshot(path=str(out / f'5b-places-error-{name}.png'), full_page=True)
+                check(not errors, f'no page errors ({errors[:2]})')
+                ctx.close()
                 # 3. without the switch: the Coming soon page, unchanged
                 ctx, p, errors = page('')
                 try:
@@ -208,6 +233,11 @@ def main():
                     p.screenshot(path=str(out / f'6-no-switch-FAILED-{name}.png'), full_page=True)
                     print('  main text:', ' | '.join(p.inner_text('main')[:300].splitlines()))
                 check(p.locator('#pc-map').count() == 0 and p.locator('.soon-tag-big').count() == 1, 'no switch: the Coming soon page, no map')
+                gap = -1
+                if p.locator('.soon-tag-big').count() == 1 and p.locator('main a.back').count() >= 1:
+                    tg, bk = p.locator('.soon-tag-big').bounding_box(), p.locator('main a.back').first.bounding_box()
+                    gap = bk['x'] - (tg['x'] + tg['width']) if bk['y'] < tg['y'] + tg['height'] and tg['y'] < bk['y'] + bk['height'] else bk['y'] - (tg['y'] + tg['height'])
+                check(gap >= 8, f'no switch: the COMING SOON tag and All projects keep a gap ({gap:.0f} px)')
                 p.screenshot(path=str(out / f'6-no-switch-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()

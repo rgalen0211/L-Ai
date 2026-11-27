@@ -18,3 +18,17 @@
 .pc-compare th[scope="row"] { white-space: normal; max-width: 22em; }
 .pc-compare td { vertical-align: top; }
 .pc-table-wrap { max-width: 100%; overflow-x: auto; }
+.pc-retry-wrap { margin: 4px 0 8px; }
+.pc-retry-wrap:empty { display: none; }
+.pc-retry { min-height: 44px; min-width: 44px; }
+.pc-credit-link { white-space: nowrap; }
+.pc-credit-link a { display: inline; min-height: 0; }
+/* phones (GEO gallery 11-27, RENDERER 09:19): each control on its own line with the select as wide as the page, so the longest county name shows whole;
+   the compare table's label column keeps a readable width (the table scrolls inside its own box, never the page) */
+@media (max-width: 520px) {
+  .pc-controls > span { flex: 1 1 100%; }
+  .pc-controls .pc-control { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; }
+  body .pc-controls .pc-control select { margin-left: 0; width: 100%; font-weight: 400; padding-left: 12px; padding-right: 8px; }      /* body: as specific as the design system select rule (ryagram-ds.css), and later; 16 px stays (no zoom on focus) */
+  .pc-compare th[scope="row"] { min-width: 9em; }
+  .pc-compare td { min-width: 7em; }
+}
