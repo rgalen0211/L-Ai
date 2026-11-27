@@ -38,18 +38,23 @@
     });
   }
 
-  function mount(root, { h, Room, Score, Rounds, cfg, seconds }) {
+  function mount(root, { h, Room, Score, Rounds, GapRounds, cfg, seconds }) {
     const secs = seconds || ROUND_SECONDS;
     const s = { code: Room.newCode(), conn: null, off: null, players: [], phase: 'lobby', round: -1, guesses: new Map(), totals: new Map(), left: 0, timer: null, results: null, closed: false };
     const live = h('p', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite', id: 'gh-live' });
     const stage = h('div', { class: 'gh-stage' });
     const status = h('p', { class: 'form-note', id: 'gh-status', role: 'status' }, 'Opening a room…');
     const joinUrl = `${location.origin}/game-phone/`;
-    const rounds = Rounds.rounds;
+    // GAMES 11-27: two modes. 'line' = Guess the next line (assets/game-rounds.js); 'gap' = Fill the gap (assets/game-gap-rounds.js: a line with ONE word hidden, scored by the
+    // same engine rules on a one-word answer). The gap mode is offered only when its rounds are loaded.
+    const MODE_ROUNDS = { line: Rounds, gap: GapRounds || (typeof window !== 'undefined' && window.ryagramGameGapRounds) || null };
+    s.mode = 'line';
+    let rounds = Rounds.rounds;
+    const setMode = m => { if (s.phase !== 'lobby' || !MODE_ROUNDS[m]) return; s.mode = m; rounds = MODE_ROUNDS[m].rounds; draw(); broadcast(); };
 
     const publicState = () => {
-      const base = { t: 'state', phase: s.phase, round: Math.max(0, s.round), of: rounds.length, players: s.players.map(p => p.name) };
-      if (s.phase === 'question') { const r = rounds[s.round].public; return { ...base, heard_text: r.heard_text, words_left: r.words_left, left_s: s.left, answered: s.players.filter(p => s.guesses.has(p.pid)).map(p => p.name) }; }
+      const base = { t: 'state', mode: s.mode, phase: s.phase, round: Math.max(0, s.round), of: rounds.length, players: s.players.map(p => p.name) };
+      if (s.phase === 'question') { const r = rounds[s.round].public; return { ...base, heard_text: s.mode === 'gap' ? r.shown_text : r.heard_text, words_left: r.words_left, left_s: s.left, answered: s.players.filter(p => s.guesses.has(p.pid)).map(p => p.name) }; }
       if (s.phase === 'reveal') return { ...base, reveal: { answer_text: rounds[s.round].public && rounds[s.round].answer.map(w => w.word).join(' '), results: s.results.map(({ name, points, verdict, text }) => ({ name, points, verdict, text })) }, totals: totalsList() };
       if (s.phase === 'final') return { ...base, totals: totalsList() };
       return base;
@@ -113,13 +118,17 @@
           h('p', { class: 'gh-code-line' }, 'Room code ', h('strong', { class: 'gh-code', id: 'gh-code' }, s.code)),
           h('p', {}, 'On a phone, open ', h('strong', {}, joinUrl), ' and type the room code.'),
           h('p', { class: 'meta', id: 'gh-players' }, s.players.length ? `Players (${s.players.length} of ${MAX_PLAYERS}): ${s.players.map(p => p.name).join(', ')}` : 'No one has joined yet.'),
+          MODE_ROUNDS.gap ? h('fieldset', { class: 'gh-modes', id: 'gh-modes' }, h('legend', {}, 'Which game?'),
+            ...[['line', 'Guess the next line', 'A line stops partway; type what comes next.'], ['gap', 'Fill the gap', 'A line has one word missing; type the missing word.']].map(([v, label, hint]) =>
+              h('label', { class: 'gh-mode', for: `gh-mode-${v}` }, h('input', { type: 'radio', name: 'gh-mode', id: `gh-mode-${v}`, value: v, checked: s.mode === v ? true : null, onchange: () => setMode(v) }), ' ', h('strong', {}, label), h('span', { class: 'meta' }, ` ${hint}`)))) : null,
           h('button', { class: 'button primary', type: 'button', id: 'gh-start', disabled: s.players.length ? null : true, onclick: () => startRound(0) }, 'Start the game')];
       } else if (s.phase === 'question') {
         const r = rounds[s.round].public;
         kids = [h('h2', { tabindex: '-1' }, `Round ${s.round + 1} of ${rounds.length}`), h('p', { class: 'meta', id: 'gh-clock' }, `${s.left} seconds left`),
-          h('p', { class: 'meta' }, 'Read this line aloud, then stop: the players guess what comes next. (These sample rounds have no video.)'),
-          h('p', { class: 'gh-heard', id: 'gh-heard' }, `“${r.heard_text} …”`),
-          h('p', { class: 'meta' }, `${r.words_left} word${r.words_left === 1 ? ' is' : 's are'} left to guess.`),
+          ...(s.mode === 'gap'
+            ? [h('p', { class: 'meta' }, 'Read this line aloud and say "blank" for the gap: the players type the missing word.'), h('p', { class: 'gh-heard', id: 'gh-heard' }, `“${r.shown_text}”`), h('p', { class: 'meta' }, 'One word is missing.')]
+            : [h('p', { class: 'meta' }, 'Read this line aloud, then stop: the players guess what comes next. (These sample rounds have no video.)'), h('p', { class: 'gh-heard', id: 'gh-heard' }, `“${r.heard_text} …”`),
+               h('p', { class: 'meta' }, `${r.words_left} word${r.words_left === 1 ? ' is' : 's are'} left to guess.`)]),
           h('p', { id: 'gh-answered' }, `Guesses in: ${s.players.filter(p => s.guesses.has(p.pid)).length} of ${s.players.length}`),
           h('button', { class: 'button secondary', type: 'button', id: 'gh-reveal', onclick: reveal }, 'Show the answer now')];
       } else if (s.phase === 'reveal') {

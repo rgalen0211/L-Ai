@@ -117,3 +117,18 @@ test('NO ANSWER BEFORE THE REVEAL: across a whole game (host mounted on a fake r
   assert.equal(fin.totals.find(t => t.name === 'Ana').total, sum);
   host.close();
 });
+
+test('MODES: the room accepts mode line or gap only; the host offers Fill the gap only when its rounds are loaded, sends mode with every state, and a gap question shows the line with its gap (never the word)', async () => {
+  const Room = load(['assets/game-room.js'], { TextEncoder }).ryagramGameRoom;
+  const base = { t: 'state', phase: 'lobby', round: 0, of: 5, players: [] };
+  assert.equal(Room.validate({ ...base, mode: 'gap' }).mode, 'gap'); assert.equal(Room.validate({ ...base, mode: 'line' }).mode, 'line');
+  assert.equal(Room.validate({ ...base, mode: 'quiz' }), null); assert.equal(Room.validate(base).mode, undefined);
+  const host = read('assets/app-games.js');
+  assert.match(host, /gap: GapRounds \|\| \(typeof window !== 'undefined' && window\.ryagramGameGapRounds\) \|\| null/);
+  assert.match(host, /MODE_ROUNDS\.gap \? h\('fieldset'/);
+  assert.match(host, /const setMode = m => \{ if \(s\.phase !== 'lobby' \|\| !MODE_ROUNDS\[m\]\) return;/, 'the mode changes only in the lobby');
+  assert.match(host, /heard_text: s\.mode === 'gap' \? r\.shown_text : r\.heard_text/);
+  const html = read('app/index.html'); assert.ok(html.indexOf('/assets/game-gap-rounds.js?v=') > 0 && html.indexOf('/assets/game-gap-rounds.js?v=') < html.indexOf('/assets/app-games.js?v='));
+  const W = load(['assets/game-gap-rounds.js']);
+  for (const r of W.ryagramGameGapRounds.rounds) assert.ok(!r.public.shown_text.toLowerCase().split(/[^a-z']+/).includes(r.answer[0].norm), 'the shown line never holds the word');
+});

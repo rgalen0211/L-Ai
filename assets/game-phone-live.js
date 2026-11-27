@@ -114,7 +114,8 @@
 
     function question(m) {
       s.phase = 'question'; s.round = m.round; s.sentText = '';
-      const guess = field('ph-guess', 'Your guess for the next line', `Type the words you think come next. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left.`,
+      const gap = m.mode === 'gap';           // GAMES 11-27: Fill the gap shows the whole line with one word missing and asks for that word
+      const guess = field('ph-guess', gap ? 'The missing word' : 'Your guess for the next line', gap ? 'Type the one word that goes in the gap.' : `Type the words you think come next. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left.`,
         el('textarea', { rows: '3', maxlength: String(H.ANSWER_MAX + 40), autocomplete: 'off', class: 'ph-input ph-guess' }));
       const counter = el('p', { class: 'ph-count', id: 'ph-guess-count' }, H.counterText(''));
       const clock = el('p', { class: 'ph-meta', id: 'ph-clock', 'aria-live': 'off' });
@@ -130,8 +131,9 @@
         s.sentText = text; sentLine.textContent = `Sent: “${text}”. You can change it until time is up.`;
       } }, guess.node, counter, el('button', { type: 'submit', class: 'ph-btn', id: 'ph-send' }, 'Send my guess'), sentLine);
       s.left = m.left_s || 0;
-      live.textContent = `Round ${m.round + 1} of ${m.of}. ${m.words_left} words are left to guess.`;
-      show([el('h2', { tabindex: '-1' }, `Round ${m.round + 1} of ${m.of}`), clock, el('p', { class: 'ph-label' }, 'What was said so far'), el('p', { class: 'ph-heard' }, `“${m.heard_text} …”`), form]);
+      live.textContent = gap ? `Round ${m.round + 1} of ${m.of}. Fill the gap: one word is missing.` : `Round ${m.round + 1} of ${m.of}. ${m.words_left} words are left to guess.`;
+      show([el('h2', { tabindex: '-1' }, gap ? `Round ${m.round + 1} of ${m.of}: fill the gap` : `Round ${m.round + 1} of ${m.of}`), clock,
+        el('p', { class: 'ph-label' }, gap ? 'The line, with one word missing' : 'What was said so far'), el('p', { class: 'ph-heard', id: 'ph-heard' }, gap ? `“${m.heard_text}”` : `“${m.heard_text} …”`), form]);
       tick(clock);
     }
 
