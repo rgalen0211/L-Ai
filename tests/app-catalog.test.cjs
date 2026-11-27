@@ -119,8 +119,7 @@ test('every ready dataset builds a valid story on every offered view, in the wor
         assert.deepEqual([render.settings, render.hold_seconds], [{ top_n: 10, axis: 'fixed' }, 3]);
       }
       if (view === 'map' && /counties/i.test(e.level)) assert.deepEqual(s.sequence.style_overrides, { choropleth: { mode: 'solid', continuous: true } });
-      const SHADE = { choropleth: { mode: 'solid', steps: 5, low: '#dfe6f3', high: '#2f3f73' } };       // 2026-11-27: only the obesity map is drawn as shades (ENGINE's check; the other state maps fail the engine's gate with a banded shade)
-      if (view === 'map' && /states/i.test(e.level)) assert.deepEqual(s.sequence.style_overrides, e.id === 'state_obesity_fastfood' ? SHADE : undefined);
+      if (view === 'map' && /states/i.test(e.level)) assert.equal(s.sequence.style_overrides, undefined);
       n++;
     }
   }
