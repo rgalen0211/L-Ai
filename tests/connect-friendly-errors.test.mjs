@@ -20,7 +20,7 @@ test('the codes that always passed still pass', () => {
 });
 
 test('anything else, however it is named, is replaced: no pattern lets an unknown PT code through, and a long or internal message never does', () => {
-  for (const code of ['PTXYZ', 'PTABC', 'P0001', '42P01', 'XX000', '', undefined]) assert.equal(friendlyError(err(code, 'relation "versions" does not exist at /srv/app/x.ts:12')), GENERIC, String(code));
+  for (const code of ['PTXYZ', 'PTABC', 'P0001', '42P01', 'XX000', '', undefined]) assert.equal(friendlyError(err(code, 'Something odd happened at /srv/app/x.ts:12 for versions')), GENERIC, String(code));
   assert.equal(friendlyError(err('PTQUE', 'x'.repeat(301))), GENERIC, 'a message over 300 characters is replaced even for a known code');
   assert.equal(friendlyError(new Error('boom')), GENERIC);
 });
