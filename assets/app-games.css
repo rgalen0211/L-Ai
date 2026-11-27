@@ -23,3 +23,12 @@
 .games-host .gh-player-name{font-weight:700;overflow-wrap:anywhere}
 .games-host .gh-remove,.games-host #gh-lock{min-height:44px;min-width:44px}
 .games-host .gh-lock-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.games-host .gh-code{white-space:nowrap}
+.games-host .gh-statement,.games-host .gh-help{max-width:60em}
+.games-host .gh-seats{font-weight:700;margin:12px 0 4px}
+.games-host .gh-confirm{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.games-host .gh-confirm-text{font-weight:700}
+.games-host .gh-removed{list-style:none;padding:0;margin:4px 0;display:grid;gap:6px}
+.games-host .gh-removed-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.games-host .gh-strikes,.games-host .gh-idle{border:2px solid var(--line-strong,#7d7d89);border-radius:12px;padding:8px 12px}
+.games-host .gh-strikes[hidden],.games-host .gh-idle[hidden],.games-host .gh-removed[hidden]{display:none}
