@@ -170,7 +170,7 @@ test('LOOK ROWS: each change is ONE set_look with a key the draft accepts and a 
 });
 
 test('LOOK ROWS: every key the rows send is one the database lists as accepted (edit_look_keys), so the draft never refuses a row', () => {
-  const sql = read('supabase/migrations/20261027000400_live_editor.sql') + read('supabase/migrations/20261127000100_look_keys_text_scale_legend_position.sql');   // the table's first rows + the reviewed insert that adds text.scale and layout.legend_position
+  const sql = read('supabase/migrations/20261027000400_live_editor.sql') + read('supabase/migrations/20261127000150_look_keys_text_scale_legend_position.sql');   // the table's first rows + the reviewed insert that adds text.scale and layout.legend_position
   const sent = [...ROWS_SRC.matchAll(/key: '([a-z_.]+)'/g)].map(m => m[1]).concat([...ROWS_SRC.matchAll(/colour\('([a-z_.]+)'/g)].map(m => m[1]));
   assert.ok(new Set(sent).size >= 4, 'found the keys: ' + sent);
   for (const k of new Set(sent)) { assert.ok(sql.includes(`('${k}',`), `${k} is in edit_look_keys`); assert.ok(LOOK_KEYS[k], `${k} is in the editor core`); }
