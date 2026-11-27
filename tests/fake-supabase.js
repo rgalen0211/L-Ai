@@ -12,7 +12,7 @@
   const EDITABLE = ['draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render'];
   const ACTIVE = ['queued', 'claimed', 'running', 'validating', 'uploading'];
   const VERSION_FROM_FINAL = {
-    queued: 'queued', awaiting_approval: 'queued', claimed: 'rendering', running: 'rendering', validating: 'validating', uploading: 'uploading',
+    queued: 'queued', claimed: 'rendering', running: 'rendering', validating: 'validating', uploading: 'uploading',
     complete: 'complete', failed: 'failed', editorial_action_required: 'editorial_action_required', cancelled: 'ready_to_render'
   };
   const PLACEHOLDER = label => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
@@ -772,10 +772,8 @@
         if (db.render_orders.some(o => o.preview_job_id === preview.id && ['running', 'awaiting_approval', 'delivered'].includes(o.state))) return fail('That preview already has a full-render request waiting, running or delivered.');
         const sheet = db.jobs.find(j => j.version_id === preview.version_id && j.job_type === 'contact_sheet' && j.state === 'complete' && j.story_sha256 === preview.story_sha256);
         if (!sheet) return fail('That preview has no finished contact sheet for the same story.');
-        let orderQuote = 10;
-        try { orderQuote = quote(db.versions.find(x => x.id === preview.version_id), 'final_render').credits; } catch { /* keep the old default */ }
         const order = { id: id(), owner_id: 'u-ryan', idempotency_key: p_idempotency_key, source: 'app', want: 'final', project_id: db.versions.find(v => v.id === preview.version_id)?.project_id, version_id: preview.version_id,
-                        preview_job_id: preview.id, state: 'awaiting_approval', error_code: null, created_at: now(), ended_at: null, stages: [{ stage: 'final_render', state: 'awaiting_approval', credits_quoted: orderQuote, error_code: null, job_id: null }], delivery: null };
+                        preview_job_id: preview.id, state: 'awaiting_approval', error_code: null, created_at: now(), ended_at: null, stages: [{ stage: 'final_render', state: 'awaiting_approval', credits_quoted: 10, error_code: null, job_id: null }], delivery: null };
         const autoOff = !autoRenderNow();
         // A full render that waits for approval HOLDS its credits (the database does this); a decline or a cancel gives them back.
         if (autoOff && ledger) {
@@ -786,14 +784,6 @@
           const r = rpcs.submit_job({ p_version_id: preview.version_id, p_job_type: 'final_render', p_params: {}, p_sheet_job_id: sheet.id, p_preview_job_id: preview.id });
           if (r.error) return r;
           order.state = 'running'; order.stages[0].state = 'running';
-        }
-        if (autoOff) {      // live: the order's final_render JOB exists in state awaiting_approval (holding the credits) and the version goes to queued (sync_version_state)
-          const v = db.versions.find(x => x.id === preview.version_id);
-          const job = { price_code: 'final_render', credits_quoted: orderQuote, free_preview: false, held: order.hold || 0, captured: 0, released: 0, refunded: 0,
-                        id: id(), version_id: preview.version_id, project_id: order.project_id, owner_id: user.id, job_type: 'final_render', state: 'awaiting_approval', attempt: 1, params: {}, story_sha256: preview.story_sha256,
-                        engine_commit: null, ladder_engine_commit: preview.engine_commit, sheet_job_id: sheet.id, preview_job_id: preview.id, cancel_requested: false, error_class: null, error_code: null, error_detail: null,
-                        progress: null, progress_note: null, created_at: now(), started_at: null, ended_at: null };
-          db.jobs.push(job); order.stages[0].job_id = job.id; order.job_id = job.id; if (v) { v.state = 'queued'; v.updated_at = now(); }
         }
         db.render_orders.push(order);
         return { data: structuredClone({ id: order.id, state: order.state, version_id: order.version_id }), error: null };

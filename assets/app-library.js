@@ -96,8 +96,8 @@
   const FREE_PREVIEW_RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted
   const BUYING_CLOSED = 'Buying credits is not open yet. Contact sheets are free. ' + FREE_PREVIEW_RULE;      // DRAFT FOR RYAN (a preview beyond the free ones costs credits)
   const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
-  const WELCOME_LINE = 'When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';      // Q679 B (Ryan 11-23 15:46); the same words as assets/free-account-line.js (a test pins both)
-  const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film.';      // typed for the Help answer only; the Credits page reads the price table
+  const WELCOME_LINE = 'When you confirm your email you get 8 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';      // Q679 B (Ryan 11-23 15:46); the same words as assets/free-account-line.js (a test pins both)
+  const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 8 covers the smaller ones.';      // typed for the Help answer only; the Credits page reads the price table
   // A film request costs credits. While buying is closed, the way in (the home link, the project page's pointer) shows only to someone whose balance COVERS a request (the same
   // cost the request page reads): a new account has none and could not buy any, so the link would lead to a send that fails (BUILDER 11-23, the Wednesday first-user audit; the
   // full cost, not 'any credits', per GAMES/CC1 08:33). A failed read keeps it hidden. Open buying, or credits off, leaves it as it was.
@@ -109,7 +109,7 @@
       .then(([rows, cost]) => { if (cost != null && availableOf(rows) >= Number(cost)) el.hidden = false; }).catch(() => {});
     return el;
   };
-  const REQUEST_CLOSED = (cost, have) => `A film request costs ${window.ryagramCredits.plural(Number(cost))}; you have ${window.ryagramCredits.plural(have)}. Buying credits is not open yet.`;      // the request page's send, at a balance below the cost while buying is closed (Q679 B: 16 welcome credits are not 10)
+  const REQUEST_CLOSED = (cost, have) => `A film request costs ${window.ryagramCredits.plural(Number(cost))}; you have ${window.ryagramCredits.plural(have)}. Buying credits is not open yet.`;      // the request page's send, at a balance below the cost while buying is closed (Q679 B: 8 welcome credits are not 10)
 
   // Every admin page that is switched on, in plain words and in groups (the Admin page #/admin, WEB 11-20: the admin tools live on ONE page, not in a menu and not scattered over the user pages).
   const adminPages = () => [
@@ -148,12 +148,6 @@
 
   function mount(root, data) {
     let token = 0;
-    let retriedFor = '';      // a page that fails to build is built once more (a cold reload of the same state works, Claude 11-26 19:28): never the dead end on the first throw
-    function retryOnce(err, mine, hash) {
-      if (err && err.notAvailable) return;
-      try { console.error('Ryagram: the page failed to build', err); } catch { /* no console */ }
-      if (retriedFor !== hash) { retriedFor = hash; setTimeout(() => { if (mine === token) route(); }, 600); }
-    }
     let stopView = () => {};                      // timers and subscriptions of the page on screen
     const stopAdminNav = adminNav(data);
     // Signed in, the logo takes a person to their own home (Your projects), not back to the public page: the signed-in site is one website (WEB 11-20). Put back on sign-out.
@@ -209,7 +203,6 @@
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
-        retryOnce(err, mine, hash);
         // A page that belongs to another account (or was removed) is said plainly, with the way home: never the database's own sentence (live ride 2026-10-26).
         view = err && err.notAvailable
           ? [h('h1', { tabindex: '-1' }, 'This page isn’t available on this account'),
@@ -220,7 +213,6 @@
              h('a', { href: '#/' }, 'Back to your projects')];
       }
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
-      if (!(view && view[0] && view[0].textContent === 'Something went wrong')) retriedFor = '';
       stopView();
       stopView = () => stops.forEach(fn => fn());
       const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
@@ -1299,7 +1291,7 @@
       let flip = null;
       const makeIt = h('div', { class: 'make-it' }, picker, byodPointer, saved, jobs.el, lookApply, v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null);
       if (byodPointer) byodPointer.addEventListener('click', () => flip && flip.go('advanced'), true);       // the pointer opens Advanced: that is now a section
-      flip = window.ryagramFlip.create({ h, label: 'This version', plain: true, initial: sectionFromHash, sections: [
+      flip = window.ryagramFlip.create({ h, label: 'This version', initial: sectionFromHash, sections: [
         { id: 'make', label: 'Make it', el: makeIt },
         { id: 'jobs', label: 'Jobs', el: jobs.listPanel },
         { id: 'data', label: 'The data', el: sources.el },
@@ -1797,7 +1789,7 @@
       const liveNote = h('span', { class: 'meta live-note' }, 'Connecting…');
       const listEl = h('div', { 'aria-live': 'polite' }, h('p', { class: 'form-intro' }, 'Loading jobs…'));
 
-      const periods = h('input', { id: 'run-periods', inputmode: 'numeric', placeholder: '2016, 2020', autocomplete: 'off' });
+      const periods = h('input', { id: 'run-periods', inputmode: 'numeric', placeholder: '2016, 2018, 2020', autocomplete: 'off' });
       const winStart = h('input', { id: 'run-start', type: 'number', min: '0', step: '0.5', placeholder: '0', 'aria-label': 'Preview start, seconds' });
       const winEnd = h('input', { id: 'run-end', type: 'number', min: '0', step: '0.5', placeholder: '10', 'aria-label': 'Preview end, seconds' });
       const sheetButton = h('button', { class: 'button secondary', type: 'button' }, 'Make contact sheet');
@@ -1871,16 +1863,11 @@
       async function requestOrder(previewJobId) {
         error.hidden = true;
         await busy(finalButton, 'Requesting\u2026', async () => {
-          let requested = false;
           try {
             await data.requestFinalRender(previewJobId, `app-${previewJobId.slice(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
-            requested = true;
             await loadOrders();
             await refresh();
-          } catch (err) {
-            // The request STANDS once it is made (credits held, version queued): a failure while the page re-reads itself must not say 'try again'. Rebuild the whole page from the server instead.
-            if (requested) { try { console.error('Ryagram: the page could not refresh after the full-render request', err); } catch { /* no console */ } versionChanged(); } else showError(error, err);
-          }
+          } catch (err) { showError(error, err); }
         });
       }
       async function loadOrders() {
