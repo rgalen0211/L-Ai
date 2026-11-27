@@ -28,3 +28,6 @@ test('DOOR: relative links only, so a later move to a Ryagram domain needs no ed
   assert.doesNotMatch(html.replace(/ryagram@uselai\.com/g, ''), /uselai\.com/);
   assert.match(html, /<link rel="canonical" href="\/">/);
 });
+test('DOOR: the Bring your own AI line is CONNECT\'s wording and stays hidden until Ryan confirms Connect an AI is ON for every new account (live step 35)', () => {
+  assert.match(html, /<p class="rg-byoai" hidden>Bring your own AI: connect Claude or ChatGPT to your account \(Account, then Connected AIs\) and ask it to build a film\.<\/p>/);
+});
