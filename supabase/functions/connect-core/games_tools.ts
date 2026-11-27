@@ -19,17 +19,18 @@ export const GAMES_PAGE_PATH = "/app/#/d/games";
 export const PLAYERS_PAGE_PATH = "/game-phone/";
 
 export interface GameListed { id: string; label: string; line: string }
-/** The games on offer today. ONE game; when GAMES adds another it is added here in the same change as its page. */
+/** The games on offer today: the two the host screen offers on its "Which game?" choice (GAMES' branch games-live-1127, assets/app-games.js, checked by CONNECT 11-27 09:10). When GAMES adds another it is added here in the same change as its page. */
 export const GAMES_OFFERED: readonly GameListed[] = Object.freeze([
   Object.freeze({ id: "guess_the_next_line", label: "Guess the next line", line: "Everyone sees what was said so far and types the words they think come next; the host's screen shows the answer and the scores." }),
+  Object.freeze({ id: "fill_the_gap", label: "Fill the gap", line: "A line has one word missing and everyone types the missing word; the host's screen shows the answer and the scores." }),
 ]);
 
-/** The steps, in the person's words. They follow the Games page as GAMES builds it: if the page looks different, the page is right. */
+/** The steps, in the person's words. They follow the Games page as GAMES builds it (assets/app-games.js on games-live-1127): the page opens a room by itself, the host presses "Start the game" once someone has joined. If the page looks different, the page is right. */
 export const HOW_A_ROUND_GOES: readonly string[] = Object.freeze([
   `Open Games from the top bar in Ryagram, signed in (the page is at ${GAMES_PAGE_PATH}).`,
-  "Start a round there. The screen shows a four-letter room code.",
+  "The page opens a room by itself and shows a four-letter room code. If it offers a choice of game, pick one.",
   `Players open the players' page on their phones (${PLAYERS_PAGE_PATH}) and type the room code and a name.`,
-  "Each round the players type a guess on their phones; the host's screen shows the answer and the scores.",
+  "When the players are in, the host presses Start the game. Each round the players type a guess on their phones; the host's screen shows the answer and the scores. The rounds are five made-up samples that the host reads aloud; there is no video.",
 ]);
 
 export function makeGamesTools(): ToolDef[] {

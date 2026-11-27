@@ -52,8 +52,8 @@ test('list_games: the games on offer, with the next step named', async () => {
   const { A, call } = world();
   const r = await call(A, 'list_games');
   assert.ok(!r.isError, r.text);
-  assert.deepEqual(r.data.games.map((g) => g.id), ['guess_the_next_line']);
-  assert.match(r.text, /guess_the_next_line: Guess the next line\./); assert.match(r.text, /open_games_page/);
+  assert.deepEqual(r.data.games.map((g) => g.id), ['guess_the_next_line', 'fill_the_gap'], 'the two games the host screen offers under "Which game?" (GAMES games-live-1127, assets/app-games.js)');
+  assert.match(r.text, /guess_the_next_line: Guess the next line\./); assert.match(r.text, /fill_the_gap: Fill the gap\./); assert.match(r.text, /open_games_page/);
   assert.deepEqual(r.data.games, GAMES_OFFERED);
 });
 
@@ -65,6 +65,9 @@ test('open_games_page: where Games is, how a round goes, and what the AI cannot 
   for (const p of [r.data.page_path, r.data.players_page_path]) assert.match(p, SITE_PATH, p);                // a path on the site, never an address
   assert.deepEqual(r.data.steps, [...HOW_A_ROUND_GOES]);
   assert.match(r.text, /four-letter room code/); assert.match(r.text, /if the page looks different, the page is right/); assert.match(r.text, /cannot press anything/);
+  // the four steps follow the page as built (games-live-1127): the room opens by itself on the page (no "start a round" first), the host presses Start the game once players are in, the rounds are made-up samples
+  assert.match(r.data.steps[1], /opens a room by itself/); assert.ok(!/^Start a round there/.test(r.data.steps[1]));
+  assert.match(r.data.steps[3], /Start the game/); assert.match(r.data.steps[3], /made-up samples/); assert.match(r.data.steps[3], /no video/);
   for (const bad of ['press anything on the page', 'see a room, its players or their guesses', 'play', 'start or end a round']) assert.ok(r.data.ai_cannot.includes(bad), bad);
 });
 
