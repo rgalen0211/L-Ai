@@ -12,7 +12,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 BS = chr(92)
 CODES = {'request_invalid': 'could not be read', 'song_request': 'do not make songs', 'folder_not_chosen': 'choose where that folder', 'folder_missing': 'not there any more', 'folder_empty': 'no videos',
          'folders_overlap': 'same videos', 'no_speech': 'No speech', 'not_said': 'do not say these words', 'edit_failed': 'turned into a film', 'build_failed': 'Nothing left your computer', 'crash': 'went wrong'}
-RUNS = [('waiting', None, 'Waiting for the Ryagram app'), ('planning', 'planning', 'planning your film'), ('matching', 'matching', '7 matches'), ('building', 'building', 'making your film'),
+RUNS = [('waiting', None, 'Nothing is made until the Ryagram app opens for you'), ('planning', 'planning', 'planning your film'), ('matching', 'matching', '7 matches'), ('building', 'building', 'making your film'),
         ('done', 'done', '7 matches, 7 clips, 41 seconds long'), ('cancelled', 'cancelled', 'Stopped')] + [('failed-' + c, 'failed&compcode=' + c, w) for c, w in CODES.items()]
 PATHISH = re.compile('[A-Za-z]:[' + BS + BS + '/]')
 
@@ -69,6 +69,8 @@ with sync_playwright() as pw:
             check(sw <= w, f'{w} {what}: no sideways scroll ({sw})')
         c, p, errs = open_page(b, w, '&compon')
         check('Compilations' in p.evaluate("[...document.querySelectorAll('h1')].map(e=>e.innerText).join('|')"), f'{w} empty: heading')
+        check(p.locator('#comp-pick').count() == 0 and 'upload' not in p.inner_text('.comp-start').lower(), f'{w} empty: no folder picker, no upload word')
+        check('not open to everyone yet' in p.inner_text('.comp-start') and 'will ask you where each folder is' in p.inner_text('.comp-start'), f'{w} empty: honest launch words on the first tab')
         p.screenshot(path=str(OUT / f'start-{w}.png')); width_ok(p, 'empty start')
         small = p.evaluate(SMALL); check(not small, f'{w} empty start: every control at least 44 px tall {small}')
         p.locator('button.flip-tab').nth(1).click(); p.wait_for_timeout(300)
@@ -79,7 +81,7 @@ with sync_playwright() as pw:
         p.wait_for_timeout(1500)
         check(p.evaluate("!!document.querySelector('.comp-start [role=status][aria-live=polite]')"), f'{w} saved: polite live region for the saved line')
         check('Saved' in p.inner_text('.comp-requests'), f'{w} saved: request listed')
-        check('Saved. Open the Ryagram app' in p.inner_text('.comp-saved'), f'{w} saved: the saved line is announced on the requests tab too')
+        check('Saved. Nothing is made yet' in p.inner_text('.comp-saved') and 'not open to everyone yet' in p.inner_text('.comp-saved'), f'{w} saved: the honest saved line is announced on the requests tab too')
         p.screenshot(path=str(OUT / f'saved-{w}.png')); width_ok(p, 'saved'); check(not errs, f'{w} saved: no page errors {errs[:1]}')
         small = p.evaluate(SMALL); check(not small, f'{w} saved: controls 44 px {small}'); c.close()
         c, p, errs = open_page(b, w, '&compon')
@@ -87,6 +89,11 @@ with sync_playwright() as pw:
         check('not a folder name' in err_text(p), f'{w} path refused in plain words')
         check(p.evaluate("!!document.querySelector('.comp-start .app-error[role=alert]')"), f'{w} error is role=alert')
         p.screenshot(path=str(OUT / f'refused-{w}.png')); c.close()
+        c, p, errs = open_page(b, w, '&compon')
+        p.fill('#comp-title', 'see C:/temp'); save(p); p.wait_for_timeout(400)
+        check('Write words, not a place' in err_text(p), f'{w} a place in the compilation name is refused in plain words')
+        p.fill('#comp-title', ''); save(p, 'x', 'a;b'); p.wait_for_timeout(400)
+        check('semicolon or a comma' in err_text(p), f'{w} a semicolon in a folder name is refused in plain words'); c.close()
         c, p, errs = open_page(b, w, '&compon&compfail')
         save(p); p.wait_for_timeout(1200)
         check(err_text(p).strip() != '', f'{w} save error shown: {err_text(p)[:60]}')
@@ -115,7 +122,7 @@ with sync_playwright() as pw:
         for cname, (ph, tt) in cases.items():
             p.reload(); p.wait_for_selector('#comp-phrase', timeout=30000)
             p.fill('#comp-title', tt)
-            save(p, ph[:200], chr(10).join(('Folder' + str(i)).ljust(80, 'x') for i in range(10)))
+            save(p, ph[:200], chr(10).join(('Folder' + str(i)).ljust(80, 'x') for i in range(8)))
             p.wait_for_timeout(1500)
             if not p.is_visible('.comp-run'): p.locator('button.flip-tab').nth(1).click(); p.wait_for_timeout(300)
             over = p.evaluate(RECT); check(not over, f'{w} {cname} + long folders: every row, title, quote line and run line stays inside its card {over}')

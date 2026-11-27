@@ -18,7 +18,8 @@ test('NO PATHS, NO EMPTIES, NO OVERSIZE: a path, a slash, a drive letter, dots, 
   assert.ok(C.buildRequest({ phrase: '', folders: 'A' }).error);
   assert.ok(C.buildRequest({ phrase: 'x', folders: '' }).error);
   assert.ok(C.buildRequest({ phrase: 'x'.repeat(201), folders: 'A' }).error);
-  assert.ok(C.buildRequest({ phrase: 'x', folders: Array.from({ length: 11 }, (_, i) => 'f' + i).join(',') }).error);
+  assert.ok(C.buildRequest({ phrase: 'x', folders: Array.from({ length: 9 }, (_, i) => 'f' + i).join(',') }).error);
+  assert.ok(!C.buildRequest({ phrase: 'x', folders: Array.from({ length: 8 }, (_, i) => 'f' + i).join(',') }).error, 'eight folders are allowed (FACES 1 to 8; the server takes 1 to 10)');
   assert.ok(C.buildRequest({ phrase: 'see C:' + BS + 'temp', folders: 'A' }).error, 'a place in the words');
 });
 test('SWITCH: compilations is an account switch, the department module promotes it only behind featureOn, the page only calls the proposed RPC and reads under RLS', () => {
@@ -31,14 +32,16 @@ test('SWITCH: compilations is an account switch, the department module promotes 
   const page = read('assets/app-compilations.js');
   assert.ok(!/fetch\(|XMLHttpRequest|FileReader|\.text\(\)|arrayBuffer|FormData/.test(page), 'the page reads and sends no file');
 });
-test('LOCAL: the folder picker reads only the folder NAME and a file count; the words say nothing is uploaded', () => {
+test('LOCAL: no folder picker (FACES 11-27); the words say the videos never leave the computer, the app will ask where each folder is', () => {
   const page = read('assets/app-compilations.js');
-  assert.ok(page.includes("split('/')[0]"));
-  assert.ok(page.includes('Nothing is uploaded: nothing leaves your computer.') && page.includes('Your videos never leave your computer.'));
+  assert.ok(!page.includes('webkitdirectory') && !page.includes('comp-pick') && !page.includes('may use the word upload'));
+  assert.ok(page.includes('Your videos never leave your computer.'));
+  assert.equal(C.WORDS.folderAsk, 'The Ryagram app will ask you where each folder is.');
 });
 test('RUN LINES: what the person\'s computer reported becomes a plain line: counts only, a closed list of reasons, the generic line for anything else', () => {
   const W = C.WORDS, run = s => C.runLine(s, W);
   assert.equal(run(null), W.waiting);
+  assert.equal(run(undefined), W.waiting);
   assert.match(run({ state: 'matching', matches: 7 }), /finding the matches on your computer\. 7 matches, counted on your computer\.$/);
   assert.match(run({ state: 'done', matches: 7, clips: 7, film_seconds: 41.2 }), /^Done\. Your film is on your computer\. 7 matches, 7 clips, 41 seconds long, counted on your computer\.$/);
   assert.match(run({ state: 'failed', error_code: 'not_said' }), /It did not finish. Your videos do not say these words. Try other words, or add more folders.$/);
@@ -52,8 +55,7 @@ test('HONEST OPTIONS (FACES 08:21): no song box and no clean-cuts box (the engin
   const page = read('assets/app-compilations.js');
   assert.ok(!page.includes("id: 'comp-song'") && !page.includes("id: 'comp-cuts'"));
   assert.equal((page.match(/WORDS\.local/g) || []).length, 1);
-  assert.ok(page.includes('may use the word upload'));
-});
+  });
 test('GAMES REVIEW 11-27: an old run is not shown, a typed place is never echoed, a refused save archives its empty project, a failed list load is plain, stale has words', () => {
   const W = C.WORDS;
   assert.equal(C.runLine({ state: 'done', current: false, matches: 3 }, W), W.earlier);
@@ -61,13 +63,13 @@ test('GAMES REVIEW 11-27: an old run is not shown, a typed place is never echoed
   const b = C.buildRequest({ phrase: 'x', folders: 'bad:name' });
   assert.equal(b.error.includes('bad:name'), false);
   assert.match(b.error, /^That is not a folder name\./);
-  assert.equal(W.errors.stale, 'The build stopped reporting. You can start it again from the app.');
+  assert.equal(W.errors.stale, 'The build stopped reporting.');
   assert.equal(C.runLine({ state: 'done', current: false, matches: 3 }, W), 'This is for an earlier version of your request. Save again to start over.');
   const pg = read('assets/app-compilations.js');
   assert.ok(pg.includes('data.myComputers()') && !pg.includes('myLocalCompute'), 'the no-app line is keyed on the computers list, not the tester flag');
   assert.match(W.local, /your note and the name of your compilation/);
   const page = read('assets/app-compilations.js');
-  assert.ok(page.includes('data.archiveProject(made.project.id)') && page.includes('plainRefusal') && page.includes("'Added one folder.") && !page.includes('err.message)); return; }'));
+  assert.ok(page.includes('data.archiveProject(made.project.id)') && page.includes('plainRefusal') && !page.includes('err.message)); return; }'));
 });
 test('WEB 11-27 fold2: unknown state shows only the waiting line, stale its own sentence, edit_failed points nowhere, the no-app line hides once a run is reported, no songs promise', () => {
   const W = C.WORDS;
@@ -85,4 +87,42 @@ test('WEB fold2: film length is singular for one second, plural for 0 and more',
   assert.doesNotMatch(C.runLine({ state: 'done', film_seconds: 1 }, W), /1 seconds/);
   assert.match(C.runLine({ state: 'done', film_seconds: 0 }, W), /0 seconds long/);
   assert.match(C.runLine({ state: 'done', film_seconds: 41 }, W), /41 seconds long/);
+});
+test('WEB fold3 (FACES honest launch words; WORKER 11:49): no promise of a film, no progress for a request alone, no song printed, door refusal, title and folder rules', () => {
+  const W = C.WORDS;
+  // every new sentence under 20 words and none promises a film or a time
+  for (const k of ['intro', 'waiting', 'saved', 'noApp', 'folderAsk', 'songRow', 'door']) for (const sentence of W[k].split(/(?<=[.:;?])\s+/)) assert.ok(sentence.split(/\s+/).length < 20, sentence);
+  assert.equal(W.intro, 'Save a request: a phrase and folder names. The Ryagram app makes the film; it is not open to everyone yet.');
+  assert.equal(W.saved, 'Saved. Nothing is made yet: the Ryagram app, not open to everyone yet, makes the film. No credits are used.');
+  assert.equal(W.waiting, 'Saved. Nothing is made until the Ryagram app opens for you; it will find this request.');
+  assert.equal(W.noApp, 'The Ryagram app is not open to everyone yet. Your saved request will be found when it opens for you.');
+  assert.match(W.local, /Nothing is made until the app opens for you\. No credits are used\.$/);
+  assert.ok(!/Soon|queued|in progress|working on it|spinner|minutes|today|tomorrow/i.test(JSON.stringify([W.intro, W.local, W.waiting, W.saved, W.noApp])));
+  // a request with no run, or a run with nothing real in it, never shows a state, a count or a failure
+  for (const run of [null, undefined, {}, { state: 5 }, { state: 'zzz', matches: 4 }]) {
+    const line = C.runLine(run, W);
+    assert.equal(line, W.waiting);
+    assert.ok(!/planning|finding the matches|making your film|Done|did not finish|Stopped|match|clip|second/i.test(line));
+  }
+  const pg = read('assets/app-compilations.js');
+  assert.ok(!pg.includes('/get-app/') && !pg.includes('Get the Ryagram app'), 'no get-app link: that page is for invited testers');
+  // a song request: no "as a song", its own plain line, no edit promised
+  assert.ok(!/as a song/.test(C.requestLine({ request: { phrase: 'x', folders: ['a'], song: true } })));
+  assert.ok(C.isSong({ request: { song: true } }) && C.isSong({ request: { mode: 'song' } }) && !C.isSong({ request: { song: false } }));
+  assert.equal(W.songRow, 'This request asks for a song; Compilations do not make songs. Save a new one without the song.');
+  assert.ok(!/Take out the song/.test(W.errors.song_request) && /without the song/.test(W.errors.song_request));
+  assert.ok(pg.includes('isSong(r) ? WORDS.songRow'));
+  // the door: the server's refusal for an account that is not let in gets its own sentence (no role guessed)
+  assert.equal(C.doorRefusal({ code: '42501', message: 'permission denied for function my_compilation_set' }), W.door);
+  assert.equal(C.doorRefusal({ message: 'Compilations are not open for this account yet.' }), W.door);
+  assert.equal(C.doorRefusal({ message: 'Name 1 to 10 folders.' }), null);
+  assert.equal(C.doorRefusal(null), null);
+  assert.ok(!/admin|worker|waiting|invited/i.test(W.door));
+  // names: no comma or semicolon in a name; a place in the compilation's name is refused like one in the words
+  assert.deepEqual(JSON.parse(JSON.stringify(C.folderList('Interviews, 2019'))), ['Interviews', '2019']);
+  assert.match(C.buildRequest({ phrase: 'x', folders: 'a;b' }).error, /semicolon or a comma/);
+  assert.match(C.buildRequest({ phrase: 'x', folders: 'A', title: 'see C:' + String.fromCharCode(92) + 'temp' }).error, /^Write words, not a place/);
+  assert.ok(!C.buildRequest({ phrase: 'x', folders: 'A', title: 'My compilation' }).error);
+  assert.match(C.buildRequest({ phrase: 'x', folders: 'a,b,c,d,e,f,g,h,i' }).error, /at most 8/);
+  assert.ok(pg.includes('title: title.value'));
 });

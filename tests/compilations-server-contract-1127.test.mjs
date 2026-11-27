@@ -113,7 +113,7 @@ T('ERRORS: WORDS.errors keys are the migration\'s eleven reasons plus the one do
 T('LIMITS: the page\'s limits equal the numbers in the migration text', () => {
   assert.ok(SQL.includes('> 32768'));
   assert.ok(/char_length\(btrim\(p ->> 'phrase'\)\) < 1 or char_length\(p ->> 'phrase'\) > 200/.test(SQL) && C.LIMITS.phrase === 200);
-  assert.ok(/jsonb_array_length\(p -> 'folders'\) not between 1 and 10/.test(SQL) && C.LIMITS.folders === 10);
+  assert.ok(/jsonb_array_length\(p -> 'folders'\) not between 1 and 10/.test(SQL) && C.LIMITS.folders === 8 && C.LIMITS.folders <= 10);      // FACES' engine takes 1 to 8; the server accepts 1 to 10: a smaller page limit is safe
   assert.ok(/char_length\(f\) < 1 or char_length\(e #>> '\{\}'\) > 80/.test(SQL));
   assert.ok(/char_length\(p ->> 'note'\) > 500/.test(SQL) && C.LIMITS.note === 500);
   assert.ok(SQL.includes("'schema', 'phrase', 'search', 'mode', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist'"));
@@ -125,7 +125,7 @@ T('SHAPE: a request the page builds passes every mirrored migration check, and u
   assert.equal(r.schema, 'ryagram.compilation-request/0');
   for (const k of Object.keys(r)) assert.ok(requestKeys().includes(k), k);
   assert.equal(serverProblem(wire(r)), null);
-  const maxed = C.buildRequest({ phrase: 'x'.repeat(200), note: 'n'.repeat(500), folders: Array.from({ length: 10 }, (_, i) => 'f'.repeat(78) + i).join(',') }).request;
+  const maxed = C.buildRequest({ phrase: 'x'.repeat(200), note: 'n'.repeat(500), folders: Array.from({ length: 8 }, (_, i) => 'f'.repeat(78) + i).join(',') }).request;
   assert.equal(serverProblem(wire(maxed)), null, 'the largest request the page allows');
   assert.ok(Buffer.byteLength(JSON.stringify(maxed)) < 32768);
 });

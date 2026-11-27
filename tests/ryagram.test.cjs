@@ -441,7 +441,7 @@ test('the Compilation Maker section is an illustration with public-domain words,
   const sec = pageHtml.match(/<section id="compilation"[\s\S]*?<\/section>/)[0];
   assert.doesNotMatch(sec, /<video|<iframe|<img/);
   assert.match(sec, /Coming soon/);
-  assert.match(sec, /every time it is said in your own footage/);
+  assert.match(sec, /Save a request for a phrase in your footage\. The film needs the Ryagram app, not open to everyone yet\./);
   assert.doesNotMatch(sec, /clips into songs/);
   assert.match(sec, /public-domain words \(Lincoln, 1863\)/);
 });
