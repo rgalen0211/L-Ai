@@ -17,3 +17,8 @@ test('HELP: the same six first questions, in the same words, in the app (First q
   assert.ok(lib.includes("{ id: 'first', label: 'First questions', el: answers("));
   for (const w of ['A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour once it starts.', 'We do not send an email when a film is ready']) { assert.ok(lib.includes(w), w); assert.ok(help.includes(w), w); }
 });
+test('CONNECT WALK (11-27): the Claude / ChatGPT steps on the Account page show a plus (minus when open) so a closed heading reads as a button', () => {
+  const css = read('assets/app.css');
+  assert.match(css, /\.connect-app>summary::before\{content:"\+"/);
+  assert.match(css, /\.connect-app\[open\]>summary::before\{content:"\\2212"\}/);
+});
