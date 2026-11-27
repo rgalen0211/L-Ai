@@ -408,7 +408,8 @@
       const list = projects.length
         ? h('ul', { class: 'film-grid' }, (myFilmsOn() && window.ryagramFilms ? projects.slice(0, HOME_FILMS_MAX) : projects).map(p => S.filmCard({ h, project: p, data, version: p.latest && p.latest.id,
             parts: [p.latest ? `Version ${p.latest.number}` : 'No versions yet', p.latest && p.latest.state ? badge(p.latest.state) : null, p.updated_at && !isNaN(new Date(p.updated_at)) ? `updated ${date(p.updated_at)}` : null], edit: editLink(p.id, 'button secondary small') })))
-        : h('p', { class: 'form-intro' }, builderOn() ? 'No films yet. The quickest way to start is the big card above: pick a ready-made film and the first picture is free.' : 'No films yet. Name your first film above, then pick a ready-made film to start from.');
+        : builderOn() ? h('div', { class: 'empty-first' }, h('p', { class: 'form-intro' }, 'No films yet. Your first picture is free.'), h('a', { class: 'button primary', href: '#/build', id: 'empty-first-film' }, 'Pick a ready-made film'))
+          : h('p', { class: 'form-intro' }, 'No films yet. Name your first film above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
       if (credits) data.creditBalances().then(rows => {
         credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
@@ -493,7 +494,7 @@
       let got = null, problem = '';
       try { got = await data.deliveryUrl(id); } catch (err) { problem = err.message; }
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Your film'),
-        got ? [h('video', { class: 'delivery-video', controls: true, preload: 'metadata', src: got.url }), h('p', {}, h('a', { class: 'button secondary', href: got.url, rel: 'noopener noreferrer', target: '_blank' }, 'Open or download')),
+        got ? [h('video', { class: 'delivery-video', controls: true, preload: 'metadata', src: got.url }), h('div', { class: 'actions-row' }, h('a', { class: 'button primary', href: got.url, rel: 'noopener noreferrer', target: '_blank', download: '' }, 'Download the film'), h('a', { class: 'button secondary', href: '#/build', id: 'delivery-another' }, 'Make another film')),
                h('p', { class: 'form-note' }, `${AI_LABEL}. This film is kept for 30 days, then deleted. This link works for an hour; come back to this page for a new one.`)]
             : h('p', { class: 'app-error', role: 'alert' }, problem)];
     }
