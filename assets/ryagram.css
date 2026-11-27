@@ -138,3 +138,4 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,v
 .rg-home .rg-section{padding:36px 0}.rg-home .rg-hero{padding-bottom:28px}.rg-home .rg-steps{gap:12px}.rg-home .rg-films{gap:16px}
 @media(min-width:721px){.rg-home .rg-hero{padding-top:40px;padding-bottom:44px;row-gap:18px}.rg-home .rg-section{padding:44px 0}}
 .rg-hero-still{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:12px;background:#0a0a0e}
+.rg-home .rg-films{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}

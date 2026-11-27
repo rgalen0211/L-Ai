@@ -79,7 +79,7 @@ test('film pages: the line beside "Make your own data film" says anyone 18 or ol
 });
 
 test('Home teaser, Terms placeholder, Help (connect an AI) and the request page: no invitation, list or "ask Ryan" claims', () => {
-  assert.match(read('archive/consulting/index.html'), /<p>Short animated films drawn straight from the numbers, with correctness checks built in\. Anyone 18 or older can make a free account and try it\.<\/p>/);
+  assert.match(read('_archive/consulting/index.html'), /<p>Short animated films drawn straight from the numbers, with correctness checks built in\. Anyone 18 or older can make a free account and try it\.<\/p>/);
   assert.match(read('terms/index.html'), /Sign-up is open to anyone who is 18 or older\. We email you a link to finish signing up\./);
   const m = /<summary>How do I connect Claude or ChatGPT to Ryagram\?<\/summary>\s*<p>([^<]*)<\/p>/.exec(read('help/index.html'));
   assert.match(m[1], /^You can connect an AI assistant such as Claude or ChatGPT to your account\. If you do not see Connected AIs under Account, it is not available on your account; write to ryagram@uselai\.com\./);
@@ -90,7 +90,7 @@ test('Home teaser, Terms placeholder, Help (connect an AI) and the request page:
 });
 
 test('the Home page copy did not grow (the phone margin is 0.01): the teaser paragraph is not longer than before', () => {
-  const now = read('archive/consulting/index.html').match(/<div class="eyebrow">New from L'Ai<\/div>[\s\S]*?<p>([^<]*)<\/p>/)[1];
+  const now = read('_archive/consulting/index.html').match(/<div class="eyebrow">New from L'Ai<\/div>[\s\S]*?<p>([^<]*)<\/p>/)[1];
   assert.ok(now.length <= 'Short animated films drawn straight from the numbers, with correctness checks built in. The first films are on the way, and the waitlist is open.'.length, `${now.length} characters`);
 });
 

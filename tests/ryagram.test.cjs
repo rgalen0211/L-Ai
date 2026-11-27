@@ -473,7 +473,7 @@ test('LANDING: no claim the product cannot back yet: nothing about an editor, sp
 
 test('the operator is L\'Ai, LLC everywhere it is named; Ryagram pages, the policy and the app give ryagram@, the main pages ryan.galen@', () => {
   const page = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-  const named = ['index.html', 'ryagram/index.html', 'privacy-policy.html', 'archive/consulting/workflow-audit/index.html', 'archive/consulting/workflow-audit-thanks.html', 'film/index.html', 'app/index.html'];
+  const named = ['index.html', 'ryagram/index.html', 'privacy-policy.html', '_archive/consulting/workflow-audit/index.html', '_archive/consulting/workflow-audit-thanks.html', 'film/index.html', 'app/index.html'];
   for (const f of named) {
     const html = page(f);
     assert.doesNotMatch(html, /Seasonings/, f);
@@ -487,7 +487,7 @@ test('the operator is L\'Ai, LLC everywhere it is named; Ryagram pages, the poli
   }
   assert.match(page('assets/ryagram.js'), /const CONTACT = 'ryagram@uselai\.com';/);
   // The main uselai.com pages keep Ryan's address.
-  for (const f of ['archive/consulting/index.html', 'archive/consulting/workflow-audit/index.html', 'archive/consulting/workflow-audit-thanks.html', 'archive/consulting/thank-you.html']) assert.match(page(f), /ryan\.galen@uselai\.com/, f);
+  for (const f of ['_archive/consulting/index.html', '_archive/consulting/workflow-audit/index.html', '_archive/consulting/workflow-audit-thanks.html', '_archive/consulting/thank-you.html']) assert.match(page(f), /ryan\.galen@uselai\.com/, f);
   // The app names its operator and links the policy (it had no footer before).
   assert.match(page('app/index.html'), /<footer class="app-foot"><span>Ryagram is operated by L'Ai, LLC\.<\/span><a href="\/help\/">Help<\/a><a href="mailto:ryagram@uselai\.com">Contact: ryagram@uselai\.com<\/a><a href="\/terms\/">Terms of Use<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><a href="\/ai-content\/">AI content<\/a><\/footer>/);   // Help and Contact are in every footer (consumer audit)
   // The Auth email templates live in the Supabase dashboard: the README says what to paste.

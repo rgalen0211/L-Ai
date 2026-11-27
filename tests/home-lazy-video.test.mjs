@@ -7,7 +7,7 @@ const root = new URL('../', import.meta.url);
 const read = p => fs.readFileSync(new URL(p, root), 'utf8').replace(/\r\n/g, '\n');
 
 test('HOME VIDEO IS LAZY: no autoplay and no source address until the script arms it; the poster is a small JPEG; the old PNG is gone', () => {
-  const html = read('archive/consulting/index.html');
+  const html = read('_archive/consulting/index.html');
   const tag = html.match(/<video[^>]*data-lazy-video[^>]*>/)[0];
   assert.doesNotMatch(tag, /autoplay/);
   assert.match(tag, /preload="none"/);
