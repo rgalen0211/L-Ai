@@ -31,6 +31,31 @@ test('people within a ring are ESTIMATED by block-group centre, rounded to 100, 
   assert.match(r[0].method, /centre is inside the ring/);
 });
 
+test('people within a ring, AREA-WEIGHTED: a block group fully inside counts in full, one cut in half counts half, a hole is left out', () => {
+  // a 0.2 x 0.2 km square block group centred on the spot, 1,000 people: fully inside a 1 km ring
+  const d = 0.1 / 111.195, sq = (x0, y0, w, h) => [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h], [x0, y0]];
+  const spot = [0, 0];
+  const inside = { pop: 1000, centre: [0, 0], rings: [sq(-d, -d, 2 * d, 2 * d)] };
+  assert.equal(pc.peopleWithinArea(spot, [inside], [1])[0].about, 1000);
+  // a long strip from the spot eastwards, 4 km long: about a quarter of it lies inside a 1 km ring
+  const strip = { pop: 4000, centre: [2 / 111.195, 0], rings: [sq(0, -d, 4 / 111.195, 2 * d)] };
+  near(pc.peopleWithinArea(spot, [strip], [1])[0].about, 1000, 100);
+  // the same square with a hole of a quarter of its area: the people still count once (the share is of the unit's own area)
+  const holed = { pop: 1000, centre: [0, 0], rings: [sq(-d, -d, 2 * d, 2 * d), sq(-d / 2, -d / 2, d, d)] };
+  assert.equal(pc.peopleWithinArea(spot, [holed], [1])[0].about, 1000);
+  const r = pc.peopleWithinArea(spot, [inside], [1])[0];
+  assert.equal(r.label, 'estimated'); assert.match(r.method, /spread evenly/);
+});
+
+test('area weighting matches the Ryagram engine (catchment.residents_inside) on real Census block groups: pinned from GEO\'s 11-27 check', () => {
+  const win = {};
+  require('node:vm').runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'assets', 'perfect-city', 'montgomery_oh.census.js'), 'utf8'), { window: win });
+  const u = win.ryagramPerfectCityData.montgomery_oh.units;
+  // 600 spot-ring pairs agreed within 50 people (the rounding to 100); two pinned here
+  assert.deepEqual(pc.peopleWithinArea([-84.1916, 39.7589], u).map((x) => x.about), [3500, 13900, 104000]);
+  assert.deepEqual(pc.peopleWithinArea([-84.2374, 39.7509], u).map((x) => x.about), [3400, 12900, 65100]);
+});
+
 test('point in a unit, with a hole', () => {
   const sq = (x0, y0, s) => [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s], [x0, y0]];
   const u = { rings: [sq(0, 0, 10), sq(4, 4, 2)] };

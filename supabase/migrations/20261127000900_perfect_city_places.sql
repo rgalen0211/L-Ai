@@ -137,16 +137,22 @@ begin
                 'places', jsonb_build_object('count', (select count(*) from ryagram_private.perfect_city_places p
                                                         where p.county = p_county and p.kind = p_kind and ryagram_private.perfect_city_km(v_lat, v_lon, p.lat, p.lon) <= r.km),
                                              'basis', 'calculated'),
-                'people_about', jsonb_build_object('value', (select (round(coalesce(sum(u.pop), 0) / 100.0) * 100)::int from ryagram_private.perfect_city_units u
-                                                              where u.county = p_county and ryagram_private.perfect_city_km(v_lat, v_lon, u.lat, u.lon) <= r.km),
-                                                   'basis', 'estimated',
-                                                   'method', 'block groups whose centre is inside the ring, counted in full, rounded to the nearest 100'))
+                -- People only for the 5 km ring: the server has block-group CENTRES only, and GEO's 11-27 check (proposals/GEO-PERFECT-CITY-ESTIMATE-CHECK-1127.md)
+                -- found the centre method off by a median 4% at 5 km but 18% at 2 km and 58% at 1 km, with false zeros. The page itself uses area weighting.
+                'people_about', case when r.km = 5 then
+                    jsonb_build_object('value', (select (round(coalesce(sum(u.pop), 0) / 100.0) * 100)::int from ryagram_private.perfect_city_units u
+                                                  where u.county = p_county and ryagram_private.perfect_city_km(v_lat, v_lon, u.lat, u.lon) <= r.km),
+                                       'basis', 'estimated',
+                                       'method', 'block groups whose centre is inside the ring, counted in full, rounded to the nearest 100; typically within about 10 percent at 5 km')
+                  else jsonb_build_object('value', null, 'basis', 'estimated',
+                                          'note', 'not given for rings under 5 km: too rough from block-group centres; the Perfect City page shows an area-weighted figure')
+                  end)
                 order by r.km)
               from (values (1), (2), (5)) r(km)),
     'not_known', jsonb_build_array(
       'Distances are straight lines, not drive or walk times.',
       'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
-      'People within a ring are an estimate: a block group counts in full when its centre is inside the ring.',
+      'People are given for the 5 km ring only, as an estimate from block-group centres.',
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.'),
     'credits', jsonb_build_array(
       'U.S. Census Bureau, 2020 Census, table P1 (total population), block groups.',

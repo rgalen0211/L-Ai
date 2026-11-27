@@ -49,6 +49,54 @@
     });
   }
 
+  // About how many people live within each ring, AREA-WEIGHTED: ESTIMATED. Method, in words: each block group's people are shared by the part of its
+  // area inside the ring (a 96-sided circle, clipped in a flat local projection), which assumes people are spread evenly inside each block group.
+  // GEO's 11-27 check (proposals/GEO-PERFECT-CITY-ESTIMATE-CHECK-1127.md) found the centre method off by a median 58% at 1 km, with false zeros; this is
+  // the Ryagram engine's own method (ryagram/geo/catchment.py residents_inside). Rounded to the nearest 100.
+  const AREA_METHOD = "each block group's people shared by the part of its area inside the ring, assuming people are spread evenly inside it";
+  function shoelace(pts) { let a = 0; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]); return Math.abs(a) / 2; }
+  // Sutherland-Hodgman: clip any polygon by a CONVEX polygon (the circle), both counter-clockwise or both clockwise does not matter for the area.
+  function clip(subject, convex) {
+    let out = subject;
+    for (let i = 0; i < convex.length && out.length; i++) {
+      const a = convex[i], b = convex[(i + 1) % convex.length], inp = out; out = [];
+      const side = (p) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+      const sgn = side(convex[(i + 2) % convex.length]) >= 0 ? 1 : -1;      // which side of a->b is inside
+      const inside = (p) => side(p) * sgn >= 0;
+      for (let k = 0; k < inp.length; k++) {
+        const p = inp[k], q = inp[(k + 1) % inp.length], pin = inside(p), qin = inside(q);
+        if (pin) out.push(p);
+        if (pin !== qin) {
+          const sp = side(p), sq = side(q), t = sp / (sp - sq);
+          out.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+        }
+      }
+    }
+    return out;
+  }
+  function peopleWithinArea(spot, units, rings = RINGS_KM) {
+    const kx = rad(1) * R_KM * Math.cos(rad(spot[1])), ky = rad(1) * R_KM;          // km per degree at the spot
+    const loc = (p) => [(p[0] - spot[0]) * kx, (p[1] - spot[1]) * ky];
+    return rings.map((r) => {
+      const circle = Array.from({ length: 96 }, (_, i) => [r * Math.cos((2 * Math.PI * i) / 96), r * Math.sin((2 * Math.PI * i) / 96)]);
+      let total = 0, touched = 0;
+      for (const u of units) {
+        if (u.pop == null || !u.pop) continue;
+        if (km(spot, u.centre) > r + 15) continue;                                   // far away: cannot touch the ring (block groups here are under 15 km across)
+        let full = 0, inside = 0;
+        u.rings.forEach((ring, i) => {
+          const hole = u.rings.some((other, j) => j !== i && inRing(ring[0], other));
+          const pts = ring.slice(0, -1).map(loc);
+          const sgn = hole ? -1 : 1;
+          full += sgn * shoelace(pts);
+          inside += sgn * shoelace(clip(pts, circle));
+        });
+        if (full > 0 && inside > 0) { total += u.pop * Math.min(1, inside / full); touched++; }
+      }
+      return { km: r, about: Math.round(total / 100) * 100, blockGroups: touched, label: 'estimated', method: AREA_METHOD };
+    });
+  }
+
   // Shading bands for the map: five equal-count bands of the value over the county's units (CALCULATED break points).
   function bands(units, value, k = 5) {
     const xs = units.map(value).filter((v) => v != null && Number.isFinite(v)).sort((a, b) => a - b);
@@ -70,7 +118,7 @@
     return { fwd, inv, kmToPx };
   }
 
-  const api = { km, inRing, inUnit, unitAt, nearest, countsWithin, peopleWithin, bands, band, projector, RINGS_KM };
+  const api = { km, inRing, inUnit, unitAt, nearest, countsWithin, peopleWithin, peopleWithinArea, clip, shoelace, bands, band, projector, RINGS_KM };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ryagramPerfectCity = Object.freeze(api);
 })(typeof window !== 'undefined' ? window : globalThis);

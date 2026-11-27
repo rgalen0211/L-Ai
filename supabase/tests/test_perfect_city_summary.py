@@ -27,6 +27,8 @@ CALL = "select ryagram_private.perfect_city_summary_for(%s, %s, %s, %s, %s)"
 
 # The page's own numbers (node, assets/perfect-city-core.js peopleWithin on assets/perfect-city/montgomery_oh.census.js), 11-27:
 PAGE_PEOPLE = {(-84.1916, 39.7589): [4200, 13300, 100700], (-84.2374, 39.7509): [2200, 11500, 66300]}
+# The page's own AREA-WEIGHTED 5 km figures for the same spots (assets/perfect-city-core.js peopleWithinArea), 11-27:
+PAGE_AREA_5KM = {(-84.1916, 39.7589): 104000, (-84.2374, 39.7509): 65100}
 
 
 def km(lat1, lon1, lat2, lon2):
@@ -96,16 +98,22 @@ class PerfectCitySummary(core.Base):
         self.assertEqual([(r["km"], r["places"]["count"], r["places"]["basis"]) for r in s["rings"]], [(1, 1, "calculated"), (2, 3, "calculated"), (5, 5, "calculated")])
         for r in s["rings"]:
             self.assertEqual(r["people_about"]["basis"], "estimated")
-            self.assertIn("centre is inside the ring", r["people_about"]["method"])
+            if r["km"] == 5:
+                self.assertIn("centre is inside the ring", r["people_about"]["method"])
+            else:
+                self.assertIsNone(r["people_about"]["value"], "no people figure under 5 km: too rough from centres")
+                self.assertIn("not given for rings under 5 km", r["people_about"]["note"])
         self.assertTrue(any("straight lines" in t for t in s["not_known"]) and any("no success score" in t for t in s["not_known"]))
         self.assertIn("Map data (c) OpenStreetMap contributors (ODbL)", s["credits"])
         self.assertNotIn("osm_ref", str(s))
 
-    def test_05_people_match_the_page_exactly(self):
+    def test_05_people_at_5_km_match_the_centre_method_and_stay_near_the_pages_area_weighting(self):
         self.switch_on(OTHER)
         for (lon, lat), expected in PAGE_PEOPLE.items():
             s = self.summary(OTHER, lat=lat, lon=lon)
-            self.assertEqual([r["people_about"]["value"] for r in s["rings"]], expected, (lat, lon))
+            five = [r["people_about"]["value"] for r in s["rings"] if r["km"] == 5][0]
+            self.assertEqual(five, expected[2], (lat, lon))                                  # the centre method, exactly as node computes it
+            self.assertLess(abs(five - PAGE_AREA_5KM[(lon, lat)]) / PAGE_AREA_5KM[(lon, lat)], 0.10, (lat, lon))   # within 10% of the page's figure
 
     def test_06_distance_formula_matches_python(self):
         got = self.db.as_(None).one("select ryagram_private.perfect_city_km(39.7589, -84.1916, 39.6848, -83.9297)")

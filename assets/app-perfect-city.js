@@ -20,7 +20,7 @@
     intro: 'Pick a county and a kind of business, then click the map, or type a latitude and longitude, to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
     notKnown: ['Distances are straight lines, not drive or walk times.',
       'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
-      'People within a ring are an estimate: a block group counts in full when its centre is inside the ring.',
+      "People within a ring are an estimate: each block group's people are shared by the part of its area inside the ring, as if they were spread evenly.",
       'Median income is a survey estimate with a margin of error, for the whole block group.',
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.',
       'The map shows the places near your spot only: within 5 km, and the nearest five.'],
@@ -139,7 +139,7 @@
     }
 
     // 'about 0' would contradict the block group's own count: when no block-group centre is inside a ring, say so instead.
-    const peopleCell = (p) => (p.blockGroups === 0 ? 'no block-group centre inside (see the method below)' : `about ${fmt(p.about)}`);
+    const peopleCell = (p) => (p.blockGroups === 0 ? 'none counted (see the method below)' : `about ${fmt(p.about)}`);
 
     function drawResults() {
       const c = state.census;
@@ -154,7 +154,7 @@
           h('li', {}, `People per square kilometre: ${u.density == null ? 'not available' : fmt(u.density)}`, u.density == null ? null : h('span', { class: 'pc-label' }, ' calculated')),
           h('li', {}, `Median household income: ${u.income ? '$' + fmt(u.income[0]) + (u.income[1] ? ` (plus or minus $${fmt(u.income[1])})` : '') : 'not published for this block group'}`, u.income ? h('span', { class: 'pc-label' }, ' estimated, American Community Survey 2019 to 2023') : null),
           h('li', { class: 'meta' }, `Census block group ${u.id}`))];
-      const people = pc.peopleWithin(state.spot, c.units);
+      const people = pc.peopleWithinArea(state.spot, c.units);
       if (state.places) {
         const near = pc.nearest(state.spot, state.places, 5), counts = pc.countsWithin(state.spot, state.places);
         out.push(h('h3', {}, `Nearest ${KINDS[state.kind].toLowerCase()}`),
