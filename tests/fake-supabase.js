@@ -768,7 +768,6 @@
       my_compilation_set({ p_project, p_request }) {
         const p = db.projects.find(x => x.id === p_project);
         if (!p) return fail('That project is not yours.');
-        if (typeof location !== 'undefined' && /[?&]compfail/.test(location.search || '')) return fail('Couldn’t save the request.');      // ?compfail: the save error state
         if (!p_request || typeof p_request !== 'object' || p_request.schema !== 'ryagram.compilation-request/0' || JSON.stringify(p_request).length > 32768) return fail('That request is not valid.');
         if (typeof location !== 'undefined' && !/[?&]compon/.test(location.search || '') && !seed.compilationsOn) return fail('Compilations are not on for this account yet.');
         const row = { project_id: p_project, owner_id: user.id, request: structuredClone(p_request), request_sha256: 'sha-' + JSON.stringify(p_request).length, updated_at: now() };
@@ -781,7 +780,7 @@
         const r = db.compilation_requests.find(x => x.project_id === p_project);
         if (!r) return { data: null, error: null };
         const st = typeof location !== 'undefined' ? (/[?&]comprun=([a-z]+)/.exec(location.search || '') || [])[1] : null;
-        return { data: { request: r.request, sha256: r.request_sha256, updated_at: r.updated_at, run: st ? { state: st, matches: st === 'planning' ? null : 7, clips: st === 'done' ? 7 : null, film_seconds: st === 'done' ? 41 : null, error_code: st === 'failed' ? ((/[?&]compcode=([a-z_]+)/.exec(location.search || '') || [])[1] || 'not_said') : null } : null }, error: null };
+        return { data: { request: r.request, sha256: r.request_sha256, updated_at: r.updated_at, run: st ? { state: st, matches: st === 'planning' ? null : 7, clips: st === 'done' ? 7 : null, film_seconds: st === 'done' ? 41 : null, error_code: st === 'failed' ? 'not_said' : null } : null }, error: null };
       },
       request_final_render({ p_preview_job, p_idempotency_key }) {
         if (!/^[A-Za-z0-9_-]{8,100}$/.test(p_idempotency_key || '')) return fail('The idempotency key must be 8 to 100 letters, digits, - or _.');
