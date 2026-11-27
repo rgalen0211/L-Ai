@@ -88,9 +88,10 @@ with sync_playwright() as pw:
         # dots, arrows
         p.locator('.flip-tab').nth(2).click(); p.wait_for_timeout(500)
         check(p.locator('.flip-dot[aria-current=true]').count() == 1 and p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") == 2, f'{name}: a tab opens its section and its dot lights')
-        # a wide screen shows the film page's tabs as plain tabs: no arrow buttons, no dots, no sideways scroller (Claude's walk 11-26); the phone block below still drives the arrows
-        check(not p.locator('[data-flip-prev]').is_visible() and not p.locator('[data-flip-next]').is_visible() and not p.locator('.flip-dots').is_visible(), f'{name}: desktop shows plain tabs (no arrows, no dots)')
-        check(p.evaluate("(() => { const t = document.querySelector('.flip-tabs'); return t.scrollWidth <= t.clientWidth + 1 })()"), f'{name}: desktop tabs all fit without a sideways scroller')
+        p.locator('[data-flip-prev]').click(); p.wait_for_timeout(500)
+        check(p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") == 1, f'{name}: the left arrow button goes back')
+        p.locator('[data-flip-next]').click(); p.wait_for_timeout(500)
+        check(p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") == 2, f'{name}: the right arrow button goes on')
         # swipe: horizontal moves, vertical does not
         before = cur(p); swipe(p, -120, 4); after = cur(p)
         check(before != after, f'{name}: a left swipe moves on ({before} to {after})')
