@@ -157,7 +157,7 @@ test('the page is small, makes no request, builds from text nodes only, and open
   assert.ok(html.includes("b=btn('Copy','quiet',function(){copyLine(x,b,text);})"), 'and a Copy button');
   assert.ok(html.includes("Press Ctrl+C (Cmd+C on a Mac) to copy it."), 'and a clipboard that is refused says what to press');
   assert.ok(!/dashed|dotted/.test(html), 'no dashed field look anywhere in the page');
-  assert.ok(html.includes(".example{margin:8px 0 0;padding:2px 0 2px 12px;border:0;border-left:3px solid #6fd1bd"), 'the example is quote style: a left bar, no box');
+  assert.ok(html.includes(".example{margin:8px 0 0;padding:2px 0 2px 12px;border:0;border-left:3px solid #ff8a3d"), 'the example is quote style: a left bar, no box');
   assert.match(html, /data-app-url="https:\/\/uselai\.com\/app\/"/);
   assert.match(homeHtml('http://evil.example/'), /data-app-url=""/, 'an address that is not https is never put in the page');
   assert.match(homeHtml('https://x.example/"><script>'), /data-app-url=""/);
@@ -212,4 +212,13 @@ test('a database that cannot answer is said in words, not thrown', async () => {
   const data = w.data(A.userId); data.departments = async () => { throw new Error('boom'); };
   const r = await callTool('open_ryagram_home', {}, A, { data, policy: w.policy(), deps: { compile }, homePanel: true });
   assert.equal(r.isError, true); assert.equal(r.code, 'unavailable'); assert.match(r.text, /not available just now/);
+});
+
+test('LOOK: the panel wears the home page look: orange pill buttons (a quiet outlined one for the second action), the serif wordmark heading, no teal, no L’Ai chip', () => {
+  const html = homeHtml('https://uselai.com/app/');
+  assert.ok(html.includes('border-radius:999px;border:1px solid #ff8a3d;background:#ff8a3d;color:#14141a'), 'the main button is the home page orange pill');
+  assert.ok(html.includes('button.quiet{background:transparent;border-color:#7d7d89;color:#f2f2ef}'), 'the quiet button is outlined');
+  assert.ok(html.includes('font:400 24px/1 Georgia,Times New Roman,serif'), 'the heading is the serif wordmark');
+  assert.ok(!/#6fd1bd|#8fe0cf/.test(html), 'no teal is left');
+  assert.ok(!html.includes("L'Ai"), 'no L’Ai chip');
 });
