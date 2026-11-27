@@ -134,9 +134,11 @@ test('the page offers exactly the kinds the server allows, county by county (rea
   const base = [...py.match(/^KINDS = \{(.*)\}$/m)[1].matchAll(/'([a-z_]+)': \(/g)].map((m) => m[1]);
   const subs = [...py.matchAll(/^ {4}\{"id": "([a-z_]+)"/gm)].map((m) => m[1]);
   assert.deepEqual(subs, ['chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian']);
-  assert.deepEqual([...base, ...subs].sort(), table, 'the export tool writes only kinds the table accepts');
-  // every food sub-kind says what its rule misses under the results; asian says independents are often untagged, so undercounted
-  assert.deepEqual(Object.keys(page.KIND_LIMITS), subs);
+  const fdicKind = py.match(/^FDIC_KIND = '([a-z_]+)'$/m);      // bank branches: the FDIC Summary of Deposits, not OpenStreetMap
+  assert.ok(fdicKind, 'the export names its FDIC kind');
+  assert.deepEqual([...base, ...subs, fdicKind[1]].sort(), table, 'the export tool writes only kinds the table accepts');
+  // every food sub-kind says what its rule misses under the results; asian says independents are often untagged, so undercounted; bank says its list's limit
+  assert.deepEqual(Object.keys(page.KIND_LIMITS), [...subs, 'bank']);
   for (const k of subs) assert.ok(page.KIND_LIMITS[k].startsWith(page.KINDS[k] + ' are sorted by'), k);
   assert.match(page.KIND_LIMITS.asian, /Independent places are often not tagged with a cuisine, so Asian places are undercounted\./);
   assert.match(page.KIND_LIMITS.asian, /Indian places are not counted here\./);
@@ -151,6 +153,54 @@ test('the page offers exactly the kinds the server allows, county by county (rea
   assert.ok(fakeKinds, 'the mock names its kinds');
   assert.deepEqual(fakeKinds[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).sort(), table, 'the mock accepts exactly the server kinds');
   assert.ok(fake.includes(`fail('Choose a kind this county has: ${refusal[1]} (grocery in montgomery_oh only).')`), 'the mock refuses in the server\'s words');
+});
+
+// Bank branches (GEO 11-27): FDIC Summary of Deposits (public domain), NOT OpenStreetMap, so the credit, the not-known line and the official line follow the kind.
+const FDIC_CREDIT = 'Bank branches: FDIC Summary of Deposits, June 30, 2026';
+const OSM_CREDIT = 'Map data (c) OpenStreetMap contributors (ODbL)';
+function pageModule() {
+  const win = {};
+  require('node:vm').runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'assets', 'app-perfect-city.js'), 'utf8'), { window: win });
+  return win.ryagramPerfectCityPage;
+}
+
+test('bank branches: offered in both counties, labelled, with the FDIC limits line', () => {
+  const page = pageModule();
+  assert.equal(page.KINDS.bank, 'Bank branches');
+  for (const c of page.COUNTIES) assert.ok(c.kinds.includes('bank'), c.id);
+  assert.equal(page.KIND_LIMITS.bank, 'FDIC-insured bank branches only. Credit unions are not included.');
+});
+
+test('the credit switches by kind: FDIC for bank branches, OpenStreetMap for every other kind (server, mock and page agree)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261127000900_perfect_city_places.sql'), 'utf8').replace(/\r\n/g, '\n');
+  // the page's answer and the AI summary's credits both pick the credit by kind; no fixed OpenStreetMap credit is left in either
+  assert.ok(sql.includes(`'credit', case when p_kind = 'bank' then '${FDIC_CREDIT}' else '${OSM_CREDIT}' end,`), 'the places answer picks its credit by kind');
+  assert.ok(sql.includes(`case when p_kind = 'bank' then '${FDIC_CREDIT}'\n           else '${OSM_CREDIT}' end));`), 'the AI summary picks its credit by kind');
+  assert.equal(sql.split(`'${OSM_CREDIT}'`).length - 1, 2, 'the OpenStreetMap credit appears only in the two by-kind choices');
+  assert.match(sql, /case when p_kind = 'bank' then 'The bank branches come from the FDIC Summary of Deposits/, 'the AI summary\'s not-known line follows the kind');
+  // the mock answers like the server
+  const fake = fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8');
+  assert.ok(fake.includes(`const credit = args.p_kind === 'bank' ? '${FDIC_CREDIT}' : '${OSM_CREDIT}';`), 'the mock picks the credit by kind');
+  // the page links OpenStreetMap's copyright page for an OpenStreetMap credit only, and swaps the OpenStreetMap not-known line for the FDIC one
+  const page = pageModule();
+  assert.equal(page.creditLinked(OSM_CREDIT), true);
+  assert.equal(page.creditLinked(FDIC_CREDIT), false);
+  assert.equal(page.creditLinked(''), false);
+  const bank = page.notKnownFor('bank'), food = page.notKnownFor('fast_food');
+  assert.equal(bank.length, food.length);
+  assert.ok(food.some((t) => /OpenStreetMap/.test(t)));
+  assert.ok(!bank.some((t) => /OpenStreetMap/.test(t)), 'no OpenStreetMap line for bank branches');
+  assert.ok(bank.includes(page.WORDS.notKnownBank) && /FDIC Summary of Deposits/.test(page.WORDS.notKnownBank));
+  assert.deepEqual([...page.notKnownFor('chicken')], [...food]);
+});
+
+test('the official line for bank branches is said in plain words, with no industry code', () => {
+  const page = pageModule();
+  assert.equal(page.OFFICIAL_PLAIN.bank, 'bank offices');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app-perfect-city.js'), 'utf8');
+  assert.ok(src.includes("`The Census Bureau's count of ${OFFICIAL_PLAIN[state.kind]} in this county is ${n} (observed, County Business Patterns ${o.year}); ${m}.`"));
+  const plain = src.slice(src.indexOf('if (OFFICIAL_PLAIN[state.kind]) {'), src.indexOf('const name = OFFICIAL_KIND[state.kind]'));
+  assert.ok(plain.length > 0 && !/NAICS|naics/.test(plain), 'the plain-words branch shows no code');
 });
 
 // The export's SUBKINDS are a COPY of rows in the Ryagram engine's ryagram/geo/categories.py DEFAULT. With RYAGRAM_ENGINE set to a Ryagram checkout,

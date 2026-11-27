@@ -3,15 +3,16 @@
 // (straight-line distance), how many are within 1, 2 and 5 km, and about how many people live around the spot, with the
 // block group's people, density and median income. EVERY number says observed, calculated or estimated, and the page says
 // what it does not know. Census layers ship with the page (public domain); the business points come from the server only
-// (public.perfect_city_places: OpenStreetMap, private until attorney row G11), and the page says so when they are missing.
+// (public.perfect_city_places: OpenStreetMap, private until attorney row G11; bank branches from the FDIC Summary of Deposits), and the page says so when they are missing.
+// The credit on screen is the one the server sends for the kind (OpenStreetMap, or FDIC for bank branches).
 // All public words here are DRAFT, FOR RYAN'S YES.
 (() => {
   const NS = 'http://www.w3.org/2000/svg';
   const COUNTIES = [
-    { id: 'montgomery_oh', label: 'Montgomery County, Ohio (Dayton)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian', 'grocery'] },
-    { id: 'greene_oh', label: 'Greene County, Ohio (Beavercreek, Xenia)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian'] }
+    { id: 'montgomery_oh', label: 'Montgomery County, Ohio (Dayton)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian', 'grocery', 'bank'] },
+    { id: 'greene_oh', label: 'Greene County, Ohio (Beavercreek, Xenia)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian', 'bank'] }
   ];
-  const KINDS = { fast_food: 'Fast food', restaurant: 'Restaurants', chicken: 'Chicken places', burger: 'Burger places', pizza: 'Pizza places', sandwich: 'Sandwich places', mexican: 'Mexican places', asian: 'Asian places', grocery: 'Supermarkets' };      // chicken ... asian: the Ryagram engine's rules (tools/perfect-city/export_perfect_city.py SUBKINDS)
+  const KINDS = { fast_food: 'Fast food', restaurant: 'Restaurants', chicken: 'Chicken places', burger: 'Burger places', pizza: 'Pizza places', sandwich: 'Sandwich places', mexican: 'Mexican places', asian: 'Asian places', grocery: 'Supermarkets', bank: 'Bank branches' };      // chicken ... asian: the Ryagram engine's rules (tools/perfect-city/export_perfect_city.py SUBKINDS); bank: FDIC, not OpenStreetMap
   const kindLower = (k) => KINDS[k].replace(/^\S+/, (w) => (w === 'Mexican' || w === 'Asian' ? w : w.toLowerCase()));      // 'fast food', 'chicken places', but 'Mexican places'
   // What each food sub-kind's sorting rule misses, said under the results (the Ryagram engine's limits, in page words). A place is in one food kind at most:
   // the kinds are checked in the order chicken, burger, pizza, sandwich, Mexican, Asian, and the first that fits wins.
@@ -21,9 +22,13 @@
     pizza: 'Pizza places are sorted by the map data\'s cuisine tag or a known chain name, so a place with neither is missed. A place also tagged chicken or burger is counted there instead.',
     sandwich: 'Sandwich places are sorted by the map data\'s cuisine tag or a known chain name, so a place with neither is missed. The kinds are checked in the order chicken, burger, pizza, sandwich, Mexican, Asian, so a place also tagged chicken, burger or pizza is counted there instead.',
     mexican: 'Mexican places are sorted by the map data\'s cuisine tag or a known chain name, so a place with neither is missed. The kinds are checked in the order chicken, burger, pizza, sandwich, Mexican, Asian, so a place also tagged one of the first four is counted there instead.',
-    asian: 'Asian places are sorted by the map data\'s cuisine tag or a known chain name. Indian places are not counted here. Independent places are often not tagged with a cuisine, so Asian places are undercounted.'
+    asian: 'Asian places are sorted by the map data\'s cuisine tag or a known chain name. Indian places are not counted here. Independent places are often not tagged with a cuisine, so Asian places are undercounted.',
+    bank: 'FDIC-insured bank branches only. Credit unions are not included.'      // not a sorting rule: the FDIC list's own limit
   };
   const OFFICIAL_KIND = { fast_food: 'limited-service restaurant (fast food)', restaurant: 'full-service restaurant', grocery: 'supermarket and grocery store' };      // the County Business Patterns industry, said as a noun before 'establishments'
+  // Kinds whose official line is said in plain words, with no industry code shown (County Business Patterns NAICS 522110, commercial banking, for bank).
+  const OFFICIAL_PLAIN = { bank: 'bank offices' };
+  const OSM_CREDIT = /OpenStreetMap/;      // only the OpenStreetMap credit carries the link to its copyright page
   const SHADES = { density: 'People per square kilometre', income: 'Median household income' };
   const FILL = ['#dfe6f3', '#b3c2e0', '#8299c7', '#55699f', '#2f3f73'];      // pale to dark blue (FACES' shade palette B)
   const NO_DATA = '#4a4a52';
@@ -37,6 +42,8 @@
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.',
       'The map shows the places near your spot only: within 5 km, and the nearest five.',
       'One county at a time: places and people across the county line are not counted, even inside a ring.'],
+    // for bank branches the second line says the FDIC list's limits instead of OpenStreetMap's
+    notKnownBank: 'The bank branches come from the FDIC Summary of Deposits, a yearly list as of June 30: a branch opened or closed since then can be missing or still listed.',
     noPlaces: 'The business points are not loaded yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
     badTyped: 'Type a latitude and a longitude as numbers, for example 39.7589 and -84.1916.',
@@ -51,6 +58,8 @@
     compareNote: 'Each spot is looked up on its own. This shows what is around each spot side by side; it does not say which spot is better.',
     notCounted: 'The Census does not count chicken, burger, pizza, sandwich, Mexican or Asian places separately.'
   };
+  // what the page does not know, for the kind on screen: bank branches swap the OpenStreetMap line for the FDIC list's
+  const notKnownFor = (kind) => WORDS.notKnown.map((t) => (kind === 'bank' && /OpenStreetMap/.test(t) ? WORDS.notKnownBank : t));
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   const km1 = (x) => (x < 10 ? x.toFixed(2) : x.toFixed(1));
 
@@ -59,7 +68,7 @@
     if (have()) return Promise.resolve(have());
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = `/assets/perfect-city/${county}.census.js?v=20261127c`;      // b: the County Business Patterns counts (official) added; c: not_counted names sandwich, mexican and asian
+      s.src = `/assets/perfect-city/${county}.census.js?v=20261127d`;      // b: the County Business Patterns counts (official) added; c: not_counted names sandwich, mexican and asian; d: bank (NAICS 522110)
       s.onload = () => (have() ? resolve(have()) : reject(new Error('no data')));
       s.onerror = () => reject(new Error('no data'));
       document.head.append(s);
@@ -88,6 +97,7 @@
     const results = h('div', { class: 'pc-results', id: 'pc-results' });
     const status = h('p', { class: 'form-note', id: 'pc-status', role: 'status' });
     const credits = h('p', { class: 'meta', id: 'pc-credits' });
+    const notKnownList = h('ul', { class: 'soon-more', id: 'pc-not-known' }, notKnownFor(state.kind).map((t) => h('li', {}, t)));      // redrawn with the credits when the kind changes
     const latIn = h('input', { id: 'pc-lat', type: 'text', inputmode: 'decimal', size: '9', placeholder: '39.7589', autocomplete: 'off' });
     const lonIn = h('input', { id: 'pc-lon', type: 'text', inputmode: 'decimal', size: '9', placeholder: '-84.1916', autocomplete: 'off' });
     const targetWrap = h('span');
@@ -218,6 +228,11 @@
       if (!o || !o.kinds) return null;
       const k = o.kinds[state.kind];
       if (!k) return o.not_counted && o.not_counted.includes(state.kind) ? h('p', { class: 'meta', id: 'pc-official' }, WORDS.notCounted) : null;
+      if (OFFICIAL_PLAIN[state.kind]) {      // plain words, no code: "the Census Bureau's count of bank offices"
+        const n = Number.isFinite(k.est) ? fmt(k.est) : 'fewer than 3 or none (not published)';
+        const m = state.loaded == null ? 'the number of FDIC branches loaded is not known' : `the FDIC branch list has ${fmt(state.loaded)} loaded`;
+        return h('p', { class: 'meta', id: 'pc-official' }, `The Census Bureau's count of ${OFFICIAL_PLAIN[state.kind]} in this county is ${n} (observed, County Business Patterns ${o.year}); ${m}.`);
+      }
       const name = OFFICIAL_KIND[state.kind] || k.label.toLowerCase();
       const what = name.endsWith(')') ? `${name.slice(0, -1)}, NAICS ${k.naics})` : `${name} (NAICS ${k.naics})`;      // 'restaurant (fast food, NAICS 722513)'
       const n = Number.isFinite(k.est) ? fmt(k.est) : 'fewer than 3 or none (not published)';
@@ -329,9 +344,11 @@
       const s = state.census.sources;
       const o = state.census.official;
       const credit = state.credit || (state.compare ? state.b.credit : '');
-      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}${o && o.source ? '; ' + o.source.replace(/\.$/, '') : ''}. ${s.calculated}${credit ? ' ' + credit + ' (' : ''}`,
-        credit ? h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright') : '',
-        `${credit ? ').' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
+      const osm = OSM_CREDIT.test(credit);      // the server's credit for this kind: OpenStreetMap (with its link) or FDIC for bank branches (no link)
+      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}${o && o.source ? '; ' + o.source.replace(/\.$/, '') : ''}. ${s.calculated}${credit ? ' ' + credit + (osm ? ' (' : '.') : ''}`,
+        osm ? h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright') : '',
+        `${osm ? ').' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
+      notKnownList.replaceChildren(...notKnownFor(state.kind).map((t) => h('li', {}, t)));
     }
 
     // which: 'A' or 'B'. Only the spot that moved is asked about again (each spot is its own server call).
@@ -420,9 +437,9 @@
     kindSelect();
     await refresh();
     return [h('h1', { tabindex: '-1' }, 'Perfect City'), h('p', { class: 'form-intro' }, WORDS.intro), controls, status, mapBox, compareBar, typed, results,
-      h('h2', {}, 'What this does not know'), h('ul', { class: 'soon-more', id: 'pc-not-known' }, WORDS.notKnown.map((t) => h('li', {}, t))), credits,
+      h('h2', {}, 'What this does not know'), notKnownList, credits,
       h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.')];
   }
 
-  window.ryagramPerfectCityPage = Object.freeze({ view, COUNTIES, KINDS, KIND_LIMITS, WORDS });
+  window.ryagramPerfectCityPage = Object.freeze({ view, COUNTIES, KINDS, KIND_LIMITS, WORDS, OFFICIAL_PLAIN, notKnownFor, creditLinked: (c) => OSM_CREDIT.test(String(c || '')) });
 })();

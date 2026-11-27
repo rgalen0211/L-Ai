@@ -48,9 +48,14 @@ FAULTS = [
     ("the AI summary nearest carries a name", SUMMARY,
      "jsonb_build_object('rank', n.rk, 'km',", "jsonb_build_object('rank', n.rk, 'name', 'x', 'km',"),
     ("people at 1 km are given in the summary", SUMMARY, "case when r.km = 5 then", "case when r.km >= 1 then"),
-    # 2026-11-27: the table accepts asian but perfect_city_check's list forgot it (the two lists drifted), so the page's Asian places are refused
+    # 2026-11-27: the table accepts the newest kind but perfect_city_check's list forgot it (the two lists drifted), so the page's bank branches are refused
+    # (first written for asian; since bank was added after asian, the dropped kind is bank, which test_bank_branches_... asks for in both counties)
     ("a new kind missing from the check list", PLACES,
-     "'sandwich', 'mexican', 'asian') or (p_county = 'greene_oh' and p_kind = 'grocery') then", "'sandwich', 'mexican') or (p_county = 'greene_oh' and p_kind = 'grocery') then"),
+     "'mexican', 'asian', 'bank') or (p_county = 'greene_oh' and p_kind = 'grocery') then", "'mexican', 'asian') or (p_county = 'greene_oh' and p_kind = 'grocery') then"),
+    # 2026-11-27: bank branches come from the FDIC Summary of Deposits, not OpenStreetMap; a fixed credit would put OpenStreetMap's name on FDIC data
+    ("banks carry the OSM credit", PLACES,
+     "'credit', case when p_kind = 'bank' then 'Bank branches: FDIC Summary of Deposits, June 30, 2026' else 'Map data (c) OpenStreetMap contributors (ODbL)' end,",
+     "'credit', 'Map data (c) OpenStreetMap contributors (ODbL)',"),
     ("the spot box check is removed", PLACES, BOX, ""),
 ]
 

@@ -4,6 +4,8 @@ Two outputs, kept apart on purpose:
   census   -> assets/perfect-city/<county>.census.json  (US Census, public domain: committed, served with the page)
   places   -> a SQL file OUTSIDE this repo (OpenStreetMap, ODbL; attorney row G11 is open, so the points are
               never committed or served as a site file; Ryan loads them into a private table with a live step)
+              The same file carries the bank branches (kind 'bank'): FDIC Summary of Deposits, public domain, from D:/Ryagram-cache/fdic_sod,
+              kept beside the OSM points so one file loads every kind.
 
 Usage (system Python with pyshp and pyproj; no network):
   py -I -B tools/perfect-city/export_perfect_city.py census
@@ -210,10 +212,53 @@ def kinds_of(tags):
     return out
 
 
+# Bank branches (GEO 11-27): NOT OpenStreetMap. The FDIC Summary of Deposits branch list (U.S. government data, public domain), read from Ryagram's
+# fdic_sod cache, D:/Ryagram-cache/fdic_sod/<year>/page_*.json (plain JSON lists, one dict per branch office; only json.loads, never unpickled).
+# A branch is kept when its STCNTYBR is the county's FIPS code AND its point is inside the county's block groups (the same test as the OSM points).
+# The stable ref is FDIC's unique branch number (UNINUMBR), written as 'fdic:<n>' into the osm_ref column (the API never returns it). The list is a
+# snapshot as of June 30 of its year; credit unions are not FDIC-insured, so they are not in it. The kind is FDIC_KIND, outside KINDS/SUBKINDS on purpose.
+FDIC_DIR = pathlib.Path(r'D:/Ryagram-cache/fdic_sod')
+FDIC_KIND = 'bank'
+MIGRATION = REPO / 'supabase' / 'migrations' / '20261127000900_perfect_city_places.sql'
+
+
+def fdic_credit(year):
+    return f'Bank branches: FDIC Summary of Deposits, June 30, {year}'
+
+
+def fdic_branches():
+    """(year, [branch dict, ...]) from the newest cached year; refuses unless every row carries that same YEAR."""
+    years = sorted((int(p.name) for p in FDIC_DIR.iterdir() if p.is_dir() and p.name.isdigit()), reverse=True) if FDIC_DIR.exists() else []
+    if not years:
+        sys.exit('REFUSED: no FDIC Summary of Deposits pages in ' + str(FDIC_DIR))
+    year = years[0]
+    rows = []
+    for f in sorted((FDIC_DIR / str(year)).glob('page_*.json')):
+        doc = json.loads(f.read_text(encoding='utf-8'))
+        if not isinstance(doc, list):
+            sys.exit(f'REFUSED: {f} is not a list of branches')
+        rows += doc
+    if not rows or {r.get('YEAR') for r in rows} != {year}:
+        sys.exit(f'REFUSED: the FDIC pages in {FDIC_DIR / str(year)} do not all say YEAR {year}')
+    if fdic_credit(year) not in MIGRATION.read_text(encoding='utf-8'):
+        sys.exit(f'REFUSED: the migration does not carry the credit "{fdic_credit(year)}" for this data; update it first')
+    return year, rows
+
+
+def fdic_name(r):
+    """The branch's name as the person would look for it: the bank's name, then the branch's own name when it adds something."""
+    bank, branch = (r.get('NAMEFULL') or '').strip(), (r.get('NAMEBR') or '').strip()
+    if not branch or branch.lower().startswith(bank.lower()):
+        return (branch or bank)[:120]
+    return f'{bank} ({branch})'[:120]
+
+
 def places(args):
     out = pathlib.Path(args.out).resolve()
     if REPO in out.parents or out == REPO:
         sys.exit('REFUSED: the OpenStreetMap points must never be written inside the repo (attorney row G11).')
+    fdic_year, fdic_rows = fdic_branches()
+    print('FDIC Summary of Deposits', fdic_year, len(fdic_rows), 'branches nationwide')
     import os
     engine = os.environ.get('RYAGRAM_ENGINE')
     if engine:
@@ -224,6 +269,7 @@ def places(args):
     else:
         print('RYAGRAM_ENGINE not set: SUBKINDS were NOT compared with the engine')
     rows, outside = [], 0
+    fdic_outside = {k: 0 for k in COUNTIES}
     for key in COUNTIES:
         # keep only the points INSIDE the county's own block groups (the queries used a box wider than the county; GAMES 08:44 LOW)
         js = (REPO / 'assets' / 'perfect-city' / f'{key}.census.js').read_text(encoding='utf-8')
@@ -258,10 +304,22 @@ def places(args):
                 for kind in kinds_of(tags):
                     name = (tags.get('name') or '')[:120]
                     rows.append((key, kind, f"{e['type'][0]}{e['id']}", name, round(lat, 6), round(lon, 6)))
+        fips = int(COUNTIES[key]['state'] + COUNTIES[key]['county'])
+        in_fips = [r for r in fdic_rows if r.get('STCNTYBR') == fips]
+        kept = 0
+        for r in in_fips:
+            lat, lon = r.get('SIMS_LATITUDE'), r.get('SIMS_LONGITUDE')
+            if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)) or not inside(lon, lat):
+                fdic_outside[key] += 1
+                continue
+            rows.append((key, FDIC_KIND, f"fdic:{int(r['UNINUMBR'])}", fdic_name(r), round(lat, 6), round(lon, 6)))
+            kept += 1
+        print(f'{key}: FDIC branches with county code {fips}: {len(in_fips)}; inside the block groups: {kept}; left out: {fdic_outside[key]}')
     rows = sorted(set(rows))
-    print('left out (outside the county):', outside, 'elements')
+    print('left out (outside the county):', outside, 'OpenStreetMap elements')
     q = lambda s: "'" + s.replace("'", "''") + "'"
     lines = ['-- Perfect City places (OpenStreetMap contributors, ODbL 1.0). PRIVATE until attorney row G11: never commit this file.',
+             f"-- Rows of kind '{FDIC_KIND}' are NOT OpenStreetMap: FDIC Summary of Deposits branch offices as of June 30, {fdic_year} (U.S. government data, public domain); osm_ref holds 'fdic:<FDIC unique branch number>'.",
              'begin;', 'delete from ryagram_private.perfect_city_places;']
     for i in range(0, len(rows), 200):
         chunk = rows[i:i + 200]
@@ -299,9 +357,9 @@ def units_seed(args):
 # The OFFICIAL count of each kind in the county (GEO 11-27): U.S. Census Bureau, County Business Patterns (CBP), public domain,
 # read from the bulk county files already in the cache (no network). There is no CBP code for chicken, burger, pizza, sandwich, Mexican or Asian places.
 CBP_DIR = pathlib.Path(r'C:/Users/Ryan/Ryagram-cache/cbp_bulk')
-CBP_NAICS = {'fast_food': '722513', 'restaurant': '722511', 'grocery': '445110'}
+CBP_NAICS = {'fast_food': '722513', 'restaurant': '722511', 'grocery': '445110', 'bank': '522110'}      # bank: commercial banking (NAICS 2017); credit unions are 522130, not counted
 CBP_LABELS = {'722513': 'Limited-service restaurants', '722511': 'Full-service restaurants',
-              '445110': 'Supermarkets and other grocery (except convenience) stores'}
+              '445110': 'Supermarkets and other grocery (except convenience) stores', '522110': 'Commercial banking'}
 
 
 def cbp_years():
