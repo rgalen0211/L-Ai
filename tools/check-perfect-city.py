@@ -178,6 +178,28 @@ def main():
                 p.screenshot(path=str(out / f'5-no-places-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()
+                # 2b. a dense cluster (RENDERER 09:12): 80 invented places within 2 km of the county's middle, more than the 60 one answer carries.
+                # With the server's true counts ('within') the page prints them; without them (an older server) it says 'at least'.
+                for q, true_counts in (('&perfectcity&denseplaces', True), ('&perfectcity&denseplaces&nowithin', False)):
+                    ctx, p, errors = page(q)
+                    p.wait_for_selector('#pc-map svg.pc-svg path', timeout=20000)
+                    p.fill('#pc-lat', '39.7600'); p.fill('#pc-lon', '-84.2000'); p.click('#pc-go')
+                    p.wait_for_selector('#pc-rings', timeout=5000)
+                    cells = [x.inner_text().strip() for x in p.locator('#pc-rings tbody tr td:nth-child(2)').all()]
+                    dots = p.locator('#pc-map circle.pc-place').count()
+                    if true_counts:
+                        check(len(cells) == 3 and cells[1].isdigit() and int(cells[1]) >= 80 and not any('at least' in c for c in cells),
+                              f'dense cluster: the 2 km ring shows the true count, 80 or more, not the 60 sent ({cells})')
+                        check(p.locator('#pc-map-capped').count() == 1 and 'nearest 60' in p.inner_text('#pc-map-capped') and p.locator('#pc-capped').count() == 0,
+                              'dense cluster: the page says the map shows only the nearest 60')
+                    else:
+                        check(len(cells) == 3 and cells[1].startswith('at least') and cells[2].startswith('at least'),
+                              f'dense cluster, older server (no within): the 2 and 5 km rings say at least ({cells})')
+                        check(p.locator('#pc-capped').count() == 1 and p.locator('#pc-map-capped').count() == 0, 'dense cluster, older server: the at-least note is shown')
+                    check(dots == 60, f'dense cluster: the map draws the 60 places sent ({dots})')
+                    p.screenshot(path=str(out / f'5b-dense-{"within" if true_counts else "old-server"}-{name}.png'), full_page=True)
+                    check(not errors, f'no page errors ({errors[:2]})')
+                    ctx.close()
                 # 3. without the switch: the Coming soon page, unchanged
                 ctx, p, errors = page('')
                 try:

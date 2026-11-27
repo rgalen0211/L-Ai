@@ -384,18 +384,24 @@
         return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']).concat(typeof location !== 'undefined' && /[?&]perfectcity/.test(location.search || '') ? ['perfectCity'] : []), error: null };      // ?editoron: this account is on the live-editor list too; ?perfectcity: on the Perfect City list (GEO 11-27)
       },
       // Mock of perfect_city_places(p_county, p_kind) (GEO 11-27): INVENTED test points near the county's middle (never OpenStreetMap data), only with ?perfectcity (the real function refuses an account
-      // without the switch); ?noplaces returns an empty list (the places not loaded yet), ?placeserr makes it fail.
+      // without the switch); ?noplaces returns an empty list (the places not loaded yet), ?placeserr makes it fail. ?denseplaces adds 80 invented places within 2 km of the county's middle
+      // (RENDERER 09:12: more than the 60 one answer carries); ?nowithin leaves out the true counts, like a server from before 'within' (the page must fall back to 'at least').
       perfect_city_places(args) {
         const q = typeof location !== 'undefined' ? (location.search || '') : '';
         if (!/[?&]perfectcity/.test(q) || /[?&]placeserr/.test(q)) return fail('not allowed');
         const mid = { montgomery_oh: [-84.2, 39.76], greene_oh: [-83.98, 39.70] }[args && args.p_county] || [-84.2, 39.76];
         const n = (args && args.p_kind) === 'grocery' ? 6 : 14;
-        const all = /[?&]noplaces/.test(q) ? [] : Array.from({ length: n }, (_, i) => ({ name: i % 5 === 4 ? '' : `Test Place ${i + 1}`, lat: mid[1] + Math.sin(i * 2.4) * 0.012 * (1 + i % 4), lon: mid[0] + Math.cos(i * 2.4) * 0.016 * (1 + i % 4) }));
-        // like the real function: only the places within 5 km of the spot, plus the nearest five (never the whole county)
+        const dense = /[?&]denseplaces/.test(q) ? Array.from({ length: 80 }, (_, i) => ({ name: `Test Dense ${i + 1}`, lat: mid[1] + (i % 9) * 0.0015, lon: mid[0] + Math.floor(i / 9) * 0.0015 })) : [];
+        const all = /[?&]noplaces/.test(q) ? [] : Array.from({ length: n }, (_, i) => ({ name: i % 5 === 4 ? '' : `Test Place ${i + 1}`, lat: mid[1] + Math.sin(i * 2.4) * 0.012 * (1 + i % 4), lon: mid[0] + Math.cos(i * 2.4) * 0.016 * (1 + i % 4) })).concat(dense);
+        // like the real function: only the places within 5 km of the spot, plus the nearest five (never the whole county), at most 60; 'within' counts EVERY place, before the cap
         const rad = (d) => d * Math.PI / 180, km = (p) => 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(Math.sin(rad(p.lat - args.p_lat) / 2) ** 2 + Math.cos(rad(args.p_lat)) * Math.cos(rad(p.lat)) * Math.sin(rad(p.lon - args.p_lon) / 2) ** 2)));
         const byKm = all.map((p) => ({ p, d: km(p) })).sort((x, y) => x.d - y.d);
-        const places = byKm.filter((x, i) => x.d <= 5 || i < 5).map((x) => x.p);
-        return { data: { county: args && args.p_county, kind: args && args.p_kind, credit: 'Map data (c) OpenStreetMap contributors (ODbL)', radius_km: 5, loaded: all.length, places }, error: null };
+        const places = byKm.filter((x, i) => (x.d <= 5 || i < 5) && i < 60).map((x) => x.p);
+        const within = { 1: 0, 2: 0, 5: 0 };
+        for (const x of byKm) for (const r of [1, 2, 5]) if (x.d <= r) within[r]++;
+        const data = { county: args && args.p_county, kind: args && args.p_kind, credit: 'Map data (c) OpenStreetMap contributors (ODbL)', radius_km: 5, max_places: 60, loaded: all.length, within, places };
+        if (/[?&]nowithin/.test(q)) delete data.within;
+        return { data, error: null };
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');

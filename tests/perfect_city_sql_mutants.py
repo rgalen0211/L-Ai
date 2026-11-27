@@ -40,7 +40,11 @@ FAULTS = [
     ("the admin clause is dropped from the gate", PLACES, "if p_owner is null or not (is_admin or has_switch", "if p_owner is null or not (has_switch"),
     ("the public flip is always true", PLACES,
      "exists (select 1 from public.departments d where d.id = 'geo_intelligence' and d.status = 'working')", "true"),
-    ("the 60-place cap is raised to 6000", PLACES, "and n.rn <= 60);", "and n.rn <= 6000);"),
+    ("the 60-place cap is raised to 6000", PLACES, "and n.rn <= 60), '[]'::jsonb))", "and n.rn <= 6000), '[]'::jsonb))"),
+    ("within is counted after the 60-place cap", PLACES,
+     "'within', jsonb_build_object('1', count(*) filter (where n.km <= 1), '2', count(*) filter (where n.km <= 2), '5', count(*) filter (where n.km <= 5)),",
+     "'within', jsonb_build_object('1', count(*) filter (where n.km <= 1 and n.rn <= 60), '2', count(*) filter (where n.km <= 2 and n.rn <= 60),"
+     " '5', count(*) filter (where n.km <= 5 and n.rn <= 60)),"),
     ("the daily cap is multiplied by 1000", PLACES, "when has_switch then 300 else", "when has_switch then 300000 else"),
     ("a refused call is not counted", PLACES, "do update set calls = c.calls + 1", "do update set calls = c.calls"),
     ("the places answer returns osm_ref", PLACES,
