@@ -8,17 +8,47 @@
 // SIGNED (11-27): the player id is made from this phone's own key and every join/guess/leave is signed with it, so another phone in the room cannot speak for this one;
 // what the host sends is shown only when the host key pinned from this phone's welcome signed it, and a welcome is taken (and its key pinned) ONLY when its key gives the
 // very room code the player typed (ryagramGameRoom.codeOf): the code on the host's screen names the host's key, so whoever answers first cannot pose as the host.
-// The limit: a stranger would need a key whose code (PBKDF2, 300,000 rounds, about 60 ms per key on a PC: see assets/game-room.js) gives the same 6 letters, about 191 million
-// keys on average: months on one core, hours on a GPU. codeOf is slow on purpose, so this phone checks each candidate key once, in parallel, at most 64 per join.
-// SAID PLAINLY: an attacker with the code and a precomputed table of host keys (a one-time cost of about 8 core-years or 1.3 GPU-days) CAN pose as the host to a
-// phone that joins after them; the slow code raises that cost, it does not remove it.
+// The limit (holds 11-27: the code is now 8 letters, 24^8, about 1.1e11 codes): a stranger would need a key whose code (PBKDF2, 300,000 rounds, about 60 ms per key on a PC:
+// see assets/game-room.js) gives the same 8 letters. ESTIMATES, not measured here: about 38 days per room on one top GPU, and a table of every code about 576 times the cost of
+// the old 6-letter one. codeOf is slow on purpose, so this phone checks each candidate key once, in parallel, at most 64 per join.
+// SAID PLAINLY: an attacker with the code and a precomputed table of host keys CAN still pose as the host to a phone that joins after them; the slow code and the
+// longer code raise that cost, they do not remove it.
 // 11-27 (WORKER LOW): the seat keeps the highest host seq this phone has taken, and a rejoin takes only a welcome above it, so a replayed old welcome cannot set it back.
-// 11-27 (host controls): a signed 'not in' welcome after this phone got in means the host removed it: the phone says so and goes back to the join form.
+// 11-27 (host controls): a signed 'not in' welcome after this phone got in means the host removed it: the phone says so (FACES 1.3) and forgets its seat.
+// 11-27 HOLDS (FACES room safety sections 1.3, 3.4, 3.5, 4, 5): every join attempt carries a NEW nonce (16 random bytes), the join is sent again once at 3 s with
+// another new nonce, and a welcome is taken only when it echoes a nonce this phone sent in the last 10 s (a recorded old welcome is ignored); the welcome's seq is the
+// floor for every later host message, and a state or got at or below it is dropped BEFORE any signature work. A refusal says why in fixed words (removed, full,
+// locked, started, name). A host that closes its room (idle for 15 minutes, a new room code, or closed by the host) says so with a signed 'closed' state: the phone
+// stops its clocks and its silent-host watch, forgets the seat and says what to do next.
 (function () {
   const local = () => ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
   const liveOn = cfg => !!cfg && (cfg.games === true || cfg.games === 'account');
   const JOIN_WAIT_MS = 6000;
+  const JOIN_RETRY_MS = 3000;          // FACES 3.4: one more join (with a new nonce) at 3 s; give up at JOIN_WAIT_MS
+  const NONCE_KEEP_MS = 10000;          // FACES 4.3: a welcome must echo a nonce this phone sent in the last 10 s
   const SILENT_MS = 16000;          // the host sends its state at least every 5 s: three missed in a row means its screen has gone (GAMES a11y audit HIGH 2)
+  // FACES 1.3 / 5 words (drafts for Ryan's yes). 'started' keeps the host's existing sentence.
+  const WORDS = Object.freeze({
+    removed: 'The host removed you from this game.',
+    full: 'Room is full. All 8 seats are taken. Ask the host to remove someone, or wait for the next game.',
+    locked: 'The room is locked. Ask the host to unlock it.',
+    started: 'This game has already started. Wait for the next one.',
+    noAnswer: 'No room with that code answered. Check the letters on the host' + "'" + 's screen.',
+    idle: 'The host' + "'" + 's room closed because nothing happened for 15 minutes. Ask the host for the new code.',
+    newcode: 'The host started a new room. Type the new code.',
+    host: 'The host closed the room.',
+    statement: 'A room is a public channel: anyone with the code can join. Do not type anything private. The host can remove players.',          // FACES 5 (phone) + RENDERER 11:45
+  });
+  const WHYS = ['removed', 'full', 'locked', 'started', 'name', 'closed'];
+  // Why a host said no: the fixed code it sent (game-room.js welcome.why), or, from a host built before the codes, read from its words.
+  function refusalWhy(m) {
+    if (!m) return '';
+    if (WHYS.includes(m.why)) return m.why;
+    const p = String(m.problem || '');
+    if (WHYS.includes(p)) return p;
+    for (const w of ['removed', 'full', 'locked', 'started', 'name']) if (new RegExp(w, 'i').test(p)) return w;
+    return '';
+  }
 
   // Which room the page uses: the test relay only when this page AND the relay are on this computer; otherwise Supabase Realtime with the public key.
   function roomOptions(cfg, code) {
@@ -31,11 +61,11 @@
   const SEAT_KEY = 'ryagram-game-seat';
   // The tab's seat: { code, pid, name, jwk, seq, hostPub } or null. SIGNED ROOM (11-27): jwk is this phone's private signing key (its pid is made from it, see
   // ryagramGameRoom.pidOf), seq the last number it used (a reload goes on above it), hostPub the host key it pinned. Any problem reading or writing it (storage blocked,
-  // a bad value) means "no seat": the player simply joins as new, with a new key.
+  // a bad value) means "no seat": the player simply joins as new, with a new key. 11-27 holds: the code is 8 letters, so a seat from the old 6-letter build reads as no seat.
   function readSeat() {
     try {
       const v = JSON.parse(sessionStorage.getItem(SEAT_KEY) || 'null');
-      return v && /^[A-Z]{6}$/.test(v.code) && /^[A-Za-z0-9]{8,32}$/.test(v.pid) && typeof v.name === 'string' && v.name.length <= 16
+      return v && /^[A-Z]{8}$/.test(v.code) && /^[A-Za-z0-9]{8,32}$/.test(v.pid) && typeof v.name === 'string' && v.name.length <= 16
         && v.jwk && typeof v.jwk === 'object' && typeof v.jwk.d === 'string' && Number.isInteger(v.seq) && v.seq >= 0 && v.seq < 1e9
         && (v.hostPub == null || (typeof v.hostPub === 'string' && /^[A-Za-z0-9_-]{80,100}$/.test(v.hostPub)))
         && (v.hostSeq == null || (Number.isInteger(v.hostSeq) && v.hostSeq >= -1 && v.hostSeq <= 1e9)) ? v : null;
@@ -51,7 +81,15 @@
       return n;
     };
     const s = { conn: null, off: null, pid: '', name: '', code: '', round: -1, phase: '', sentText: '', timer: null, left: 0,
-      pair: null, seq: 0, sentSeq: 0, kept: false, hostPub: null, hostSeq: -1, leaveMsg: null, outQ: Promise.resolve(), inQ: Promise.resolve() };
+      pair: null, seq: 0, sentSeq: 0, kept: false, hostPub: null, hostSeq: -1, leaveMsg: null, outQ: Promise.resolve(), inQ: Promise.resolve(),
+      nonces: new Map(), retry: null };          // 11-27 holds: nonce -> when this phone sent it (only the last NONCE_KEEP_MS count); retry = the 3 s second join
+    // FACES 4: a nonce for each join attempt, kept for 10 s; a welcome counts only when it echoes one of them.
+    const freshNonce = () => {
+      const now = Date.now();
+      for (const [n, at] of s.nonces) if (now - at > NONCE_KEEP_MS) s.nonces.delete(n);
+      const n = Room.newNonce(); s.nonces.set(n, now); return n;
+    };
+    const ourNonce = n => typeof n === 'string' && s.nonces.has(n) && Date.now() - s.nonces.get(n) <= NONCE_KEEP_MS;
     // SIGNED ROOM (11-27). Every join/guess/leave carries the next seq and this phone's signature; the numbers are kept in the seat as they are used, so a reload goes on above them.
     // After each send a signed leave is made ready, so a closing page (pagehide) can send it at once without waiting for the signature.
     const seatNow = () => ({ code: s.code, pid: s.pid, name: s.name, jwk: s.pair.jwk, seq: s.seq, hostPub: s.hostPub, hostSeq: s.hostSeq });
@@ -109,15 +147,30 @@
       s.conn = null;
     }
 
-    function join(note) {
+    // 11-27 holds: the room is closed or this phone was removed: stop every clock and the silent-host watch and close the connection WITHOUT sending a leave
+    // (the host has gone, or drops this pid before any signature work), and forget the seat.
+    // keepSeat (the silent host): the seat stays, so Join the room goes back in as the same player with the same score.
+    function drop(keepSeat) {
+      stopTimer(); unwatch(); if (s.retry) clearTimeout(s.retry); s.retry = null;
+      if (s.off) s.off(); s.off = null;
+      const conn = s.conn; s.conn = null; s.welcomed = false; s.kept = false; s.leaveMsg = null; s.seatNonce = null;
+      if (conn) { try { conn.close(); } catch { /* already gone */ } }
+      if (!keepSeat) writeSeat(null);
+    }
+
+    // The join form. note: a line above the form; keep: { code, name } to fill in (a closed room keeps the typed name). Returns { submit }.
+    function join(note, keep) {
       s.round = -1; s.phase = ''; live.textContent = ''; banner.hidden = false; setTitle(null, false);          // the page title back to the default, not the last game's
-      const code = field('ph-code', 'Room code', `The ${Room.CODE_LEN} letters on the host's screen.`, el('input', { type: 'text', inputmode: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: '9', class: 'ph-input ph-code' }));
+      const code = field('ph-code', 'Room code', `The ${Room.CODE_LEN} letters on the host's screen.`, el('input', { type: 'text', inputmode: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: String(Room.CODE_LEN + 3), class: 'ph-input ph-code' }));          // room for 'ABCD EFGH' or 'ABCD - EFGH'
       const name = field('ph-name', 'Your name', `For the scoreboard, at most ${H.NAME_MAX} letters.`, el('input', { type: 'text', autocomplete: 'nickname', maxlength: String(H.NAME_MAX + 8), class: 'ph-input' }));
       const button = el('button', { type: 'submit', class: 'ph-btn' }, 'Join the room');
       const joinNote = el('p', { class: 'ph-meta ph-join-note', role: 'alert', id: 'ph-join-note', hidden: true });
-      const form = el('form', { class: 'ph-form', novalidate: true, onsubmit: async ev => {
-        ev.preventDefault();
-        const cp = H.codeProblem(code.input.value), np = H.nameProblem(name.input.value, []);
+      const idle = text => { button.disabled = false; button.textContent = text || 'Join the room'; };
+      // FACES 2 via assets/game-names.js when the page has it: problem(name, taken) gives { why: 'name', words } or null
+      const namesProblem = n => { try { const N = typeof window !== 'undefined' ? window.ryagramGameNames : null; const p = N && typeof N.problem === 'function' ? N.problem(n, []) : null; return p && p.words ? String(p.words) : null; } catch { return null; } };
+      const attempt = async () => {
+        joinNote.hidden = true; joinNote.textContent = '';
+        const cp = H.codeProblem(code.input.value), np = H.nameProblem(name.input.value, []) || namesProblem(H.clean(name.input.value));
         showErr(code, cp); showErr(name, np);
         if (cp) return code.input.focus();
         if (np) return name.input.focus();
@@ -136,7 +189,7 @@
           if (!s.pair) s.pair = await Room.keyPair();
           s.pid = await Room.pidOf(s.pair.pub);
         } catch {
-          button.disabled = false; button.textContent = 'Join the room';
+          idle();
           showErr(code, 'This browser cannot sign the game\u2019s messages. Open this page on a secure (https) address in an up-to-date browser.'); return code.input.focus();
         }
         s.sentSeq = s.seq; s.hostSeq = s.kept && s.hostPub && Number.isInteger(seat.hostSeq) ? seat.hostSeq : -1; s.leaveMsg = null; s.outQ = Promise.resolve(); s.inQ = Promise.resolve();
@@ -144,50 +197,61 @@
         try {
           s.conn = await Room.connect(opts);
         } catch {
-          button.disabled = false; button.textContent = 'Join the room';
+          idle();
           showErr(code, 'This page could not reach the game rooms. Check your connection and try again.'); return code.input.focus();
         }
         const answer = await new Promise(resolve => {
-          let done = false;
-          const t = setTimeout(() => { done = true; resolve(null); }, JOIN_WAIT_MS);
+          let done = false, t = null;
+          const finish = m => { done = true; clearTimeout(t); if (s.retry) clearTimeout(s.retry); s.retry = null; resolve(m); };
+          t = setTimeout(() => finish(null), JOIN_WAIT_MS);
           // nothing from the room is shown before the host has let this phone in, and then only what the pinned host key signed
           const candidate = async m => {
             if (!m.pub || (pinned && m.pub !== pinned)) return;          // a rejoin keeps the host key it pinned before
             if (!Number.isInteger(m.seq) || m.seq <= s.hostSeq) return;          // a rejoin takes only a welcome newer than every host message it took before (a replay is old)
+            if (!ourNonce(m.nonce)) return;          // FACES 4: a welcome to a join this phone did not send in the last 10 s (a recorded one) is dropped before any signature work
             if (!(await Room.verify(m.pub, s.code, m)) || done) return;          // the cheap check first
             if (!tried.has(m.pub)) { if (tried.size >= MAX_CANDIDATES) return; tried.set(m.pub, Room.codeOf(m.pub).then(c => c === s.code, () => false)); }
             if (!(await tried.get(m.pub)) || done) return;          // the key must be the one the typed code names: a stranger's welcome (ok or not, any problem text) is ignored
-            done = true; clearTimeout(t);
-            if (m.ok) { s.hostPub = m.pub; s.hostSeq = m.seq; s.welcomed = true; if (m.name) s.name = m.name; }          // the name the host seated this phone under (a rejoin typed in another case)
-            resolve(m);
+            if (m.ok) { s.hostPub = m.pub; s.hostSeq = m.seq; s.seatNonce = m.nonce; s.welcomed = true; if (m.name) s.name = m.name; }          // the name the host seated this phone under (a rejoin typed in another case)
+            finish(m);
           };
           const handle = async m => {
             if (m.t === 'state' && s.welcomed) { if (await fromHost(m)) onState(m); }
             else if (m.t === 'got' && m.pid === s.pid && s.welcomed) { if (await fromHost(m)) gotIt(m); }
-            else if (m.t === 'welcome' && m.pid === s.pid && s.welcomed && m.ok === false && m.pub === s.hostPub) { if (await fromHost(m)) removed(m.problem); }
+            else if (m.t === 'welcome' && m.pid === s.pid && s.welcomed && m.ok === false && m.pub === s.hostPub && m.nonce === s.seatNonce) { if (await fromHost(m)) notIn(m); }          // the host signs a removal with the nonce of the join that seated this phone
           };
           s.off = s.conn.onMessage(m => {
             if (m.t === 'welcome' && m.pid === s.pid && !done && !s.welcomed) { candidate(m).catch(() => {}); return; }          // outside the queue, in parallel
             s.inQ = s.inQ.then(() => handle(m)).catch(() => {});
           });
-          sendSigned({ t: 'join', pid: s.pid, name: s.name, pub: s.pair.pub }).catch(() => { if (!done) { done = true; clearTimeout(t); resolve(null); } });
+          // FACES 3.4: send once, once more at 3 s, each with a NEW nonce; give up at JOIN_WAIT_MS
+          const sendJoin = () => { try { return sendSigned({ t: 'join', pid: s.pid, name: s.name, pub: s.pair.pub, nonce: freshNonce() }); } catch (e) { return Promise.reject(e); } };
+          sendJoin().catch(() => { if (!done) finish(null); });
+          s.retry = setTimeout(() => { s.retry = null; if (!done && s.conn) sendJoin().catch(() => {}); }, JOIN_RETRY_MS);
         });
         if (!answer || !answer.ok) {
+          const why = refusalWhy(answer);
+          if (why === 'removed') { drop(); return removedScreen(); }          // removed before: the same words as removed mid-game, and the seat is forgotten
           await leave();
-          button.disabled = false; button.textContent = 'Join the room';
-          const why = answer ? answer.problem : 'No room with that code answered. Check the letters on the host’s screen.';
-          if (answer && /name/i.test(why || '')) { showErr(name, why); return name.input.focus(); }
-          if (answer && /full|started|locked|removed/i.test(why || '')) { joinNote.textContent = why; joinNote.hidden = false; return button.focus(); }        // the code was right: say it above the form (8-player test LOW)
-          showErr(code, why || 'The host did not let you in.'); return code.input.focus();
+          idle(why === 'full' ? 'Try again' : null);
+          if (!answer) { showErr(code, WORDS.noAnswer); return code.input.focus(); }
+          if (why === 'name') { showErr(name, answer.problem || 'Please pick a different name.'); return name.input.focus(); }
+          if (why === 'full' || why === 'locked' || why === 'started') { joinNote.textContent = WORDS[why]; joinNote.hidden = false; return button.focus(); }        // the code was right: say it above the form (8-player test LOW)
+          if (why === 'closed') { joinNote.textContent = WORDS.host; joinNote.hidden = false; return button.focus(); }
+          showErr(code, answer.problem || 'The host did not let you in.'); return code.input.focus();
         }
         s.welcomed = true; s.kept = true; writeSeat(seatNow()); banner.hidden = true; watch();        // the draft note collapses once in, so Send stays on a small screen (audit 16)
         live.textContent = `You joined room ${s.code} as ${s.name}.`;
         lobby();
-      } }, code.node, name.node, button);
-      const seat = note ? null : readSeat();          // after "Leave the room" the form starts empty
+      };
+      const form = el('form', { class: 'ph-form', novalidate: true, onsubmit: async ev => { ev.preventDefault(); await attempt(); } }, code.node, name.node, button);
+      const seat = note || keep ? null : readSeat();          // after "Leave the room" the form starts empty
       if (seat) { code.input.value = seat.code; name.input.value = seat.name; }
-      show([el('h2', { tabindex: '-1' }, 'Join a game'), note ? el('p', { class: 'ph-meta', role: 'status' }, note) : null,
-        joinNote, seat ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-rejoin' }, `You were in room ${seat.code} as ${seat.name}. Press Join the room to go back in with your score.`) : el('p', { class: 'ph-meta' }, 'The host starts a game on their screen and shows a room code.'), form]);
+      if (keep) { code.input.value = keep.code || ''; name.input.value = keep.name || ''; }
+      show([el('h2', { tabindex: '-1' }, 'Join a game'), note ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-note' }, note) : null,
+        joinNote, seat ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-rejoin' }, `You were in room ${seat.code} as ${seat.name}. Press Join the room to go back in with your score.`) : el('p', { class: 'ph-meta' }, 'The host starts a game on their screen and shows a room code.'),
+        el('p', { class: 'ph-meta ph-statement', id: 'ph-statement' }, WORDS.statement), form]);          // FACES 5 (phone): visible on the join screen, not in a tooltip
+      return { submit: attempt };
     }
 
     function lobby(players) {
@@ -270,20 +334,46 @@
       const line = stage.querySelector('#ph-sent'); if (line && s.pending) line.textContent = `Sent: “${s.pending}”${stopAfter(s.pending)} You can change it until time is up.`;        // the guess exactly as typed (verify2 LOW)
     }
 
-    async function removed(why) {
-      await leave(); writeSeat(null);
-      join(why || 'The host removed you from this room.');
+    // A host-signed 'not in' welcome after this phone got in (checked by fromHost: the pinned key, a seq above every host message taken). FACES 1.4: only 'removed'
+    // (or a host built before the codes, which sent no why) removes the phone; 'closed' closes the room; any other code here is a late answer to a join and is ignored.
+    // Its nonce is the SEATED nonce (the one the seating welcome echoed; it outlives the 10 s window, a rejoin replaces it), checked before fromHost; the seq floor drops a replay before verify.
+    function notIn(m) {
+      const why = WHYS.includes(m.why) ? m.why : '';
+      if (why === 'closed') return closedRoom('host');
+      if (why === 'removed' || !why) { drop(); removedScreen(); }
+    }
+
+    // FACES 1.3: plain words, no reason, no name of who did it; Back goes to the code screen. The seat is forgotten (drop) so nothing tries to rejoin as this player.
+    function removedScreen() {
+      setTitle(null, false); banner.hidden = false;
+      live.textContent = WORDS.removed;
+      show([el('h2', { tabindex: '-1', id: 'ph-removed' }, WORDS.removed),
+        el('button', { type: 'button', class: 'ph-btn', id: 'ph-back', onclick: () => { join(); } }, 'Back')]);
+    }
+
+    // 11-27 holds (hold 3): the host closed its room (a signed state, phase 'closed'). Every clock and the silent-host watch stop, the connection closes with no leave
+    // (the host is not listening), the seat is forgotten. 'newcode' goes straight back to the code screen keeping the typed name.
+    function closedRoom(why) {
+      const name = s.name;
+      drop(); s.phase = 'closed';
+      if (why === 'newcode') { join(WORDS.newcode, { code: '', name }); return; }
+      const words = why === 'idle' ? WORDS.idle : WORDS.host;
+      setTitle(null, false); banner.hidden = false;
+      live.textContent = words;
+      show([el('h2', { tabindex: '-1' }, 'The room closed'), el('p', { id: 'ph-closed' }, words),
+        el('button', { type: 'button', class: 'ph-btn', id: 'ph-again', onclick: () => { join(null, { code: '', name }); } }, 'Join a room')]);
     }
 
     function silent() {
-      stopTimer();
+      drop(true);          // 11-27 holds (RENDERER/GEO 11:45): an abandoned phone holds no Realtime connection; Join the room reconnects with the kept seat
       live.textContent = 'The host’s screen stopped answering.';
       show([el('h2', { tabindex: '-1' }, 'The host’s screen stopped answering'), el('p', {}, 'If the host opened a new room, join again with the new code on their screen.'),
-        el('button', { type: 'button', class: 'ph-btn', id: 'ph-again', onclick: async () => { await leave(); writeSeat(null); join('Type the new code from the host’s screen.'); } }, 'Join a room')]);
+        el('button', { type: 'button', class: 'ph-btn', id: 'ph-again', onclick: () => { join(); } }, 'Join a room')]);
     }
 
     function onState(m) {
       if (!s.conn) return;
+      if (m.phase === 'closed') { closedRoom(m.why); return; }          // 11-27 holds: why 'idle', 'newcode' or 'host'
       if (m.phase === 'lobby') { if (s.phase === 'lobby' || s.phase === '') { const p = stage.querySelector('#ph-lobby-players'); if (p) p.textContent = m.players.length ? `Players: ${m.players.join(', ')}` : 'Waiting for the host to start.'; else lobby(m.players); } else lobby(m.players);
         const g = stage.querySelector('#ph-lobby-game'); if (g) g.textContent = m.mode === 'gap' ? 'The game: Fill the gap.' : 'The game: Guess the next line.'; setTitle(m.mode, false); return; }
       if (m.phase === 'question') { if (s.phase !== 'question' || s.round !== m.round) question(m); else s.left = m.left_s || 0; return; }
@@ -300,5 +390,5 @@
     return { leave };
   }
 
-  window.ryagramGamePhoneLive = Object.freeze({ liveOn, roomOptions, mount, JOIN_WAIT_MS });
+  window.ryagramGamePhoneLive = Object.freeze({ liveOn, roomOptions, mount, JOIN_WAIT_MS, JOIN_RETRY_MS, NONCE_KEEP_MS, WORDS });
 })();
