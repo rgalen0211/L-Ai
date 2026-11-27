@@ -40,10 +40,29 @@ Kept from revision 2: tenths, whole credits only through `grant_credits`; settle
 
 Round 18 items, 3 known-answer; 0.5 credit a verified round, scaled by the paid share; at least 2 of the round's 3 right AND 80 percent over the last 20; pace (phrase 2 s, speaker 3, rate 3, better cut 4), a third too-fast answer pays 0; caps 3 credits in any 24 hours and 10 in any 7 days (counted on rounds), 10 rounds a day; **lifetime 100 credits per account**; hold 24 h; weekly budget 50 credits for everyone (never above 200); gate 7 days AND a server-rendered film; round 30 minutes, token 15 minutes; strikes 3 in 7 days, pause 7 days.
 
+## Designed, to build before the switch opens to anyone (RENDERER 13:14 hold)
+
+**Until both are built, the only accounts with `calibrate` on are Ryan's test accounts.**
+
+1. **Consensus (T10).**
+   - A non-gold answer earns nothing on its own. It is staged as `pending_consensus`.
+   - The answer pays only when 3 accounts give the same answer to the same item within 14 days. Each account must be 7 days old and must not share an email hash or a first payment.
+   - The three must also have no strike between them.
+   - An answer that disagrees with an agreed answer counts as a known-answer miss for that person.
+   - A round's pay is its gold share at close, plus the agreed share released later, whenever agreement lands. It is never more than the reserved budget.
+   - An item that no 3 accounts agree on within 14 days is retired. It pays nobody.
+2. **Gold bank and rotation (T9).**
+   - The bank is at least 5 times what one person can see in 30 days: 20 gold items per person per 30 days, so 100 or more in the bank.
+   - Each account gets its own random draw from the bank, so two accounts rarely share a gold item.
+   - A gold item is retired after 30 days in service, or once 98 percent of answers to it are right (it is then too easy, or its answer is known).
+   - A gold item answered right by many new accounts in one day is pulled for review.
+   - When a person has seen every gold item available to them, `round_get` says plainly "No new tasks for you right now; check back in a few days." It does not say `none` without words. That closes RENDERER's LOW: honest players run out without rotation.
+3. **Reads stay reads.** `round_get` will stop running release and close on every poll. A once-a-minute release tick (`ryagram_private.calibrate_release_due`, already written) and the answer and close calls do that work (RENDERER LOW).
+4. **Connector must-fail.** A test runs the person calls inside a real `connect_actor` transaction and expects every one refused (RENDERER T5b).
+
 ## Left for later (not built, said plainly)
 
-- Consensus of 3 distinct accounts on non-gold items (RENDERER T10): non-gold answers pay without agreement in this revision.
-- Gold bank rotation (T9: a 5x bank, 30-day rotation, retire at 98 percent).
+- The consensus and gold-bank items above are designed, not built.
 - Email-hash and disposable-domain checks (T2).
 - The training-exclusion statement and excluding withdrawn people's answers from future tuning batches (T14): see RYAN DECIDES 3.
 - The media handle resolver (edge function) and FACES' PC loopback server.
