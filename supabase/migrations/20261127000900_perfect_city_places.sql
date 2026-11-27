@@ -10,6 +10,9 @@
 --   * ryagram_private.perfect_city_summary_for(owner, county, kind, lat, lon): the AI tool's summary (CONNECT wraps it with its token check), the same gate
 --     for that owner, schema ryagram.perfect-city-summary/0 (proposals/CONNECT-DEPT-PERFECT-CITY-1127.md part B).
 --   * ryagram_private.perfect_city_km and perfect_city_check: the haversine distance (the same formula as assets/perfect-city-core.js) and the shared gate.
+--   * LIMITS (RENDERER 08:40/08:43, so the private table cannot be rebuilt by stepping a spot across a county): at most 60 places per call, and a per-account
+--     per-day call count in ryagram_private.perfect_city_calls (300 a day with the switch, 40 a day for an account let in only by the public flip; admins 2,000),
+--     refused in words (54000) past it. Every helper is closed to service_role too.
 -- Apply AFTER: 20260928000300_2a_worker_is_not_a_person.sql (require_signed_in), 20261003000300_admin_waitlist_by_film.sql (app_admins),
 -- 20261110000400_account_switches.sql (switches_on), 20261104000100_waiting_accounts.sql (the gate; this file ends with gate_apply()).
 -- Undo: supabase/rollbacks/20261127000900_perfect_city_places_rollback.sql (every object below; the loaded rows are lost, nothing else).
@@ -35,6 +38,14 @@ create table ryagram_private.perfect_city_units (
   primary key (county, geoid));
 revoke all on ryagram_private.perfect_city_units from public, anon, authenticated, service_role;
 
+-- One row per account per day (UTC): how many Perfect City calls it made. Closed to every API role; kept small (one row per account per day).
+create table ryagram_private.perfect_city_calls (
+  owner_id uuid not null,
+  day date not null default ((now() at time zone 'utc')::date),
+  calls integer not null default 0 check (calls >= 0),
+  primary key (owner_id, day));
+revoke all on ryagram_private.perfect_city_calls from public, anon, authenticated, service_role;
+
 -- Great-circle distance in km (haversine, mean Earth radius 6371.0088 km): the same formula as assets/perfect-city-core.js km().
 create function ryagram_private.perfect_city_km(lat1 double precision, lon1 double precision, lat2 double precision, lon2 double precision)
 returns double precision language plpgsql immutable set search_path = '' as $$
@@ -42,19 +53,28 @@ begin
   return 2 * 6371.0088 * asin(least(1.0, sqrt(power(sin(radians(lat2 - lat1) / 2), 2)
                                                + cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lon2 - lon1) / 2), 2))));
 end $$;
-revoke execute on function ryagram_private.perfect_city_km(double precision, double precision, double precision, double precision) from public, anon, authenticated;
+revoke execute on function ryagram_private.perfect_city_km(double precision, double precision, double precision, double precision) from public, anon, authenticated, service_role;
 
 -- The one check every Perfect City call makes: an owner with the switch, or an app admin; a known county and kind (no supermarkets in Greene); a spot inside
 -- the county's box (from its loaded block groups, 0.05 degrees of margin). Raises in words; returns nothing.
 create function ryagram_private.perfect_city_check(p_owner uuid, p_county text, p_kind text, p_lat double precision, p_lon double precision)
-returns void language plpgsql stable security definer set search_path = '' as $$
-declare box record;
+returns void language plpgsql volatile security definer set search_path = '' as $$
+declare box record; is_admin boolean; has_switch boolean; cap integer; used integer;
 begin
   -- Who may: the owner's own switch, an app admin, or the department opened for everyone (departments.status 'working', the public flip; CC1 08:10).
-  if p_owner is null or not (exists (select 1 from public.app_admins a where a.user_id = p_owner)
-                             or exists (select 1 from public.account_settings s where s.owner_id = p_owner and 'perfectCity' = any (s.switches_on))
+  is_admin := p_owner is not null and exists (select 1 from public.app_admins a where a.user_id = p_owner);
+  has_switch := p_owner is not null and exists (select 1 from public.account_settings s where s.owner_id = p_owner and 'perfectCity' = any (s.switches_on));
+  if p_owner is null or not (is_admin or has_switch
                              or exists (select 1 from public.departments d where d.id = 'geo_intelligence' and d.status = 'working')) then
     raise exception 'Perfect City is not switched on for this account.' using errcode = '42501';
+  end if;
+  -- the day's call count (UTC day), counted before any other check so a refused call still counts
+  cap := case when is_admin then 2000 when has_switch then 300 else 40 end;
+  insert into ryagram_private.perfect_city_calls as c (owner_id, day, calls) values (p_owner, (now() at time zone 'utc')::date, 1)
+    on conflict (owner_id, day) do update set calls = c.calls + 1
+    returning c.calls into used;
+  if used > cap then
+    raise exception 'Perfect City has answered % questions for this account today, the most it gives in a day. Try again tomorrow.', cap using errcode = '54000';
   end if;
   if p_county is null or p_county not in ('montgomery_oh', 'greene_oh') then
     raise exception 'Choose a county: montgomery_oh or greene_oh.' using errcode = '22023';
@@ -71,21 +91,21 @@ begin
     raise exception 'That spot is outside the county. Give a latitude and longitude inside it.' using errcode = '22023';
   end if;
 end $$;
-revoke execute on function ryagram_private.perfect_city_check(uuid, text, text, double precision, double precision) from public, anon, authenticated;
+revoke execute on function ryagram_private.perfect_city_check(uuid, text, text, double precision, double precision) from public, anon, authenticated, service_role;
 
 -- The page's call: the places near ONE spot (within 5 km, plus the nearest five), never a whole county.
 create function public.perfect_city_places(p_county text, p_kind text, p_lat double precision, p_lon double precision) returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql volatile security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_signed_in();       -- no visitor, no worker account
 begin
   perform ryagram_private.perfect_city_check(me, p_county, p_kind, p_lat, p_lon);
-  return (select jsonb_build_object('county', p_county, 'kind', p_kind, 'radius_km', 5, 'credit', 'Map data (c) OpenStreetMap contributors (ODbL)',
+  return (select jsonb_build_object('county', p_county, 'kind', p_kind, 'radius_km', 5, 'max_places', 60, 'credit', 'Map data (c) OpenStreetMap contributors (ODbL)',
                                     'loaded', (select count(*) from ryagram_private.perfect_city_places a where a.county = p_county and a.kind = p_kind),
                                     'places', coalesce(jsonb_agg(jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon) order by n.km, n.name, n.osm_ref), '[]'::jsonb))
             from (select p.name, p.lat, p.lon, p.osm_ref, ryagram_private.perfect_city_km(p_lat, p_lon, p.lat, p.lon) as km,
                          row_number() over (order by ryagram_private.perfect_city_km(p_lat, p_lon, p.lat, p.lon), p.name, p.osm_ref) as rn
                     from ryagram_private.perfect_city_places p where p.county = p_county and p.kind = p_kind) n
-           where n.km <= 5 or n.rn <= 5);
+           where (n.km <= 5 or n.rn <= 5) and n.rn <= 60);                       -- never more than 60 places in one answer
 end $$;
 revoke all on function public.perfect_city_places(text, text, double precision, double precision) from public, anon, authenticated;
 grant execute on function public.perfect_city_places(text, text, double precision, double precision) to authenticated;
@@ -93,7 +113,7 @@ grant execute on function public.perfect_city_places(text, text, double precisio
 -- For ONE owner (the connector resolves the owner from its token first): the summary for a spot, in CONNECT's shape ryagram.perfect-city-summary/0.
 -- Every number carries its basis word; distances are straight lines; people are the page's own estimate (block groups whose centre is inside the ring).
 create function ryagram_private.perfect_city_summary_for(p_owner uuid, p_county text, p_kind text, p_lat double precision, p_lon double precision)
-returns jsonb language plpgsql stable security definer set search_path = '' as $$
+returns jsonb language plpgsql volatile security definer set search_path = '' as $$
 declare
   v_lat double precision := round(p_lat::numeric, 4)::double precision;
   v_lon double precision := round(p_lon::numeric, 4)::double precision;
@@ -133,7 +153,7 @@ begin
       'This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.',
       'Map data (c) OpenStreetMap contributors (ODbL)'));
 end $$;
-revoke execute on function ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision) from public, anon, authenticated;
+revoke execute on function ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision) from public, anon, authenticated, service_role;
 
 select ryagram_private.gate_apply();                       -- like every migration after the waiting list: the gate covers what a signed-in account can run
 

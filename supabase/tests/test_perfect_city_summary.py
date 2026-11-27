@@ -112,7 +112,7 @@ class PerfectCitySummary(core.Base):
         self.assertAlmostEqual(got, km(39.7589, -84.1916, 39.6848, -83.9297), places=9)
 
     def test_07_closed_to_api_roles(self):
-        for role in ("anon", "authenticated"):
+        for role in ("anon", "authenticated", "service_role"):
             for fn in ("ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)",
                        "ryagram_private.perfect_city_km(double precision, double precision, double precision, double precision)"):
                 self.assertFalse(self.db.as_(None).one("select has_function_privilege(%s, %s, 'execute')", role, fn), (role, fn))

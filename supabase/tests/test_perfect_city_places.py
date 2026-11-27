@@ -106,7 +106,7 @@ class PerfectCityPlaces(core.Base):
     def test_with_the_switch_the_caller_gets_one_county_and_kind_sorted_with_the_credit_and_no_osm_ref(self):
         self.switch_on(OTHER)
         got = self.get(OTHER)
-        self.assertEqual(set(got), {"county", "kind", "radius_km", "credit", "loaded", "places"})
+        self.assertEqual(set(got), {"county", "kind", "radius_km", "max_places", "credit", "loaded", "places"})
         self.assertEqual((got["radius_km"], got["loaded"]), (5, 4))
         self.assertEqual((got["county"], got["kind"], got["credit"]), ("montgomery_oh", "fast_food", CREDIT))
         self.assertEqual(got["places"], [
@@ -121,6 +121,26 @@ class PerfectCityPlaces(core.Base):
         empty = self.get(OTHER, county="greene_oh", kind="restaurant")
         self.assertEqual((empty["places"], empty["credit"], empty["loaded"]), ([], CREDIT, 0))
         self.assertNotIn("n10", str(got), "no osm_ref anywhere in the answer")
+
+    def test_never_more_than_60_places_in_one_answer(self):
+        self.switch_on(OTHER)
+        for i in range(80):                                                                # 80 invented places within 2 km of the spot
+            self.owner("insert into ryagram_private.perfect_city_places (county, kind, osm_ref, name, lat, lon) values ('montgomery_oh', 'restaurant', %s, %s, %s, %s)",
+                       f"r{i}", f"Test Place R{i}", 39.7505 + (i % 9) * 0.002, -84.2000 + (i // 9) * 0.002)
+        got = self.get(OTHER, kind="restaurant")
+        self.assertEqual((got["loaded"], len(got["places"]), got["max_places"]), (80, 60, 60))
+
+    def test_a_daily_count_refuses_in_words_past_the_cap_and_a_refused_call_counts(self):
+        self.switch_on(OTHER)
+        self.owner("insert into ryagram_private.perfect_city_calls (owner_id, day, calls) values (%s, (now() at time zone 'utc')::date, 299)", OTHER)
+        self.get(OTHER)                                                                    # call 300: allowed
+        e = self.refused(OTHER, "montgomery_oh", "fast_food", code="54000")                  # call 301: refused in words
+        self.assertIn("Try again tomorrow", e.diag.message_primary)
+        self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
+        self.owner("insert into ryagram_private.perfect_city_calls (owner_id, day, calls) values (%s, (now() at time zone 'utc')::date, 40)", RYAN)
+        self.refused(RYAN, "montgomery_oh", "fast_food", code="54000")                        # let in by the public flip only: 40 a day
+        for role in ("anon", "authenticated", "service_role"):
+            self.assertFalse(self.owner("select has_table_privilege(%s, 'ryagram_private.perfect_city_calls', 'select,insert,update,delete')", role).fetchone()[0], role)
 
     def test_the_public_flip_opens_it_for_every_signed_in_account(self):
         self.refused(OTHER, "montgomery_oh", "fast_food", code="42501")
@@ -223,6 +243,7 @@ class PerfectCityPlaces(core.Base):
                 self.assertIsNone(c.execute("select to_regprocedure(%s)", (SIG,)).fetchone()[0])
                 self.assertIsNone(c.execute("select to_regclass('ryagram_private.perfect_city_places')").fetchone()[0])
                 self.assertIsNone(c.execute("select to_regclass('ryagram_private.perfect_city_units')").fetchone()[0])
+                self.assertIsNone(c.execute("select to_regclass('ryagram_private.perfect_city_calls')").fetchone()[0])
                 for fn in ("ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)", "ryagram_private.perfect_city_check(uuid, text, text, double precision, double precision)",
                            "ryagram_private.perfect_city_km(double precision, double precision, double precision, double precision)"):
                     self.assertIsNone(c.execute("select to_regprocedure(%s)", (fn,)).fetchone()[0], fn)

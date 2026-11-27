@@ -6,6 +6,7 @@ drop function if exists ryagram_private.perfect_city_summary_for(uuid, text, tex
 drop function if exists public.perfect_city_places(text, text, double precision, double precision);
 drop function if exists ryagram_private.perfect_city_check(uuid, text, text, double precision, double precision);
 drop function if exists ryagram_private.perfect_city_km(double precision, double precision, double precision, double precision);
+drop table if exists ryagram_private.perfect_city_calls;
 drop table if exists ryagram_private.perfect_city_units;
 drop table if exists ryagram_private.perfect_city_places;
 commit;
