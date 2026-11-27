@@ -59,6 +59,7 @@
       const code = field('ph-code', 'Room code', `The ${Room.CODE_LEN} letters on the host's screen.`, el('input', { type: 'text', inputmode: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: '9', class: 'ph-input ph-code' }));
       const name = field('ph-name', 'Your name', `For the scoreboard, at most ${H.NAME_MAX} letters.`, el('input', { type: 'text', autocomplete: 'nickname', maxlength: String(H.NAME_MAX + 8), class: 'ph-input' }));
       const button = el('button', { type: 'submit', class: 'ph-btn' }, 'Join the room');
+      const joinNote = el('p', { class: 'ph-meta ph-join-note', role: 'alert', id: 'ph-join-note', hidden: true });
       const form = el('form', { class: 'ph-form', novalidate: true, onsubmit: async ev => {
         ev.preventDefault();
         const cp = H.codeProblem(code.input.value), np = H.nameProblem(name.input.value, []);
@@ -92,6 +93,7 @@
           button.disabled = false; button.textContent = 'Join the room';
           const why = answer ? answer.problem : 'No room with that code answered. Check the letters on the host’s screen.';
           if (answer && /name/i.test(why || '')) { showErr(name, why); return name.input.focus(); }
+          if (answer && /full|started/i.test(why || '')) { joinNote.textContent = why; joinNote.hidden = false; return button.focus(); }        // the code was right: say it above the form (8-player test LOW)
           showErr(code, why || 'The host did not let you in.'); return code.input.focus();
         }
         s.welcomed = true; writeSeat({ code: s.code, pid: s.pid, name: s.name }); banner.hidden = true; watch();        // the draft note collapses once in, so Send stays on a small screen (audit 16)
@@ -101,7 +103,7 @@
       const seat = note ? null : readSeat();          // after "Leave the room" the form starts empty
       if (seat) { code.input.value = seat.code; name.input.value = seat.name; }
       show([el('h2', { tabindex: '-1' }, 'Join a game'), note ? el('p', { class: 'ph-meta', role: 'status' }, note) : null,
-        seat ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-rejoin' }, `You were in room ${seat.code} as ${seat.name}. Press Join the room to go back in with your score.`) : el('p', { class: 'ph-meta' }, 'The host starts a game on their screen and shows a room code.'), form]);
+        joinNote, seat ? el('p', { class: 'ph-meta', role: 'status', id: 'ph-rejoin' }, `You were in room ${seat.code} as ${seat.name}. Press Join the room to go back in with your score.`) : el('p', { class: 'ph-meta' }, 'The host starts a game on their screen and shows a room code.'), form]);
     }
 
     function lobby(players) {
@@ -122,6 +124,7 @@
     function question(m) {
       s.phase = 'question'; s.round = m.round; s.sentText = '';
       const gap = m.mode === 'gap';           // GAMES 11-27: Fill the gap shows the whole line with one word missing and asks for that word
+      setTitle(m.mode, true);
       const guess = field('ph-guess', gap ? 'The missing word' : 'Your guess for the next line', gap ? 'Type the one word that goes in the gap.' : `Type the words you think come next. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left.`,
         el('textarea', { rows: '3', maxlength: String(H.ANSWER_MAX + 40), autocomplete: 'off', class: 'ph-input ph-guess' }));
       const counter = el('p', { class: 'ph-count', id: 'ph-guess-count' }, H.counterText(''));
@@ -137,7 +140,7 @@
         s.sentText = text; s.pending = text; sentLine.textContent = 'Sending…';          // set BEFORE the send: the host's 'got' can arrive before send() resolves (3-player test race); 'Sent' only on 'got' (audit 13)
         try { await s.conn.send({ t: 'guess', pid: s.pid, round: s.round, text }); } catch { s.pending = ''; sentLine.textContent = ''; showErr(guess, 'Your guess did not reach the host. Send it again.'); return guess.input.focus(); }
       } }, guess.node, counter, el('button', { type: 'submit', class: 'ph-btn', id: 'ph-send' }, 'Send my guess'), sentLine);
-      const leaveBtn = () => el('button', { type: 'button', class: 'ph-btn ph-ghost ph-leave', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room');        // leave at any time, not only in the lobby (verify H1)
+      const leaveBtn = () => twoStepLeave();        // leave at any time, not only in the lobby (verify H1); a second press is needed so a mis-tap under Send does not drop the player
       s.left = m.left_s || 0;
       live.textContent = gap ? `Round ${m.round + 1} of ${m.of}. Fill the gap: one word is missing.` : `Round ${m.round + 1} of ${m.of}. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left to guess.`;
       show([el('h2', { tabindex: '-1' }, gap ? `Round ${m.round + 1} of ${m.of}: fill the gap` : `Round ${m.round + 1} of ${m.of}`), clock,
@@ -146,18 +149,18 @@
     }
 
     function reveal(m) {
-      s.phase = 'reveal'; stopTimer();
+      s.phase = 'reveal'; stopTimer(); setTitle(m.mode, true);
       const mine = (m.reveal && m.reveal.results || []).find(r => r.name === s.name);
       live.textContent = `The answer was: ${endDot(m.reveal ? m.reveal.answer_text : '')}. You scored ${mine ? mine.points : 0}.`;
       show([el('h2', { tabindex: '-1' }, `Round ${m.round + 1}: the answer`), el('p', { class: 'ph-heard', id: 'ph-answer' }, `“${m.reveal ? m.reveal.answer_text : ''}”`),
         el('p', { id: 'ph-mine' }, mine ? `You: ${mine.points} points (${mine.verdict}).` : 'You sent no guess this round.'),
         el('ul', { class: 'ph-meta' }, (m.reveal && m.reveal.results || []).map(r => el('li', {}, `${r.name}: ${r.points}`))),
         el('p', { class: 'ph-meta' }, 'The host starts the next round.'),
-        el('button', { type: 'button', class: 'ph-btn ph-ghost ph-leave', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
+        twoStepLeave()]);
     }
 
     function final(m) {
-      s.phase = 'final'; stopTimer();
+      s.phase = 'final'; stopTimer(); setTitle(m.mode, false);
       const totals = m.totals || [];             // ranked by the host (highest first); a tie shares the place
       let place = 0, last = null; const placed = totals.map((t, i) => { if (t.total !== last) { place = i + 1; last = t.total; } return { ...t, place }; });
       const me = placed.find(t => t.name === s.name);
@@ -166,6 +169,14 @@
       show([el('h2', { tabindex: '-1' }, 'The game is over'), me ? el('p', { id: 'ph-place' }, `You came ${nth(me.place)} with ${me.total} points.`) : null,
         el('ul', { id: 'ph-totals', class: 'ph-meta' }, placed.map(t => el('li', {}, `${t.place}. ${t.name}: ${t.total}`))),
         el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
+    }
+
+    function twoStepLeave() {
+      let armed = null;
+      const b = el('button', { type: 'button', class: 'ph-btn ph-ghost ph-leave', onclick: async () => {
+        if (!armed) { b.textContent = 'Press again to leave this game'; live.textContent = 'Press again to leave this game.'; armed = setTimeout(() => { armed = null; b.textContent = 'Leave the room'; }, 5000); return; }
+        clearTimeout(armed); await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room');
+      return b;
     }
 
     function gotIt(m) {
@@ -183,14 +194,16 @@
     function onState(m) {
       if (!s.conn) return;
       if (m.phase === 'lobby') { if (s.phase === 'lobby' || s.phase === '') { const p = stage.querySelector('#ph-lobby-players'); if (p) p.textContent = m.players.length ? `Players: ${m.players.join(', ')}` : 'Waiting for the host to start.'; else lobby(m.players); } else lobby(m.players);
-        const g = stage.querySelector('#ph-lobby-game'); if (g) g.textContent = m.mode === 'gap' ? 'The game: Fill the gap.' : 'The game: Guess the next line.'; return; }
+        const g = stage.querySelector('#ph-lobby-game'); if (g) g.textContent = m.mode === 'gap' ? 'The game: Fill the gap.' : 'The game: Guess the next line.'; setTitle(m.mode, false); return; }
       if (m.phase === 'question') { if (s.phase !== 'question' || s.round !== m.round) question(m); else s.left = m.left_s || 0; return; }
       if (m.phase === 'reveal') { if (s.phase !== 'reveal' || s.round !== m.round) reveal(m); return; }
       if (m.phase === 'final') { if (s.phase !== 'final') final(m); }
     }
 
     const banner = el('p', { class: 'ph-banner', role: 'note' }, el('strong', {}, 'DRAFT. '), 'Text only: no microphone and no camera. Your name and guesses go to the host’s screen in this room and are not kept.');
-    root.replaceChildren(el('div', { class: 'ph-screen' }, banner, el('h1', {}, 'Guess the next line'), live, stage));
+    const title = el('h1', { id: 'ph-title' }, 'Guess the next line');
+    const setTitle = (mode, compact) => { title.textContent = mode === 'gap' ? 'Fill the gap' : 'Guess the next line'; title.classList.toggle('ph-compact', !!compact); };        // the page's own title says which game (8-player test LOW); small during a round so Send stays higher
+    root.replaceChildren(el('div', { class: 'ph-screen' }, banner, title, live, stage));
     join();
     window.addEventListener('pagehide', () => { leave(); });
     return { leave };
