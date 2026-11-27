@@ -17,8 +17,6 @@
   const line = () => (buyingOpen() ? OPEN : CLOSED);
   if (typeof document !== 'undefined' && document.querySelectorAll) {
     document.querySelectorAll('[data-free-account-line]').forEach(el => { el.textContent = line(); });
-    const n = (WELCOME.match(/you get (\d+) welcome credits/) || [])[1];                  // the one number, read from the sentence above, for the home page's button (a change of the grant cannot leave the button behind)
-    if (n) document.querySelectorAll('[data-welcome-credits]').forEach(el => { el.textContent = n; });
   }
   window.ryagramFreeAccountLine = Object.freeze({ CLOSED, OPEN, buyingOpen, line });
 })();
