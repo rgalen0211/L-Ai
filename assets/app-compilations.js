@@ -32,7 +32,7 @@
     if (folders.length > LIMITS.folders) return { error: 'Name at most 10 folders.' };
     const bad = folders.find(n => !NAME.test(n) || n === '.' || n === '..');
     if (bad) return { error: `“${bad.slice(0, 40)}” is not a folder name. Type only the folder’s name, like Interviews, never where it is.` };
-    return { request: { schema: 'ryagram.compilation-request/0', phrase, search: f.search === 'words' ? 'words' : 'every', folders, song: f.song === true, clean_cuts: f.cleanCuts === true, rules: [], texts: [], note } };
+    return { request: { schema: 'ryagram.compilation-request/0', phrase, search: f.search === 'words' ? 'words' : 'every', folders, song: false, clean_cuts: false, rules: [], texts: [], note } };
   }
 
   // A saved request -> the line a person reads about it.
@@ -89,13 +89,11 @@
         picked.textContent = `Added the folder name “${first.slice(0, 80)}” (${files.length} file${files.length === 1 ? '' : 's'} in it). Only its name is used; nothing was read or sent.`;
         picker.value = '';
       });
-      const song = h('input', { id: 'comp-song', type: 'checkbox' });
-      const cuts = h('input', { id: 'comp-cuts', type: 'checkbox' });
       const note = h('textarea', { id: 'comp-note', rows: '2', maxlength: '500' });
       const save = h('button', { class: 'button primary', type: 'button', id: 'comp-save' }, 'Save my request');
       save.addEventListener('click', () => {
         error.hidden = true; status.textContent = '';
-        const built = buildRequest({ phrase: phrase.value, search: search.value, folders: folders.value, song: song.checked, cleanCuts: cuts.checked, note: note.value });
+        const built = buildRequest({ phrase: phrase.value, search: search.value, folders: folders.value, note: note.value });
         if (built.error) { error.textContent = built.error; error.hidden = false; return; }      // the page's own plain sentence: shown as it is (plainRefusal would turn it into the generic line)
         return busy(save, 'Saving…', async () => {
           try {
@@ -119,9 +117,7 @@
         h('label', { for: 'comp-folders' }, 'Your folders (the names, one per line)'), folders,
         h('p', { id: 'comp-folders-note', class: 'form-note' }, 'Type only a folder’s name, like Interviews. Never where it is on your computer.'),
         h('label', { for: 'comp-pick' }, 'Or pick a folder to add its name'), picker,
-        h('p', { id: 'comp-pick-note', class: 'form-note' }, 'Your browser lists the folder’s files to this page only to read the folder’s name. Nothing is uploaded.'), picked,
-        h('div', { class: 'choice' }, song, h('label', { for: 'comp-song' }, 'Sing the words to a tune (song mode)')),
-        h('div', { class: 'choice' }, cuts, h('label', { for: 'comp-cuts' }, 'Move each cut to the nearest shot change, without cutting a word')),
+        h('p', { id: 'comp-pick-note', class: 'form-note' }, 'Your browser lists the folder’s files to this page only to read the folder’s name, and may use the word upload for it. Nothing is uploaded: nothing leaves your computer.'), picked,
         h('label', { for: 'comp-note' }, 'A note to yourself (optional)'), note,
         h('div', { class: 'actions-row' }, save), status, error);
 
@@ -134,7 +130,7 @@
         let haveApp = null;
         try { haveApp = typeof data.myLocalCompute === 'function' ? await data.myLocalCompute() : null; } catch { haveApp = null; }
         list.replaceChildren(...[
-          haveApp === false ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp, ' ', h('a', { href: '/get-app/' }, 'Get the Ryagram app')) : null,
+          haveApp === false ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp, ' ', h('a', { href: '/get-app/', class: 'comp-link' }, 'Get the Ryagram app')) : null,
           rows.length ? h('ul', { class: 'project-list comp-rows' }, rows.map(r => h('li', {},
             h('strong', {}, String(r.title || 'A compilation').slice(0, 120)), h('span', { class: 'meta' }, ` ${requestLine(r, date)}`),
             h('p', { class: 'form-note comp-run', role: 'status' }, runLine(r.run, WORDS))))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
@@ -143,7 +139,7 @@
 
       flip = window.ryagramFlip.create({ h, label: 'Compilations', address: false, sections: [
         { id: 'start', label: 'Start a compilation', el: start },
-        { id: 'requests', label: 'Your requests', el: h('div', {}, h('p', { class: 'form-note comp-local' }, WORDS.local), list) }
+        { id: 'requests', label: 'Your requests', el: h('div', {}, list) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('h1', { tabindex: '-1' }, 'Compilations'), flip.el];
     }

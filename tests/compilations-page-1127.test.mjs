@@ -9,7 +9,7 @@ vm.runInNewContext(read('assets/app-compilations.js'), { window: win });
 const C = win.ryagramCompilations;
 test('REQUEST: the form builds exactly the connector\'s request shape (schema ryagram.compilation-request/0), folders as unique NAMES', () => {
   const r = C.buildRequest({ phrase: ' of the people ', folders: 'Interviews, B-roll\nInterviews', search: 'words', song: true, cleanCuts: true, note: 'n' }).request;
-  assert.deepEqual(JSON.parse(JSON.stringify(r)), { schema: 'ryagram.compilation-request/0', phrase: 'of the people', search: 'words', folders: ['Interviews', 'B-roll'], song: true, clean_cuts: true, rules: [], texts: [], note: 'n' });
+  assert.deepEqual(JSON.parse(JSON.stringify(r)), { schema: 'ryagram.compilation-request/0', phrase: 'of the people', search: 'words', folders: ['Interviews', 'B-roll'], song: false, clean_cuts: false, rules: [], texts: [], note: 'n' });
   assert.equal(C.buildRequest({ phrase: 'x', folders: 'A' }).request.search, 'every');
 });
 test('NO PATHS, NO EMPTIES, NO OVERSIZE: a path, a slash, a drive letter, dots, no folder, no words, too many folders are refused in plain words', () => {
@@ -34,7 +34,7 @@ test('SWITCH: compilations is an account switch, the department module promotes 
 test('LOCAL: the folder picker reads only the folder NAME and a file count; the words say nothing is uploaded', () => {
   const page = read('assets/app-compilations.js');
   assert.ok(page.includes("split('/')[0]"));
-  assert.ok(page.includes('Nothing is uploaded.') && page.includes('Your videos never leave your computer.'));
+  assert.ok(page.includes('Nothing is uploaded: nothing leaves your computer.') && page.includes('Your videos never leave your computer.'));
 });
 test('RUN LINES: what the person\'s computer reported becomes a plain line: counts only, a closed list of reasons, the generic line for anything else', () => {
   const W = C.WORDS, run = s => C.runLine(s, W);
@@ -44,4 +44,10 @@ test('RUN LINES: what the person\'s computer reported becomes a plain line: coun
   assert.match(run({ state: 'failed', error_code: 'not_said' }), /It did not finish\. Your videos do not say it\.$/);
   assert.match(run({ state: 'failed', error_code: '<b>x</b>' }), /Something went wrong\. Try again from the app\.$/);
   assert.equal(run({ state: 'nonsense' }), W.waiting);
+});
+test('HONEST OPTIONS (FACES 08:21): no song box and no clean-cuts box (the engine refuses a song request and makes no clean cuts); the request always sends song false and clean_cuts false; the privacy paragraph is on the first tab once', () => {
+  const page = read('assets/app-compilations.js');
+  assert.ok(!page.includes("id: 'comp-song'") && !page.includes("id: 'comp-cuts'"));
+  assert.equal((page.match(/WORDS\.local/g) || []).length, 1);
+  assert.ok(page.includes('may use the word upload'));
 });
