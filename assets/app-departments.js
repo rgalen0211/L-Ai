@@ -282,7 +282,7 @@
       const more = detailsFor(id, window.ryagramConfig);
       const studioEls = Array.isArray(k.sections) ? k.sections.flatMap(([title, items]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, items.map(t => h('li', {}, t)))]) : [];
       const moreEls = more ? [h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.'), ...SECTIONS.flatMap(([key, title]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, more[key].map(t => h('li', {}, t)))])] : [];
-      return [h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
+      return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
               k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, stillsBlock(id), ...studioEls, ...moreEls, area, msg];
     }
 
