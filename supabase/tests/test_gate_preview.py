@@ -47,7 +47,7 @@ class GatePreview(unittest.TestCase):
         self.assertTrue(rows[0][1].startswith("NOTHING"), rows)
 
     def test_new_functions_and_a_policy_table_are_listed_then_nothing_after_the_gate(self):
-        self.d().execute("create function public.zz_new_pl() returns int language plpgsql security definer set search_path = '' as $f$ begin return 1; end $f$")
+        self.d().execute("create function public.zz_new_pl() returns int language plpgsql security definer set search_path = '' as $f$\nbegin\n  return 1;\nend $f$")
         self.d().execute("create function public.zz_new_sql() returns int language sql stable as $f$ select 1 $f$")
         self.d().execute("grant execute on function public.zz_new_pl(), public.zz_new_sql() to authenticated")
         self.d().execute("create table public.zz_t (id int)")
@@ -84,7 +84,7 @@ class GatePreview(unittest.TestCase):
 
     def test_allowed_names_closed_functions_and_open_tables_are_never_listed(self):
         allowed = file_list("allowed")
-        self.d().execute(f"create or replace function public.{allowed[0]}__probe() returns int language plpgsql as $f$ begin return 1; end $f$")
+        self.d().execute(f"create or replace function public.{allowed[0]}__probe() returns int language plpgsql as $f$\nbegin\n  return 1;\nend $f$")
         self.d().execute(f"revoke execute on function public.{allowed[0]}__probe() from public, authenticated")
         rows = self.preview()
         self.assertTrue(rows[0][1].startswith("NOTHING"), "a function no signed-in person can run is not the gate's business")
