@@ -149,7 +149,7 @@ const SCRIPT = [
   " return box;",
   "}",
   "function paint(sc){",
-  " var top=el('div','top');top.appendChild(el('span','mark',\"L'Ai\"));top.appendChild(el('h1','','Ryagram'));",
+  " var top=el('div','top');top.appendChild(el('h1','','Ryagram'));",
   " var kids=[top],ds=sc&&typeof sc==='object'&&Array.isArray(sc.departments)?sc.departments:null;",
   " if(!ds||!ds.length){kids.push(el('p','hint','Your Ryagram departments are listed in the conversation above.'));}",
   " else{",
@@ -184,7 +184,7 @@ export function homeHtml(appUrl?: string): string {
   const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";
   return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
     "<title>Ryagram home</title><style>" + STYLE + "</style></head><body data-app-url=\"" + link + "\">" +
-    "<main class=\"home\" id=\"home\" aria-live=\"polite\"><div class=\"top\"><span class=\"mark\" aria-hidden=\"true\">L'Ai</span><h1>Ryagram</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
+    "<main class=\"home\" id=\"home\" aria-live=\"polite\"><div class=\"top\"><h1>Ryagram</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
     "<script>" + SCRIPT + "</script></body></html>";
 }
 

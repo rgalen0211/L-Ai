@@ -80,7 +80,7 @@ const CARD_SCRIPT = [
   "function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}",
   "function row(k,v){var r=el('div','row');r.appendChild(el('span','k',k));r.appendChild(el('span','v',v));return r;}",
   "function whole(n){return typeof n==='number'&&isFinite(n)?String(Math.round(n)):null;}",
-  "function head(){var t=el('div','top');t.appendChild(el('span','mark',\"L'Ai\"));t.appendChild(el('h1','','Ryagramming'));return t;}",
+  "function head(){var t=el('div','top');t.appendChild(el('h1','','Ryagramming'));return t;}",
   // a host that will not open a link says so; the address is then given in words, once, to open by hand (the chat editor does the same)
   "function openFailed(){var n=card.querySelector('.openfail');if(!n){n=el('p','hint openfail');n.setAttribute('role','alert');card.appendChild(n);}n.textContent='Your chat app did not open it. Open this address in your browser: '+appUrl;size();}",
   "function paint(sc){",
@@ -137,7 +137,7 @@ export function cardHtml(appUrl?: string): string {
   const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";
   return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
     "<title>Ryagram</title><style>" + CARD_STYLE + "</style></head><body data-app-url=\"" + link + "\">" +
-    "<main class=\"card\" id=\"card\" aria-live=\"polite\"><div class=\"top\"><span class=\"mark\" aria-hidden=\"true\">L'Ai</span><h1>Ryagramming</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
+    "<main class=\"card\" id=\"card\" aria-live=\"polite\"><div class=\"top\"><h1>Ryagramming</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
     "<script>" + CARD_SCRIPT + "</script></body></html>";
 }
 
