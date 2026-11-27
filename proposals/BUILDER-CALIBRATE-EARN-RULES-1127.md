@@ -1,67 +1,63 @@
-# Calibrate: the earn rules (BUILDER, 2026-11-27, revision 2, DESIGN STAGE)
+# Calibrate: the earn rules (BUILDER, 2026-11-27, revision 3, DESIGN STAGE)
 
-Ryan's idea (11:40): people help tune the compilation maker and earn free credits. FACES designs the tasks and the engine, WEB the page, CONNECT the AI's read-only tools, BUILDER the earn rules below. Ryan's pace order (11:45): design first; the build sits behind the per-account switch **calibrate**, off for everyone.
-This revision takes FACES' abuse model numbers wherever they are stricter, WORKER's three 11:52 HIGHs, RENDERER's T5b, CONNECT's 12:01 contract and WEB's aee1ec4f contract.
-Files (NOT APPLIED, NOT RUN: no Postgres in the design window; the test file is py_compiled only): `supabase/migrations/20261127001100_calibrate_earn.sql`, its rollback, live step `84_calibrate_check.sql`, `supabase/tests/test_calibrate_earn.py`.
+Ryan's idea (11:40): people help tune the compilation maker and earn free credits. FACES designs the tasks and the engine, WEB the page, CONNECT the AI's read-only tools, BUILDER the earn rules below. Ryan's pace order (11:45): design first; the build sits behind the master switch `ops_settings.calibrate_enabled` (new, off) and the per-account switch **calibrate** (off for everyone).
+Revision 3 answers RENDERER's 12:43 review (HOLD) and adopts WEB's page contract (web-calibrate2-1127 aee1ec4f, `docs/calibrate-contract-needs-1127.md`) and CONNECT's status shape (connect-calibrate-1127) as written.
+Files (NOT APPLIED, NOT RUN: no Postgres in the design window; the test file is py_compiled only): `supabase/migrations/20261127001100_calibrate_earn.sql`, `supabase/rollbacks/20261127001100_calibrate_earn_rollback.sql`, live step `84_calibrate_check.sql` (10 rows), `supabase/tests/test_calibrate_earn.py`.
+
+## ONE contract: every page call and the function that answers it
+
+| Page (assets/app-calibrate.js) | Server function (all return jsonb) | Returns |
+|---|---|---|
+| `data.myCalibrationConsent()` | `public.my_calibration_consent_get()` | `{consented, at, words_id, withdraw_note, gate}`; consented means a yes to the CURRENT words |
+| `data.setMyCalibrationConsent(true/false, 'calibrate-consent-1')` | `public.my_calibration_consent_set(p_on boolean, p_words_id text)` | `{consented, at, words_id, note}`; the words live server-side by id (`ryagram_private.calibrate_consent_words`); an old or unknown id: `words_unknown`; withdrawing always works, even with a switch off |
+| `data.myCalibrationRound()` | `public.my_calibration_round_get()` | `{state, round, gate, cap}`; states ready, none, cap_reached (period day, week, or null = the lifetime cap), gate, budget_used, paused, not_consented. It opens a round when none is open (there is no separate start call) |
+| `data.setMyCalibrationAnswer(round, item, answer)` | `public.my_calibration_answer_set(p_round text, p_item text, p_answer text)` | `{ok, answered, total, cap_reached, cap_period, round_done, round_result}`; the last answer closes the round; `round_result` is always null |
+| `data.myCalibrationEarned()` | `public.my_calibration_earned_get()` | `{round, today, week, total, pending, ledger[]}`; `round` and `pending` always null; ledger rows `{id (the round token), at, task_type null, credits, undone}` |
+| `data.undoMyCalibrationAward(id)` | `public.my_calibration_undo(p_ledger uuid)` | `{ok: true}`; the person gives back their own released award (same clamped undo as the dashboard) |
+| CONNECT `open_calibration` / totals tool | `public.connect_calibration_status(p_token_hash text)` | CONNECT's keys exactly, schema `ryagram.calibration-status/0`, whole credits |
+
+Error messages start with the page's code word: `not_on`, `not_consented`, `round_ended` (also an item token past 15 minutes: the page reloads the round and gets new tokens), `item_used`, `task_unknown`, `words_unknown`, `not_undoable`, `not_person` (a connector).
+Task types are the page's: `better_cut`, `confirm_speaker`, `is_phrase`, `rate_match`. FACES' `ab_padding` = `better_cut`, `speaker_same` = `confirm_speaker`. Result mapping: held = pending, gold_too_low and too_fast = no_award, but neither is ever SAID (see 4).
+
+**Page calls not matched exactly, and why:**
+- `round_result` is never `awarded`, `no_award` or `pending` (RENDERER 4 overrides the contract): the page then shows only "round done". `too_fast` is never raised per answer: pace is scored at close (FACES' rule), so the page's "Too fast" line never shows.
+- FACES' `trim` has no page card (two offsets, not a choice), so it is not a served type in v1.
+- Licensed clips are `https://<media_url_base>/<64-hex handle>`: the handle resolver (an edge function turning a handle into a short signed storage URL) is NOT built; `media_url_base` is a placeholder (`https://media.invalid/calibrate/`). Own clips are `http://127.0.0.1:47811/calibrate/clip/<handle>` (port a placeholder; FACES' PC app must serve it). The page's CSP needs both (WEB).
+- WEB's mock answers with option ids yes/no; the server's ids are positional letters a, b, c (shuffled per round). The page treats ids as opaque, so nothing changes there.
+
+## What revision 3 changes (RENDERER's defects 1 to 5 and the cheap partials)
+
+1. **One contract** (above). The old `calibrate_*` person calls are gone.
+2. **Ring leak.** Per account, per round: item tokens; the media goes out only as a per-round opaque handle (`calibrate_media_handles`), never `media_ref`; every served item carries only its task kind's generic prompt (an item's own words travel inside the media, e.g. a caption), so no prompt identifies an item and gold is not told apart from plain; the options are shuffled per round (not rate_match) and served as positional letters, so the right letter differs; labels come from the task kind, never from the item.
+3. **Withdrawal.** `consent_set(false)` cancels every held award at once (a reversal row, note "consent withdrawn: cancelled, not paid") and closes the open round; every release re-checks consent and cancels the held awards of a withdrawn person. A later yes does not revive them.
+4. **The finish tells nothing.** The last answer returns `round_done` and `round_result` null for a passed and a failed round alike. Rounds, awards, releases and credit moves have NO grant to any API role (read only through the calls). `earned_get` lists a round only once its hold is over, as paid (credits) or 0, never why. Caps count ROUNDS at their full possible pay, so a cap never moves because checks passed. The connector's numbers are credits actually granted.
+5. **Budget, lifetime cap, master switch.** A round RESERVES its full pay from the global weekly budget when it opens; no room = state `budget_used` and no round (so no award can ever be made past the budget); the unused part returns at close. A lifetime cap per account (`lifetime_cap_tenths`, 100 credits). `ops_settings.calibrate_enabled` (new column, off): off = no new round, no answer, no release, at once (held awards wait, not cancelled); withdrawing still works.
+6. **Partials.** Item tokens expire after 15 minutes (`token_minutes`) and are re-issued by `round_get`; a repeat close returns the same `{"done": true}` and scores nothing twice; 3 rounds failing the known-answer bar inside 7 days pause the account for 7 days (state `paused`); a new current words row means everyone says yes again; items carry `status` pending, cleared or withdrawn and only cleared items are served.
+
+Kept from revision 2: tenths, whole credits only through `grant_credits`; settle at close; gold from the site's own pack only; own footage only as `loc_...` references, served only to its owner, never gold, unpaid in v1; server-clock pace; 24 h hold; append-only award ledger; the clamped undo with a calibrate debt; the AI never answers (app session AND not the connector login, and no grant to `connect_runner`); the rollback refuses while awards are held (it now also drops `ops_settings.calibrate_enabled`).
 
 ## The numbers, all FOR RYAN'S YES (one dashboard row each, no code)
 
-| Rule | Proposed |
-|---|---|
-| Unit | tenths of a credit, kept in their own table; only WHOLE credits go to the ledger, through `grant_credits` |
-| Pay | a verified round pays 0.5 credit, scaled by the share of its items that are paid (known-answer or site-served) and answered with care |
-| Own footage | answers on a person's own clips earn nothing in v1 |
-| Caps | 3 credits in any 24 hours, 10 in any 7 days (rolling, never a calendar day); undone awards still count |
-| Round | 18 items, 3 of them known-answer (1 in 6), 30 minutes, one open round, 10 rounds a day |
-| Gold | at least 2 of the round's 3 right AND 80 percent over the last 20 known-answer items across rounds; a skip or no answer is wrong |
-| Pace | minimum seconds per task kind on the server's clock (phrase 2, speaker 3, rate 3, better cut 4, trim 6); a third too-fast answer makes the round pay 0; a skip is never too fast |
-| Gate | account 7 days old AND one film Ryagram itself rendered (a spent render hold) or a purchase; a compilation the PC reports never counts |
-| Hold | every award waits 24 hours before it lands |
-| Budget | 50 credits a week for everyone together (never above 200); past it, awards wait for next week |
+Round 18 items, 3 known-answer; 0.5 credit a verified round, scaled by the paid share; at least 2 of the round's 3 right AND 80 percent over the last 20; pace (phrase 2 s, speaker 3, rate 3, better cut 4), a third too-fast answer pays 0; caps 3 credits in any 24 hours and 10 in any 7 days (counted on rounds), 10 rounds a day; **lifetime 100 credits per account**; hold 24 h; weekly budget 50 credits for everyone (never above 200); gate 7 days AND a server-rendered film; round 30 minutes, token 15 minutes; strikes 3 in 7 days, pause 7 days.
 
-An honest careful person earns about 0.5 credit per 6-minute round, so the 3-a-day cap is 6 rounds; a 6-credit film is 12 rounds.
+## Left for later (not built, said plainly)
 
-## How a round works
-
-1. **Consent first.** The words (below) are stored with the time and version. Withdrawing stops new rounds at once.
-2. **Start.** The SERVER picks the 3 known-answer items from its own pack (public domain or licensed, never own footage) and the rest, shuffles them, and returns per-round **item tokens**, never item ids, gold flags or sources. Item ids differ per person and round, so two accounts cannot match items to share answers.
-3. **Answer.** One answer per item ever (a choice or `skip`), only while the round is open, timed by the server.
-4. **Finish.** Scored once. It returns only `{result, tenths, release_at}`: never an accepted count, never which items were known-answer. An expired round is refused, and its known-answer items count as wrong.
-5. **Release.** After 24 hours the tick (and the person's own next start or finish) adds the award's tenths to the person's tenths and sends whole credits through `grant_credits` ('grant', 'granted' pool, created_by `calibrate:<award>`). Nothing is released while the week's budget is used up, the switch is off, or the gold record has fallen.
-
-**Own footage (WORKER HIGH 3):** an own-footage item holds only an opaque `loc_...` reference. A table check refuses a label, times, words or a path, and refuses gold. The person's own app resolves the reference locally.
-
-**The AI never answers.** Consent, answer and finish refuse a connected AI's token (`require_app_session`), AND refuse the connector's own login (RENDERER T5b: `connect_actor` sets no client_id), AND are not granted to `connect_runner`. The connector gets one read-only call, `connect_calibration_status`. There is no AI round opener (CONNECT's advice).
-
-## The award ledger and the undo
-
-- `calibrate_awards` is append-only (a trigger refuses update and delete), with an 'award' row (+tenths) and at most one 'reversal' row (-tenths). Releases and whole-credit moves sit in two more append-only tables, each move tied to its credit_ledger row.
-- **Undo** (`ryagram_private.calibrate_award_undo(award, note)`, dashboard only) appends the reversal. A held award then never lands. A landed one comes out of the person's tenths first; anything short is taken back in whole credits through `adjust_credits`, at most what calibrate itself granted (net), at most the pool. What is still short becomes a calibrate debt that the next releases pay first. A balance never goes below zero.
-- **Cannot do, said plainly:** the ledger has ONE 'granted' pool for welcome and calibrate credits, so it cannot tell which credits were spent. If the person already spent calibrate credits, the take-back lands on welcome credits (never more than calibrate gave). A real fix is a new pool value in `credit_pool`, which is a ledger change for Ryan.
-- **Rollback** refuses, in words, while any award is held or anyone holds part of a credit or a debt. Granted credits stay in the ledger.
-
-## Where the other contracts differ, and what changes
-
-**CONNECT (connect-calibrate-1127 8fbc87b6, paper section 6).** BUILDER adopts `public.connect_calibration_status(p_token_hash text)` as written (connect_runner only, read only, no items). CONNECT must change: (1) the schema becomes `ryagram.calibration-status/1`, and amounts are in TENTHS: `daily_cap` becomes `daily_cap_tenths`, `earned_today` becomes `counted_today_tenths` (every award in the last rolling 24 hours, undone ones too, because that is what the cap counts), `remaining_today` becomes `remaining_today_tenths`, `earned_total` becomes `credits_kept_total` (whole credits granted minus taken back), plus new `held_tenths`. (2) "today" in the tool words becomes "in the last 24 hours". (3) No `calibrate_round_open(.., 'ai')`: removed.
-
-**WEB (web-calibrate2-1127 aee1ec4f).** Agreed: no per-answer amount, settle at close, tokens, no own-footage labels or times, no word about which items were checks. Differences:
-- Names: WEB's `my_calibration_*` versus BUILDER's `calibrate_*`. Proposal: WEB adopts `calibrate_consent_set(p_yes)`, `calibrate_round_start()` / `calibrate_round_items(p_round)`, `calibrate_answer(p_round uuid, p_item_token uuid, p_answer)`, `calibrate_round_finish(p_round)`, or BUILDER adds thin `my_calibration_*` wrappers at build time (one hour, no rule change).
-- Round token: WEB wants an opaque round token; BUILDER uses the round's uuid, owner-checked. Same safety; WEB treats it as opaque.
-- Results: WEB's `awarded / no_award / pending` map to BUILDER's `held` = pending, `gold_too_low` and `too_fast` = no_award, `cap_reached` (with day or week, to add), `nothing_paid`. The answer call returns only an id; `round_done` and counts come from `calibrate_round_items`.
-- Too fast: WEB expects the answer call to refuse with `too_fast` and keep the question. BUILDER scores pace at finish (FACES' three-strikes rule). BUILDER can add the per-answer refusal if Ryan prefers it (RYAN DECIDES 6).
-- `consent_set(p_on, p_words_id)`: BUILDER stores its own words and version server-side; WEB should send only yes or no and show the words the call returns.
-- `my_calibration_undo(p_ledger)` for the person: not in BUILDER's design; undo is Ryan's dashboard call only.
-- States `gate`, `budget_used`, `paused`: the hints `calibrate_too_new` and `calibrate_off` exist; `budget_used` shows as held awards waiting (`release_at` passed). `paused` is not built (FACES' 7-day pause after two failed rounds is open).
-
-**FACES.** The known-answer key stays on the server (the safer of FACES' two options). The PC never sends `gold_id`. Real answers on own footage are recorded but unpaid.
+- Consensus of 3 distinct accounts on non-gold items (RENDERER T10): non-gold answers pay without agreement in this revision.
+- Gold bank rotation (T9: a 5x bank, 30-day rotation, retire at 98 percent).
+- Email-hash and disposable-domain checks (T2).
+- The training-exclusion statement and excluding withdrawn people's answers from future tuning batches (T14): see RYAN DECIDES 3.
+- The media handle resolver (edge function) and FACES' PC loopback server.
+- A per-answer `too_fast` refusal (RYAN DECIDES 6).
 
 ## RYAN DECIDES
 
-1. Every number in the table above, including the 50-credit weekly budget and whether the page states it.
-2. The consent words: "My answers may be used to improve Ryagram. I answer each task myself: no AI tool or script answers for me. Credits I earn can be taken back if checks show the answers were not really mine. I can stop at any time." Also: on withdrawal, delete the past answers or keep them?
-3. Own-footage answers: nothing in v1 (proposed), or a small flat rate later.
-4. The undo landing on welcome credits: accept it, or add a 'calibrate' credit pool (a ledger change).
-5. Whether the AI may open a round at all (proposed: no, read-only status only).
-6. Too-fast handled per answer (WEB) or per round (FACES, proposed), or both.
-7. FACES' extra rules not built yet: the trust score, the 7-day pause after two failed rounds, and the first-month 20-credit lifetime review.
-8. Legal: a row for LEGAL-QUESTIONS-FOR-ATTORNEY.md (are earned credits taxable value? do the words cover training the engine?). It does not block the build.
+1. Every number above, including the 100-credit lifetime cap and the 50-credit weekly budget.
+2. The consent words (calibrate-consent-1) and the withdraw note: "If you stop, credits not yet added are cancelled and never added. Credits already added stay yours. Your earlier answers stay with Ryagram, without your name."
+3. T14's sentence for the consent and withdraw words: "Answers already used to tune Ryagram cannot be taken out of tuning that already happened; after you stop, your answers are left out of future tuning." (Not built: the exclusion needs FACES' batch builder to read withdrawn_at.)
+4. Whether `round_result` stays silent (proposed, RENDERER 4) or the page may say pending; and the page's home card words "adds free credits" (RENDERER 6, WEB's legal row).
+5. Own-footage answers: nothing in v1 (proposed).
+6. Too-fast per answer (WEB) or per round (FACES, built).
+7. The person's own "Take back" (built, same clamped undo) or dashboard-only (WEB drops the button).
+8. The undo landing on welcome credits (one 'granted' pool), or a 'calibrate' credit pool (a ledger change).
+9. Whether the AI may open a round (proposed: no; only the read-only status).
+10. Legal: a row for LEGAL-QUESTIONS-FOR-ATTORNEY.md (earned credits as taxable value; consent covering engine training). It does not block the build.
