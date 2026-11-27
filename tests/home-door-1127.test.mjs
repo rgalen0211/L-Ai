@@ -26,7 +26,11 @@ test('DOOR: the old consulting pages are stubs that go to / and keep nothing of 
   assert.ok(fs.existsSync(new URL('../_archive/consulting/index.html', import.meta.url)));
 });
 test('DOOR: relative links only, so a later move to a Ryagram domain needs no edit here: the only domain on the page is the contact address in the footer', () => {
-  assert.doesNotMatch(html.replace(/ryagram@uselai\.com/g, ''), /uselai\.com/);
+  // GEO 11-27: the ONE other exception is the share preview's og:image, which link previews need as a full address
+  // (listed in proposals/DOMAIN-MOVE-PLAN-1127.md, step 7); it is a head tag, never a link or a visible word.
+  const shareImage = '<meta property="og:image" content="https://uselai.com/assets/ryagram-hero-still.jpg">';
+  assert.equal(html.split(shareImage).length - 1, 1, 'exactly one og:image tag');
+  assert.doesNotMatch(html.replace(/ryagram@uselai\.com/g, '').replace(shareImage, ''), /uselai\.com/);
   assert.match(html, /<link rel="canonical" href="\/">/);
 });
 test('DOOR: the Bring your own AI line is CONNECT\'s wording and stays hidden until Ryan confirms Connect an AI is ON for every new account (live step 35)', () => {
