@@ -403,8 +403,9 @@
       } }, h('label', { for: 'np-title' }, 'Name your film'), h('div', { class: 'inline-row' }, input, create), error);
 
       const S = window.ryagramSite;
+      const HOME_FILMS_MAX = 4;      // the newest four; the whole row now shows with no inner scroll box (Ryan 11-26), so a long list would make the page long: 'All my films' holds the rest (GAMES 22:01 LOW)
       const list = projects.length
-        ? h('ul', { class: 'film-grid' }, projects.map(p => S.filmCard({ h, project: p, data, version: p.latest && p.latest.id,
+        ? h('ul', { class: 'film-grid' }, (myFilmsOn() && window.ryagramFilms ? projects.slice(0, HOME_FILMS_MAX) : projects).map(p => S.filmCard({ h, project: p, data, version: p.latest && p.latest.id,
             parts: [p.latest ? `Version ${p.latest.number}` : 'No versions yet', p.latest && p.latest.state ? badge(p.latest.state) : null, p.updated_at && !isNaN(new Date(p.updated_at)) ? `updated ${date(p.updated_at)}` : null], edit: editLink(p.id, 'button secondary small') })))
         : h('p', { class: 'form-intro' }, builderOn() ? 'No films yet. The quickest way to start is the big card above: pick a ready-made film and the first picture is free.' : 'No films yet. Name your first film above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
