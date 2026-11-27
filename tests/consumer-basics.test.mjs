@@ -71,7 +71,7 @@ test('STORY SAVE: the "Saved" message also appears beside the Save story button 
 
 test('ROUND 2: back links are comfortable to tap, the first loading line has a spinner (still under reduced motion), and the Render panel says in words what a contact sheet, preview and final film are', () => {
   const css = read('assets/app.css');
-  assert.match(css, /\.back\{display:inline-flex;align-items:center;min-height:40px/);
+  assert.match(css, /\.back\{display:inline-flex;align-items:center;min-height:44px/);
   assert.match(css, /\.spinner\{[^}]*animation:spin/);
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.spinner\{animation:none\}\}/);
   const lib = read('assets/app-library.js');

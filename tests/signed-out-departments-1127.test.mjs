@@ -31,5 +31,5 @@ test('NO ACCOUNT, NO LIBRARY: the library and the department bar are mounted onl
 });
 test('TAP TARGETS: the footer links on the Sign in page are at least 44px high and wide at every width', () => {
   assert.match(read('assets/app.css'), /\.app-foot a\{display:inline-flex;align-items:center;min-height:44px;min-width:44px;box-sizing:border-box\}/);
-  assert.match(read('app/index.html'), /app\.css\?v=20261127c6/);
+  assert.match(read('app/index.html'), /app\.css\?v=20261127c7/);
 });

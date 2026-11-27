@@ -9,5 +9,5 @@ test('FOCUS: a request sets an 8 second window and loadOrders moves focus to the
   assert.match(lib, /focusOrderUntil = Date\.now\(\) \+ 8000;/);
   assert.match(lib, /Date\.now\(\) < focusOrderUntil && firstOrder && \(!here \|\| here === document\.body \|\| here\.tagName === 'H1' \|\| !here\.isConnected\)\) \{ firstOrder\.setAttribute\('tabindex', '-1'\); firstOrder\.focus\(\); \}/);
 });
-test('BACK LINK: on the film page it is at least 40 px tall', () => assert.match(read('assets/app-pages-ds.css'), /\.make-it\) \.page-hero \.back\{min-height:40px\}/));
+test('BACK LINK: on the film page it is at least 44 px tall', () => assert.match(read('assets/app-pages-ds.css'), /\.make-it\) \.page-hero \.back\{min-height:44px\}/));
 test('AUDIT: audit-a11y.py opens the data step before it clicks a dataset card', () => assert.ok(read('tools/audit-a11y.py').indexOf('Choose a dataset"') < read('tools/audit-a11y.py').indexOf(".builder-card').filter")));

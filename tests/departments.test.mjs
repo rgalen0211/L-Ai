@@ -222,3 +222,8 @@ test('FORECASTS WORDS: no price, date or promise, and nothing that reads as a pr
   assert.ok(Dp.ORDER.includes('forecasts') && Dp.FALLBACK.some(r => r.id === 'forecasts' && r.status === 'soon'));
   assert.equal(Dp.idFromHash('#/d/forecasts'), 'forecasts');
 });
+
+test('BACK LINK: the app .back link is at least 44 px high (walks measured 40 px at 768 and 1280)', () => {
+  const css = fs.readFileSync(new URL('../assets/app.css', import.meta.url), 'utf8');
+  assert.match(css, /\.back\{display:inline-flex;align-items:center;min-height:44px;/);
+});

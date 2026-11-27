@@ -218,7 +218,7 @@ body:has(.home-films) footer{margin-top:8px}
 #library .home-films .site-section-head h2,#library .home-more h2{margin-top:0}
 /* Version page (Ryan 11-20 amendment 2): a short band, slim key facts, the template picker and the own-data pointer on one row, tight step cards; every section within 1.4 screens (desktop) and 1.8 (phone) */
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero{padding:8px 28px 12px;margin-bottom:10px}
-:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:40px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:44px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero h1{margin:0}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .meta{margin:0}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{margin-bottom:10px;gap:12px}
@@ -232,7 +232,7 @@ body:has(.home-films) footer{margin-top:8px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero{padding:4px 16px 8px;margin-bottom:6px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row{gap:6px;margin-top:6px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row .button{min-height:44px;padding:0 14px;font-size:.8125rem}
-:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:40px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:44px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{grid-template-columns:1fr;gap:6px;margin-bottom:8px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{display:grid;grid-template-columns:74px minmax(0,1fr);align-items:baseline;gap:0 10px;padding:8px 14px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .s{display:none}
@@ -278,7 +278,7 @@ body:has(.home-films) footer{margin-top:8px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it .template-picker>summary{padding:2px 16px}
 }
 /* Credits (Ryan 11-20 amendment 2): the title and balance sit close, the packs (or plans) are one row of cards on a wide screen and slim rows on a phone; both tabs within 1.35 screens (desktop) and 1.5 (phone) */
-:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .back{min-height:40px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .back{min-height:44px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) h1{margin:0 0 12px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .credit-balance{margin:0 0 6px;padding:10px 24px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-bar{margin-bottom:4px}
