@@ -173,29 +173,6 @@ export class FakeNodeWorld implements NodeDb {
     return this.requests.filter((r) => r.owner === owner).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 20)
       .map((r) => ({ project_id: r.project_id, title: r.title, request: r.request, sha256: r.sha256, updated_at: r.updated_at }));
   }
-  /** compilation build reports (migrations/20261127000300): the accounts with compilations on, and the runs (the SQL is the authority and has its own suite) */
-  compilationsOn = new Set<string>();
-  runs: { id: number; owner: string; project_id: string; sha: string; state: string; matches: number | null; clips: number | null; film_seconds: number | null; error_code: string | null; started: number }[] = [];
-  async compilationReport(accessHash: string, projectId: string, sha: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null): Promise<number> {
-    this.calls.push("node_compilation_report");
-    const { owner } = this.actor(accessHash);
-    if (!this.compilationsOn.has(owner)) throw err("42501", "Compilations are not open for this account yet.");
-    if (!["planning", "matching", "building", "done", "failed", "cancelled"].includes(state)) throw err("22023", "That is not a compilation state.");
-    if (!this.requests.some((r) => r.owner === owner && r.project_id === projectId && r.sha256 === sha)) throw err("PT404", "That request is not the project's current one. Load it again.");
-    const active = this.runs.find((r) => r.owner === owner && ["planning", "matching", "building"].includes(r.state));
-    if (active && (active.project_id !== projectId || active.sha !== sha)) throw err("55000", "Another compilation is still being made on your computer. Let it finish or cancel it first.");
-    if (!active) {
-      if (["done", "failed", "cancelled"].includes(state)) throw err("22023", "There is no build running for this request: a new build starts with planning.");
-      if (state !== "planning") throw err("22023", "There is no build running for this request: a new build starts with planning, even after one ended.");
-      if (this.runs.filter((r) => r.owner === owner && this.now() - r.started < 86400_000).length >= 30) throw err("PT429", "You have started 30 compilations in the last 24 hours. Try again later.");
-      const run = { id: this.runs.length + 1, owner, project_id: projectId, sha, state, matches, clips, film_seconds: filmSeconds, error_code: errorCode, started: this.now() };
-      this.runs.push(run);
-      return run.id;
-    }
-    active.state = state; active.matches = matches ?? active.matches; active.clips = clips ?? active.clips; active.film_seconds = filmSeconds ?? active.film_seconds;
-    active.error_code = state === "failed" ? errorCode : null;
-    return active.id;
-  }
   /** download plans by owner (the tests fill it), and what the app told about them */
   dlPlans: { owner: string; id: string; request: Record<string, unknown>; state: string; receipt: Record<string, unknown> | null }[] = [];
   async downloadPlans(accessHash: string): Promise<DownloadPlanRow[]> {

@@ -38,9 +38,6 @@ export interface NodeDb {
   /** node_compilation_requests: the requests the person's AI wrote (NEXT-CONNECT 131b). READ ONLY: the computer's token resolves the person, only that person's rows come back (at most 20, newest first),
    *  each is data (a phrase, folder names, switches, a note), and reading starts nothing and touches no credit. */
   compilationRequests(accessHash: string): Promise<CompilationRequestRow[]>;
-  /** node_compilation_report (BUILDER 11-27, migrations/20261127000300): the person's own computer reports how a compilation build goes, DATA ONLY (a state, counts, seconds, an error code;
-   *  never a path, a transcript or a video). For the project's CURRENT request only; one active build per person; returns the run id. Touches no credit. */
-  compilationReport(accessHash: string, projectId: string, requestSha256: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null): Promise<number>;
   /** node_compilation_cancel: an upload that failed or was given up. */
   compilationCancel(accessHash: string, id: string): Promise<boolean>;
   /** node_download_plans (NEXT-CONNECT 152): the download plans the person's AI wrote that still wait or run, for THIS computer's person (at most 5, newest first). Data only: reading starts nothing. */

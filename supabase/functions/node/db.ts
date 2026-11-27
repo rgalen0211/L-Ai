@@ -37,10 +37,6 @@ export class NodeSql implements NodeDb {
   }
   async retry(accessHash: string, jobId: string, errorCode: string, errorDetail: string | null) { return String(await this.scalar("node_retry", ["text", "uuid", "text", "text"], [accessHash, jobId, errorCode, errorDetail])); }
   compilationRequests(accessHash: string) { return this.scalar<CompilationRequestRow[]>("node_compilation_requests", ["text"], [accessHash]); }
-  // migrations/20261127000300_compilations_for_everyone.sql (NOT APPLIED until Ryan applies it, live step 81)
-  async compilationReport(accessHash: string, projectId: string, requestSha256: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null) {
-    return Number(await this.scalar("node_compilation_report", ["text", "uuid", "text", "text", "int", "int", "numeric", "text"], [accessHash, projectId, requestSha256, state, matches, clips, filmSeconds, errorCode]));
-  }
   // migrations/20261027000500_download_plans.sql (NOT APPLIED until Ryan applies it)
   downloadPlans(accessHash: string) { return this.scalar<DownloadPlanRow[]>("node_download_plans", ["text"], [accessHash]); }
   downloadUpdate(accessHash: string, id: string, state: string, receipt: Record<string, unknown> | null) { return this.scalar<string | null>("node_download_update", ["text", "uuid", "text", "jsonb"], [accessHash, id, state, receipt]); }
