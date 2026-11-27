@@ -8,17 +8,16 @@
   const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';      // no I or O: on a TV across the room they read as 1 and 0
   const CODE_LEN = 4, NAME_MAX = 16, ANSWER_MAX = 120;
   const SAMPLE_CODE = 'GAME';
-  const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;          // keep equal to assets/game-room.js
+  const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
 
   const clean = s => String(s ?? '').replace(INVISIBLE, ' ').replace(/\s+/g, ' ').trim();
   const chars = s => [...s].length;
   // A code as typed on a phone: lower case, spaces or a dash in the middle are all fine.
   const normCode = s => String(s ?? '').toUpperCase().replace(/[\s-]/g, '');
-  // GAMES 11-27: the SAMPLE room (live mode off) keeps its 4-letter code GAME; the LIVE room passes its own length (8, assets/game-room.js CODE_LEN).
-  function codeProblem(s, len = CODE_LEN) {
-    const c = normCode(s), sample = len === CODE_LEN;
-    if (!c) return sample ? 'Type the room code from the TV.' : 'Type the room code from the host' + "'" + 's screen.';
-    if (c.length !== len || ![...c].every(ch => CODE_LETTERS.includes(ch))) return sample ? `A room code is ${CODE_LEN} letters from the TV, like ${SAMPLE_CODE}. It has no I, no O and no numbers.` : `A room code is ${len} letters from the host's screen. It has no I, no O and no numbers.`;
+  function codeProblem(s) {
+    const c = normCode(s);
+    if (!c) return 'Type the room code from the TV.';
+    if (c.length !== CODE_LEN || ![...c].every(ch => CODE_LETTERS.includes(ch))) return `A room code is ${CODE_LEN} letters from the TV, like ${SAMPLE_CODE}. It has no I, no O and no numbers.`;
     return null;
   }
   function nameProblem(s, taken = []) {
@@ -131,14 +130,9 @@
   window.ryagramGamePhone = Object.freeze({ on, normCode, codeProblem, nameProblem, answerProblem, counterText, clean, sampleRoom, mount, CODE_LETTERS, CODE_LEN, NAME_MAX, ANSWER_MAX, SAMPLE_CODE });
   const root = document.getElementById('game-phone'), off = document.getElementById('not-available'), S = window.ryagramGameTvSample;
   if (root) {
-    // GAMES 11-27: a LIVE room (assets/game-phone-live.js + assets/game-room.js) when the site switch `games` is on ('account' too: the phone page needs no sign-in, but a room only
-    // exists while a host whose own list names `games` has one open, so for anyone else every code answers "No room with that code"). Otherwise the sample room, exactly as before.
-    const L = window.ryagramGamePhoneLive, R = window.ryagramGameRoom;
-    const live = !!(L && R && L.liveOn(window.ryagramConfig));
-    const enabled = live || on(window.ryagramConfig);
+    const enabled = on(window.ryagramConfig);
     root.hidden = !enabled; if (off) off.hidden = enabled;
-    if (enabled) document.title = live ? 'Guess the next line, phone | Ryagram' : "Guess the next line, phone (draft) | L'Ai";          // GAMES 11-19: the HTML's title names no draft game while it is off; the game's own title only when it is on
-    if (live) L.mount(root, { clean, codeProblem: v => codeProblem(v, R.CODE_LEN), nameProblem, answerProblem, counterText, NAME_MAX, ANSWER_MAX }, R, window.ryagramConfig);
-    else if (enabled) { const room = sampleRoom(S); if (!room) root.textContent = 'The sample room could not be made, so nothing is shown.'; else mount(root, [room]); }
+    if (enabled) document.title = "Guess the next line, phone (draft) | L'Ai";          // GAMES 11-19: the HTML's title names no draft game while it is off; the game's own title only when it is on
+    if (enabled) { const room = sampleRoom(S); if (!room) root.textContent = 'The sample room could not be made, so nothing is shown.'; else mount(root, [room]); }
   }
 })();
