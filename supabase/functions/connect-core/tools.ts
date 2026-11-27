@@ -41,10 +41,13 @@ export function friendlyError(e: unknown): string {
 }
 
 /** The desktop app is for invited testers and administrators for now (the rule of request_app_download). A person without it cannot use a tool that hands work to the app: the tool refuses, nothing is saved, no plan is left waiting for an app that will never open it.
- *  `desktop_app` absent = an older server that does not say: allowed (nothing changes until migration 20261123000500). */
-async function noDesktopApp(ctx: ToolCtx, what: string): Promise<ToolResult | null> {
+ *  `desktop_app` absent = an older server that does not say: allowed (nothing changes until migration 20261123000500).
+ *  `viaCompilations` (compilation tools only): an account whose Compilations switch is on (BUILDER 11-27, migration 20261127000300: device_decide lets such an account sign in its own computer) is let through
+ *  even though desktop_app, which is still the tester / administrator rule, says false. The database's own gate (connect_compilations_open) is the last word. */
+async function noDesktopApp(ctx: ToolCtx, what: string, viaCompilations = false): Promise<ToolResult | null> {
   const w = await ctx.data.whoami();
   if (w.desktop_app !== false) return null;
+  if (viaCompilations && (await compilationsOpen(ctx))) return null;
   return refuse(`${what} needs the Ryagram desktop app, which is not open to this account yet. NOTHING was saved or written down. Tell the person plainly that this is not available to them yet; a data film made in the website works for them.`,
     "not_available", { data: { ok: false, saved: false, started: false, reason: "desktop_app_not_open" } });
 }
@@ -333,7 +336,7 @@ const setCompilationRequest: ToolDef = {
       description: "Optional guided footage: a checklist of footage the PERSON gets for themselves (Ryagram downloads nothing and the AI sends no file). The desktop app shows it beside the request and ticks an item when its folder holds the files." },
   }, ["project_id", "phrase", "folders"]),
   async run(a, ctx) {
-    { const gate = await noDesktopApp(ctx, "A compilation request"); if (gate) return gate; }
+    { const gate = await noDesktopApp(ctx, "A compilation request", true); if (gate) return gate; }
     const phrase = cleanText(a.phrase, 200);
     if (!phrase) return refuse("Give the words to look for.", "args");
     const rules = ((a.rules as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ phrase: cleanText(r.phrase, 200), picture: String(r.picture), seconds: Number(r.seconds), mode: r.mode as CompilationRequest["rules"][number]["mode"] }));
@@ -400,6 +403,7 @@ const COMPILATION_STOPPED: Record<string, string> = {
   edit_failed: "the draft could not be made into a film list",
   build_failed: "the film could not be built; nothing left the person's computer",
   crash: "something went wrong on the person's computer",
+  stale: "the person's computer stopped reporting for two hours, so Ryagram closed this build; they can start it again in the Ryagram app",      // BUILDER's node_compilation_report (migration 20261127000300) closes a build silent for 2 hours with this code
 };
 const RUN_STATES = new Set(["planning", "matching", "building", "done", "failed", "cancelled"]);
 const cleanCount = (v: unknown, max = 1_000_000): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.min(Math.round(v), max) : null);
@@ -879,7 +883,7 @@ const suggestNextStep: ToolDef = {
   }),
   async run(a, ctx) {
     const step = nextStep(a as Known);
-    if (step.kind === "compilation" && (await ctx.data.whoami()).desktop_app === false) {
+    if (step.kind === "compilation" && (await ctx.data.whoami()).desktop_app === false && !(await compilationsOpen(ctx))) {
       return ok("A compilation is made in the Ryagram desktop app, which is not open to this account yet. Tell the person plainly that a compilation is not available to them yet, and offer a data film instead (ask again with kind data_film).",
         { step: "not_available", asking: null, reask: false, ask: null, options: ["a data film instead"], say: null, then: "Continue with kind data_film if they want one.", kind: "compilation", already_known: step.known });
     }
