@@ -543,6 +543,21 @@
       const lookPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-look-h' });
       // Bundle mode: the rows the engine's drawer honours (it names the ones it does not), the six presets, and the keys still waiting for the worker. A colour dragged in a chooser
       // is only previewed; releasing it makes the op. Nothing here uses credits: 'Render final film' is the only button that does.
+      // ---- Colour tools (WEB 11-27): a Background choice and "Use the film's own colours", made ONLY of ops the core already has (set_look page.background, unset_look). They never touch data, only colours.
+      const BACKGROUNDS = [['Black', '#000000'], ['Dark', '#0d0d11'], ['White', '#ffffff']];
+      const COLOUR_KEYS = ['network.color', 'network.base_color', 'network.context_color', 'state.fill', 'page.background', 'choropleth.low', 'choropleth.high'];
+      function colourTools(keys) {
+        const cur = ed.state.look['page.background'], out = [];
+        if (keys.includes('page.background')) {
+          out.push(h('div', { class: 'le-group', role: 'group', 'aria-labelledby': 'le-bg-h' }, h('h3', { id: 'le-bg-h' }, 'Background'),
+            h('div', { class: 'le-bgchoices' }, BACKGROUNDS.map(([label, hex]) => btn(label, 'secondary', () => { if (cur === hex) { say('That background is already chosen.'); return; } apply({ op: 'set_look', key: 'page.background', value: hex }); }, { 'aria-pressed': cur === hex ? 'true' : 'false', 'data-bg': hex, disabled: locked }))),
+            h('p', { class: 'meta' }, 'Only the page colour changes. Your data does not. Undo takes it back.')));
+        }
+        const set = COLOUR_KEYS.filter(k => keys.includes(k) && ed.state.look[k] !== undefined);
+        out.push(h('div', { class: 'le-group', role: 'group', 'aria-labelledby': 'le-pal-h' }, h('h3', { id: 'le-pal-h' }, 'Colour palette'),
+          btn('Use the film’s own colours', 'secondary', async () => { if (await applyMany(set.map(key => ({ op: 'unset_look', key })), true)) say('The film’s own colours are back. Undo takes your colours back.'); }, { 'data-reset-colours': '1', disabled: locked || set.length === 0 })));
+        return out;
+      }
       function paintBundleLook() {
         const touched = new Set(ed.aiTouched()), look = ed.state.look, dflt = DD.defaults(bundle, look), cur = DD.presetOf(look, bundle);
         const rows = DD.rowsFor(RL, bundle).map(([key, label, kind]) => {
@@ -575,7 +590,7 @@
             DD.barsPartial(bundle) ? h('p', { class: 'meta' }, `This preview holds only the first ${Math.round(bundle.frames / bundle.fps * 10) / 10} seconds of the film.`) : null)] : []),
           ...(DD.isBanded(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bands' }, h('p', { class: 'meta' }, DD.hasRamp(bundle) ? 'This film colours its areas in solid bands. The bands follow the low and high colours below; the swatches show the film’s own bands, and the picture shows yours.' : 'This film colours its areas in solid bands, so the low and high colours do not apply. The bands are shown here; changing them waits for the worker, and the moving dots keep their colour.'),
             h('div', { class: 'le-band-row' }, DD.bandColours(bundle).map((c, i) => { const sw = h('span', { class: 'le-swatch', role: 'img', 'aria-label': `Band ${i + 1}: ${c}` }); sw.style.background = c; return sw; })))] : []),
-          ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
+          ...colourTools(DD.rowsFor(RL, bundle).map(r => r[0])), h('h3', {}, 'Colours'), ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
       }
       // The Look rows a person's own film on the website can really change (WEB 11-20, from ENGINE's LOOK-OPTIONS-1120): every row below is a key the shared draft ACCEPTS (edit_look_keys: sequence.theme, state.outline_width,
@@ -613,6 +628,7 @@
         if (bundleMode) { paintBundleLook(); return; }
         const touched = new Set(ed.aiTouched());
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
+          ...colourTools(LOOK_ROWS.map(r => r[0])), h('h3', {}, 'Colours'),
           ...LOOK_ROWS.map(([key, label]) => {
             const input = h('input', { type: 'color', value: ed.state.look[key] !== undefined ? ed.state.look[key] : DATA_BASE().look[key], id: `le-look-${key}`, 'aria-label': label, disabled: locked });
             input.addEventListener('input', () => { preview = { [key]: input.value }; paintPreview(); });

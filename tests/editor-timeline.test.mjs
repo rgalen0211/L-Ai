@@ -72,7 +72,7 @@ test('wiring: the strip is built only for the stand-in data editor, follows the 
   assert.match(ed, /seek: v => \{ stopPlay\(\); range\.value = String\(v\); range\.dispatchEvent\(new Event\('input'/);
   assert.match(ed, /scrub, stripHolder, ticks/);
   assert.ok(html.indexOf('app-editor-timeline.js?v=20261113a') > 0 && html.indexOf('app-editor-timeline.js') < html.indexOf('app-editor.js?v='));
-  assert.match(html, /app-editor\.js\?v=20261127e1/);
+  assert.match(html, /app-editor\.js\?v=20261127f1/);
   assert.ok(!/innerHTML/.test(read('assets/app-editor-timeline.js')), 'no HTML from strings');
 });
 
@@ -180,5 +180,5 @@ test('wiring: the strip is rebuilt when the width crosses a tile-count breakpoin
 
 test('the keys line is hidden where there is no keyboard (touch devices), and the stylesheet carries a new stamp', () => {
   assert.match(read('assets/app-editor.css'), /@media \(hover:none\),\(pointer:coarse\)\{\.le-keys\{display:none\}\}/);
-  assert.match(read('app/index.html'), /app-editor\.css\?v=20261120c/);
+  assert.match(read('app/index.html'), /app-editor\.css\?v=20261127f1/);
 });
