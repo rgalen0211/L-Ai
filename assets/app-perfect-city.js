@@ -17,7 +17,7 @@
   const NO_DATA = '#4a4a52';
   const W = 640, H = 480;
   const WORDS = {
-    intro: 'Pick a county and a kind of business, then click the map to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
+    intro: 'Pick a county and a kind of business, then tap or click the map to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
     notKnown: ['Distances are straight lines, not drive or walk times.',
       'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
       'People within a ring are an estimate: a block group counts in full when its centre is inside the ring.',
@@ -27,6 +27,7 @@
     noPlaces: 'The business points are not loaded on this account yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only.',
     pickSpot: 'Click the map, or type a latitude and longitude, to put a spot on it.',
+    badTyped: 'Type a latitude and a longitude as numbers, for example 39.75 and -84.19, then press the button.',
     outside: 'That spot is outside the county. Put it inside the shaded area.'
   };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
@@ -68,7 +69,8 @@
     const typed = h('form', { class: 'pc-typed', onsubmit: (e) => {
       e.preventDefault();
       const lat = Number(latIn.value), lon = Number(lonIn.value);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) place([lon, lat]);
+      if (latIn.value.trim() === '' || lonIn.value.trim() === '' || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) { status.textContent = WORDS.badTyped; return; }
+      place([lon, lat]);
     } }, h('span', { class: 'meta' }, 'Or type a spot: '), latIn, ' ', lonIn, ' ', h('button', { class: 'button secondary', type: 'submit', id: 'pc-go' }, 'Put the spot here'));
     let kindWrap = h('span');
 
@@ -102,12 +104,12 @@
       }
       if (state.places) for (const p of state.places) {
         const [x, y] = P.fwd([p.lon, p.lat]);
-        root.append(svg('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: '2.6', fill: '#ff9f43', stroke: '#14141a', 'stroke-width': '0.8', class: 'pc-place' }));
+        root.append(svg('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: '4.5', fill: '#ff9f43', stroke: '#14141a', 'stroke-width': '0.8', class: 'pc-place' }));
       }
       if (state.spot) {
         const [x, y] = P.fwd(state.spot);
-        for (const r of pc.RINGS_KM) root.append(svg('circle', { cx: x, cy: y, r: P.kmToPx(r).toFixed(1), fill: 'none', stroke: '#ffd166', 'stroke-width': '2', 'stroke-dasharray': '6 3', class: 'pc-ring' }));
-        root.append(svg('circle', { cx: x, cy: y, r: '5', fill: '#ffffff', stroke: '#14141a', 'stroke-width': '1.5', id: 'pc-spot' }));
+        for (const r of pc.RINGS_KM) root.append(svg('circle', { cx: x, cy: y, r: P.kmToPx(r).toFixed(1), fill: 'none', stroke: '#ffd166', 'stroke-width': '3', 'stroke-dasharray': '9 5', class: 'pc-ring' }));
+        root.append(svg('circle', { cx: x, cy: y, r: '8', fill: '#ffffff', stroke: '#14141a', 'stroke-width': '2.5', id: 'pc-spot' }));
       }
       root.addEventListener('click', (e) => {
         const box = root.getBoundingClientRect();
