@@ -1,0 +1,15 @@
+# The site is served straight from a public repo, so working files are reachable too.
+# Keep them out of search results. The pages people use stay open.
+User-agent: *
+Disallow: /proposals/
+Disallow: /docs/
+Disallow: /supabase/
+Disallow: /tests/
+Disallow: /tools/
+Disallow: /archive/
+Disallow: /legal-drafts/
+Disallow: /directory-drafts/
+Disallow: /landing-drafts/
+Disallow: /README.md
+Disallow: /package.json
+Disallow: /package-lock.json
