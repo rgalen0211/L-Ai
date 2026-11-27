@@ -278,6 +278,74 @@ class Compilations(unittest.TestCase):
         self.assertTrue(self.report(tok, b, sb, "planning"))
         self.assertEqual(self.admin("select state || ':' || error_code from compilation_runs where id = %s", old), "failed:stale")
 
+    def test_a_run_silent_for_two_hours_reads_as_stale_with_the_computer_off_and_the_next_report_starts_a_new_build(self):
+        # WORKER 11-27 MEDIUM 3: the computer is off, so no report ever comes to close it: the READ closes it, in its own transaction
+        self.switch_on(OTHER)
+        pid, tok = self.project(), self.sign_in(OTHER)
+        sha = self.put(pid)
+        old = self.report(tok, pid, sha, "planning")
+        self.assertEqual(self.db.as_(OTHER).one("select my_compilation_get(%s)", pid)["run"]["state"], "planning", "control: a fresh build reads as running")
+        self.d().execute("update compilation_runs set updated_at = now() - interval '3 hours' where id = %s", (old,))
+        run = self.db.as_(OTHER).one("select my_compilation_get(%s)", pid)["run"]
+        self.assertEqual((run["id"], run["state"], run["error_code"]), (old, "failed", "stale"))
+        self.assertIsNotNone(run["ended_at"])
+        self.assertEqual(self.admin("select state || ':' || error_code from compilation_runs where id = %s", old), "failed:stale", "closed in the table, not only in the answer")
+        new = self.report(tok, pid, sha, "planning")
+        self.assertNotEqual(new, old)
+        self.assertEqual(self.admin("select state from compilation_runs where id = %s", new), "planning", "a later report starts a new build at planning")
+
+    def test_the_same_state_again_is_a_heartbeat_and_a_step_back_is_refused(self):
+        # FACES 11-27: the app repeats the state during a long phase (and retries a report it is not sure arrived): same run, updated_at refreshed, newer counts taken
+        self.switch_on(OTHER)
+        pid, tok = self.project(), self.sign_in(OTHER)
+        sha = self.put(pid)
+        rid = self.report(tok, pid, sha, "planning")
+        self.assertEqual(self.report(tok, pid, sha, "planning"), rid, "planning again: the same run")
+        self.assertEqual(self.report(tok, pid, sha, "matching", matches=5), rid)
+        self.assertEqual(self.report(tok, pid, sha, "matching"), rid)
+        self.assertEqual(self.admin("select matches from compilation_runs where id = %s", rid), 5, "a heartbeat without counts keeps them")
+        self.assertEqual(self.report(tok, pid, sha, "matching", matches=9), rid)
+        self.assertEqual(self.admin("select matches from compilation_runs where id = %s", rid), 9, "and takes newer ones")
+        self.assertIn("already moved past", self.refused(self.report, tok, pid, sha, "planning", code="22023"))
+        self.report(tok, pid, sha, "building")
+        self.d().execute("update compilation_runs set updated_at = now() - interval '110 minutes' where id = %s", (rid,))
+        self.assertEqual(self.report(tok, pid, sha, "building", clips=4), rid, "a building heartbeat")
+        self.d().execute("update compilation_runs set updated_at = updated_at - interval '15 minutes' where id = %s", (rid,))   # 15 minutes later
+        run = self.db.as_(OTHER).one("select my_compilation_get(%s)", pid)["run"]
+        self.assertEqual((run["id"], run["state"], run["error_code"], run["clips"]), (rid, "building", None, 4), "the heartbeat kept a build of over 2 hours alive")
+        self.assertEqual(self.admin("select count(*) from compilation_runs"), 1)
+        self.assertEqual(self.report(tok, pid, sha, "done", film_seconds=60), rid, "and its final report is accepted")
+
+    def test_a_build_that_found_matches_and_then_reports_a_folder_failure_still_counts_toward_the_thirty(self):
+        self.switch_on(OTHER)
+        pid, tok = self.project(), self.sign_in(OTHER)
+        sha = self.put(pid)
+        self.d().execute("insert into compilation_runs (owner_id, project_id, request_sha256, state, error_code, matches, clips, ended_at) "
+                         "select %s, %s, %s, 'failed', 'folder_empty', 12, 3, now() from generate_series(1, 30)", (OTHER, pid, sha))
+        self.assertIn("30 compilations", self.refused(self.report, tok, pid, sha, "planning", code="PT429"),
+                      "a modified app cannot hide finished work as a folder problem")
+
+    def test_plans_stopped_by_a_folder_problem_do_not_use_up_the_thirty_and_two_hundred_runs_a_day_is_the_outer_cap(self):
+        self.switch_on(OTHER)
+        pid, tok = self.project(), self.sign_in(OTHER)
+        sha = self.put(pid)
+        for i in range(31):                    # the person keeps fixing a folder and trying again, through the real report
+            self.report(tok, pid, sha, "planning")
+            self.report(tok, pid, sha, "failed", error="folder_missing")
+        rid = self.report(tok, pid, sha, "planning")
+        self.assertTrue(rid, "31 plans stopped by a folder problem do not block a real build")
+        self.report(tok, pid, sha, "cancelled")
+        self.d().execute("insert into compilation_runs (owner_id, project_id, request_sha256, state, ended_at) select %s, %s, %s, 'done', now() from generate_series(1, 29)", (OTHER, pid, sha))
+        self.assertIn("30 compilations", self.refused(self.report, tok, pid, sha, "planning", code="PT429"), "30 real builds (a cancelled one counts) block the 31st")
+        self.d().execute("delete from compilation_runs where state <> 'failed'")
+        self.d().execute("insert into compilation_runs (owner_id, project_id, request_sha256, state, error_code, ended_at) select %s, %s, %s, 'failed', 'folder_empty', now() from generate_series(1, 168)", (OTHER, pid, sha))
+        self.assertEqual(self.admin("select count(*) from compilation_runs where owner_id = %s", OTHER), 199)
+        self.report(tok, pid, sha, "planning")   # the 200th run of any kind
+        self.report(tok, pid, sha, "failed", error="folders_overlap")
+        self.assertIn("200 builds", self.refused(self.report, tok, pid, sha, "planning", code="PT429"), "the 201st run of any kind is refused")
+        self.d().execute("update compilation_runs set started_at = now() - interval '25 hours'")
+        self.assertTrue(self.report(tok, pid, sha, "planning"), "a day later it is open again")
+
     def test_a_run_only_moves_forward(self):
         self.switch_on(OTHER)
         pid, tok = self.project(), self.sign_in(OTHER)
@@ -321,8 +389,8 @@ class Compilations(unittest.TestCase):
             "Give the words to look for": dict(REQ, phrase=""),
             "Give the words to look for ": dict(REQ, phrase="x" * 201),
             "How to look": dict(REQ, search="sometimes"),
-            "Name 1 to 10 folders.": dict(REQ, folders=[]),
-            "Name 1 to 10 folders. ": dict(REQ, folders=[f"f{i}" for i in range(11)]),
+            "Name 1 to 8 folders.": dict(REQ, folders=[]),
+            "Name 1 to 8 folders. ": dict(REQ, folders=[f"f{i}" for i in range(9)]),        # 8 is the engine's own limit (FACES 11-27); 8 is accepted below
             "A folder is a NAME": dict(REQ, folders=["."]),
             "A folder is a NAME ": dict(REQ, folders=["Q3/Q4 talks"]),
             "A folder is a NAME  ": dict(REQ, folders=["A:B"]),
@@ -358,6 +426,26 @@ class Compilations(unittest.TestCase):
                 "song": False, "clean_cuts": False, "rules": [], "texts": [], "note": ""}   # exactly what WEB's buildRequest sends (app-compilations.js)
         self.assertRegex(self.put(pid, page), r"^[0-9a-f]{64}$", "the page's own request is saved")
         self.assertRegex(self.put(pid, dict(page, search="words", note="short ones first")), r"^[0-9a-f]{64}$")
+        self.assertRegex(self.put(pid, dict(REQ, folders=[f"f{i}" for i in range(8)])), r"^[0-9a-f]{64}$", "8 folders, the engine's limit, are fine")
+
+    # ------------------------------------------------------------------ RENDERER 10:33: hidden characters
+    def test_hidden_characters_in_a_path_or_a_folder_name_are_refused_and_a_folder_name_with_an_emoji_variation_selector_is_refused_too(self):
+        self.switch_on(OTHER)
+        pid = self.project()
+        hidden = {"tag": "\U000e0041", "variation selector": "\ufe0f", "line separator": "\u2028", "interlinear": "\ufff9"}
+        for name, ch in hidden.items():
+            with self.subTest(phrase=name):     # removed before the path check, so the path behind it is seen: refused
+                self.refused(self.put, pid, dict(REQ, phrase="C:" + ch + "\\Users\\x"), code="22023")
+                self.refused(self.put, pid, dict(REQ, phrase="C:" + ch + "/Users/x"), code="22023")
+            with self.subTest(folder=name):     # a folder NAME holding a hidden character is refused outright
+                self.assertIn("A folder is a NAME", self.refused(self.put, pid, dict(REQ, folders=["Clips" + ch]), code="22023"))
+                self.refused(self.put, pid, dict(REQ, folders=["C:" + ch + "/Users/x"]), code="22023")
+        # DECIDED (BUILDER 11-27): a folder name is matched to a real folder on the person's PC, so it carries no invisible characters at all, an emoji's
+        # variation selector (U+FE0F) included: refused, in words. An emoji WITHOUT one is a plain name, and a phrase may hold either.
+        self.assertIn("A folder is a NAME", self.refused(self.put, pid, dict(REQ, folders=["Holiday \u2764\ufe0f"]), code="22023"))
+        self.assertIsNone(self.admin("select request from compilation_requests where project_id = %s", pid), "nothing was written")
+        self.assertRegex(self.put(pid, dict(REQ, folders=["Party \U0001f389"])), r"^[0-9a-f]{64}$", "an emoji with no selector is a plain folder name")
+        self.assertRegex(self.put(pid, dict(REQ, phrase="I \u2764\ufe0f it")), r"^[0-9a-f]{64}$", "a phrase may hold an emoji with its selector")
 
     def test_a_waiting_account_is_off(self):
         self.switch_on(OTHER)

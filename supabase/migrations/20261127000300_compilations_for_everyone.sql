@@ -12,12 +12,12 @@
 --       but like a tester's computer it can read and write that person's OWN editor summaries, download plans and footage plans through the existing node_* calls (their own rows only).
 --   (3) THE SITE'S OWN WRITE: public.my_compilation_set(project, request) (the person in the app, their own project, the connector's schema ryagram.compilation-request/0, at most 32 KB, NO path,
 --       URL or file anywhere in it, at most 60 saves an hour) and public.my_compilation_get(project) (the request and the newest run report, or null). A request also keeps the
---       connector's own rules (CC1 09:10, FACES 09:18): the thirteen known parts only (the connector's, the page's, and mode as older requests carry it), a phrase of 1 to 200 characters, 1 to 10 folder NAMES (no / \ : * ? " < > |, never . or ..), songs not
+--       connector's own rules (CC1 09:10, FACES 09:18): the thirteen known parts only (the connector's, the page's, and mode as older requests carry it), a phrase of 1 to 200 characters, 1 to 8 folder NAMES (no / \ : * ? " < > |, never . or ..), songs not
 --       open, a note of at most 500, at most 20 picture rules, 20 texts, 4 cards and 12 checklist items (each within the connector's limits, a checklist folder from the folders).
 --   (4) WHAT THE PC REPORTS BACK, DATA ONLY: public.compilation_runs (state, counts, seconds, an error code; no path, no transcript, no video), written ONLY by public.node_compilation_report through
 --       the computer's own token (node_runner): a new build only for the project's CURRENT request, the running one always closable with its own; one active build per account, a build
---       silent for 2 hours closed as 'stale'; states only move forward; a new build starts at planning; a failed build gives one reason from the closed list of eleven (only the server
---       sets 'stale'), any other state none; counts and seconds within range in plain words; at most 30 builds started a day; 600 reports and 60 saves in any clock hour.
+--       silent for 2 hours closed as 'stale' (by the next report or the next read of the page); states only move forward (the same state again is a heartbeat); a new build starts at planning; a failed build gives one reason from the closed list of eleven (only the server
+--       sets 'stale'), any other state none; counts and seconds within range in plain words; at most 30 builds started a day (a plan stopped by a request or folder problem not counted; 200 runs a day of any kind); 600 reports and 60 saves in any clock hour.
 --       A WAITING account is off (account_active).
 --   (5) CREDITS: none. A compilation runs on the person's own computer: nothing here reads or writes the credit ledger.
 -- Apply AFTER: 20261127000250_department_switches.sql (department_switch_on), 20261026000300/400 (compilation requests), 20261021000100_r9_render_node.sql (device codes, node_actor, node_user_hit), 20261110000400_account_switches.sql (switches_on),
@@ -54,12 +54,12 @@ begin
   end if;
   -- values: every string at any depth, UNESCAPED (so a newline or a tab before a path is a real character), invisible characters removed first
   select coalesce(string_agg(x #>> '{}', chr(10)), '') into v from jsonb_path_query(p, 'strict $.**') x where jsonb_typeof(x) = 'string';
-  v := regexp_replace(v, '[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]', '', 'g');
+  v := regexp_replace(v, '[\u0080-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufe00-\ufe0f\ufeff\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]', '', 'g');   -- also C1, line and paragraph separators, variation selectors, interlinear marks, tag characters (RENDERER 10:33)
   if v ~* '([a-z]:[\\/]|\\\\[a-z0-9]|(^|[^a-z0-9._-])/(users|home|mnt|volumes|private|tmp|var|media|etc|srv|opt|root)/|[a-z][a-z0-9+.-]*://|%2f|%5c|%3a|(^|\s)~[a-z0-9_]*[/\\]|%[a-z_]+%|\$home\y|[\uff0f\uff3c\u2215\uff1a])' then
     return 'A compilation request holds folder names and a phrase only, never a file, a path or a link.';
   end if;
   -- THE REQUEST'S OWN RULES, the same as the connector's set_compilation_request schema (supabase/functions/connect-core/tools.ts, NAME_PATTERN and its limits) and the page's buildRequest
-  -- (assets/app-compilations.js): CC1 09:10 and FACES 09:18. Only the thirteen known parts; a phrase; 1 to 10 folder NAMES; songs are not open; every list within its limits.
+  -- (assets/app-compilations.js): CC1 09:10 and FACES 09:18. Only the thirteen known parts; a phrase; 1 to 8 folder NAMES (the engine's limit); songs are not open; every list within its limits.
   for k in select jsonb_object_keys(p) loop
     if k <> all (array['schema', 'phrase', 'search', 'mode', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist']) then
       return 'That compilation request has a part Ryagram does not know: ' || left(k, 40) || '.';
@@ -71,12 +71,12 @@ begin
   if p ? 'search' and (jsonb_typeof(p -> 'search') <> 'string' or (p ->> 'search') not in ('every', 'words')) then
     return 'How to look must be every time it is said, or these words in this order.';
   end if;
-  if jsonb_typeof(p -> 'folders') is distinct from 'array' or jsonb_array_length(p -> 'folders') not between 1 and 10 then
-    return 'Name 1 to 10 folders.';
+  if jsonb_typeof(p -> 'folders') is distinct from 'array' or jsonb_array_length(p -> 'folders') not between 1 and 8 then   -- 8: the engine's own limit (FACES 11-27)
+    return 'Name 1 to 8 folders.';
   end if;
   for e in select x from jsonb_array_elements(p -> 'folders') x loop
     f := case when jsonb_typeof(e) = 'string' then btrim(e #>> '{}') end;
-    if f is null or char_length(f) < 1 or char_length(e #>> '{}') > 80 or f in ('.', '..') or f ~ '[\\/:*?"<>|[:cntrl:]]' then
+    if f is null or char_length(f) < 1 or char_length(e #>> '{}') > 80 or f in ('.', '..') or f ~ '[\\/:*?"<>|[:cntrl:]\u0080-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufe00-\ufe0f\ufeff\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]' then
       return 'A folder is a NAME of 1 to 80 characters, never . or .., and without \ / : * ? " < > |.';
     end if;
     names := names || f;
@@ -206,13 +206,18 @@ begin
   return sha;
 end $$;
 
+-- NOT stable (WORKER 11-27 MEDIUM 3): a read closes a build silent for 2 hours as failed 'stale', in this transaction, the same way the report does, so the page shows the stale
+-- sentence while the computer is off (it never reports again to close it). Same lock as the report, so a report and a read never race.
 create function public.my_compilation_get(p_project uuid) returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_app_session();
 begin
   if not ryagram_private.compilations_on(me) then
     raise exception 'Compilations are not open for this account yet.' using errcode = '42501';
   end if;
+  perform pg_advisory_xact_lock(hashtextextended('compilation:' || me::text, 0));
+  update public.compilation_runs set state = 'failed', error_code = 'stale', ended_at = now(), updated_at = now()
+   where owner_id = me and state in ('planning', 'matching', 'building') and now() - updated_at > interval '2 hours';
   return (select jsonb_build_object('request', r.request, 'sha256', r.request_sha256, 'updated_at', r.updated_at,
                  'run', (select jsonb_build_object('id', c.id, 'state', c.state, 'matches', c.matches, 'clips', c.clips, 'film_seconds', c.film_seconds,
                                                   'error_code', c.error_code, 'started_at', c.started_at, 'updated_at', c.updated_at, 'ended_at', c.ended_at,
@@ -226,7 +231,7 @@ create function public.node_compilation_report(p_access_hash text, p_project uui
                                                p_matches int default null, p_clips int default null, p_film_seconds numeric default null, p_error_code text default null)
 returns bigint
 language plpgsql security definer set search_path = '' as $$
-declare me uuid := ryagram_private.node_actor(p_access_hash); run public.compilation_runs; started int;
+declare me uuid := ryagram_private.node_actor(p_access_hash); run public.compilation_runs; started int; started_any int;
         codes constant text[] := array['request_invalid', 'song_request', 'folder_not_chosen', 'folder_missing', 'folder_empty', 'folders_overlap', 'no_speech', 'not_said', 'edit_failed', 'build_failed', 'crash'];   -- the closed list the app reports (FACES docs/COMPILATION-REPORT-1127.md; WEB and CONNECT word the same eleven)
 begin
   if not ryagram_private.compilations_on(me) then
@@ -274,7 +279,13 @@ begin
                     where r.project_id = p_project and r.owner_id = me and p.owner_id = me and r.request_sha256 = p_request_sha256) then
       raise exception 'That request is not the project''s current one. Load it again.' using errcode = 'PT404';
     end if;
-    select count(*) into started from public.compilation_runs where owner_id = me and started_at > now() - interval '24 hours';
+    -- the 30 a day count REAL builds: a plan that stopped on a request or folder problem (the person fixes a folder and tries again) does not use one up (BUILDER 11-27);
+    -- every run of any kind still counts toward a looser 200 a day, so planning spam stays bounded
+    select count(*) filter (where not (state = 'failed' and matches is null and clips is null and error_code in ('request_invalid', 'song_request', 'folder_not_chosen', 'folder_missing', 'folder_empty', 'folders_overlap'))), count(*)
+      into started, started_any from public.compilation_runs where owner_id = me and started_at > now() - interval '24 hours';
+    if started_any >= 200 then
+      raise exception 'This account has started 200 builds in the last 24 hours. Try again tomorrow.' using errcode = 'PT429';
+    end if;
     if started >= 30 then
       raise exception 'You have started 30 compilations in the last 24 hours. Try again later.' using errcode = 'PT429';
     end if;
@@ -283,6 +294,8 @@ begin
       returning * into run;
     return run.id;
   end if;
+  -- the SAME state again is a HEARTBEAT (FACES 11-27; the app sends one during a long matching or building, or retries a report it is not sure arrived): the same run id back,
+  -- updated_at refreshed (so a build longer than 2 hours never goes stale while its computer is on), newer counts taken if given; only going BACK is refused
   if array_position(array['planning', 'matching', 'building'], p_state) < array_position(array['planning', 'matching', 'building'], run.state) then
     raise exception 'That compilation has already moved past %.', p_state using errcode = '22023';
   end if;

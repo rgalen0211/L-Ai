@@ -77,7 +77,7 @@ test('each refusal of the database is a fixed sentence with its own status', asy
   assert.deepEqual([notStarted.status, notStarted.json.error], [409, 'busy'], 'another run is active, so the busy refusal comes first');
   assert.equal((await report(a, R('cancelled'))).status, 200);
   const never = await report(a, { ...R('done'), project_id: P(2) });
-  assert.deepEqual([never.status, never.json], [400, { error: 'invalid_request', message: 'That compilation report was not valid.' }]);
+  assert.deepEqual([never.status, never.json], [409, { error: 'not_running', message: 'There is no build running for this request: a new build starts with planning, even after one ended.' }]);
   for (let i = 0; i < 29; i++) { assert.equal((await report(a, R('planning'))).status, 200); assert.equal((await report(a, R('done'))).status, 200); }
   const many = await report(a, R('planning'));
   assert.deepEqual([many.status, many.json.error], [429, 'too_many']);
@@ -94,6 +94,26 @@ test('a rate limit other than the 30-a-day one is a plain wait, never the 30 com
   const r = await report(a, R('planning'));
   assert.deepEqual([r.status, r.json], [429, { error: 'too_many_tries', message: 'Too many tries. Wait a few minutes and try again.' }]);
   assert.doesNotMatch(JSON.stringify(r.json), /30 compilations|Too many calls|PT429/, 'neither the 30-a-day sentence nor the database text');
+});
+
+test('a report after the build ended or was closed as stale, a step back, and the 200-a-day cap get plain words, never the generic 400 (FACES 11-27)', async () => {
+  const { world, signIn, report } = setup();
+  world.addRequest(ALICE, P(1), 'film', REQ);
+  const a = await signIn(ALICE);
+  const say = (text) => { world.compilationReport = async () => { throw Object.assign(new Error(text), { code: text.startsWith('This account') ? 'PT429' : '22023' }); }; };
+  const cases = [
+    ['There is no build running for this request: a new build starts with planning.', 409, 'not_running', 'There is no build running for this request: a new build starts with planning, even after one ended.'],
+    ['There is no build running for this request: a new build starts with planning, even after one ended.', 409, 'not_running', 'There is no build running for this request: a new build starts with planning, even after one ended.'],
+    ['That compilation has already moved past planning.', 409, 'moved_past', 'That build has already moved past that step.'],
+    ['This account has started 200 builds in the last 24 hours. Try again tomorrow.', 429, 'too_many_runs', 'This account has started 200 builds in the last 24 hours. Try again tomorrow.'],
+    ['That is not a compilation state.', 400, 'invalid_request', 'That compilation report was not valid.'],     // control: any other 22023 stays the fixed generic sentence
+  ];
+  for (const [db, status, error, message] of cases) {
+    say(db);
+    const r = await report(a, R('building'));
+    assert.deepEqual([r.status, r.json], [status, { error, message }], db);
+    assert.doesNotMatch(JSON.stringify(r.json), /22023|PT429|sqlstate/);
+  }
 });
 
 test('bad shapes are refused BEFORE any database call', async () => {

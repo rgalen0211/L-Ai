@@ -51,9 +51,13 @@ function reportRefusal(e: unknown): Response | null {
   if (code === "42501" && /not open/i.test(m)) return fail(403, "not_open", "Compilations are not open for this account yet.");
   if (code === "PT404") return fail(404, "not_current", "That request is not the project's current one. Load it again.");
   if (code === "55000") return fail(409, "busy", "Another compilation is still being made on your computer. Let it finish or cancel it first.");
-  if (code === "PT429") return /30 compilations/.test(m)                                // only the 30-a-day limit says 30 a day; any other rate limit (GAMES 09:54) is a plain wait
+  if (code === "PT429" && /200 builds/.test(m)) return fail(429, "too_many_runs", "This account has started 200 builds in the last 24 hours. Try again tomorrow.");   // the looser cap on runs of any kind (BUILDER 11-27)
+  if (code === "PT429") return /30 compilations/.test(m)                               // only the 30-a-day limit says 30 a day; any other rate limit (GAMES 09:54) is a plain wait
     ? fail(429, "too_many", "You have started 30 compilations in the last 24 hours. Try again later.")
     : fail(429, "too_many_tries", "Too many tries. Wait a few minutes and try again.");
+  // a report for a build that is no longer running (it finished, or Ryagram closed it as stale after 2 silent hours) or that goes back a step: plain words, not the generic 400 (FACES 11-27)
+  if (code === "22023" && /no build running/i.test(m)) return fail(409, "not_running", "There is no build running for this request: a new build starts with planning, even after one ended.");
+  if (code === "22023" && /already moved past/i.test(m)) return fail(409, "moved_past", "That build has already moved past that step.");
   if (code === "22023") return fail(400, "invalid_request", "That compilation report was not valid.");
   return null;
 }

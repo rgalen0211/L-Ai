@@ -29,6 +29,7 @@ const WORDS = [
   ['There is no build running for this request: a new build starts with planning.', '22023'],
   ["That request is not the project''s current one. Load it again.", 'PT404'],
   ['You have started 30 compilations in the last 24 hours. Try again later.', 'PT429'],
+  ['This account has started 200 builds in the last 24 hours. Try again tomorrow.', 'PT429'],
   ['That compilation has already moved past %.', '22023'],
   ['device_decide is not the one this change expects (its tester check differs from the repository); nothing was changed. Send this sentence to BUILDER.', null],
   ['connect_whoami is not the one this change expects (its desktop_app check differs from the repository); nothing was changed. Send this sentence to BUILDER.', null],
@@ -41,7 +42,7 @@ const REQUEST_WORDS = [                                   // returned by compila
   // the request's own rules (the connector's schema and the page's buildRequest; CC1 09:10, FACES 09:18)
   'Give the words to look for, at most 200 characters.',
   'How to look must be every time it is said, or these words in this order.',
-  'Name 1 to 10 folders.',
+  'Name 1 to 8 folders.',
   'A folder is a NAME of 1 to 80 characters, never . or .., and without \\ / : * ? " < > |.',
   'Songs are not open in compilations yet: they are made in the song tools.',
   'The note can be at most 500 characters.',

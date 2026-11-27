@@ -43,10 +43,10 @@ union all select 5, 'the run reports hold counts only (no path, transcript or vi
 union all select 6, 'a computer may be signed in by a tester OR an account with compilations on (and by nobody else)',
        coalesce(replace(pg_get_functiondef('public.device_decide(text, boolean)'::regprocedure), chr(13), '')
                 like '%if p_approve and not (coalesce((select s.local_compute from public.account_settings s where s.owner_id = me), false) or ryagram_private.compilations_on(me)) then%', false)
-union all select 7, 'a request keeps the connector''s own rules: only its known parts, a phrase, 1 to 10 folder names, and songs are not open (read from the checker''s text)',
+union all select 7, 'a request keeps the connector''s own rules: only its known parts, a phrase, 1 to 8 folder names, and songs are not open (read from the checker''s text)',
        coalesce(pg_get_functiondef(to_regprocedure('ryagram_private.compilation_request_problem(jsonb)')) like '%That compilation request has a part Ryagram does not know%'
          and pg_get_functiondef(to_regprocedure('ryagram_private.compilation_request_problem(jsonb)')) like '%Songs are not open in compilations yet%'
-         and pg_get_functiondef(to_regprocedure('ryagram_private.compilation_request_problem(jsonb)')) like '%Name 1 to 10 folders.%', false)
+         and pg_get_functiondef(to_regprocedure('ryagram_private.compilation_request_problem(jsonb)')) like '%Name 1 to 8 folders.%', false)
 union all select 8, 'a failed build gives one reason from the closed list of eleven, and only Ryagram itself sets stale',
        coalesce(pg_get_functiondef(to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text)'))
                 like '%codes constant text[] := array[''request_invalid'', ''song_request'', ''folder_not_chosen'', ''folder_missing'', ''folder_empty'', ''folders_overlap'', ''no_speech'', ''not_said'', ''edit_failed'', ''build_failed'', ''crash'']%'
