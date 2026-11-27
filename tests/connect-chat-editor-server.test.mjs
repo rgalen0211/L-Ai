@@ -9,6 +9,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { handleMcp, toolList } from '../supabase/functions/connect-core/mcp.ts';
+import { COMPILATION_URI } from '../supabase/functions/connect-core/compilation_card.ts';
 import { EDITOR_URI, CARD_URI, editorHtml } from '../supabase/functions/connect-core/mcp_app.ts';
 import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
 import { EDITOR_HTML } from '../supabase/functions/connect-core/editor_page.ts';
@@ -63,7 +64,7 @@ for (const [name, cfg] of [['the app face is off', undefined], ['only the card i
     assert.equal(s.w.draft(A.userId, id, 'data').editor_seen_at, null); assert.equal(s.w.draft(A.userId, id, 'data').ops.length, 0);
     const read = await s.rpc('resources/read', { uri: EDITOR_URI });
     assert.ok(read.error || read.result === undefined || !JSON.stringify(read).includes('Opening your film'));
-    if (cfg && cfg.enabled) { assert.equal(read.error.code, -32002); assert.deepEqual((await s.rpc('resources/list', {})).result.resources.map((r) => r.uri), [CARD_URI]); }
+    if (cfg && cfg.enabled) { assert.equal(read.error.code, -32002); assert.deepEqual((await s.rpc('resources/list', {})).result.resources.map((r) => r.uri), [CARD_URI, COMPILATION_URI]); }
     assert.ok(toolList().every((t) => !NAMES.includes(t.name) && t.name !== 'open_editor'), 'the REST face list has none');
   });
 }
@@ -84,7 +85,7 @@ test('ON: the AI sees open_editor (with the editor page), the five panel tools c
 
 test('ON: the editor page is listed and served with no network, no frames and the sandbox domain', async () => {
   const s = server(ON);
-  assert.deepEqual((await s.rpc('resources/list', {})).result.resources.map((r) => r.uri), [CARD_URI, EDITOR_URI]);
+  assert.deepEqual((await s.rpc('resources/list', {})).result.resources.map((r) => r.uri), [CARD_URI, COMPILATION_URI, EDITOR_URI]);
   const c = (await s.rpc('resources/read', { uri: EDITOR_URI })).result.contents[0];
   assert.equal(c.uri, EDITOR_URI); assert.equal(c.mimeType, 'text/html;profile=mcp-app'); assert.equal(c.text, editorHtml(ON.appUrl), 'the built page with the site\'s address (when the config has one) on its root'); assert.equal(c.text.replace(/ data-app-url="[^"]*"/, ''), EDITOR_HTML, 'and nothing else added');
   assert.deepEqual(c._meta.ui, { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false, domain: DOMAIN });

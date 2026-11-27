@@ -2,7 +2,7 @@
 // The AI passes what the person has ALREADY told it; the answer is the ONE next step. Rules (Ryan):
 //   1. First the basic question: what are you making? A data film, a compilation, or a department that is "coming soon" (said plainly).
 //   2. Then the questions that fit the kind. A data film: the scale and the place, what to look at, the years, which picture. ONLY what the engine draws today is offered; the 3D interactive globe
-//      (and a city or whole-country picture) is named as coming soon, never promised. A compilation: the Windows desktop app, folder NAMES, a phrase or a song.
+//      (and a city or whole-country picture) is named as coming soon, never promised. A compilation: the Windows desktop app, folder NAMES, a phrase. (A song is not offered: song films are made elsewhere, never through this connection.)
 //   3. NEVER ask what the person already said: a field that is known is never asked for again. The one exception is a "not drawn" answer (a globe, a city map): the person is asked to pick again, and the
 //      answer says so (reask: true).
 // Free text the AI passes (place, dataset, years) is never echoed back: the answer holds fixed sentences only.
@@ -10,7 +10,7 @@
 export const KINDS = ["data_film", "compilation", "department"] as const;
 export const SCALES = ["city", "county", "state", "country", "world"] as const;
 export const PICTURES = ["county_map", "state_map", "prism_map", "line", "bars", "paired", "globe"] as const;
-export const CHOSE = ["phrase", "song"] as const;
+export const CHOSE = ["phrase"] as const;
 
 export type Kind = (typeof KINDS)[number];
 export type Scale = (typeof SCALES)[number];
@@ -18,7 +18,7 @@ export type Picture = (typeof PICTURES)[number];
 
 export interface Known {
   kind?: Kind; scale?: Scale; place?: string; dataset?: string; years?: string; picture?: Picture;
-  have_app?: boolean; folders_named?: boolean; chose?: (typeof CHOSE)[number]; department?: string;
+  have_app?: boolean; folders_named?: boolean; chose?: string; department?: string;
 }
 
 export interface Step {
@@ -76,7 +76,7 @@ export function nextStep(input: Known): Step {
       say: "That part of Ryagram is coming soon. It is not available yet, and nothing can be started in it today.", then: "If they choose, pass kind and continue with suggest_next_step. Do not invent a way to do the coming-soon thing." });
   }
 
-  // ---- a compilation: the desktop app, folder names, a phrase or a song
+  // ---- a compilation: the desktop app, folder names, a phrase
   if (kind === "compilation") {
     if (k.have_app === undefined) {
       return mk({ step: "app", asking: "have_app", ask: "A compilation is made on your own computer, from your own videos, by the Ryagram desktop app for Windows. Do you have the app?", options: ["yes, I have it", "no, I don't have it yet"],
@@ -91,11 +91,16 @@ export function nextStep(input: Known): Step {
         say: null, then: "Pass folders_named: true once you have the names, then continue with suggest_next_step." });
     }
     if (k.chose === undefined) {
-      return mk({ step: "phrase_or_song", asking: "chose", ask: "Do you want every time a phrase is said, or a line sung to a tune made of the words from your videos?", options: ["a phrase: every time it is said", "a song"], say: null,
-        then: "Pass chose as phrase or song, then continue with suggest_next_step." });
+      return mk({ step: "phrase", asking: "chose", ask: "Which phrase should it look for? It finds every time that phrase is said in your own videos.", options: ["a phrase: every time it is said"], say: null,
+        then: "Pass chose as phrase once they have given you the phrase, then continue with suggest_next_step." });
+    }
+    if (k.chose !== "phrase") {
+      // an old or mistaken answer (a song, or anything else) is not offered: say what is, ask again, never crash and never echo what was passed
+      return mk({ step: "phrase_only", asking: "chose", reask: true, ask: "Which phrase should it look for?", options: ["a phrase: every time it is said"], say: "A compilation finds every time a phrase is said in the person's own videos. That is the only kind offered here; a song is not.",
+        then: "Pass chose as phrase once they have given you the phrase, then continue with suggest_next_step." });
     }
     return mk({ step: "write_request", asking: null, ask: null, options: [], say: null,
-      then: "Use set_compilation_request on their project (create_project first if there is none) with the phrase, the folder names, and song if they chose it. Tell them to open the Ryagram desktop app, where the request waits for them to check and build." });
+      then: "Use set_compilation_request on their project (create_project first if there is none) with the phrase and the folder names. Tell them to open the Ryagram desktop app, where the request waits for them to check and build." });
   }
 
   // ---- a data film

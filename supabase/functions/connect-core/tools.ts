@@ -9,7 +9,7 @@ import { checkStoryStructured } from "./story_check.ts";
 import { describeMeasured, measure, parseCsv, PREPARED_LIMITS } from "./prepared.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
 import { BLOCKED_VIEWS } from "../_shared/blocked_views.ts";
-import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
+import { KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
 import { makeGamesTools } from "./games_tools.ts";
 import { homeView } from "./home_panel.ts";
@@ -303,7 +303,7 @@ const MAX_CARDS = 4;
 
 const setCompilationRequest: ToolDef = {
   name: "set_compilation_request", title: "Ask for a compilation", scope: "write", readOnly: false, destructive: true, idempotent: true,
-  description: "Writes down a request for a compilation film (for example every time a phrase is said, optionally as a song) on one of the person's projects. It is DATA only: a phrase, the NAMES of folders the person has "
+  description: "Writes down a request for a compilation film (for example every time a phrase is said) on one of the person's projects. It is DATA only: a phrase, the NAMES of folders the person has "
     + "already chosen in their Ryagram desktop app, switches, and picture/text overlays. The AI cannot see or send videos, pictures or file paths. Nothing is built from here and no credit is used: the person opens the "
     + "Ryagram desktop app on their own computer, checks the request and builds the film there. The desktop app is not open to everyone yet: ask the person first whether they have it, and if they do not, tell them plainly that compilations are not available to them yet. Saving again replaces the earlier request.",
   inputSchema: obj({
@@ -311,7 +311,6 @@ const setCompilationRequest: ToolDef = {
     phrase: { type: "string", minLength: 1, maxLength: 200, description: "The words to find in the person's videos." },
     search: { type: "string", enum: ["every", "words"], description: "every = every time the phrase is said; words = the words in this order, one place each." },
     folders: { type: "array", minItems: 1, maxItems: 10, items: { type: "string", pattern: NAME_PATTERN, not: { enum: [".", ".."] } }, description: "The NAMES of the person's folders, as the desktop app shows them. Never paths." },
-    song: { type: "boolean", description: "Sing the phrase to a tune (song mode). Default false." },
     clean_cuts: { type: "boolean", description: "Move each cut to the nearest shot change without cutting a word. Default false." },
     rules: { type: "array", maxItems: 20, items: obj({
       phrase: { type: "string", minLength: 1, maxLength: 200 }, picture: { type: "string", pattern: PICTURE_PATTERN, description: "The NAME of a picture the person has added in the app." },
@@ -362,10 +361,10 @@ const setCompilationRequest: ToolDef = {
       return refuse(`You can send ${LIMITS.compilationRequestsPerDayPerUser} compilation requests a day through a connection. Try tomorrow.`, "rate");
     }
     const request: CompilationRequest = { schema: "ryagram.compilation-request/0", phrase, search: (a.search ?? "every") as "every" | "words",
-      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(cards.length ? { cards } : {}), ...(a.clip_labels ? { clip_labels: a.clip_labels as "file" | "file_and_time" } : {}), ...(checklist.length ? { checklist } : {}) };
+      folders, song: false, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(cards.length ? { cards } : {}), ...(a.clip_labels ? { clip_labels: a.clip_labels as "file" | "file_and_time" } : {}), ...(checklist.length ? { checklist } : {}) };
     const saved = await ctx.data.saveCompilationRequest(String(a.project_id), request);
     if (!saved) return NOT_YOURS("project");
-    return ok(`Saved the request for ${untrusted("phrase", phrase)}${request.song ? " as a song" : ""} on this project, for ${folders.length} folder${folders.length === 1 ? "" : "s"}. `
+    return ok(`Saved the request for ${untrusted("phrase", phrase)} on this project, for ${folders.length} folder${folders.length === 1 ? "" : "s"}. `
       + "Nothing has been built and no credit was used. If the person has the Ryagram desktop app (it is not open to everyone yet), it shows the request there and they build the film on their own computer; their videos never leave it. If they do not have the app, tell them plainly that compilations are not available to them yet.",
       { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length, cards: cards.length, ...(request.clip_labels ? { clip_labels: request.clip_labels } : {}), checklist: checklist.length });
   },
@@ -392,7 +391,7 @@ const COMPILATIONS_CLOSED = "Compilations are not open for this Ryagram account 
 const closedResult = () => refuse(COMPILATIONS_CLOSED, "not_available", { data: { ok: false, looked_up: false, reason: "compilations_not_open" } });
 
 /** What the person's computer reported as the reason a build stopped, in plain words. An unknown code gets the general sentence: the code itself is never shown as words. */
-const COMPILATION_STOPPED: Record<string, string> = {
+export const COMPILATION_STOPPED: Record<string, string> = {
   // the closed list of reasons the Ryagram app can report (FACES, docs/COMPILATION-REPORT-1127.md, the same list WEB's Compilations page words)
   request_invalid: "the request could not be read",
   song_request: "songs are made in the song tools, not in a compilation",
@@ -880,7 +879,7 @@ const suggestNextStep: ToolDef = {
     picture: { type: "string", enum: [...PICTURES], description: "The picture they asked for. globe is accepted only so you can be told it is coming soon." },
     have_app: { type: "boolean", description: "Compilation: whether they have the Ryagram desktop app for Windows." },
     folders_named: { type: "boolean", description: "Compilation: true once they have told you the NAMES of their video folders." },
-    chose: { type: "string", enum: [...CHOSE], description: "Compilation: phrase (every time it is said) or song." },
+    chose: { type: "string", maxLength: 20, description: "Compilation: pass phrase once the person has given you the phrase to look for (every time it is said in their videos). Anything else is not offered and you are asked again." },
     department: { type: "string", maxLength: 60, description: "A part of Ryagram they asked for that you do not see a tool for." },
   }),
   async run(a, ctx) {
