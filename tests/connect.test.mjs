@@ -188,3 +188,11 @@ test('CONNECT AN AI: the section is built inside connectedSection (already shown
   assert.match(src, /addEventListener\('visibilitychange', again\)/); assert.doesNotMatch(src, /connect-ai/);
   assert.doesNotMatch(src.replace(/\/\/.*$/gm, ''), /innerHTML|insertAdjacentHTML/);
 });
+
+test('CONNECT AN AI: no step or guide tells a stranger to press Allow; the consent page’s button is Approve (the two assistants’ own Allow words are the only ones left)', () => {
+  const files = ['assets/app-connect.js', 'connect-ai/index.html', 'help/index.html', ...fs.readdirSync(new URL('../docs/connect-guides', import.meta.url)).filter(f => f.endsWith('.md')).map(f => 'docs/connect-guides/' + f)];
+  for (const f of files) {
+    const t = read(f).replace('"Allow always"', '').replace('"Allow members to add custom connectors"', '');   // Claude's own tool prompt and Perplexity's own admin setting, not our page
+    assert.doesNotMatch(t, /\bAllow\b/, `${f} still says Allow; our consent page's button is Approve`);
+  }
+});
