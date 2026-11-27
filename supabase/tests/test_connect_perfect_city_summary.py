@@ -51,6 +51,10 @@ GOOD = ("montgomery_oh", "fast_food", 39.75891, -84.19162)
 
 class ConnectPerfectCitySummary(core.Base):
     setUp = tcr.CompilationRequests.setUp
+    def open_accounts(self):
+        """The borrowed setUp opens Alice and Bob as invited testers for the compilations writer's own tests; this suite is about Perfect City and needs no tester."""
+        pass
+
     runner = tc.Connect.runner
     app = tc.Connect.app
     register = tc.Connect.register
@@ -160,7 +164,7 @@ class ConnectPerfectCitySummary(core.Base):
         self.run_sql("delete from public.account_settings where owner_id = %s", ALICE)
         self.run_sql("insert into public.app_admins (user_id) values (%s) on conflict do nothing", BOB)
         self.runner()
-        self.fails("select connect_perfect_city_summary(%s, %s, %s, %s, %s)", h(b), *GOOD, code="XX001")        # an app admin without the switch: allowed
+        self.fails("select connect_perfect_city_summary(%s, %s, %s, %s, %s)", h(b), *GOOD, code="PT403")        # an app admin: connect_actor itself refuses administrator accounts (PT403), so the twin's admin clause is a second lock that can never be reached; the point is the helper is NOT called
         self.run_sql("delete from public.app_admins where user_id = %s", BOB)
         self.runner()
         self.fails("select connect_perfect_city_summary(%s, %s, %s, %s, %s)", h(b), *GOOD, code="42501")        # no longer an admin: refused again
@@ -174,7 +178,7 @@ class ConnectPerfectCitySummary(core.Base):
 
     def test_the_after_check_is_all_true_and_the_rollback_removes_exactly_this_function(self):
         rows = self.db.as_(None).c.execute(CHECK.read_text(encoding="utf-8")).fetchall()
-        self.assertEqual(len(rows), 7)
+        self.assertEqual(len(rows), 6)
         self.assertTrue(all(ok for _, ok in rows), rows)
         self.make_helper()
         self.assertTrue(all(ok for _, ok in self.db.as_(None).c.execute(CHECK.read_text(encoding="utf-8")).fetchall()), "with the helper present and revoked from public the check is still all true")
