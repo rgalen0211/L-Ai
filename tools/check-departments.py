@@ -101,7 +101,7 @@ def main():
                 p.evaluate("location.hash = '#/d/compilations'")
                 p.wait_for_selector('h1:has-text("Compilations")', timeout=10000)
                 t = p.inner_text('main')
-                check('coming soon' in t.lower() and 'Say a phrase.' in t and p.locator('.soon-picture').count() == 1 and 'Tell me when it’s ready' in t, 'Compilations: tag, line, picture and the button')
+                check('coming soon' in t.lower() and 'Save a request for a phrase' in t and p.locator('.soon-picture').count() == 1 and 'Tell me when it’s ready' in t, 'Compilations: tag, line, picture and the button')
                 check('DRAFT WORDING' not in t, 'the draft-wording note is gone from the page (the words are approved)')
                 p.screenshot(path=str(OUT / f'soon-before-{name}.png'), full_page=True)
                 p.click('#soon-notify')
