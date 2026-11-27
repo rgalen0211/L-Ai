@@ -12,6 +12,7 @@ import { BLOCKED_VIEWS } from "../_shared/blocked_views.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
 import { homeView } from "./home_panel.ts";
+import { perfectCityTools } from "./perfect_city.ts";
 import { LIMITS, type ChecklistItem, type CompilationRequest, type Data, type GeoRow, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -1447,5 +1448,5 @@ const listMyData: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, submitPrepared, listMyData, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome];
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, submitPrepared, listMyData, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome, ...perfectCityTools];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
