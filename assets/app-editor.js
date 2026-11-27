@@ -378,9 +378,27 @@
       // ---- the controls
       const pill = h('span', { class: 'le-pill' });
       const undoBtn = btn('Undo', 'secondary', async () => { stopPlay(); if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } saved = false; paint(); });
+      const redoBtn = btn('Redo', 'secondary', async () => { stopPlay(); if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } saved = false; paint(); });
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say(realFilm ? 'Your changes are already kept in this film’s draft.' : 'Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
       const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) { paintChips(); note.focus(); } }, { class: 'button secondary le-ai-btn' });
+      // The shortcuts list (?): only keys that exist. Undo and redo work anywhere on the page except while typing in a field.
+      const shortcutsBox = h('div', { class: 'le-keys', role: 'region', 'aria-label': 'Keyboard shortcuts', hidden: true });
+      shortcutsBox.append(h('h2', {}, 'Shortcuts'), h('ul', {},
+        h('li', {}, h('kbd', {}, 'Ctrl+Z'), ' undo'), h('li', {}, h('kbd', {}, 'Ctrl+Y'), ' or ', h('kbd', {}, 'Ctrl+Shift+Z'), ' redo (on a Mac, Cmd instead of Ctrl)'),
+        h('li', {}, 'On the picture slider: ', h('kbd', {}, 'Space'), ' or ', h('kbd', {}, 'K'), ' play and pause; ', h('kbd', {}, '←'), ' ', h('kbd', {}, '→'), ' one step; ', h('kbd', {}, 'Shift'), ' with an arrow, or ', h('kbd', {}, 'J'), ' ', h('kbd', {}, 'L'), ', a tenth of the film'),
+        h('li', {}, 'In Pro: ', h('kbd', {}, 'J'), ' ', h('kbd', {}, 'K'), ' ', h('kbd', {}, 'L'), ' shuttle; ', h('kbd', {}, ','), ' ', h('kbd', {}, '.'), ' one frame; ', h('kbd', {}, '['), ' ', h('kbd', {}, ']'), ' previous or next cut or marker; ', h('kbd', {}, 'M'), ' add a marker; ', h('kbd', {}, 'S'), ' split a clip (clip films)'),
+        h('li', {}, h('kbd', {}, '?'), ' shows or hides this list')));
+      const shortcutsBtn = btn('Shortcuts', 'secondary small', () => { shortcutsBox.hidden = !shortcutsBox.hidden; shortcutsBtn.setAttribute('aria-expanded', String(!shortcutsBox.hidden)); }, { 'aria-label': 'Keyboard shortcuts (?)', 'aria-expanded': 'false' });
+      const typingIn = el => el && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !['range', 'button', 'checkbox', 'radio', 'color'].includes(el.type)) || el.isContentEditable);
+      const onEditorKey = ev => {
+        if (typingIn(ev.target) || ev.altKey) return;
+        const mod = ev.ctrlKey || ev.metaKey, k = String(ev.key).toLowerCase();
+        if (mod && k === 'z' && !ev.shiftKey) { if (!undoBtn.disabled) { ev.preventDefault(); undoBtn.click(); } }
+        else if (mod && (k === 'y' || (k === 'z' && ev.shiftKey))) { if (!redoBtn.disabled) { ev.preventDefault(); redoBtn.click(); } }
+        else if (!mod && ev.key === '?') { ev.preventDefault(); shortcutsBtn.click(); }
+      };
+      document.addEventListener('keydown', onEditorKey); onStop(() => document.removeEventListener('keydown', onEditorKey));
       const finalBtn = btn(isData ? 'Render final film' : 'Build final film', 'primary', () => { stopPlay(); showCommit(); });
       const renderBox = h('div', { class: 'le-render', hidden: true });
       let locked = false;                                                       // locked: a render is using what was committed
@@ -844,7 +862,7 @@
         const empty = onPc && !isData && !ed.state.clips.length;
         emptyNote.hidden = !empty;
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
-        undoBtn.disabled = locked || ed.log.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
+        undoBtn.disabled = locked || ed.log.length === 0; redoBtn.disabled = locked || ed.redo.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
         if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
         else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
@@ -885,7 +903,8 @@
       if (filmEd) filmEd.ready.then(ok => { if (ok && !destroyedEditor) { standin.hidden = true; filmEd.el.hidden = false; } });         // the film opened for real: its own picture takes the place of the stand-in; if it did not, the stand-in stays
       const root = h('div', { class: 'le' },
         host ? null : h('p', {}, h('a', { href: '#/' }, '← All projects')),
-        h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
+        h('div', { class: 'le-top' }, title, pill, undoBtn, redoBtn, revertBtn, aiBtn, saveBtn, finalBtn, shortcutsBtn),
+        shortcutsBox,
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
           h('div', { class: 'le-main' }, ...(filmEd ? [filmEd.el] : []), standin, warns, fcOn ? fcHolder : null, isData ? null : [rulerHolder, lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),

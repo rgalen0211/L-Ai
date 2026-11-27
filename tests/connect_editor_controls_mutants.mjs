@@ -34,7 +34,8 @@ const mutants = [
   ['a known gap is dropped (add_clip has no chat control)', [[TABLE, json(d => { d.knownGaps = d.knownGaps.filter(g => g !== 'no-chat-control:add_clip'); })]]],
   ['a known gap that is not a gap is added', [[TABLE, json(d => { d.knownGaps.push('no-chat-control:move_clip'); })]]],
   ['a planned control is marked as existing', [[TABLE, json(d => { const c = ctl(d, 'planned_text_size'); c.status = 'exists'; c.op = 'set_look'; })]]],
-  ['a web-branch control is claimed in the chat page', [[TABLE, json(d => { ctl(d, 'redo').inChat = true; })]]],
+  ['a control that is in the chat page is marked as still on the web branch (Redo)', [[TABLE, json(d => { const c = ctl(d, 'redo'); c.status = 'web-branch'; c.web = { branch: 'web-editor-controls-1127', head: 'b886295e' }; })]]],
+  ['a merged control is marked as not in the chat page (Redo)', [[TABLE, json(d => { ctl(d, 'redo').inChat = false; })]]],
   ['an example is not an op of the control', [[TABLE, json(d => { ctl(d, 'text_style').example = { op: 'set_clip_text', id: 't1', text: 'x' }; })]]],
   // ---- the code grows or loses something the table must follow
   ['the core learns a new op that has no entry', [[CORE, text("'delete_rule', 'set_film_look'];", "'delete_rule', 'set_film_look', 'set_title_text'];")]]],

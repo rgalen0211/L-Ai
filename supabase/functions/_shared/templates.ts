@@ -42,7 +42,8 @@ export const TEMPLATES = [
   { id: "line", view: "line", label: "Line", blurb: "How a handful of places move over time.",
     datasets: ["bls_state_unemployment"], settings: { line_top_n: 6 } as Record<string, unknown> | undefined, confirmed: true },
   { id: "map", view: "map", label: "Map", blurb: "Where it is high and low, and how that shifts.",
-    datasets: ["state_obesity_fastfood"], settings: undefined, confirmed: true },   // 2026-11-23: no county permits map and no Bars template: the engine's own checks fail them (ENGINE-CATALOG-BLOCK-LIST-1123.json); same as assets/app-templates.js
+    datasets: ["state_obesity_fastfood"], settings: undefined, confirmed: true,
+    style: { choropleth: { mode: "solid", steps: 5, low: "#dfe6f3", high: "#2f3f73" } } as Record<string, unknown> },   // 2026-11-27: shaded states, same as assets/app-templates.js (ENGINE sheet-path check, failed 0). 2026-11-23: no county permits map and no Bars template: the engine's own checks fail them (ENGINE-CATALOG-BLOCK-LIST-1123.json); same as assets/app-templates.js
   { id: "paired", view: "paired", label: "Paired", blurb: "A map and a bar race side by side, one timeline.",
     datasets: ["state_obesity_fastfood"], settings: undefined, confirmed: true,
     unmeasured: true },   // a paired film needs keyframes_per_year MEASURED for its own story (Ryan 2026-09-28): never offered, never built here

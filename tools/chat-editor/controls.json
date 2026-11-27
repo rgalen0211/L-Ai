@@ -19,17 +19,17 @@
     "source": "{file, snippet}: where the control is built; the snippet must be in that file",
     "example / refuse": "an op the test applies (and undoes), and one the core must refuse"
   },
-  "web": { "branch": "web-editor-controls-1127", "head": "b886295e", "stateOnThisBranch": "NOT merged: the controls with status web-branch are not in this tree's editor_page.ts" },
+  "web": { "branch": "web-comp-fold2-1127", "head": "33389560", "stateOnThisBranch": "MERGED: Redo, Ctrl+Z, Ctrl+Y and Shortcuts came with WEB page head (first built on web-editor-controls-1127 b886295e) and are in this tree editor_page.ts; no control is web-branch now" },
   "controls": [
     { "id": "undo", "label": "Undo", "group": "history", "kind": "history", "op": null, "needs": "film", "mode": "both", "inChat": true, "aiTool": "undo_my_changes", "aiNote": "the AI's tool takes back the AI's own last batch only; the panel's Undo takes back the person's last step (or the AI's, if that was the last)", "undo": false, "status": "exists",
       "source": { "file": "assets/app-editor.js", "snippet": "const undoBtn = btn('Undo', 'secondary'" } },
-    { "id": "redo", "label": "Redo", "group": "history", "kind": "history", "op": null, "needs": "film", "mode": "both", "inChat": false, "inChatWhy": "WEB's Redo is on web-editor-controls-1127 and not merged here", "aiTool": null, "aiToolPlanned": "redo_my_changes", "aiWhy": "no AI tool yet: FACES' table row 13 names redo_my_changes as CONNECT's half", "undo": false, "status": "web-branch", "web": { "branch": "web-editor-controls-1127", "head": "b886295e" },
+    { "id": "redo", "label": "Redo", "group": "history", "kind": "history", "op": null, "needs": "film", "mode": "both", "inChat": true, "aiTool": null, "aiToolPlanned": "redo_my_changes", "aiWhy": "no AI tool yet: FACES' table row 13 names redo_my_changes as CONNECT's half", "undo": false, "status": "exists", "mergedFrom": { "branch": "web-comp-fold2-1127", "head": "33389560" },
       "source": { "file": "assets/app-editor.js", "snippet": "const redoBtn = btn('Redo', 'secondary'" } },
-    { "id": "key_undo", "label": "Ctrl+Z (Cmd+Z on a Mac)", "group": "history", "kind": "history", "op": null, "needs": "film", "mode": "both", "inChat": false, "inChatWhy": "WEB's key handler is on web-editor-controls-1127 and not merged here", "aiTool": null, "aiWhy": "a key press is not a change the AI makes", "undo": false, "status": "web-branch", "web": { "branch": "web-editor-controls-1127", "head": "b886295e" }, "guard": "ignored while typing in a text field, a text area, a select or a content-editable, and with Alt (WEB's typingIn check)",
+    { "id": "key_undo", "label": "Ctrl+Z (Cmd+Z on a Mac)", "group": "history", "kind": "history", "op": null, "needs": "film", "mode": "both", "inChat": true, "aiTool": null, "aiWhy": "a key press is not a change the AI makes", "undo": false, "status": "exists", "mergedFrom": { "branch": "web-comp-fold2-1127", "head": "33389560" }, "guard": "ignored while typing in a text field, a text area, a select or a content-editable, and with Alt (WEB's typingIn check)",
       "source": { "file": "assets/app-editor.js", "snippet": "const onEditorKey = ev =>" } },
-    { "id": "key_redo", "label": "Ctrl+Y or Ctrl+Shift+Z (Cmd on a Mac)", "group": "history", "kind": "history", "op": null, "needs": "film", "mode": "both", "inChat": false, "inChatWhy": "WEB's key handler is on web-editor-controls-1127 and not merged here", "aiTool": null, "aiWhy": "a key press is not a change the AI makes", "undo": false, "status": "web-branch", "web": { "branch": "web-editor-controls-1127", "head": "b886295e" }, "guard": "same typing guard as key_undo",
+    { "id": "key_redo", "label": "Ctrl+Y or Ctrl+Shift+Z (Cmd on a Mac)", "group": "history", "kind": "history", "op": null, "needs": "film", "mode": "both", "inChat": true, "aiTool": null, "aiWhy": "a key press is not a change the AI makes", "undo": false, "status": "exists", "mergedFrom": { "branch": "web-comp-fold2-1127", "head": "33389560" }, "guard": "same typing guard as key_undo",
       "source": { "file": "assets/app-editor.js", "snippet": "(k === 'y' || (k === 'z' && ev.shiftKey))" } },
-    { "id": "shortcuts", "label": "Shortcuts", "group": "view", "kind": "view", "op": null, "needs": "film", "mode": "both", "inChat": false, "inChatWhy": "WEB's Shortcuts list is on web-editor-controls-1127 and not merged here", "aiTool": null, "aiWhy": "a help list is not a change", "undo": false, "status": "web-branch", "web": { "branch": "web-editor-controls-1127", "head": "b886295e" },
+    { "id": "shortcuts", "label": "Shortcuts", "group": "view", "kind": "view", "op": null, "needs": "film", "mode": "both", "inChat": true, "aiTool": null, "aiWhy": "a help list is not a change", "undo": false, "status": "exists", "mergedFrom": { "branch": "web-comp-fold2-1127", "head": "33389560" },
       "source": { "file": "assets/app-editor.js", "snippet": "const shortcutsBtn = btn('Shortcuts', 'secondary small'" } },
     { "id": "revert", "label": "Revert", "group": "history", "kind": "history", "op": null, "needs": "film", "mode": "both", "inChat": true, "aiTool": null, "aiWhy": "going back to the last save is the person's own call", "undo": false, "status": "exists",
       "source": { "file": "assets/app-editor.js", "snippet": "const revertBtn = btn('Revert', 'secondary'" } },
@@ -156,10 +156,6 @@
     "planned:planned_legend_position",
     "planned:planned_scene_seconds",
     "planned:planned_text_size",
-    "planned:planned_title_text",
-    "web-branch-not-in-chat:key_redo",
-    "web-branch-not-in-chat:key_undo",
-    "web-branch-not-in-chat:redo",
-    "web-branch-not-in-chat:shortcuts"
+    "planned:planned_title_text"
   ]
 }

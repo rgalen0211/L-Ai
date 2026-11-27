@@ -100,6 +100,20 @@
       editor.undo();
       return { ok: true };
     }
+    // Redo the person's last undone step: the server takes the op(s) again (it decides first, like any change); the rest of the redo stack stays, because sending an op clears it.
+    async function redo() {
+      const stack = editor.redo;
+      if (!stack.length) return { ok: false };
+      const top = stack[stack.length - 1];
+      const take = top.group ? stack.filter(e => e.group === top.group) : [top];
+      const ops = take.slice().reverse().map(e => e.op);                  // the stack's top is the OLDEST op of a group: first made, first sent
+      const rest = stack.slice(0, stack.length - take.length);
+      const r = await sendNow(ops, top.group || null);
+      if (!r.ok) return r;
+      editor.redo = rest;
+      for (const op of ops) editor.undone.delete(JSON.stringify(op));
+      return { ok: true };
+    }
     async function undoAi() {
       const r = await rpc('editor_undo_all_ai', { p_project: project, p_mode: mode });
       if (r.error) return { ok: false, reason: WORDS[r.error.code] || plainWords(r.error, 'Your AI’s changes could not be undone.') };
@@ -109,7 +123,7 @@
     }
     const heartbeat = () => rpc('editor_heartbeat', { p_project: project, p_mode: mode });
 
-    return { open, send, poll, undo, undoAi, heartbeat, get revision() { return state.revision; }, get mirrored() { return state.mirrored; }, get aiVisible() { return state.aiVisible; } };
+    return { open, send, poll, undo, redo, undoAi, heartbeat, get revision() { return state.revision; }, get mirrored() { return state.mirrored; }, get aiVisible() { return state.aiVisible; } };
   }
 
   window.ryagramEditorDraft = { WORDS, createDraft };

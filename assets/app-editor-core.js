@@ -304,6 +304,15 @@
       this.redo = r.ok ? rest : this.redo;
       return r;
     }
+    // Redo one STEP: the entry on top of the redo stack, and every entry of the same group (a ready-made look is several ops that were undone together). Returns { ok, ops } (the ops in the order they were first made).
+    redoStep() {
+      if (!this.redo.length) return { ok: false };
+      const top = this.redo[this.redo.length - 1];
+      const n = top.group ? this.redo.filter(e => e.group === top.group).length : 1;
+      const ops = [];
+      for (let i = 0; i < n; i += 1) { const r = this.redoOne(); if (!r.ok) return { ok: false, reason: r.reason, ops }; ops.push(r); }
+      return { ok: true, count: ops.length };
+    }
     // "Undo my AI's changes": the log is replayed without the AI's ops; the person's own ops stay if they still apply.
     undoAi() {
       const ai = this.log.filter(e => e.by === 'ai');

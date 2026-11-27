@@ -230,7 +230,7 @@ test('an op the chat panel has no control for is listed as AI-only, and the AI t
 
 test('Redo and the AI\'s undo are different things, and the table says so: the panel/WEB Redo replays the person\'s undone step; undo_my_changes takes back only the AI\'s own last batch', async () => {
   const redo = CONTROLS.controls.find(c => c.id === 'redo');
-  assert.equal(redo.status, 'web-branch'); assert.equal(redo.aiTool, null); assert.equal(redo.aiToolPlanned, 'redo_my_changes');
+  assert.equal(redo.status, 'exists'); assert.equal(redo.aiTool, null); assert.equal(redo.aiToolPlanned, 'redo_my_changes');
   assert.ok(!TOOLS.some(t => t.name === 'redo_my_changes'), 'redo_my_changes does not exist yet: when CONNECT adds it, the table must say so');
   const undo = CONTROLS.controls.find(c => c.id === 'undo');
   assert.equal(undo.aiTool, 'undo_my_changes');
@@ -258,10 +258,11 @@ test('a ready-made look (several set_look ops in one group) is one Undo step and
   assert.deepEqual(plain(ed.state), after);
 });
 
-test('the web-branch controls are marked with the branch and head, and none is claimed in the chat page while the page lacks them', () => {
-  assert.equal(CONTROLS.web.branch, 'web-editor-controls-1127'); assert.match(CONTROLS.web.head, /^[0-9a-f]{8}$/);
-  const web = CONTROLS.controls.filter(c => c.status === 'web-branch');
-  assert.deepEqual(web.map(c => c.id).sort(), ['key_redo', 'key_undo', 'redo', 'shortcuts']);
-  for (const c of web) { assert.equal(c.web.branch, CONTROLS.web.branch); assert.equal(c.inChat, EDITOR_HTML.includes(c.source.snippet), `${c.id} inChat follows the page`); }
+test('the controls that came from the WEB branch are in the chat page now: status exists, inChat true, the snippet is in the page, and any control still marked web-branch must follow the page', () => {
+  assert.equal(CONTROLS.web.branch, 'web-comp-fold2-1127'); assert.match(CONTROLS.web.head, /^[0-9a-f]{8}$/);
+  const merged = CONTROLS.controls.filter(c => c.mergedFrom);
+  assert.deepEqual(merged.map(c => c.id).sort(), ['key_redo', 'key_undo', 'redo', 'shortcuts']);
+  for (const c of merged) { assert.equal(c.status, 'exists'); assert.equal(c.mergedFrom.branch, CONTROLS.web.branch); assert.equal(c.inChat, true, c.id + ' is in the chat page'); assert.ok(EDITOR_HTML.includes(c.source.snippet), c.id + ' snippet is in the page'); }
+  for (const c of CONTROLS.controls.filter(x => x.status === 'web-branch')) assert.equal(c.inChat, EDITOR_HTML.includes(c.source.snippet), c.id + ' inChat follows the page');
   for (const c of CONTROLS.controls.filter(x => x.status === 'planned')) { assert.equal(c.inChat, false); assert.ok(c.plannedBy && c.plannedSource); }
 });
