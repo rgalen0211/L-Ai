@@ -11,7 +11,7 @@
 --       but like a tester's computer it can read and write that person's OWN editor summaries, download plans and footage plans through the existing node_* calls (their own rows only).
 --   (3) THE SITE'S OWN WRITE: public.my_compilation_set(project, request) (the person in the app, their own project, the connector's schema ryagram.compilation-request/0, at most 32 KB, NO path,
 --       URL or file anywhere in it, at most 60 saves an hour) and public.my_compilation_get(project) (the request and the newest run report, or null). A request also keeps the
---       connector's own rules (CC1 09:10, FACES 09:18): the twelve known parts only, a phrase of 1 to 200 characters, 1 to 10 folder NAMES (no / \ : * ? " < > |, never . or ..), songs not
+--       connector's own rules (CC1 09:10, FACES 09:18): the thirteen known parts only (the connector's, the page's, and mode as older requests carry it), a phrase of 1 to 200 characters, 1 to 10 folder NAMES (no / \ : * ? " < > |, never . or ..), songs not
 --       open, a note of at most 500, at most 20 picture rules, 20 texts, 4 cards and 12 checklist items (each within the connector's limits, a checklist folder from the folders).
 --   (4) WHAT THE PC REPORTS BACK, DATA ONLY: public.compilation_runs (state, counts, seconds, an error code; no path, no transcript, no video), written ONLY by public.node_compilation_report through
 --       the computer's own token (node_runner): a new build only for the project's CURRENT request, the running one always closable with its own; one active build per account, a build
@@ -60,7 +60,7 @@ begin
   -- THE REQUEST'S OWN RULES, the same as the connector's set_compilation_request schema (supabase/functions/connect-core/tools.ts, NAME_PATTERN and its limits) and the page's buildRequest
   -- (assets/app-compilations.js): CC1 09:10 and FACES 09:18. Only the twelve known parts; a phrase; 1 to 10 folder NAMES; songs are not open; every list within its limits.
   for k in select jsonb_object_keys(p) loop
-    if k <> all (array['schema', 'phrase', 'search', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist']) then
+    if k <> all (array['schema', 'phrase', 'search', 'mode', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist']) then
       return 'That compilation request has a part Ryagram does not know: ' || left(k, 40) || '.';
     end if;
   end loop;
@@ -83,7 +83,10 @@ begin
   if (p ? 'song' and jsonb_typeof(p -> 'song') <> 'boolean') or (p ? 'clean_cuts' and jsonb_typeof(p -> 'clean_cuts') <> 'boolean') then
     return 'That compilation request is not valid.';
   end if;
-  if coalesce((p ->> 'song')::boolean, false) then
+  if p ? 'mode' and (jsonb_typeof(p -> 'mode') <> 'string' or (p ->> 'mode') not in ('phrase', 'song')) then
+    return 'That compilation request is not valid.';
+  end if;
+  if coalesce((p ->> 'song')::boolean, false) or (p ->> 'mode') = 'song' then
     return 'Songs are not open in compilations yet: they are made in the song tools.';
   end if;
   if p ? 'note' and (jsonb_typeof(p -> 'note') <> 'string' or char_length(p ->> 'note') > 500) then

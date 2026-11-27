@@ -30,7 +30,7 @@ THIRD = "55555555-5555-5555-5555-555555555555"
 MIG = core.ROOT / "migrations" / "20261127000300_compilations_for_everyone.sql"
 RB = core.ROOT / "rollbacks" / "20261127000300_compilations_for_everyone_rollback.sql"
 STEP = core.ROOT / "live-steps" / "81_compilations_check.sql"
-REQ = {"schema": "ryagram.compilation-request/0", "phrase": "great news", "search": "every", "folders": ["Holiday 2025"], "note": "short ones first"}
+REQ = {"schema": "ryagram.compilation-request/0", "phrase": "great news", "search": "every", "mode": "phrase", "folders": ["Holiday 2025"], "note": "short ones first"}
 setUpModule = credits.setUpModule
 
 
@@ -313,7 +313,9 @@ class Compilations(unittest.TestCase):
         self.switch_on(OTHER)
         pid = self.project()
         bad = {
-            "a part Ryagram does not know": dict(REQ, mode="phrase"),
+            "a part Ryagram does not know": dict(REQ, colour="red"),
+            "That compilation request is not valid. ": dict(REQ, mode="karaoke"),
+            "Songs are not open ": dict(REQ, mode="song"),
             "Give the words to look for": dict(REQ, phrase=""),
             "Give the words to look for ": dict(REQ, phrase="x" * 201),
             "How to look": dict(REQ, search="sometimes"),
@@ -349,7 +351,11 @@ class Compilations(unittest.TestCase):
                     texts=[{"text": "Hello", "start_s": 0, "length_s": 3, "position": "bottom", "size": "large"}],
                     cards=[{"text": "The end", "where": "end", "seconds": 2}],
                     checklist=[{"what": "the 1969 launch, wide", "from": "the National Archives", "must_contain": "the rocket", "folder": "Holiday 2025", "count": 2}])
-        self.assertRegex(self.put(pid, good), r"^[0-9a-f]{64}$", "a request that uses every part within its limits is saved")
+        self.assertRegex(self.put(pid, good), r"^[0-9a-f]{64}$", "the connector's full request, every part within its limits, is saved")
+        page = {"schema": "ryagram.compilation-request/0", "phrase": "great news", "search": "every", "folders": ["Holiday 2025", "Interviews"],
+                "song": False, "clean_cuts": False, "rules": [], "texts": [], "note": ""}   # exactly what WEB's buildRequest sends (app-compilations.js)
+        self.assertRegex(self.put(pid, page), r"^[0-9a-f]{64}$", "the page's own request is saved")
+        self.assertRegex(self.put(pid, dict(page, search="words", note="short ones first")), r"^[0-9a-f]{64}$")
 
     def test_a_waiting_account_is_off(self):
         self.switch_on(OTHER)
