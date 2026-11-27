@@ -124,7 +124,7 @@ with sync_playwright() as pw:
 
     # ---- the other pages (Credits, My films, Tutorial; Account is not folded on this branch): measured to the bottom of the footer, the mock bar (a test artefact) hidden
     cfg2 = re.sub(r":\s*'account'", ': true', cfg)
-    PAGE_LIMITS = {'Credits': (1.35, 1.5), 'My films': (1.4, 1.5), 'Tutorial': (1.4, 1.5), 'Help': (1.3, 1.5), 'Home': (1.4, 1.8)}
+    PAGE_LIMITS = {'Credits': (1.35, 1.6), 'My films': (1.4, 1.5), 'Tutorial': (1.4, 1.5), 'Help': (1.3, 1.5), 'Home': (1.4, 1.8)}
     ROUTE = {'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build', 'Help': '#/help', 'Home': '#/'}
 
     def foot(p):
@@ -153,10 +153,10 @@ with sync_playwright() as pw:
                     check(r <= lim, f'{name} {kind}: tab {i + 1} is {r:.2f} x the screen (at most {lim})')
                     check(p.locator('.offer').count() >= 1 and p.locator('.offer .button').count() >= 1, f'{name} {kind}: tab {i + 1} still lists its offers with their buttons')
             if name == 'Help':
-                check(p.locator('.flip-tab').count() == 3, f'{name} {kind}: the help page is three sections ({p.locator(".flip-tab").count()})')
+                check(p.locator('.flip-tab').count() == 4, f'{name} {kind}: the help page is four sections (First questions added 11-27) ({p.locator(".flip-tab").count()})')
                 if kind == 'desktop':
                     check(p.evaluate("(() => { const b = document.querySelector('[data-flip-section=write] button[type=submit]'); const r = b.getBoundingClientRect(); return r.width > 0 && r.bottom <= 800 })()"), f'{name} {kind}: the help form and its Send button are on the first screen')
-                p.locator('.flip-tab').nth(1).click(); p.wait_for_timeout(500)
+                p.locator('.flip-tab').nth(2).click(); p.wait_for_timeout(500)
                 check(p.evaluate("getComputedStyle(document.querySelector('[data-flip-section=films] .scroll-panel')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: the answers scroll in their own panel')
                 p.locator('[data-flip-section=films] summary').first.click(); p.wait_for_timeout(300)
                 check(p.evaluate("document.querySelector('[data-flip-section=films] details').open"), f'{name} {kind}: a question opens its answer')

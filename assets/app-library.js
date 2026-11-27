@@ -292,6 +292,14 @@
       const answers = (...items) => h('div', { class: 'help-answers' }, h('div', { class: 'scroll-panel' }, ...items.filter(Boolean)));
       const flip = window.ryagramFlip.create({ h, label: 'Help', address: false, sections: [
         { id: 'write', label: 'Write to us', el: h('div', {}, form, done) },
+        { id: 'first', label: 'First questions', el: answers(
+          // FOR RYAN'S YES (WEB 11-27, wave 8 item b): the first questions a stranger asks, short, in the words the pages already use. The static /help/ page carries the same six first.
+          qa('What is Ryagram?', 'Ryagram turns public data into short animated films, and checks each one against its data before you get it. You ask a question and it draws the answer, with every source listed.'),
+          qa('Is it free?', 'Making an account is free. ' + WELCOME_LINE + ' A free account can make free contact sheets. ' + FREE_PREVIEW_RULE + (buyingOn() ? '' : ' Buying credits is not open yet.')),
+          qa('How long does a film take?', 'A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour once it starts. Films are made one at a time, so a long line can mean hours.'),
+          qa('Why does a full film wait for approval?', 'For now each full film is looked at by a person before it starts. It waits with its credits held, and if it is not approved they come back. We do not send an email when a film is ready, so check the film’s page.'),
+          qa('Where is my film?', 'Open My films: it lists every film you are making and where it stands. A finished film is under the Files tab of its page, and it is kept for 30 days.'),
+          qa('Which data can I use?', 'Ryagram draws from public data it already has, such as housing permits, unemployment, health and industry. Pick a ready-made film to see what is on offer. You cannot upload your own data yet.')) },
         { id: 'films', label: 'Films and credits', el: answers(
           qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If the render machine stays down for a long time, we stop the films waiting for it and give back any credits held for them. Otherwise a waiting film keeps its place in line.'),
           qa('Why is my film still "Queued"?', 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour, so a long line can mean hours, or a day or more when many people join at once, such as a launch day. A full film is checked by a person before it starts; when an earlier one is approved, your place in line can move back. The Render panel shows your place in line. You can have 2 films waiting at once. We do not send an email when a film is ready, so come back to this page to check.'),
@@ -1089,6 +1097,11 @@
         balance, thanks,
         // DRAFT FOR RYAN: what credits are for and what a full film costs (the cost is read from the ledger's price table, the same numbers the Render step quotes).
         h('p', { class: 'form-note credit-about' }, 'Credits pay for full films. ', C.filmCostLine(filmRows), C.filmCoverLine(filmRows, haveRows ? haveRows.reduce((s, r) => s + (r.available || 0), 0) : null), open ? ' Contact sheets are free. ' + FREE_PREVIEW_RULE : null),      // DRAFT FOR RYAN
+        // FOR RYAN'S YES (WEB 11-27, wave 8 item a): what the welcome credits buy (the SAME generated sentence the sign-up form shows, pinned to the price table), where the held credits are seen, and what happens when credits run out (no price, no promise of a date).
+        h('details', { class: 'credit-guide' }, h('summary', {}, 'How credits work'),
+          window.ryagramFreeAccountLine ? h('p', { class: 'form-note' }, window.ryagramFreeAccountLine.line()) : null,
+          h('p', { class: 'form-note' }, 'When you ask for a full film, its credits are held: set aside, not spent. The line at the top of this page shows how many are available and how many are held. If the film fails, or you cancel it before it starts, the credits come back.'),
+          h('p', { class: 'form-note' }, 'When your credits run out, contact sheets and your free previews still work. More credits are coming soon.')),
         open ? null : h('p', { class: 'form-note credit-closed' }, BUYING_CLOSED),
         testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
         testMode && !window.ryagramMock ? h('p', { class: 'form-note credit-test-label' }, 'Test mode — prices are placeholders, no real charge.') : null,
