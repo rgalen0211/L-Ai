@@ -34,7 +34,7 @@ test('QUEUE: the waiting full renders are listed oldest first with the film, who
   const r = rows[0];
   assert.deepEqual(plain([r.owner_email, r.credits_held, r.source]), ['creator@example.com', 10, 'app']);
   assert.ok(Date.parse(r.expires_at) > Date.parse(r.requested_at));
-  assert.match(O.renderQueueLine(rows), /2 full renders waiting for your approval, oldest first\. Approving starts the render; declining returns the person.s credits\./);
+  assert.match(O.renderQueueLine(rows), /2 full renders waiting for your approval, oldest first\. Approving puts it in line, at the end; declining returns the person.s credits\./);
   assert.equal(O.renderQueueLine([]), 'No full renders are waiting for approval.');
   assert.equal(O.RENDER_SOURCE_WORDS.connect, 'from a connected AI');
   assert.ok(client.log.some(l => l.rpc === 'admin_render_queue'));
