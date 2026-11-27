@@ -401,7 +401,7 @@ test('two-press leave and the silent-host notice are still there', () => {
 
 test('the phone page loads the new phone script and stylesheet versions', () => {
   const html = read('game-phone/index.html');
-  assert.match(html, /\/assets\/game-phone-live\.js\?v=20261127p1b"/); assert.match(html, /\/assets\/game-phone\.css\?v=20261127g4"/);
+  assert.match(html, /\/assets\/game-phone-live\.js\?v=20261127p1d"/); assert.match(html, /\/assets\/game-phone\.css\?v=20261127g4"/);
 });
 
 test('the 11-27 holds lines added to the phone script are plain ASCII', () => {
@@ -437,3 +437,10 @@ for (const mu of MUTANTS) {
     for (const k of mu.caught) assert.equal(out[k], false, `${mu.name}: ${k} must turn false when the check is gone (got ${JSON.stringify(out)})`);
   });
 }
+
+test('WEB WALK 13:28: the guess box stops at the limit the counter shows, Enter sends (Shift+Enter keeps a new line), and Play again replaces the game-over line on the phone', () => {
+  const src = fs.readFileSync(new URL('../assets/game-phone-live.js', import.meta.url), 'utf8').split(String.fromCharCode(13)).join('');
+  assert.match(src, /el\('textarea', \{ rows: '3', maxlength: String\(H\.ANSWER_MAX\),/);
+  assert.match(src, /ev\.key === 'Enter' && !ev\.shiftKey && !ev\.isComposing\) \{ ev\.preventDefault\(\); const f = guess\.input\.form; if \(f && f\.requestSubmit\) f\.requestSubmit\(\);/);
+  assert.match(src, /if \(s\.phase === 'final'\) live\.textContent = 'Back in the lobby\. Wait for the host to start the next game\.';/);
+});

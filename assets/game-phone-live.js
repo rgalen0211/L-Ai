@@ -266,6 +266,7 @@
     }
 
     function lobby(players) {
+      if (s.phase === 'final') live.textContent = 'Back in the lobby. Wait for the host to start the next game.';          // GAMES 11-27 (WEB walk): Play again replaces the game-over line
       s.phase = 'lobby';
       show([el('h2', { tabindex: '-1' }, `You are in room ${s.code}`), el('p', {}, `Your name: `, el('strong', {}, s.name)),
         el('p', { class: 'ph-meta', id: 'ph-lobby-game', 'aria-live': 'polite' }, 'The game: Guess the next line.'),
@@ -285,12 +286,13 @@
       const gap = m.mode === 'gap';           // GAMES 11-27: Fill the gap shows the whole line with one word missing and asks for that word
       setTitle(m.mode, true);
       const guess = field('ph-guess', gap ? 'The missing word' : 'Your guess for the next line', gap ? 'Type the one word that goes in the gap.' : `Type the words you think come next. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left.`,
-        el('textarea', { rows: '3', maxlength: String(H.ANSWER_MAX + 40), autocomplete: 'off', class: 'ph-input ph-guess' }));
+        el('textarea', { rows: '3', maxlength: String(H.ANSWER_MAX), autocomplete: 'off', enterkeyhint: 'send', class: 'ph-input ph-guess' }));          // GAMES 11-27 (WEB walk): the box stops at the limit the counter shows
       const counter = el('p', { class: 'ph-count', id: 'ph-guess-count' }, H.counterText(''));
       const clock = el('p', { class: 'ph-meta', id: 'ph-clock', 'aria-live': 'off' });
       const sentLine = el('p', { class: 'ph-meta', id: 'ph-sent', role: 'status' });
       guess.input.setAttribute('aria-describedby', 'ph-guess-hint ph-guess-count ph-guess-err');
       guess.input.addEventListener('input', () => { counter.textContent = H.counterText(guess.input.value); if (guess.err.textContent) showErr(guess, null); });
+      guess.input.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); const f = guess.input.form; if (f && f.requestSubmit) f.requestSubmit(); } });          // GAMES 11-27 (WEB walk): Enter sends the guess (Shift+Enter still makes a new line)
       const form = el('form', { class: 'ph-form', novalidate: true, onsubmit: async ev => {
         ev.preventDefault();
         const p = H.answerProblem(guess.input.value); showErr(guess, p);
