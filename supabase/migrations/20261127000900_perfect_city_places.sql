@@ -145,7 +145,9 @@ begin
                                                         where p.county = p_county and p.kind = p_kind and ryagram_private.perfect_city_km(v_lat, v_lon, p.lat, p.lon) <= r.km),
                                              'basis', 'calculated'),
                 -- People only for the 5 km ring: the server has block-group CENTRES only, and GEO's 11-27 check (proposals/GEO-PERFECT-CITY-ESTIMATE-CHECK-1127.md)
-                -- found the centre method off by a median 4% at 5 km but 18% at 2 km and 58% at 1 km, with false zeros. The page itself uses area weighting.
+                -- found the centre method off by a median 4% at 5 km but 18% at 2 km and 58% at 1 km, with false zeros. Both figures were measured, on different
+                -- spot samples: GEO's population-weighted spots gave about 4% at 5 km; RENDERER's uniform spots gave about 8% at 5 km, up to 40% at the edges
+                -- (the 'method' text below quotes the uniform figure). The page itself uses area weighting.
                 'people_about', case when r.km = 5 then
                     jsonb_build_object('value', (select (round(coalesce(sum(u.pop), 0) / 100.0) * 100)::int from ryagram_private.perfect_city_units u
                                                   where u.county = p_county and ryagram_private.perfect_city_km(v_lat, v_lon, u.lat, u.lon) <= r.km),

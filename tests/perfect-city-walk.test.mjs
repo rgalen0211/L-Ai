@@ -200,7 +200,7 @@ for (const [name, check] of Object.entries(CHECKS)) {
   if (process.env.PC_PAGE_SRC) continue;
   for (const [i, [from, to]] of PLANTS[name].entries()) {
     test(`${name}: MUST-FAIL ${i + 1} (the old line put back) is caught`, async () => {
-      assert.ok(PAGE.includes(from), `planted fault ${name} ${i + 1}: pattern not in the page: ${from}`);
+      assert.equal(count(PAGE, from), 1, `planted fault ${name} ${i + 1}: pattern not in the page exactly once: ${from}`);
       const bad = await check(PAGE.replace(from, to));
       assert.ok(bad.length > 0, `planted fault ${name} ${i + 1} was NOT caught`);
     });
