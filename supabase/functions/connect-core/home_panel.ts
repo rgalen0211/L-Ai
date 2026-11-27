@@ -75,7 +75,6 @@ const STYLE = [
   "body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#f2f2ef}",
   ".home{background:#1b1b23;border:1px solid #3a3a44;border-radius:12px;padding:14px 16px;max-width:640px;min-width:0}",
   ".top{display:flex;align-items:center;gap:10px;margin:0 0 10px}",
-  ".mark{flex:none;background:#0e0e13;color:#6fd1bd;border:1px solid #3a3a44;border-radius:8px;padding:3px 8px;font-weight:700;letter-spacing:.02em}",
   "h1{margin:0;font-size:16px;font-weight:650}", "h2{margin:14px 0 4px;font-size:13px;font-weight:650;color:#b6b5ae;text-transform:none}",
   ".dept{border-top:1px solid #2c2c36;padding:9px 0}", ".dept h3{margin:0 0 2px;font-size:15px;font-weight:650;display:flex;gap:8px;align-items:center}",
   ".tag{font-size:11px;font-weight:600;color:#b6b5ae;border:1px solid #3a3a44;border-radius:6px;padding:1px 6px}",
@@ -152,7 +151,7 @@ const SCRIPT = [
   " return box;",
   "}",
   "function paint(sc){",
-  " var top=el('div','top');top.appendChild(el('span','mark',\"L'Ai\"));top.appendChild(el('h1','','Ryagram'));",
+  " var top=el('div','top');top.appendChild(el('h1','','Ryagram'));",
   " var kids=[top],ds=sc&&typeof sc==='object'&&Array.isArray(sc.departments)?sc.departments:null;",
   " if(!ds||!ds.length){kids.push(el('p','hint','Your Ryagram departments are listed in the conversation above.'));}",
   " else{",
@@ -187,7 +186,7 @@ export function homeHtml(appUrl?: string): string {
   const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";
   return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
     "<title>Ryagram home</title><style>" + STYLE + "</style></head><body data-app-url=\"" + link + "\">" +
-    "<main class=\"home\" id=\"home\" aria-live=\"polite\"><div class=\"top\"><span class=\"mark\" aria-hidden=\"true\">L'Ai</span><h1>Ryagram</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
+    "<main class=\"home\" id=\"home\" aria-live=\"polite\"><div class=\"top\"><h1>Ryagram</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
     "<script>" + SCRIPT + "</script></body></html>";
 }
 
