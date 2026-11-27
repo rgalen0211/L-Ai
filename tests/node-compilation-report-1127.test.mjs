@@ -86,6 +86,16 @@ test('each refusal of the database is a fixed sentence with its own status', asy
   assert.doesNotMatch(db, /sqlstate|PT4|55000|42501|22023/, 'no database code reaches the computer');
 });
 
+test('a rate limit other than the 30-a-day one is a plain wait, never the 30 compilations sentence (GAMES 09:54)', async () => {
+  const { world, signIn, report } = setup();
+  world.addRequest(ALICE, P(1), 'film', REQ);
+  const a = await signIn(ALICE);
+  world.compilationReport = async () => { throw Object.assign(new Error('Too many calls from this computer right now.'), { code: 'PT429' }); };
+  const r = await report(a, R('planning'));
+  assert.deepEqual([r.status, r.json], [429, { error: 'too_many_tries', message: 'Too many tries. Wait a few minutes and try again.' }]);
+  assert.doesNotMatch(JSON.stringify(r.json), /30 compilations|Too many calls|PT429/, 'neither the 30-a-day sentence nor the database text');
+});
+
 test('bad shapes are refused BEFORE any database call', async () => {
   const { world, signIn, report } = setup();
   world.addRequest(ALICE, P(1), 'film', REQ);

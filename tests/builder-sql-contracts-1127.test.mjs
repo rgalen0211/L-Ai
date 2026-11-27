@@ -24,13 +24,14 @@ const WORDS = [
   ['Only a failed build has a reason.', '22023'],
   ['The matches and clips are whole numbers from 0 to 100000.', '22023'],
   ['The film length is 0 to 86400 seconds.', '22023'],
-  ['That build already ended. Start a new one.', '22023'],
+  ['There is no build running for this request: a new build starts with planning, even after one ended.', '22023'],
   ['Another compilation is still being made on your computer. Let it finish or cancel it first.', '55000'],
-  ['That compilation was not started.', '22023'],
+  ['There is no build running for this request: a new build starts with planning.', '22023'],
   ["That request is not the project''s current one. Load it again.", 'PT404'],
   ['You have started 30 compilations in the last 24 hours. Try again later.', 'PT429'],
   ['That compilation has already moved past %.', '22023'],
   ['device_decide is not the one this change expects (its tester check differs from the repository); nothing was changed. Send this sentence to BUILDER.', null],
+  ['connect_whoami is not the one this change expects (its desktop_app check differs from the repository); nothing was changed. Send this sentence to BUILDER.', null],
   ['request_app_download is not the one this change expects (its tester-or-admin check differs from the repository); nothing was changed. Send this sentence to BUILDER.', null],
 ];
 const REQUEST_WORDS = [                                   // returned by compilation_request_problem, raised by my_compilation_set with errcode 22023

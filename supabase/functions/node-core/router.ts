@@ -51,7 +51,9 @@ function reportRefusal(e: unknown): Response | null {
   if (code === "42501" && /not open/i.test(m)) return fail(403, "not_open", "Compilations are not open for this account yet.");
   if (code === "PT404") return fail(404, "not_current", "That request is not the project's current one. Load it again.");
   if (code === "55000") return fail(409, "busy", "Another compilation is still being made on your computer. Let it finish or cancel it first.");
-  if (code === "PT429") return fail(429, "too_many", "You have started 30 compilations in the last 24 hours. Try again later.");
+  if (code === "PT429") return /30 compilations/.test(m)                                // only the 30-a-day limit says 30 a day; any other rate limit (GAMES 09:54) is a plain wait
+    ? fail(429, "too_many", "You have started 30 compilations in the last 24 hours. Try again later.")
+    : fail(429, "too_many_tries", "Too many tries. Wait a few minutes and try again.");
   if (code === "22023") return fail(400, "invalid_request", "That compilation report was not valid.");
   return null;
 }

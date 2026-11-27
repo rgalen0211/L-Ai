@@ -59,7 +59,7 @@ begin
     return 'A compilation request holds folder names and a phrase only, never a file, a path or a link.';
   end if;
   -- THE REQUEST'S OWN RULES, the same as the connector's set_compilation_request schema (supabase/functions/connect-core/tools.ts, NAME_PATTERN and its limits) and the page's buildRequest
-  -- (assets/app-compilations.js): CC1 09:10 and FACES 09:18. Only the twelve known parts; a phrase; 1 to 10 folder NAMES; songs are not open; every list within its limits.
+  -- (assets/app-compilations.js): CC1 09:10 and FACES 09:18. Only the thirteen known parts; a phrase; 1 to 10 folder NAMES; songs are not open; every list within its limits.
   for k in select jsonb_object_keys(p) loop
     if k <> all (array['schema', 'phrase', 'search', 'mode', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist']) then
       return 'That compilation request has a part Ryagram does not know: ' || left(k, 40) || '.';
@@ -263,10 +263,10 @@ begin
   end if;
   if run.id is null then
     if p_state in ('done', 'failed', 'cancelled') then
-      raise exception 'That compilation was not started.' using errcode = '22023';
+      raise exception 'There is no build running for this request: a new build starts with planning.' using errcode = '22023';
     end if;
     if p_state <> 'planning' then
-      raise exception 'That build already ended. Start a new one.' using errcode = '22023';
+      raise exception 'There is no build running for this request: a new build starts with planning, even after one ended.' using errcode = '22023';
     end if;
     -- only a NEW build must be for the project's current request; a build already running keeps its own (the person may edit the request meanwhile)
     if not exists (select 1 from public.compilation_requests r join public.projects p on p.id = r.project_id
@@ -325,6 +325,25 @@ begin
     raise notice 'request_app_download already gives the app to a compilations account, left alone.';
   elsif (length(def) - length(replace(def, o, ''))) / length(o) <> 1 then
     raise exception 'request_app_download is not the one this change expects (its tester-or-admin check differs from the repository); nothing was changed. Send this sentence to BUILDER.';
+  else
+    execute replace(def, o, nw);
+  end if;
+end $do$;
+
+-- (2c) THE AI KNOWS A COMPILATIONS ACCOUNT MAY HAVE THE APP (GAMES 09:54): public.connect_whoami's 'desktop_app' answer (20261123000500) mirrors request_app_download's rule, and the connector refuses
+--      compilations when it is false; it now also answers true for an account with compilations on. Live text, one clause; left alone if already done; an older connect_whoami without a
+--      desktop_app answer at all (20261123000500 not applied) is left alone too (the connector reads a missing answer as allowed); refused in words if the answer is there but its clause differs.
+do $do$
+declare def text; o constant text := 'or exists (select 1 from public.app_admins a where a.user_id = me));';
+        nw constant text := 'or exists (select 1 from public.app_admins a where a.user_id = me) or ryagram_private.compilations_on(me));';
+begin
+  def := replace(pg_get_functiondef('public.connect_whoami(text)'::regprocedure), chr(13), '');
+  if position('compilations_on(me)' in def) > 0 then
+    raise notice 'connect_whoami already says a compilations account may have the app, left alone.';
+  elsif position('desktop_app' in def) = 0 then
+    raise notice 'connect_whoami has no desktop_app answer on this database (20261123000500 not applied), left alone.';
+  elsif (length(def) - length(replace(def, o, ''))) / length(o) <> 1 then
+    raise exception 'connect_whoami is not the one this change expects (its desktop_app check differs from the repository); nothing was changed. Send this sentence to BUILDER.';
   else
     execute replace(def, o, nw);
   end if;

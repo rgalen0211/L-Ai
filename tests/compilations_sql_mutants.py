@@ -26,6 +26,7 @@ W.MUTANTS[:] = [
     ('two builds at once', "    raise exception 'Another compilation is still being made on your computer. Let it finish or cancel it first.' using errcode = '55000';", '    null;'),
     ('an old request may report', 'where r.project_id = p_project and r.owner_id = me and p.owner_id = me and r.request_sha256 = p_request_sha256) then', 'where r.project_id = p_project and r.owner_id = me and p.owner_id = me) then'),
     ('device_decide not widened', "or ryagram_private.compilations_on(me)) then';", "or false) then';"),
+    ('the AI not told a compilations account may have the app', "        nw constant text := 'or exists (select 1 from public.app_admins a where a.user_id = me) or ryagram_private.compilations_on(me));';", "        nw constant text := 'or exists (select 1 from public.app_admins a where a.user_id = me));';"),
     ('the desktop app not given to a compilations account', "or ryagram_private.compilations_on(p_owner)) then';", "or false) then';"),
     ('3000 builds a day', '    if started >= 30 then', '    if started >= 3000 then'),
     ('invisible characters are not removed first', "  v := regexp_replace(v, '[\\u00ad\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f\\ufeff]', '', 'g');", '  v := v;'),

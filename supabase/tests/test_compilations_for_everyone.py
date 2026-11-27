@@ -393,7 +393,7 @@ class Compilations(unittest.TestCase):
         self.report(tok, pid, sha, "done")
         for late in ("matching", "building"):
             with self.subTest(late=late):
-                self.assertIn("That build already ended. Start a new one.", self.refused(self.report, tok, pid, sha, late, code="22023"))
+                self.assertIn("There is no build running for this request: a new build starts with planning, even after one ended.", self.refused(self.report, tok, pid, sha, late, code="22023"))
         self.assertEqual(self.admin("select count(*) from compilation_runs where owner_id = %s", OTHER), 1, "a late report never starts a second run")
 
     # ------------------------------------------------------------------ the top bar
@@ -475,6 +475,27 @@ class Compilations(unittest.TestCase):
     def test_the_rollback_puts_request_app_download_back(self):
         self.d().execute(RB.read_text(encoding="utf-8"))
         self.assertNotIn("compilations_on", self.admin("select prosrc from pg_proc where oid = 'public.request_app_download(uuid, text)'::regprocedure"))
+        self.assertNotIn("compilations_on", self.admin("select prosrc from pg_proc where oid = 'public.connect_whoami(text)'::regprocedure"), "the AI's desktop_app answer is put back too")
+
+    # ------------------------------------------------------------------ GAMES 09:54: the AI is told the same as the download
+    def whoami(self, who):
+        """connect_whoami for `who` through a real connect token (client, grant and token rows written as the owner; Connect switched on)."""
+        self.n += 1
+        tok, cid = f"cw{self.n}-{uuid.uuid4().hex}", f"rgc_cw{self.n}{uuid.uuid4().hex[:8]}"
+        self.d().execute("update public.connect_flags set connections_enabled = true")
+        self.d().execute("insert into public.connect_clients (client_id, name, redirect_uris) values (%s, 'AI', array['https://x.test/cb'])", (cid,))
+        self.d().execute("insert into public.connect_grants (owner_id, client_id, scopes) values (%s, %s, array['read'])", (who, cid))
+        self.d().execute("insert into public.connect_tokens (family_id, owner_id, client_id, scopes, access_hash, access_expires_at, refresh_hash, refresh_expires_at) "
+                         "values (gen_random_uuid(), %s, %s, array['read'], %s, now() + interval '1 hour', %s, now() + interval '1 day')", (who, cid, h(tok), h(tok + 'r')))
+        return self.d().execute("select connect_whoami(%s)", (h(tok),)).fetchone()[0]
+
+    def test_the_ai_is_told_a_compilations_account_may_have_the_desktop_app_and_a_plain_account_may_not(self):
+        self.assertIs(self.whoami(THIRD)["desktop_app"], False, "a plain invited account: no app")
+        self.switch_on(OTHER)
+        self.assertIs(self.whoami(OTHER)["desktop_app"], True, "a compilations account: the app, as request_app_download gives it")
+        self.d().execute("insert into public.account_settings (owner_id, local_compute) values (%s, true) on conflict (owner_id) do update set local_compute = true", (THIRD,))
+        self.assertIs(self.whoami(THIRD)["desktop_app"], True, "a tester still has it")
+        self.assertIn("or ryagram_private.compilations_on(me));", self.admin("select prosrc from pg_proc where oid = 'public.connect_whoami(text)'::regprocedure").replace(chr(13), ""))
 
     # ------------------------------------------------------------------ live step 81 and the rollback
     def test_step_81_pass_after_stop_before_and_the_rollback_restores_device_decide(self):
