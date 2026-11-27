@@ -46,7 +46,7 @@ begin
   if p_credits is null or p_credits not between 1 and 100 then
     raise exception 'A test top-up is 1 to 100 credits.' using errcode = '22023';
   end if;
-  if p_note is null or char_length(btrim(p_note)) not between 3 and 200 then
+  if p_note is null or char_length(btrim(p_note, E' \t\r\n')) not between 3 and 200 then
     raise exception 'Say what the credits are for, in a few words.' using errcode = '22023';
   end if;
   select a.user_id into target from ryagram_private.test_topup_accounts a join auth.users u on u.id = a.user_id
@@ -60,12 +60,12 @@ begin
   if recent + p_credits > 200 then
     raise exception 'This account has had % test credits in the last 24 hours; at most 200 a day.', recent using errcode = '22023';
   end if;
-  lid := public.grant_credits(target, 'grant', p_credits, 'Owner test top-up: ' || btrim(p_note), 'test-topup:' || me::text);
+  lid := public.grant_credits(target, 'grant', p_credits, 'Owner test top-up: ' || btrim(p_note, E' \t\r\n'), 'test-topup:' || me::text);
   if lid is null then
     raise exception 'The credits ledger did not take the grant, so nothing was given.' using errcode = '55000';
   end if;
   insert into ryagram_private.test_topups (owner_id, credits, note, by_admin, ledger_id)
-    values (target, p_credits, btrim(p_note), me, lid) returning id into tid;
+    values (target, p_credits, btrim(p_note, E' \t\r\n'), me, lid) returning id into tid;
   return tid;
 end $$;
 
@@ -74,7 +74,7 @@ language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_admin();
         t ryagram_private.test_topups; left_over int; back int; lid bigint;
 begin
-  if p_note is null or char_length(btrim(p_note)) not between 3 and 200 then
+  if p_note is null or char_length(btrim(p_note, E' \t\r\n')) not between 3 and 200 then
     raise exception 'Say why it is being undone, in a few words.' using errcode = '22023';
   end if;
   select * into t from ryagram_private.test_topups where id = p_topup_id;
@@ -89,9 +89,9 @@ begin
   left_over := greatest(ryagram_private.pool_balance(t.owner_id, 'granted'), 0);
   back := least(t.credits, left_over);
   if back > 0 then
-    lid := public.adjust_credits(t.owner_id, 'granted', -back, 'Undo of owner test top-up ' || t.id || ': ' || btrim(p_note), 'test-topup:' || me::text);
+    lid := public.adjust_credits(t.owner_id, 'granted', -back, 'Undo of owner test top-up ' || t.id || ': ' || btrim(p_note, E' \t\r\n'), 'test-topup:' || me::text);
   end if;
-  update ryagram_private.test_topups set undone_at = now(), undone_by = me, undo_note = btrim(p_note), undo_ledger_id = lid, taken_back = back where id = t.id;
+  update ryagram_private.test_topups set undone_at = now(), undone_by = me, undo_note = btrim(p_note, E' \t\r\n'), undo_ledger_id = lid, taken_back = back where id = t.id;
   return back;                                                 -- 0 means every credit of it was already spent: nothing was taken back, and it is marked undone
 end $$;
 
