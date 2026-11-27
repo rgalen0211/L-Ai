@@ -185,7 +185,8 @@ export class FakeNodeWorld implements NodeDb {
     const active = this.runs.find((r) => r.owner === owner && ["planning", "matching", "building"].includes(r.state));
     if (active && (active.project_id !== projectId || active.sha !== sha)) throw err("55000", "Another compilation is still being made on your computer. Let it finish or cancel it first.");
     if (!active) {
-      if (["done", "failed", "cancelled"].includes(state)) throw err("22023", "That compilation was not started.");
+      if (["done", "failed", "cancelled"].includes(state)) throw err("22023", "There is no build running for this request: a new build starts with planning.");
+      if (state !== "planning") throw err("22023", "There is no build running for this request: a new build starts with planning, even after one ended.");
       if (this.runs.filter((r) => r.owner === owner && this.now() - r.started < 86400_000).length >= 30) throw err("PT429", "You have started 30 compilations in the last 24 hours. Try again later.");
       const run = { id: this.runs.length + 1, owner, project_id: projectId, sha, state, matches, clips, film_seconds: filmSeconds, error_code: errorCode, started: this.now() };
       this.runs.push(run);
