@@ -18,3 +18,7 @@ test('ROUTE RETRY: a page that throws while it is built is built once more per a
   assert.match(fn, /retriedFor !== hash/);
   assert.match(lib, /\} catch \(err\) \{\n        retryOnce\(err, mine, hash\);/);
 });
+test('WORDS: a final job waiting for approval reads Waiting for approval, never the code word (GAMES 19:52)', () => {
+  const jobs = fs.readFileSync(new URL('../assets/app-jobs.js', import.meta.url), 'utf8');
+  assert.match(jobs, /STATE_LABELS = \{\s*awaiting_approval: 'Waiting for approval'/);
+});
