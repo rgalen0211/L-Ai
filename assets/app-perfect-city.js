@@ -22,7 +22,8 @@
       'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
       'People within a ring are an estimate: a block group counts in full when its centre is inside the ring.',
       'Median income is a survey estimate with a margin of error, for the whole block group.',
-      'There is no success score and no prediction. This shows what is there, not whether a business would do well.'],
+      'There is no success score and no prediction. This shows what is there, not whether a business would do well.',
+      'The map shows the places near your spot only: within 5 km, and the nearest five.'],
     noPlaces: 'The business points are not loaded on this account yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only.',
     pickSpot: 'Click the map, or type a latitude and longitude, to put a spot on it.',
@@ -77,13 +78,15 @@
       kindWrap.replaceChildren(select('pc-kind', 'Business', c.kinds.map((k) => [k, KINDS[k]]), state.kind, (v) => { state.kind = v; refresh(); }));
     }
 
+    // The server answers only for a spot: the places within 5 km of it and the nearest five (never a whole county: RENDERER 08:24, the licence question).
     async function loadPlaces() {
       state.places = null; state.placesNote = ''; state.credit = '';
+      if (!state.spot) return;
       try {
-        const r = await data.perfectCityPlaces(state.county, state.kind);
-        const list = r && Array.isArray(r.places) ? r.places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)) : [];
-        if (!list.length) { state.placesNote = WORDS.noPlaces; return; }
-        state.places = list; state.credit = typeof r.credit === 'string' ? r.credit : '';
+        const r = await data.perfectCityPlaces(state.county, state.kind, state.spot[1], state.spot[0]);
+        if (!r || !(r.loaded > 0)) { state.placesNote = WORDS.noPlaces; return; }
+        state.places = Array.isArray(r.places) ? r.places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)) : [];
+        state.credit = typeof r.credit === 'string' ? r.credit : '';
       } catch { state.placesNote = WORDS.placesError; }
     }
 
@@ -116,7 +119,7 @@
       const keys = FILL.map((f, i) => h('li', {}, h('span', { class: 'pc-swatch', 'data-fill': f }), ' ',
         i === 0 ? `under ${lab(br[0])}` : i === FILL.length - 1 ? `${lab(br[i - 1])} or more` : `${lab(br[i - 1])} to ${lab(br[i])}`));
       const legend = h('div', { class: 'pc-legend' }, h('p', { class: 'meta' }, legendTitle), h('ul', { class: 'pc-keys' }, keys),
-        h('p', { class: 'meta' }, 'Grey: no published figure.' + (state.places ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + '.' : '')));
+        h('p', { class: 'meta' }, 'Grey: no published figure.' + (state.places ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.' : '')));
       // the swatch colours are attributes on SVG squares (the page's CSP allows no inline style)
       legend.querySelectorAll('.pc-swatch').forEach((s) => { const f = s.getAttribute('data-fill'); s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: f })])); });
       mapBox.replaceChildren(root, legend);
@@ -157,9 +160,11 @@
       credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}. ${s.calculated}${state.credit ? ' ' + state.credit + '.' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
     }
 
-    function place(pt) {
+    async function place(pt) {
       state.spot = pt; latIn.value = pt[1].toFixed(5); lonIn.value = pt[0].toFixed(5);
-      drawMap(); drawResults();
+      await loadPlaces();
+      status.textContent = state.placesNote;
+      drawMap(); drawResults(); drawCredits();
     }
 
     async function refresh() {

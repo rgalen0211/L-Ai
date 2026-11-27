@@ -390,8 +390,12 @@
         if (!/[?&]perfectcity/.test(q) || /[?&]placeserr/.test(q)) return fail('not allowed');
         const mid = { montgomery_oh: [-84.2, 39.76], greene_oh: [-83.98, 39.70] }[args && args.p_county] || [-84.2, 39.76];
         const n = (args && args.p_kind) === 'grocery' ? 6 : 14;
-        const places = /[?&]noplaces/.test(q) ? [] : Array.from({ length: n }, (_, i) => ({ name: i % 5 === 4 ? '' : `Test Place ${i + 1}`, lat: mid[1] + Math.sin(i * 2.4) * 0.012 * (1 + i % 4), lon: mid[0] + Math.cos(i * 2.4) * 0.016 * (1 + i % 4) }));
-        return { data: { county: args && args.p_county, kind: args && args.p_kind, credit: 'Map data (c) OpenStreetMap contributors (ODbL)', places }, error: null };
+        const all = /[?&]noplaces/.test(q) ? [] : Array.from({ length: n }, (_, i) => ({ name: i % 5 === 4 ? '' : `Test Place ${i + 1}`, lat: mid[1] + Math.sin(i * 2.4) * 0.012 * (1 + i % 4), lon: mid[0] + Math.cos(i * 2.4) * 0.016 * (1 + i % 4) }));
+        // like the real function: only the places within 5 km of the spot, plus the nearest five (never the whole county)
+        const rad = (d) => d * Math.PI / 180, km = (p) => 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(Math.sin(rad(p.lat - args.p_lat) / 2) ** 2 + Math.cos(rad(args.p_lat)) * Math.cos(rad(p.lat)) * Math.sin(rad(p.lon - args.p_lon) / 2) ** 2)));
+        const byKm = all.map((p) => ({ p, d: km(p) })).sort((x, y) => x.d - y.d);
+        const places = byKm.filter((x, i) => x.d <= 5 || i < 5).map((x) => x.p);
+        return { data: { county: args && args.p_county, kind: args && args.p_kind, credit: 'Map data (c) OpenStreetMap contributors (ODbL)', radius_km: 5, loaded: all.length, places }, error: null };
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
