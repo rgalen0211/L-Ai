@@ -1,0 +1,173 @@
+"""Perfect City (GEO 11-27): build the page data from the shared cache, offline.
+
+Two outputs, kept apart on purpose:
+  census   -> assets/perfect-city/<county>.census.json  (US Census, public domain: committed, served with the page)
+  places   -> a SQL file OUTSIDE this repo (OpenStreetMap, ODbL; attorney row G11 is open, so the points are
+              never committed or served as a site file; Ryan loads them into a private table with a live step)
+
+Usage (system Python with pyshp and pyproj; no network):
+  py -I -B tools/perfect-city/export_perfect_city.py census
+  py -I -B tools/perfect-city/export_perfect_city.py places --out D:/Ryagram-scratch/GEO/perfect-city/places.sql
+Labels: population is OBSERVED (2020 Census P1); area and density are CALCULATED here from the boundary;
+median household income is an ESTIMATE (ACS B19013, with its margin of error).
+"""
+import argparse
+import io
+import json
+import math
+import pathlib
+import sys
+import zipfile
+
+import shapefile  # pyshp
+from pyproj import Geod
+
+CACHE = pathlib.Path(r'C:/Users/Ryan/Ryagram-cache/geo_intel')
+REPO = pathlib.Path(__file__).resolve().parents[2]
+COUNTIES = {
+    'montgomery_oh': {'name': 'Montgomery County, Ohio (Dayton)', 'state': '39', 'county': '113'},
+    'greene_oh': {'name': 'Greene County, Ohio (Beavercreek, Xenia)', 'state': '39', 'county': '057'},
+}
+GEOD = Geod(ellps='WGS84')
+NOT_AVAILABLE = {-666666666, -999999999, -888888888, -555555555, -333333333, -222222222}
+
+
+def table(path):
+    rows = json.loads(pathlib.Path(path).read_text(encoding='utf-8'))
+    head = rows[0]
+    return [dict(zip(head, r)) for r in rows[1:]]
+
+
+def geoid(r):
+    return r['state'] + r['county'] + r['tract'] + r['block group']
+
+
+def simplify(ring, tol):
+    """Douglas-Peucker on lon/lat pairs (tolerance in degrees), keeping the ring closed."""
+    if len(ring) < 5:
+        return ring
+    def rdp(pts):
+        if len(pts) < 3:
+            return pts
+        (x1, y1), (x2, y2) = pts[0], pts[-1]
+        dx, dy = x2 - x1, y2 - y1
+        norm = math.hypot(dx, dy) or 1e-12
+        best, idx = -1.0, 0
+        for i in range(1, len(pts) - 1):
+            x0, y0 = pts[i]
+            d = abs(dy * x0 - dx * y0 + x2 * y1 - y2 * x1) / norm
+            if d > best:
+                best, idx = d, i
+        if best <= tol:
+            return [pts[0], pts[-1]]
+        return rdp(pts[:idx + 1])[:-1] + rdp(pts[idx:])
+    out = rdp(ring)
+    if out[0] != out[-1]:
+        out.append(out[0])
+    return out if len(out) >= 4 else ring
+
+
+def census(args):
+    with zipfile.ZipFile(CACHE / 'montgomery_oh' / 'bg_boundaries.zip') as z:
+        stem = 'cb_2023_39_bg_500k'
+        sf = shapefile.Reader(shp=io.BytesIO(z.read(stem + '.shp')), shx=io.BytesIO(z.read(stem + '.shx')),
+                              dbf=io.BytesIO(z.read(stem + '.dbf')))
+        fields = [f[0] for f in sf.fields[1:]]
+        shapes = {}
+        for rec, shp in zip(sf.iterRecords(), sf.iterShapes()):
+            d = dict(zip(fields, rec))
+            shapes[d['GEOID']] = shp
+    out_dir = REPO / 'assets' / 'perfect-city'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for key, meta in COUNTIES.items():
+        pop = {geoid(r): int(r['P1_001N']) for r in table(CACHE / key / 'pop_p1_2020.json')}
+        inc = {}
+        for r in table(CACHE / key / 'income_b19013.json'):
+            e, m = int(r['B19013_001E']), int(r['B19013_001M'])
+            inc[geoid(r)] = None if e in NOT_AVAILABLE else [e, None if m in NOT_AVAILABLE else m]
+        prefix = meta['state'] + meta['county']
+        feats, lon0, lat0, lon1, lat1 = [], 999, 999, -999, -999
+        for g, shp in sorted(shapes.items()):
+            if not g.startswith(prefix):
+                continue
+            parts = list(shp.parts) + [len(shp.points)]
+            rings, area_m2 = [], 0.0
+            for a, b in zip(parts[:-1], parts[1:]):
+                ring = [(round(x, 5), round(y, 5)) for x, y in shp.points[a:b]]
+                ar, _ = GEOD.polygon_area_perimeter([p[0] for p in ring], [p[1] for p in ring])
+                area_m2 += -ar          # shapefile outer rings are clockwise: pyproj gives them negative
+                rings.append([[round(x, 4), round(y, 4)] for x, y in simplify(ring, 0.0004)])
+            for ring in rings:
+                for x, y in ring:
+                    lon0, lat0, lon1, lat1 = min(lon0, x), min(lat0, y), max(lon1, x), max(lat1, y)
+            xs = [p[0] for p in shp.points]; ys = [p[1] for p in shp.points]
+            km2 = round(area_m2 / 1e6, 4)
+            p = pop.get(g)
+            feats.append({'id': g, 'rings': rings, 'pop': p, 'km2': km2,
+                          'density': (round(p / km2, 1) if p is not None and km2 > 0 else None),
+                          'income': inc.get(g),
+                          'centre': [round(sum(xs) / len(xs), 5), round(sum(ys) / len(ys), 5)]})
+        doc = {
+            'county': key, 'name': meta['name'], 'bbox': [lon0, lat0, lon1, lat1],
+            'sources': {
+                'boundaries': 'U.S. Census Bureau, cartographic boundary file cb_2023_39_bg_500k (block groups, 2020 geography)',
+                'population': 'U.S. Census Bureau, 2020 Census, table P1 (total population): OBSERVED',
+                'income': 'U.S. Census Bureau, American Community Survey 5-year, table B19013 (median household income, with margin of error): ESTIMATE',
+                'calculated': 'Area and people per square kilometre are CALCULATED here from the boundary file; shapes are simplified for the page.',
+                'licence': 'Public domain (U.S. government work).'},
+            'units': feats}
+        # A script, not a .json fetch: the app's CSP allows scripts from 'self' but its connect-src is Supabase only.
+        path = out_dir / f'{key}.census.js'
+        body = json.dumps(doc, separators=(',', ':'))
+        path.write_text('// GENERATED by tools/perfect-city/export_perfect_city.py census: US Census data, public domain. Do not edit by hand.\n'
+                        f'(window.ryagramPerfectCityData = window.ryagramPerfectCityData || {{}})[{json.dumps(key)}] = {body};\n',
+                        encoding='utf-8', newline='\n')
+        print(path.relative_to(REPO), len(feats), 'block groups', path.stat().st_size, 'bytes')
+
+
+KINDS = {'fast_food': ('amenity', 'fast_food'), 'restaurant': ('amenity', 'restaurant'), 'grocery': ('shop', 'supermarket')}
+
+
+def places(args):
+    out = pathlib.Path(args.out).resolve()
+    if REPO in out.parents or out == REPO:
+        sys.exit('REFUSED: the OpenStreetMap points must never be written inside the repo (attorney row G11).')
+    rows = []
+    for key in COUNTIES:
+        for fname in ('osm_food_county', 'osm_grocery_county'):
+            f = CACHE / key / f'{fname}.json'
+            if not f.exists():
+                continue
+            doc = json.loads(f.read_text(encoding='utf-8'))
+            for e in doc['elements']:
+                tags = e.get('tags', {})
+                lat = e.get('lat', e.get('center', {}).get('lat'))
+                lon = e.get('lon', e.get('center', {}).get('lon'))
+                if lat is None or lon is None:
+                    continue
+                for kind, (k, v) in KINDS.items():
+                    if tags.get(k) == v:
+                        name = (tags.get('name') or '')[:120]
+                        rows.append((key, kind, f"{e['type'][0]}{e['id']}", name, round(lat, 6), round(lon, 6)))
+    rows = sorted(set(rows))
+    q = lambda s: "'" + s.replace("'", "''") + "'"
+    lines = ['-- Perfect City places (OpenStreetMap contributors, ODbL 1.0). PRIVATE until attorney row G11: never commit this file.',
+             'begin;', 'delete from ryagram_private.perfect_city_places;']
+    for i in range(0, len(rows), 200):
+        chunk = rows[i:i + 200]
+        lines.append('insert into ryagram_private.perfect_city_places (county, kind, osm_ref, name, lat, lon) values')
+        lines.append(',\n'.join(f'({q(c)}, {q(k)}, {q(r)}, {q(n)}, {la}, {lo})' for c, k, r, n, la, lo in chunk) + ';')
+    lines += ['commit;', f'select count(*) as places_loaded from ryagram_private.perfect_city_places;  -- expect {len(rows)}']
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
+    from collections import Counter
+    print(out, len(rows), 'places', dict(Counter((c, k) for c, k, *_ in rows)))
+
+
+if __name__ == '__main__':
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest='cmd', required=True)
+    sub.add_parser('census')
+    p = sub.add_parser('places'); p.add_argument('--out', required=True)
+    a = ap.parse_args()
+    {'census': census, 'places': places}[a.cmd](a)

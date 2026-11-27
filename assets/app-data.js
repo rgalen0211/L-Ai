@@ -608,6 +608,8 @@
       // Departments (NEXT-WEB 147, CONNECT's my_departments() and the small interest table): the server says which departments exist for this account and whether each works; 'Tell me when it's ready'
       // stores the account, the department and the time, and nothing is ever sent.
       myDepartments() { return run(client.rpc('my_departments'), 'Couldn’t load the departments.'); },
+      // Perfect City's business points (GEO 11-27): signed in, switch perfectCity (or an admin) only; OpenStreetMap, never a site file (attorney row G11).
+      perfectCityPlaces(county, kind) { return run(client.rpc('perfect_city_places', { p_county: county, p_kind: kind }), 'Couldn’t load the business points.'); },
       async myDepartmentInterests() { const rows = await run(client.rpc('my_department_interests'), 'Couldn’t load that.'); return (Array.isArray(rows) ? rows : []).map(r => (typeof r === 'string' ? r : r && r.department)).filter(x => typeof x === 'string'); },
       registerDepartmentInterest(id) { return run(client.rpc('register_department_interest', { p_department: id }), 'Couldn’t save that.'); },
       withdrawDepartmentInterest(id) { return run(client.rpc('withdraw_department_interest', { p_department: id }), 'Couldn’t save that.'); },

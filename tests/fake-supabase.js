@@ -381,7 +381,17 @@
       // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list.
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']).concat(typeof location !== 'undefined' && /[?&]perfectcity/.test(location.search || '') ? ['perfectCity'] : []), error: null };      // ?editoron: this account is on the live-editor list too; ?perfectcity: on the Perfect City list (GEO 11-27)
+      },
+      // Mock of perfect_city_places(p_county, p_kind) (GEO 11-27): INVENTED test points near the county's middle (never OpenStreetMap data), only with ?perfectcity (the real function refuses an account
+      // without the switch); ?noplaces returns an empty list (the places not loaded yet), ?placeserr makes it fail.
+      perfect_city_places(args) {
+        const q = typeof location !== 'undefined' ? (location.search || '') : '';
+        if (!/[?&]perfectcity/.test(q) || /[?&]placeserr/.test(q)) return fail('not allowed');
+        const mid = { montgomery_oh: [-84.2, 39.76], greene_oh: [-83.98, 39.70] }[args && args.p_county] || [-84.2, 39.76];
+        const n = (args && args.p_kind) === 'grocery' ? 6 : 14;
+        const places = /[?&]noplaces/.test(q) ? [] : Array.from({ length: n }, (_, i) => ({ name: i % 5 === 4 ? '' : `Test Place ${i + 1}`, lat: mid[1] + Math.sin(i * 2.4) * 0.012 * (1 + i % 4), lon: mid[0] + Math.cos(i * 2.4) * 0.016 * (1 + i % 4) }));
+        return { data: { county: args && args.p_county, kind: args && args.p_kind, credit: 'Map data (c) OpenStreetMap contributors (ODbL)', places }, error: null };
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');

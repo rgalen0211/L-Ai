@@ -1,0 +1,16 @@
+/* Perfect City page (GEO 11-27): the map keeps its 4:3 shape, never wider than 640 px or the screen; the rest reuses the app's own classes. */
+.pc-controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 12px 0; }
+.pc-control select { margin-left: 6px; max-width: 100%; }
+.pc-map { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin: 12px 0; }
+.pc-svg { display: block; width: 100%; max-width: 640px; height: auto; aspect-ratio: 4 / 3; cursor: crosshair; border-radius: 12px; }
+.pc-legend { min-width: 200px; flex: 1 1 200px; }
+.pc-keys { list-style: none; padding: 0; margin: 4px 0; }
+.pc-keys li { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+.pc-swatch svg { display: block; }
+.pc-typed { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 16px; }
+.pc-typed input { width: 9em; max-width: 40vw; }
+.pc-facts { padding-left: 1.2em; }
+.pc-label { opacity: 0.75; font-size: 0.9em; }
+.pc-table { border-collapse: collapse; margin: 8px 0; max-width: 100%; }
+.pc-table th, .pc-table td { padding: 4px 12px 4px 0; text-align: left; }
+.pc-table th[scope="row"] { white-space: nowrap; }

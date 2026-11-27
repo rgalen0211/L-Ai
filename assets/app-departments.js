@@ -8,7 +8,8 @@
   const KNOWN = {
     data_films: { label: 'Data films', page: true, sentence: 'Questions answered with public data, drawn as a short animated film, with every source shown.' },
     compilations: { label: 'Compilations', line: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.', picture: 'phrase' },
-    geo_intelligence: { label: 'Perfect City', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
+    // page: true is the WORKING page (assets/app-perfect-city.js), shown only to an account whose per-account switch perfectCity is on (GEO 11-27); everyone else keeps the Coming soon line.
+    geo_intelligence: { label: 'Perfect City', page: true, sentence: 'Put a spot on a county map and see how far the nearest similar places are and about how many people live around it.', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
     games: { label: 'Games', line: 'Play with your own data and footage in small games you can share.', placeholder: true },
     animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' },
     // Studio (Ryan 2026-11-18, Q639 yes, wording as filed; working name): `sections` are the fuller words shown under the line on its page, always (they are approved, unlike DETAILS below).
@@ -110,6 +111,11 @@
       const announced = new Set(Array.isArray(rows) ? rows.filter(r => r && typeof r.id === 'string').map(r => r.id) : []);       // what the server itself named (the sign-up button needs it)
       if (!hasAny(model)) { model = normalize(FALLBACK); }       // the server did not answer or listed nothing this page knows: the page's own default, never an empty bar
       for (const id of PAGE_ONLY) if (!model.working.includes(id) && !model.soon.includes(id)) model.soon = ORDER.filter(x => model.soon.includes(x) || x === id);
+      // Perfect City works for an account whose switch perfectCity is on (an admin account gets no server list, so the switch decides here; GEO 11-27).
+      if (window.ryagramSwitches?.featureOn('perfectCity') === true && window.ryagramPerfectCityPage) {
+        model.soon = model.soon.filter((x) => x !== 'geo_intelligence');
+        if (!model.working.includes('geo_intelligence')) model.working = ORDER.filter((x) => model.working.includes(x) || x === 'geo_intelligence');
+      }
       model.announced = announced;
       return model;
     }
@@ -272,6 +278,7 @@
     async function pageView(id) {
       const m = model || await load();
       if (!m || !known(id)) return unavailable();
+      if (m.working.includes(id) && id === 'geo_intelligence' && window.ryagramPerfectCityPage) return window.ryagramPerfectCityPage.view({ h, data });
       if (m.working.includes(id)) return workingPage(id);
       if (m.soon.includes(id)) return soonPage(id);
       return unavailable();
