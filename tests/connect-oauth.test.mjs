@@ -151,7 +151,7 @@ test('every SQL function the server names exists in the migration, and none take
     connect_forecast_ask: 'supabase/migrations/20261104000500_forecast_requests.sql',
     connect_film_card_ask: 'supabase/migrations/20261109000100_film_cards.sql', connect_film_card_get: 'supabase/migrations/20261109000100_film_cards.sql',
     connect_editor_apply: CHAT, connect_editor_undo: CHAT, connect_editor_undo_ai: CHAT, connect_editor_since: CHAT, connect_editor_heartbeat: CHAT,
-    connect_my_departments: 'supabase/migrations/20261113000200_connect_departments.sql', connect_my_switches: 'supabase/migrations/20261113000200_connect_departments.sql', connect_compilation_get: 'supabase/migrations/20261127000400_connect_compilation_status.sql',
+    connect_my_departments: 'supabase/migrations/20261113000200_connect_departments.sql', connect_my_switches: 'supabase/migrations/20261113000200_connect_departments.sql',
     connect_submit_prepared_data: 'supabase/migrations/20261120000500_prepared_data.sql', connect_list_my_data: 'supabase/migrations/20261120000500_prepared_data.sql' };       // the person's departments for the AI's home panel (CONNECT 11-13)
   const later = Object.fromEntries(Object.entries(LATER).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
   for (const fn of new Set(used)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);

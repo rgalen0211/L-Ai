@@ -891,8 +891,6 @@ EXPECTED_CALLABLE += ['connect_list_footage(text)', 'connect_request_footage(tex
 EXPECTED_CALLABLE += ['connect_film_card_ask(text, uuid)', 'connect_film_card_get(text, uuid)']      # Step A film look cards (migration 20261109000100; its own line)
 EXPECTED_CALLABLE += ['connect_my_departments(text)', 'connect_my_switches(text)']      # the person's departments for the AI's home panel (migration 20261113000200; its own line)
 
-EXPECTED_CALLABLE += ['connect_compilation_get(text, uuid)']      # where a compilation stands (migration 20261127000400; its own line)
-
 EXPECTED_CALLABLE += ['connect_submit_prepared_data(text, text, text, jsonb, jsonb, jsonb, text)', 'connect_list_my_data(text)']      # AI-prepared data (migration 20261120000500, Q634; its own line)
 
 def callable_by_runner(d):

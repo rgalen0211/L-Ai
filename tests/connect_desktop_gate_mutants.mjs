@@ -12,13 +12,13 @@ const SUITE = 'connect-desktop-gate.test.mjs';
 const TL = 'supabase/functions/connect-core/tools.ts', DP = 'supabase/functions/connect-core/dispatch.ts', MC = 'supabase/functions/connect-core/mcp.ts', RS = 'supabase/functions/connect-core/rest.ts', FK = 'supabase/functions/connect-core/fake.ts';
 const MG = 'supabase/migrations/20261123000500_connect_whoami_desktop_app.sql', RB = 'supabase/rollbacks/20261123000500_connect_whoami_desktop_app_rollback.sql', DL = 'supabase/migrations/20261026000500_app_downloads.sql';
 const mutants = [
-  ['the compilation request no longer asks whether the account has the app', TL, '{ const gate = await noDesktopApp(ctx, "A compilation request", true); if (gate) return gate; }', ''],
+  ['the compilation request no longer asks whether the account has the app', TL, '{ const gate = await noDesktopApp(ctx, "A compilation request"); if (gate) return gate; }', ''],
   ['the download request no longer asks', TL, '{ const gate = await noDesktopApp(ctx, "A download request"); if (gate) return gate; }', ''],
   ['listing downloads no longer asks', TL, '{ const gate = await noDesktopApp(ctx, "Download requests"); if (gate) return gate; }', ''],
   ['the gate lets an account without the app through', TL, 'if (w.desktop_app !== false) return null;', 'return null;'],
   ['an older server that does not say is refused (fail closed)', TL, 'if (w.desktop_app !== false) return null;', 'if (w.desktop_app === true) return null;'],
   ['the refusal saves nothing but does not say so', TL, 'NOTHING was saved or written down. ', ''],
-  ['the compilation question no longer checks the account', TL, 'if (step.kind === "compilation" && (await ctx.data.whoami()).desktop_app === false && !(await compilationsOpen(ctx))) {', 'if (false) {'],
+  ['the compilation question no longer checks the account', TL, 'if (step.kind === "compilation" && (await ctx.data.whoami()).desktop_app === false) {', 'if (false) {'],
   ['the MCP face calls unlisted tools by name again', MC, 'preparedData: preparedDataOn(deps.mcpApp), listedOnly: true };', 'preparedData: preparedDataOn(deps.mcpApp) };'],
   ['the REST face calls unlisted tools by name again', RS, 'deps: deps.deps, listedOnly: true };', 'deps: deps.deps };'],
   ['the full render loses its polite refusal', DP, ' && name !== "request_full_render"', ''],

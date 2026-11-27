@@ -39,9 +39,6 @@ export class FakeWorld {
     { id: "games", label: "Games", status: "soon" }, { id: "animation_studio", label: "Animation Studio", status: "soon" }, { id: "studio", label: "Studio", status: "soon" }];
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
-  /** Tests: what the person's own computer reported for a compilation build (the database's compilation_runs row, as connect_compilation_get shows it); the AI cannot write this. */
-  compilationRuns = new Map<string, unknown>();
-  setCompilationRun(userId: string, projectId: string, run: unknown): void { this.compilationRuns.set(userId + "|" + projectId, run); }
   /** Tests: a stranger has no desktop app (the default is that the account has it, as the invited testers do). */
   setDesktopApp(userId: string, on: boolean): void { this.users.get(userId)!.desktopApp = on; }
   addUser(userId: string, label: string, credits = 100): FUser {
@@ -250,14 +247,6 @@ export class FakeWorld {
         const row = { sha256: sha(request), request: JSON.parse(JSON.stringify(request)) };
         user.requests.set(pid, row);
         return { sha256: row.sha256 };
-      },
-      // mirrors connect_compilation_get (PROPOSED): null = not the person's project; request null = none saved; run = what the person's computer last reported (a test sets it with setCompilationRun)
-      compilationGet: async (pid) => {
-        const user = u();
-        if (!user.projects.some((p) => p.id === pid)) return null;
-        const row = user.requests.get(pid);
-        const run = this.compilationRuns.get(userId + "|" + pid) ?? null;
-        return JSON.parse(JSON.stringify({ request: row ? row.request : null, sha256: row ? row.sha256 : null, updated_at: row ? "2026-11-27T08:00:00Z" : null, run: row ? run : null }));
       },
       currentVersionId: async (pid) => {
         const vs = u().versions.filter((v) => v.project_id === pid);
