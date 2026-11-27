@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { verifyAppUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./remove.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+import { resolveSiteOrigins } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
 const serve = guardedServe(sk);
@@ -20,7 +21,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
 }
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
+  allowedOrigins: resolveSiteOrigins(),
   verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
   check: (owner) => rpc("account_deletion_check", { p_owner: owner }),
   async removeFiles(paths, bucket) {

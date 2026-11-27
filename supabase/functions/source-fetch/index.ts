@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { activeGate, verifyActiveUser } from "../_shared/oauth_guard.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 import { handle, type Registered } from "./core.ts";
+import { resolveSiteOrigins } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();
 const serve = guardedServe(sk);
@@ -18,7 +19,7 @@ async function rpc(name: string, args: Record<string, unknown>): Promise<unknown
 }
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
+  allowedOrigins: resolveSiteOrigins(),
   async verifyUser(jwt) {
     const u = await verifyActiveUser(service.auth, jwt, activeGate(service));
     return u ? { id: u.id, clientId: null } : null;

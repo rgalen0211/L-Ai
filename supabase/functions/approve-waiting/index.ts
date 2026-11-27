@@ -7,6 +7,7 @@ import { activeGate, verifyActiveUser } from "../_shared/oauth_guard.ts";
 import { chooseSender, type Outbox } from "../_shared/ops_mail.ts";
 import { handle } from "./approve.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+import { resolveSiteOrigins, resolveSiteUrl } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();
 const serve = guardedServe(sk);
@@ -26,8 +27,8 @@ const sender = chooseSender((k) => Deno.env.get(k), outbox, fetch as never);
 const asCaller = (jwt: string) => createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { auth: { persistSession: false }, global: { headers: { Authorization: `Bearer ${jwt}` } } });
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
-  siteUrl: "https://uselai.com",
+  allowedOrigins: resolveSiteOrigins(),
+  siteUrl: resolveSiteUrl(),
   verifyUser: (jwt) => verifyActiveUser(service.auth, jwt, activeGate(service)),
   async approve(jwt, userId, reason) {
     const { data, error } = await asCaller(jwt).rpc("admin_approve_waiting", { p_user: userId, p_reason: reason });

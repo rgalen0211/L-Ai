@@ -5,6 +5,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./apply.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+import { resolveSiteOrigins } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
 const serve = guardedServe(sk);
@@ -12,7 +13,7 @@ const serve = guardedServe(sk);
 const service = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient, { auth: { persistSession: false } });
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
+  allowedOrigins: resolveSiteOrigins(),
   hashSecret: Deno.env.get("CALLER_HASH_SECRET") ?? sk.key,
   async apply(a) {
     const { data, error } = await service.rpc("creator_beta_apply", {

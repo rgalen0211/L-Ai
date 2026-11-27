@@ -12,6 +12,7 @@ import { activeGate, verifyActiveUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./editor.ts";
 import type { UserData } from "./tools.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+import { resolveSiteOrigins } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
 const serve = guardedServe(sk);
@@ -71,7 +72,7 @@ function userData(jwt: string): UserData {
 }
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
+  allowedOrigins: resolveSiteOrigins(),
   verifyUser: (jwt) => verifyActiveUser(service.auth, jwt, activeGate(service)),
   store: {
     sessionFor: (owner, versionId) => rpc("ai_session_for", { p_owner: owner, p_version: versionId }),

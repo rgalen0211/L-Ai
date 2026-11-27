@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { activeGate, verifyActiveUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./deliver.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+import { resolveSiteOrigins } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
 const serve = guardedServe(sk);
@@ -14,7 +15,7 @@ const service = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient,
                              { auth: { persistSession: false } });
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
+  allowedOrigins: resolveSiteOrigins(),
   // The shared guard first: a connection token is refused before Supabase is even asked. deliver.ts keeps its own clientId refusal as a second line.
   async verifyUser(jwt) {
     const u = await verifyActiveUser(service.auth, jwt, activeGate(service));
