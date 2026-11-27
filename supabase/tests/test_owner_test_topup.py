@@ -137,6 +137,8 @@ class OwnerTestTopup(unittest.TestCase):
             self.refused(RYAN, TOPUP, "other@x", n, "film tests", code="22023")
         for note in (None, "", "  x ", "y" * 201):
             self.refused(RYAN, TOPUP, "other@x", 10, note, code="22023")
+        for note in ("\n\n\n", "\t\t\t", " \r\n\t "):                                           # RENDERER 08:47: only blank characters is no note
+            self.refused(RYAN, TOPUP, "other@x", 10, note, code="22023")
         self.assertEqual(self.available(OTHER), 0)
         self.topup(n=1)
         self.topup(n=100)
