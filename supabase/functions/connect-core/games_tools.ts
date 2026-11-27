@@ -1,7 +1,7 @@
 // GAMES for the person's AI (CONNECT, 2026-11-27, the "turn the other departments on" order). Contract and reasons: Ryagram-logs/proposals/CONNECT-DEPT-GAMES-1127.md (its UPDATE block says what GAMES had when this was aligned).
-// WHAT IS REAL TODAY (read from GAMES' branches games-live-1127 e7e2b0c6 and games-on-compilations-1127 e22af41f, 11-27 09:0x): a game lives ONLY in the host's browser and in Supabase Realtime between the host screen and the players' phones:
+// WHAT IS REAL TODAY (read from GAMES' newest code, branch games-alert-order-1127 4d95fc2b = games-live-1127 95c9cad7 + one commit, 11-27 11:5x; GAMES' launch holds (longer code, seats, idle close) are still being built on games-hold-* branches and are NOT in it): a game lives ONLY in the host's browser and in Supabase Realtime between the host screen and the players' phones:
 // no table, no SQL, no server call. The host screen (assets/app-games.js) is the Games page for an account whose switch list names `games`; the players' page is /game-phone/ (assets/game-phone-live.js).
-// TWO games on the page, picked by the host in the lobby under "Which game?": "Guess the next line" and "Fill the gap". Five rounds each, 45 seconds a round, 1 to 8 players, a room code of four letters.
+// TWO games on the page, picked by the host in the lobby under "Which game?": "Guess the next line" and "Fill the gap". Five rounds each, 45 seconds a round, 1 to 8 players, a room code made of letters only (its LENGTH is kept out of the words on purpose: it is 6 on 4d95fc2b and GAMES is lengthening it; the fixture holds the length the page has).
 // So nothing about a game exists on the server for the AI to start, read or end, and these tools do not pretend otherwise. Two read-only tools, neither makes a server call of its own:
 //   list_games        the games the Games page offers                    <- opening the Games page and looking at "Which game?"
 //   open_games_page   where Games is and how a game is run, in words    <- finding Games in the top bar
@@ -20,9 +20,10 @@ const refuse = (text: string, code: string, data?: Record<string, unknown>): Too
 export const GAMES_PAGE_PATH = "/app/#/d/games";
 export const PLAYERS_PAGE_PATH = "/game-phone/";
 
-/** The numbers on GAMES' page today, each read from its code: MAX_PLAYERS 8 and ROUND_SECONDS 45 (app-games.js), five rounds in each pack (game-rounds.js, game-gap-rounds.js), the room code is 4 letters (game-room.js CODE_LEN).
- *  The host's Start button stays off until one player has joined, so the least is 1. If GAMES changes one of them the page is right and this changes in the same step. */
-export const GAMES_FACTS = Object.freeze({ players_min: 1, players_max: 8, rounds_per_game: 5, seconds_per_round: 45, room_code_letters: 4 });
+/** The numbers on GAMES' page today, each read from its code: MAX_PLAYERS 8 and ROUND_SECONDS 45 (app-games.js), five rounds in each pack (game-rounds.js, game-gap-rounds.js).
+ *  The host's Start button stays off until one player has joined, so the least is 1. The room code's length is NOT here and not in any word below: GAMES is changing it (6 letters now, longer soon), so the tools say only "letters, no numbers".
+ *  If GAMES changes one of these numbers the page is right and this changes in the same step. */
+export const GAMES_FACTS = Object.freeze({ players_min: 1, players_max: 8, rounds_per_game: 5, seconds_per_round: 45 });
 
 const num = (n: number) => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"][n] ?? String(n);
 export interface GameListed { id: string; label: string; line: string }
@@ -34,9 +35,9 @@ export const GAMES_OFFERED: readonly GameListed[] = Object.freeze([
 
 /** The steps, in the person's words. They follow the Games page as GAMES builds it (its own button and heading names in quotes): if the page looks different, the page is right. */
 export const HOW_A_ROUND_GOES: readonly string[] = Object.freeze([
-  `Open Games from the top bar in Ryagram, signed in (the page is at ${GAMES_PAGE_PATH}). Under "Waiting for players" the screen shows a room code of ${num(GAMES_FACTS.room_code_letters)} letters straight away.`,
+  `Open Games from the top bar in Ryagram, signed in (the page is at ${GAMES_PAGE_PATH}). Under "Waiting for players" the screen shows a room code, made of letters and no numbers, straight away.`,
   'Under "Which game?" the host picks Guess the next line or Fill the gap.',
-  `Players open the players' page on their phones (${PLAYERS_PAGE_PATH}) and type the room code and a name for the scoreboard. No sign-in is needed on a phone. Up to ${GAMES_FACTS.players_max} players can join, a name can be used once in a room, and no new player can join after the game has started.`,
+  `Players open the players' page on their phones (${PLAYERS_PAGE_PATH}) and type the room code and a name for the scoreboard (at most 16 letters). No sign-in is needed on a phone. Up to ${GAMES_FACTS.players_max} players can join, a name can be used once in a room, and no new player can join after the game has started. While the room is waiting, the host can press "Remove" beside a player's name to take that player out, or "Lock the room" so no one new can join.`,
   `The host presses "Start the game" (it works once at least one player has joined). A game is ${num(GAMES_FACTS.rounds_per_game)} rounds. In each round the host reads the line aloud and the players type on their phones, for up to ${GAMES_FACTS.seconds_per_round} seconds or until everyone has sent.`,
   `Then the host's screen shows the answer, each player's points and which words they got, and each phone shows the answer and its own points. After round ${num(GAMES_FACTS.rounds_per_game)} the final scores show on the screen and on the phones, and "Play again with the same players" starts over.`,
 ]);
@@ -45,8 +46,8 @@ export const HOW_A_ROUND_GOES: readonly string[] = Object.freeze([
 export const ABOUT_THE_GAMES: readonly string[] = Object.freeze([
   `The page marks this as a draft: the ${num(GAMES_FACTS.rounds_per_game)} rounds are the same sample rounds each time, made from a made-up script, and there is no video, so the host reads the line aloud.`,
   "Points follow one rule in both games: exact words score the most, near forms (such as a plural) and a one-letter typo in a long word earn part, and word order matters.",
-  "Names and guesses pass between the host's screen and the phones and are not kept. Closing the host's page ends the room.",
-  "The room code is the only lock on a room, so it is meant for friends: the host should share it only with the people who are playing.",
+  "The game saves nothing to an account or a file, but every name and guess goes to everyone in the room. Closing the host's page ends the room, and a phone whose host screen stops answering says so.",
+  "Anyone who has the room code can join while the room is open, so the host should share it only with the people who are playing.",
 ]);
 
 export function makeGamesTools(): ToolDef[] {

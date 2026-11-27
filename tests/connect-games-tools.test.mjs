@@ -65,7 +65,7 @@ test('open_games_page: where Games is, how a round goes, and what the AI cannot 
   assert.equal(r.data.page_path, GAMES_PAGE_PATH); assert.equal(r.data.players_page_path, PLAYERS_PAGE_PATH);
   for (const p of [r.data.page_path, r.data.players_page_path]) assert.match(p, SITE_PATH, p);                // a path on the site, never an address
   assert.deepEqual(r.data.steps, [...HOW_A_ROUND_GOES]);
-  assert.match(r.text, /room code of four letters/); assert.match(r.text, /if the page looks different, the page is right/); assert.match(r.text, /cannot press anything/);
+  assert.match(r.text, /room code, made of letters and no numbers/); assert.match(r.text, /if the page looks different, the page is right/); assert.match(r.text, /cannot press anything/);
   for (const bad of ['press anything on the page', 'see a room, its players or their guesses', 'play', 'start or end a round']) assert.ok(r.data.ai_cannot.includes(bad), bad);
 });
 
@@ -136,7 +136,7 @@ test('PRIVACY: the answers hold no email, address, key, token, code, file or oth
   }
   const d = (await call(A, 'open_games_page')).data;
   assert.deepEqual(Object.keys(d).sort(), ['ai_can', 'ai_cannot', 'facts', 'notes', 'ok', 'page_path', 'players_page_path', 'steps']);
-  assert.deepEqual(Object.keys(d.facts).sort(), ['players_max', 'players_min', 'room_code_letters', 'rounds_per_game', 'seconds_per_round']);         // numbers only, nothing about a room
+  assert.deepEqual(Object.keys(d.facts).sort(), ['players_max', 'players_min', 'rounds_per_game', 'seconds_per_round']);         // numbers only, nothing about a room
   const l = (await call(A, 'list_games')).data;
   assert.deepEqual(Object.keys(l).sort(), ['games', 'ok']); for (const g of l.games) assert.deepEqual(Object.keys(g).sort(), ['id', 'label', 'line']);
 });
@@ -171,18 +171,38 @@ test('the games listed are exactly the games the page offers under "Which game?"
 test('the numbers the AI is told are the numbers on the page; the paths are the page\'s paths', () => {
   assert.equal(GAMES_FACTS.players_max, FACTS.max_players); assert.equal(GAMES_FACTS.seconds_per_round, FACTS.round_seconds);
   assert.equal(GAMES_FACTS.rounds_per_game, FACTS.rounds_per_game.line); assert.equal(GAMES_FACTS.rounds_per_game, FACTS.rounds_per_game.gap);
-  assert.equal(GAMES_FACTS.room_code_letters, FACTS.code_letters); assert.equal(GAMES_FACTS.players_min, FACTS.start_needs_a_player ? 1 : 0);
+  assert.equal(GAMES_FACTS.players_min, FACTS.start_needs_a_player ? 1 : 0);
   assert.equal(GAMES_PAGE_PATH, FACTS.host_path); assert.equal(PLAYERS_PAGE_PATH, FACTS.players_path);
   const steps = HOW_A_ROUND_GOES.join('\n');
-  assert.match(steps, /Up to 8 players/); assert.match(steps, /45 seconds/); assert.match(steps, /five rounds/); assert.match(steps, /room code of four letters/);
+  assert.match(steps, /Up to 8 players/); assert.match(steps, /45 seconds/); assert.match(steps, /five rounds/); assert.match(steps, /room code, made of letters and no numbers/); assert.match(steps, /at most 16 letters/);
   assert.match(steps, /No sign-in is needed on a phone/); assert.equal(FACTS.phone_needs_sign_in, false);
 });
 
 test('the steps come in the order the page runs: the code shows, the host picks a game, players join, the host starts, the answer and scores, the final', () => {
   const at = (re) => HOW_A_ROUND_GOES.findIndex((s) => re.test(s));
-  const order = [at(/room code of four letters/), at(/Which game\?/), at(/players' page/), at(/"Start the game"/), at(/shows the answer, each player's points/)];
+  const order = [at(/room code, made of letters/), at(/Which game\?/), at(/players' page/), at(/"Start the game"/), at(/shows the answer, each player's points/)];
   assert.deepEqual(order, [0, 1, 2, 3, 4]);
   assert.match(HOW_A_ROUND_GOES[4], /final scores/); assert.match(HOW_A_ROUND_GOES[4], /"Play again with the same players"/);
+});
+
+test('the words state no room code LENGTH (GAMES is lengthening the code): a number of letters anywhere in the answer would go stale', async () => {
+  const { A, call } = world();
+  const all = [everything(await call(A, 'open_games_page')), everything(await call(A, 'list_games')), ...TOOLS.filter((t) => NAMES.includes(t.name)).map((t) => t.description)].join(' | ');
+  const LEN = /\b(four|five|six|seven|eight|nine|ten|[4-9]|1[0-2])[- ](letter|character|digit)s?\b/i;
+  assert.ok(!LEN.test(all), 'a code length in the words: ' + all.match(LEN));
+  assert.ok(!/\bcode\b[^.|]{0,40}\b(four|six|eight|[468])\b/i.test(all));
+  assert.equal(Object.keys(GAMES_FACTS).includes('room_code_letters'), false);
+  assert.match(all, /letters and no numbers/);                                                                // what the page's alphabet makes true at any length
+  assert.equal(FACTS.code_has_digits, false); assert.ok(!/[0-9]/.test(FACTS.code_alphabet));
+});
+
+test('the host controls the page has are said, and only those: remove a player and lock the room while waiting (no kick mid-game, no idle timer promised)', () => {
+  const steps = HOW_A_ROUND_GOES.join(' | ');
+  assert.match(steps, /"Remove" beside a player's name/); assert.match(steps, /"Lock the room"/); assert.match(steps, /While the room is waiting/);
+  assert.equal(FACTS.host_can_remove_a_player_in_the_lobby, true); assert.equal(FACTS.host_can_lock_the_room, true);
+  const all = [...HOW_A_ROUND_GOES, ...ABOUT_THE_GAMES].join(' | ');
+  const TIMER = /\b(idle|minutes?|closes itself|times out|rate limit|too many)\b/i;
+  assert.ok(!TIMER.test(all), 'a timer or a limit the page code does not have yet: ' + all.match(TIMER));
 });
 
 test('every button or heading the steps put in quotes is a real one on the page', () => {
@@ -193,12 +213,13 @@ test('every button or heading the steps put in quotes is a real one on the page'
   assert.ok(named.includes('Start the game') && named.includes('Which game?'));
 });
 
-test('the notes say what the page says of itself: a draft with sample rounds, nothing kept, and the code is the only lock; no price, no date, no "free"', async () => {
+test('the notes say what the page says of itself: a draft with sample rounds, nothing saved, everything goes to the whole room, and anyone who has the room code can join; no price, no date, no "free"', async () => {
   const { A, call } = world();
   const r = await call(A, 'open_games_page');
   assert.deepEqual(r.data.notes, [...ABOUT_THE_GAMES]); assert.deepEqual(r.data.facts, { ...GAMES_FACTS });
   const n = ABOUT_THE_GAMES.join('\n');
-  assert.match(n, /draft/); assert.match(n, /made-up script/); assert.match(n, /no video/); assert.match(n, /are not kept/); assert.match(n, /only lock on a room/);
+  assert.match(n, /draft/); assert.match(n, /made-up script/); assert.match(n, /no video/); assert.match(n, /saves nothing to an account or a file/); assert.match(n, /every name and guess goes to everyone in the room/); assert.match(n, /a phone whose host screen stops answering says so/); assert.match(n, /Anyone who has the room code can join while the room is open/);
+  assert.ok(!/not kept|only lock/.test(n), 'the old wording (GAMES 10:45: names and guesses are said to everyone, the code is not the only lock)');
   for (const line of ABOUT_THE_GAMES) assert.ok(!/\$|\bfree\b|\bcosts?\b|\b20\d\d\b|\bsoon\b|\bkey\b|\btoken\b/i.test(line), line);
   assert.ok(ABOUT_THE_GAMES.every((line) => r.text.includes(line)), 'every note reaches the AI in the answer text');
 });
@@ -207,7 +228,7 @@ test('a closed account is told nothing about the page: no game name, no button, 
   const { B, call } = world();
   for (const n of NAMES) {
     const r = await call(B, n); const all = everything(r);
-    for (const secret of ['Guess the next line', 'Fill the gap', 'fill_the_gap', 'Which game', 'Start the game', 'room code', 'sample rounds', GAMES_PAGE_PATH, PLAYERS_PAGE_PATH]) assert.ok(!all.includes(secret), `${n}: ${secret}`);
+    for (const secret of ['Guess the next line', 'Fill the gap', 'fill_the_gap', 'Which game', 'Start the game', 'room code', 'Lock the room', 'Remove', 'sample rounds', GAMES_PAGE_PATH, PLAYERS_PAGE_PATH]) assert.ok(!all.includes(secret), `${n}: ${secret}`);
     assert.ok(!/\b(45|8 players|five rounds)\b/.test(all), n);
   }
 });
@@ -220,7 +241,13 @@ test('when GAMES\' own files are in the checkout, the page itself says what the 
   for (const g of GAMES_OFFERED) assert.ok(host.includes(`'${g.label}'`), g.label);
   for (const b of [...FACTS.buttons, FACTS.which_game_legend, FACTS.lobby_heading]) assert.ok(host.includes(b), b);
   const room = fs.readFileSync('assets/game-room.js', 'utf8');
-  assert.match(room, new RegExp(`CODE_LEN = ${GAMES_FACTS.room_code_letters}\\b`)); assert.ok(room.includes(`'${FACTS.code_alphabet}'`));
+  assert.ok(room.includes(`'${FACTS.code_alphabet}'`), 'the room code alphabet: letters only, no digits, no I and no O');                // what "letters and no numbers" claims
+  const len = room.match(/CODE_LEN = (\d+)\b/); assert.ok(len, 'CODE_LEN is found');
+  if (Number(len[1]) !== FACTS.code_letters) t.diagnostic(`NOTE: the page's room code is now ${len[1]} letters, the copied facts say ${FACTS.code_letters}: update tests/fixtures/games-page-facts-1127.json (the tools' words state no length, so nothing else changes)`);
+  assert.ok(Number(len[1]) >= 4 && Number(len[1]) <= 16);
+  assert.match(room, /A room code is \$\{CODE_LEN\} letters with no I, no O and no numbers/);                                      // the page's own words for it
+  assert.ok(host.includes("'Remove'") && host.includes("'Lock the room'") && host.includes('Waiting for players'));                    // the host controls the steps name
+  assert.match(host, /if \(s\.phase !== 'lobby'\) return false;/);                                                                  // a player can be removed only while waiting
   const load = (file, key) => { const w = {}; new Function('window', fs.readFileSync(file, 'utf8'))(w); return w[key]; };
   assert.equal(load('assets/game-rounds.js', 'ryagramGameRounds').rounds.length, GAMES_FACTS.rounds_per_game);
   assert.equal(load('assets/game-gap-rounds.js', 'ryagramGameGapRounds').rounds.length, GAMES_FACTS.rounds_per_game);
