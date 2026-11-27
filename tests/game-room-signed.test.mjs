@@ -78,7 +78,7 @@ function bus(G) {
 }
 
 function mountHost(w, room, opts = {}) {
-  const Room = { ...w.G, connect: async () => room.endpoint('host') };
+  const Room = { ...w.G, connect: async () => room.endpoint('host'), ...(opts.Room || {}) };          // opts.Room: a test may wrap a function (to count signature checks)
   return w.W.ryagramGamesHost.mount(opts.root || new El('div'), { h, Room, Score: w.W.ryagramGameScore, Rounds: w.W.ryagramGameRounds, cfg: {}, seconds: opts.seconds });
 }
 async function fakePhone(w, room, name) {
@@ -165,6 +165,7 @@ async function hostScenario(w) {
   await settle();
   out.joinRateLimited = welcomeFor(Rr.pid).length === 3;
   // refused joins (a reserved name, from five new keys) are answered but remembered nowhere: no seat, no key kept
+  w.clock.off += 61000;          // the new-pid bucket (FACES 3.1) takes 6 new pids a minute and A, B, E and Rr took 4: a minute on, so all five below are answered
   const keysBefore = host.state().keys.size, playersBefore = host.state().players.length;
   const refused = [];
   for (let i = 0; i < 5; i++) { const X = await fakePhone(w, room, 'x' + i); refused.push(X); await X.send({ t: 'join', name: i % 2 ? 'ADMIN' : 'Host', pub: X.pair.pub }); }
@@ -362,21 +363,21 @@ async function controlsScenario(w) {
     await settle();
     const list = root.querySelector('#gh-player-list'), rowA = list && list.children[0], lockBtn = root.querySelector('#gh-lock');
     out.rowsShown = !!list && list.children.length === 3 && /Ana/.test(rowA.textContent) && !!rowA.querySelector('button') && /Remove/.test(rowA.querySelector('button').textContent)
-      && rowA.querySelector('button').attrs['aria-label'] === 'Remove Ana from the room' && !!lockBtn && /Lock the room/.test(lockBtn.textContent);
-    // Remove Ben: dropped, told in a signed welcome, and refused in words when he tries again
+      && rowA.querySelector('button').attrs['aria-label'] === 'Remove Ana' && !!lockBtn && /Lock the room/.test(lockBtn.textContent);
+    // Remove Ben: dropped and told once in a signed welcome (why removed, FACES 1.3 words); when he tries again he gets NO answer and no seat (a banned pid is dropped before any check)
     host.kick(B.pid); await settle();
     const told = welcomeFor(B.pid).pop();
-    out.kickTold = !!told && told.ok === false && told.problem === 'The host removed you from this room.' && await w.G.verify(hostPub, CODE, told) && !player(B.pid);
+    out.kickTold = !!told && told.ok === false && told.why === 'removed' && told.problem === 'The host removed you from this game.' && await w.G.verify(hostPub, CODE, told) && !player(B.pid);
+    const toldCount = welcomeFor(B.pid).length;
     await B.send({ t: 'join', name: 'Ben', pub: B.pair.pub }); await settle();
-    const again = welcomeFor(B.pid).pop();
-    out.kickedRejoinRefused = welcomeFor(B.pid).length === 3 && again.ok === false && again.problem === 'The host removed you from this room.' && !player(B.pid);
+    out.kickedRejoinRefused = toldCount === 2 && welcomeFor(B.pid).length === toldCount && !player(B.pid);
     out.rowsInPlace = root.querySelector('#gh-player-list') === list && list.children[0] === rowA && list.children.length === 2 && !/Ben/.test(list.textContent);
     // Lock: a new player is refused in words; a seated player can still come back; Unlock lets new players in again
     host.lock(true); await settle();
-    out.lockInPlace = root.querySelector('#gh-lock') === lockBtn && /Unlock the room/.test(lockBtn.textContent) && /locked/.test(root.querySelector('#gh-lock-note').textContent);
+    out.lockInPlace = root.querySelector('#gh-lock') === lockBtn && /Unlock the room/.test(lockBtn.textContent) && /^Locked: nobody new can join\./.test(root.querySelector('#gh-lock-note').textContent);
     await D.send({ t: 'join', name: 'Dee', pub: D.pair.pub }); await settle();
     const wd = welcomeFor(D.pid).pop();
-    out.lockedRefused = !!wd && wd.ok === false && wd.problem === 'This room is locked.' && await w.G.verify(hostPub, CODE, wd) && !player(D.pid);
+    out.lockedRefused = !!wd && wd.ok === false && wd.why === 'locked' && wd.problem === 'The room is locked. Ask the host to unlock it.' && await w.G.verify(hostPub, CODE, wd) && !player(D.pid);
     await A.send({ t: 'join', name: 'Ana', pub: A.pair.pub }); await settle();
     out.seatedComesBackWhileLocked = welcomeFor(A.pid).pop().ok === true;
     host.lock(false); await settle();
@@ -387,7 +388,7 @@ async function controlsScenario(w) {
   return out;
 }
 
-test('MUST FAIL: host controls: Remove drops a player and refuses that pid in words, Lock refuses new joins in words (both signed welcomes), and the lines update in place', async () => {
+test('MUST FAIL: host controls: Remove drops a player and tells that pid once (signed, why removed), then gives it no answer; Lock refuses new joins in words (signed, why locked); the lines update in place', async () => {
   assert.deepEqual(await controlsScenario(world()), { rowsShown: true, kickTold: true, kickedRejoinRefused: true, rowsInPlace: true, lockInPlace: true, lockedRefused: true, seatedComesBackWhileLocked: true, unlockLetsIn: true });
 });
 
@@ -405,17 +406,26 @@ async function ghostScenario(w) {
     await X.send({ t: 'join', name: 'Ana', pub: X.pair.pub }); await settle();
     const refusedJoin = X.last;
     out.refusedFirst = welcomeFor(X.pid).length === 1 && welcomeFor(X.pid)[0].ok === false && !player(X.pid);
+    // 204 later joins (A and S coming back, 3 each per 10 s) push the refused join's nonce out of the host's ring of the last 200: from here only the seq memory stops its replay
+    for (let i = 0; i < 34; i++) { w.clock.off += 10100; for (let k = 0; k < 3; k++) { await A.send({ t: 'join', name: 'Ana', pub: A.pair.pub }); await S.send({ t: 'join', name: 'Sol', pub: S.pair.pub }); } await settle(); }
+    const ringRolled = !host.state().nonceSeen.has(refusedJoin.nonce) && host.state().nonceRing.length === 200;
     await A.send({ t: 'leave' }); await settle();          // the name Ana is free now
     await X.end.send(refusedJoin); await settle();          // the refused join, sent again word for word
-    out.replayedRefusedJoinCannotSeat = !player(X.pid) && welcomeFor(X.pid).length === 1;
+    out.replayedRefusedJoinCannotSeat = ringRolled && !player(X.pid) && welcomeFor(X.pid).length === 1;
     await X.send({ t: 'join', name: 'Ana', pub: X.pair.pub }); await settle();
     out.freshJoinStillWorks = !!player(X.pid);
-    // 100 throwaway pids join and leave (the room's clock steps 5 s after every 6, under the room-wide limit of 8 new pids per 5 s): the store stays bounded, and A (gone a moment ago) and S (seated) keep their keys
-    for (let i = 0; i < 100; i++) { if (i % 6 === 0) w.clock.off += 5100; const T = await fakePhone(w, room, 't' + i); await T.send({ t: 'join', name: 'T' + i, pub: T.pair.pub }); await T.send({ t: 'leave' }); T.end.close(); }
+    // 100 throwaway pids join and leave (the room's clock steps 61 s after every 6, under the new-pid bucket of 6 a minute): the store stays bounded (it fills at the 94th),
+    // and S (who leaves at the 88th, so gone under 10 minutes when the store is full) and X (seated) keep their keys; A, gone longer than 10 minutes, may be let go
+    for (let i = 0; i < 100; i++) {
+      if (i % 6 === 0) w.clock.off += 61000;
+      if (i === 88) { await S.send({ t: 'leave' }); await settle(); }
+      const T = await fakePhone(w, room, 't' + i); await T.send({ t: 'join', name: 'T' + i, pub: T.pair.pub }); await T.send({ t: 'leave' }); T.end.close();
+      if (i % 6 === 5) await settle();
+    }
     await settle();
     const keys = host.state().keys;
-    out.keptBounded = keys.size <= 96;
-    out.goneKeyKept = keys.has(A.pid) && keys.has(S.pid) && keys.has(X.pid);
+    out.keptBounded = keys.size <= 96 && keys.size >= 90 && !!player(X.pid) && !player(S.pid);          // the store really filled (so letting go was needed)
+    out.goneKeyKept = keys.has(S.pid) && keys.has(X.pid);
   } catch (e) { out.crashed = String(e).slice(0, 200); }
   host.close();
   return out;
@@ -500,40 +510,61 @@ async function phoneKickScenario(w) {
     out.joined = /You are in room/.test(p.text());
     const pid = room.from('p', 'join')[0].pid;
     host.kick(pid); await settle(); await settle();
-    out.phoneToldRemoved = /The host removed you from this room\./.test(p.text()) && !!p.root.querySelector('#ph-code') && !w.store.get('ryagram-game-seat');
+    const back = p.root.querySelector('#ph-back');
+    const removedShown = /The host removed you from this game\./.test(p.root.querySelector('#ph-removed') ? p.root.querySelector('#ph-removed').textContent : '') && !!back && back.textContent === 'Back' && !p.root.querySelector('#ph-code') && !w.store.get('ryagram-game-seat');
+    if (back) await press(back);
+    out.phoneToldRemoved = removedShown && !!p.root.querySelector('#ph-code');          // Back goes to the code screen
     out.titleReset = p.root.querySelector('#ph-title').textContent === 'Guess the next line';
   } catch (e) { out.crashed = String(e).slice(0, 200); }
   host.close();
   return out;
 }
 
-test('MUST FAIL: a phone the host removes is told so in plain words and is back at the join form with no seat', async () => {
+test('MUST FAIL: a phone the host removes is told so in plain words (FACES 1.3) with a Back button to the join form, and keeps no seat', async () => {
   assert.deepEqual(await phoneKickScenario(world()), { joined: true, phoneToldRemoved: true, titleReset: true });
 });
 
-// RED TEAM 6a / 9e: room-wide limits. A burst of fresh-key joins gets at most 8 new pids in 5 s; a seated player flooding signed guesses gets at most 2 taken per second
-// and at most one 'got' waiting; refusals are capped room-wide (10 in 5 s), past that a join gets no answer.
+// RED TEAM 6a / 9e and the 11-27 holds (FACES 3.1-3.2): room-wide limits on the real room library. A burst of fresh-key joins gets at most 6 new pids a minute (the rest
+// dropped unanswered); once the 8 seats are full a stranger's join gets a cheap 'full' refusal with NO signature check, at most one per 2 s for the whole room; a removed pid
+// gets no answer at all; a seated player flooding signed guesses gets at most 2 taken per second and at most one 'got' waiting.
 async function floodScenario(w) {
-  const room = bus(w.G), host = mountHost(w, room), out = {};
+  const room = bus(w.G), verified = [];
+  const host = mountHost(w, room, { Room: { verify: (pub, code, m) => { verified.push(m && m.pid); return w.G.verify(pub, code, m); } } }), out = {};
   await until(() => room.from('host', 'state').length > 0);
   CODE = host.state().code;
   const settle = async () => { await sleep(10); await host.settled(); await sleep(5); await host.settled(); };
+  const player = pid => host.state().players.find(p => p.pid === pid);
+  const answersTo = L => room.from('host', 'welcome').filter(m => L.some(F => F.pid === m.pid));
+  const phones = async (tag, n) => { const L = []; for (let i = 0; i < n; i++) L.push(await fakePhone(w, room, tag + i)); return L; };
   try {
     const A = await fakePhone(w, room, 'a'), B = await fakePhone(w, room, 'b');
     await A.send({ t: 'join', name: 'Ana', pub: A.pair.pub }); await B.send({ t: 'join', name: 'Ben', pub: B.pair.pub }); await settle();
-    const burst = []; for (let i = 0; i < 20; i++) burst.push(await fakePhone(w, room, 'f' + i));
+    const burst = await phones('f', 20);
     for (const [i, F] of burst.entries()) await F.send({ t: 'join', name: 'Fake' + i, pub: F.pair.pub });
     await settle();
-    const answered = burst.filter(F => room.from('host', 'welcome').some(m => m.pid === F.pid)).length;
-    out.roomJoinLimit = answered === 6;          // A and B used 2 of the 8 new pids this 5 s allows
-    // refusals: the 6 fakes let in are removed (those notices are the host's own and not capped), then each tries twice more: 12 refusals asked for, 10 sent
-    const inFakes = burst.filter(F => room.from('host', 'welcome').some(m => m.pid === F.pid));
+    const burstSeated = burst.filter(F => player(F.pid)).length, burstAnswered = answersTo(burst).length;          // A and B used 2 of the 6 new pids this minute allows
+    // a minute on: 6 more new pids; 2 fill the 8 seats, the other 4 find the room full; another minute on: 6 more, all to a full room
+    w.clock.off += 61000;
+    const more = await phones('g', 6);
+    for (const [i, F] of more.entries()) await F.send({ t: 'join', name: 'More' + i, pub: F.pair.pub });
+    await settle();
+    w.clock.off += 61000;
+    const more2 = await phones('k', 6);
+    for (const [i, F] of more2.entries()) await F.send({ t: 'join', name: 'Late' + i, pub: F.pair.pub });
+    await settle();
+    const extras1 = more.filter(F => !player(F.pid)), extras = [...extras1, ...more2];
+    out.roomJoinLimit = burstSeated === 4 && burstAnswered === 4 && host.state().players.length === 8 && extras1.length === 4 && !extras.some(F => player(F.pid))
+      && answersTo(extras).length >= 1 && answersTo(extras).every(m => m.ok === false && m.why === 'full' && /^Room is full\. All 8 seats are taken\./.test(m.problem))
+      && !extras.some(F => verified.includes(F.pid));          // a stranger on a full room costs no signature check
+    // refusals: one per 2 s for the whole room (each batch above came at one instant of the room's clock); a removed pid gets no answer and no signature check
+    const inFakes = [...burst, ...more].filter(F => player(F.pid));
     for (const F of inFakes) host.kick(F.pid);
     await settle();
-    const before = room.from('host', 'welcome').filter(m => m.ok === false).length;
+    const before = room.from('host', 'welcome').length, v0 = verified.length;
     for (const F of inFakes) { await F.send({ t: 'join', name: 'Again', pub: F.pair.pub }); await F.send({ t: 'join', name: 'Again', pub: F.pair.pub }); }
     await settle();
-    out.refusalsCapped = room.from('host', 'welcome').filter(m => m.ok === false).length - before === 10;
+    out.refusalsCapped = answersTo(extras1).length === 1 && answersTo(more2).length === 1
+      && inFakes.length === 6 && room.from('host', 'welcome').length === before && verified.length === v0 && !inFakes.some(F => player(F.pid));
     host.start(); await settle();
     const gotsBefore = room.from('host', 'got').length;
     for (let i = 0; i < 30; i++) await A.send({ t: 'guess', round: 0, text: 'flood ' + i });
@@ -547,7 +578,7 @@ async function floodScenario(w) {
   return out;
 }
 
-test('MUST FAIL: room-wide limits: at most 8 new pids per 5 s, at most 10 refusals per 5 s, at most 2 guesses per pid per second', async () => {
+test('MUST FAIL: room-wide limits: at most 6 new pids a minute, a full room refuses strangers with no signature check and at most one refusal per 2 s, a removed pid gets no answer, at most 2 guesses per pid per second', async () => {
   assert.deepEqual(await floodScenario(world()), { roomJoinLimit: true, refusalsCapped: true, guessRateLimit: true, guessAfterASecond: true });
 });
 
@@ -667,17 +698,22 @@ const MUTANTS = [
   { name: 'room: verify says yes to anything signed', file: ROOMJS, edits: [['return await subtle().verify(SIGN_ALG, key, sig, bytes);', 'return true;']], scenario: hostScenario, caught: ['forgedGuessRefused', 'forgedLeaveRefused'] },
   // 11-27 hardening
   { name: 'room: the code from plain SHA-256 (the old fast code)', file: ROOMJS, edits: [["new Uint8Array(await subtle().deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(CODE_SALT), iterations: CODE_ITERATIONS }, base, 256))", "new Uint8Array(await subtle().digest('SHA-256', raw))"]], scenario: codeScenario, caught: ['knownVector', 'sameAsNodePbkdf2', 'slowOnPurpose'] },
-  { name: 'host: a removed pid let back in', file: HOST, edits: [['if (s.kicked.has(m.pid)) { welcome(m.pid, false, KICKED_TEXT); return; }', '']], scenario: controlsScenario, caught: ['kickedRejoinRefused'] },
-  { name: 'host: the lock ignored', file: HOST, edits: [['if (s.locked) { welcome(m.pid, false, LOCKED_TEXT); return; }', '']], scenario: controlsScenario, caught: ['lockedRefused'] },
+  // 11-27 holds: the removed-pid check is now s.banned, dropped before any check (and again after the signature, and in onMessage): all three go
+  { name: 'host: a removed pid let back in', file: HOST, edits: [['if (s.banned.has(m.pid)) return;', ''], ['if (s.closed || s.banned.has(m.pid)) return;', 'if (s.closed) return;']], scenario: controlsScenario, caught: ['kickedRejoinRefused'] },
+  { name: 'host: the lock ignored', file: HOST, edits: [['if (s.locked) { welcome(m.pid, false, LOCKED_TEXT); return; }', ''], ["s.locked ? 'locked' : ", '']], scenario: controlsScenario, caught: ['lockedRefused'] },          // 11-27: a new pid is refused before the signature (checked), a known one in onMessage
   { name: 'host: a refused join not remembered (ghost seat)', file: HOST, edits: [['if (m.seq <= lastSeqOf(m.pid)) return;', ''], ['|| m.seq <= lastSeqOf(m.pid)) return;', ') return;']], scenario: ghostScenario, caught: ['replayedRefusedJoinCannotSeat'] },
   { name: 'host: kept keys let go oldest first, recently gone or not', file: HOST, edits: [['for (const [p] of old) { s.keys.delete(p); if (s.keys.size < KEEP_KEYS) return true; }', 'for (const [p] of [...s.keys].filter(([p]) => !seated(p))) { s.keys.delete(p); return true; }']], scenario: ghostScenario, caught: ['goneKeyKept'] },
-  { name: 'phone: a rejoin takes an old welcome (no host seq check)', file: PHONE, edits: [['if (!Number.isInteger(m.seq) || m.seq <= s.hostSeq) return;', '']], scenario: phoneRejoinScenario, caught: ['replayedWelcomeIgnored'] },
+  // 11-27 holds: the phone also drops a welcome that does not echo one of its own nonces (FACES 4), which alone stops this replay; the mutant takes out both guards
+  { name: 'phone: a rejoin takes an old welcome (no host seq check)', file: PHONE, edits: [['if (!Number.isInteger(m.seq) || m.seq <= s.hostSeq) return;', ''], ['if (!ourNonce(m.nonce)) return;', '']], scenario: phoneRejoinScenario, caught: ['replayedWelcomeIgnored'] },
   { name: 'phone: the name from the welcome not taken', file: PHONE, edits: [['s.welcomed = true; if (m.name) s.name = m.name; }', 's.welcomed = true; }']], scenario: phoneRejoinScenario, caught: ['rejoinOtherCaseFindsOwnScore'] },
   { name: 'phone: the last round\'s guess kept into a new round', file: PHONE, edits: [["s.sentText = ''; s.pending = '';", "s.sentText = '';"]], scenario: phoneRejoinScenario, caught: ['pendingClearedOnNewRound'] },
   { name: 'phone: the time-up line adds a stop after the quote', file: PHONE, edits: [['}' + String.fromCharCode(0x201d) + '${stopAfter(s.pending)} Time is up.`', '}' + String.fromCharCode(0x201d) + '. Time is up.`']], scenario: phoneRejoinScenario, caught: ['timeUpNoDoubleStop'] },
-  { name: 'phone: a removal from the host ignored', file: PHONE, edits: [['else if (m.t === \'welcome\' && m.pid === s.pid && s.welcomed && m.ok === false && m.pub === s.hostPub) { if (await fromHost(m)) removed(m.problem); }', '']], scenario: phoneKickScenario, caught: ['phoneToldRemoved'] },
-  { name: 'host: no room-wide join limit', file: HOST, edits: [[' || !within(s.roomJoins, ROOM_JOINS, ROOM_JOIN_MS)', '']], scenario: floodScenario, caught: ['roomJoinLimit'] },
-  { name: 'host: refusals not capped', file: HOST, edits: [['(!ok && !force && !within(s.refusals, REFUSALS, REFUSAL_MS)) ? Promise.resolve() : post(', 'post(']], scenario: floodScenario, caught: ['refusalsCapped'] },
+  { name: 'phone: a removal from the host ignored', file: PHONE, edits: [["else if (m.t === 'welcome' && m.pid === s.pid && s.welcomed && m.ok === false && m.pub === s.hostPub && m.nonce === s.seatNonce) { if (await fromHost(m)) notIn(m); }", '']], scenario: phoneKickScenario, caught: ['phoneToldRemoved'] },
+  // 11-27 holds: the old room-wide join window (8 new pids per 5 s, after the signature) can no longer be reached: the new-pid bucket (6 a minute, before it) is the
+  // limit now, so the mutant is on that bucket. Likewise the refusals a stranger can draw are capped by lim.refusal (one per 2 s), so that is the one taken out.
+  { name: 'host: no room-wide join limit (the new-pid bucket)', file: HOST, edits: [['if (!lim.newPid()) { strike(); return; }', '']], scenario: floodScenario, caught: ['roomJoinLimit'] },
+  { name: 'host: a stranger on a full room verified (no cheap refusal)', file: HOST, edits: [['if (why) { strike(); refuseUnknown(m, why); return; }', '']], scenario: floodScenario, caught: ['roomJoinLimit'] },
+  { name: 'host: refusals not capped', file: HOST, edits: [['if (!lim.refusal()) return; ', '']], scenario: floodScenario, caught: ['refusalsCapped'] },
   { name: 'host: no guess rate limit', file: HOST, edits: [["if (m.t === 'guess' && !guessAllowed(m.pid)) return; ", '']], scenario: floodScenario, caught: ['guessRateLimit'] },
   { name: 'host: blank-looking names let in', file: HOST, edits: [['BLANKISH.test(name) || ', '']], scenario: names2Scenario, caught: ['blankRefused'] },
   { name: 'host: no look-alike map', file: HOST, edits: [['const i = LOOK_FROM.indexOf(c); return i >= 0 ? LOOK_TO[i] : c;', 'return c;']], scenario: names2Scenario, caught: ['cyrillicSame', 'reservedSkeleton'] },

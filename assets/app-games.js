@@ -14,8 +14,9 @@
 //   itself when the game starts, and `New room code` in the lobby (closes this room with a signed 'closed' state, makes a new key, so a new code, and empty seats).
 // - A removed pid goes in s.banned and is dropped BEFORE any signature check; its name is refused for the rest of the lobby. Being honest: a new key is a new pid, so a
 //   person can come back under a new key; Lock the room and New room code are what really stop them (the help line says so).
-// - checked(m) runs the cheap checks first (FACES 3.2): closed, banned, the room bucket, the per-pid buckets and the seq, a reused join nonce, the new-pid bucket (strikes), then
-//   an UNKNOWN pid on a full, locked or started room gets one rate-limited signed refusal WITHOUT any verify; only then the verify bucket and Room.verify.
+// - checked(m) runs the cheap checks first (FACES 3.2): closed, banned, the room bucket, the seq, a reused join nonce, the new-pid bucket (strikes), then
+//   an UNKNOWN pid on a full, locked or started room gets one rate-limited signed refusal WITHOUT any verify; only then the verify bucket and Room.verify, and only
+//   after a good signature the per-pid and guess buckets (a forged message under a real player's pid must not spend that player's tokens).
 // - IDLE (hold 3): 15 minutes with no join, guess, leave or host press (outside a running question round) closes the room: a 2-minute warning with `Keep the room open`,
 //   then one signed state phase 'closed' why 'idle', every timer and the 5 s beat stopped, the room left, and a button to open a new room.
 (function () {
@@ -156,7 +157,7 @@
     // is taken only when there is room after letting go keys of players gone longer than GONE_KEEP_MS, so cycling throwaway pids never pushes out a seated or recently-gone
     // player's key (new joins are dropped instead). Room-wide limits: at most ROOM_JOINS new pids in ROOM_JOIN_MS, at most REFUSALS refusal welcomes in REFUSAL_MS (past
     // that a join gets no answer), at most GUESSES guesses per pid in GUESS_MS (the rest dropped unanswered), and at most one 'got' waiting to be sent per pid.
-    // 11-27 holds: on top of those, the token buckets of Room.makeLimits (FACES 3.1) run BEFORE any signature check; at most IN_WAIT messages wait to be checked (newer dropped).
+    // 11-27 holds: on top of those, the room, new-pid and verify buckets of Room.makeLimits (FACES 3.1) run BEFORE any signature check, the per-pid and guess buckets after a good one; at most IN_WAIT messages wait to be checked (newer dropped).
     // THE LIMIT: a flood can still keep NEW players out for a while (they see 'No room answered'); the host sees the strikes notice and can lock the room or remove fake players.
     const JOIN_LIMIT = 3, JOIN_WINDOW_MS = 10000, KEEP_KEYS = 96, GONE_KEEP_MS = 10 * 60000, ROOM_JOINS = 8, ROOM_JOIN_MS = 5000, REFUSALS = 10, REFUSAL_MS = 5000, GUESSES = 2, GUESS_MS = 1000;
     const IN_WAIT = 50, NONCE_RING = 200, NONCE_OF_MAX = 200, STRIKES = 20, STRIKE_MS = 60000;
@@ -228,11 +229,7 @@
       if (s.banned.has(m.pid)) return;                                // 2. a removed pid never costs a signature check again
       if (!lim.room()) return;                                        // 3. all senders together
       const known = s.keys.get(m.pid);
-      if (known || seated(m.pid)) {                                   // 4. per pid (known pids only) and the stale seq
-        if (!lim.pid(m.pid)) return;
-        if (m.t === 'guess' && !lim.guess(m.pid)) return;
-      }
-      if (known && m.seq <= known.seq) return;
+      if (known && m.seq <= known.seq) return;                        // 4. the stale seq (the per-pid buckets wait for the signature: see 7b)
       if (m.seq <= lastSeqOf(m.pid)) return;          // the room keeps every pid's last seq: a replay (of a refused join too) is never taken
       if (m.t === 'join' && m.nonce && s.nonceSeen.has(m.nonce)) return;          // a join nonce seen before: a replayed join
       if (m.t === 'join' && !known && !seated(m.pid)) {
@@ -256,7 +253,11 @@
       if ((now && (now.pub !== pub || m.seq <= now.seq)) || m.seq <= lastSeqOf(m.pid)) return;
       if (m.t === 'join' && m.nonce && s.nonceSeen.has(m.nonce)) return;
       s.lastSeq.set(m.pid, m.seq);
-      if (m.t !== 'join') { now.seq = m.seq; if (m.t === 'guess' && !guessAllowed(m.pid)) return; onMessage(m); return; }
+      if (m.t !== 'join') now.seq = m.seq;
+      // 7b. per pid, only AFTER the signature: the pid a message claims is not proven before it, so a stranger forging messages under a seated player's pid would
+      // otherwise drain that player's tokens and silence them (host builder 11-27). Forged floods still cost at most the room and verify buckets (20 checks a second).
+      if (!lim.pid(m.pid) || (m.t === 'guess' && !lim.guess(m.pid))) return;
+      if (m.t !== 'join') { if (m.t === 'guess' && !guessAllowed(m.pid)) return; onMessage(m); return; }
       if (!now && (!roomForKey() || !within(s.roomJoins, ROOM_JOINS, ROOM_JOIN_MS))) return;
       if (!joinAllowed(m.pid)) return;
       nonceTaken(m.nonce);

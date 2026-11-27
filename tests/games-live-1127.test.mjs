@@ -389,6 +389,32 @@ test('MUST FAIL: 1000 fresh-key joins into a full room cost no signature check a
   assert.deepEqual(await floodScenario2(), { floodCostsNoVerify: true, refusalsRateLimited: true, refusalsSaidFull: true, strikesNotice: true, strikesLock: true });
 });
 
+// DRAIN (host builder 11-27): the pid a message claims is not proven until its signature is checked, so the per-pid and guess buckets run only AFTER a good signature.
+// 500 forged guesses under Ana's pid (a bad signature) within 1 s, and one more right before hers, must not spend Ana's tokens: her own signed guess 0.15 s after the flood
+// is taken (with the buckets before the signature it never can be: her per-pid bucket would need 2 tokens and holds under 1.45). The forged flood still costs at most the
+// verify bucket (20 a second, so at most 20 + 20 checks in this second).
+async function drainScenario(o = {}) {
+  const b = await bench(o), out = {};
+  try {
+    const [A] = await b.seat(['Ana', 'Ben']);
+    b.host.start(); await b.host.settled(); await flush();
+    const real = await A.signed({ t: 'guess', round: 0, text: 'the real one' });          // signed now, delivered after the flood
+    const v0 = b.calls.verify;
+    for (let i = 0; i < 500; i++) { await b.deliver({ t: 'guess', pid: A.pid, round: 0, text: 'forged ' + i, seq: 1000 + i, sig: 'not-ana' }); b.ft.advance(2); }
+    out.floodVerifiesCapped = b.calls.verify - v0 <= 40 && b.calls.verify - v0 >= 1;
+    out.forgedNotTaken = !b.host.state().guesses.has(A.pid);
+    b.ft.advance(150);          // the room (30/s) and verify (20/s) buckets have 4 and 3 tokens again; a per-pid bucket (3/s) could hold at most 1.45
+    await b.deliver({ t: 'guess', pid: A.pid, round: 0, text: 'forged last', seq: 1600, sig: 'not-ana' });          // the forger keeps going: one more just before hers
+    await b.deliver(real);
+    out.realGuessTaken = b.host.state().guesses.get(A.pid) === 'the real one' && b.sent('got').some(m => m.pid === A.pid && m.round === 0);
+  } catch (e) { out.crashed = String(e.stack).slice(0, 300); }
+  b.host.close();
+  return out;
+}
+test('MUST FAIL: 500 forged guesses under a seated player\'s pid (bad signature) in 1 s cost at most the verify bucket and do not drain her tokens: her real signed guess 0.15 s later (right after one more forgery) is taken', async () => {
+  assert.deepEqual(await drainScenario(), { floodVerifiesCapped: true, forgedNotTaken: true, realGuessTaken: true });
+});
+
 async function lockedScenario(o = {}) {
   const b = await bench(o), out = {};
   try {
@@ -587,6 +613,8 @@ test('NAMES: when assets/game-names.js is loaded the host asks it (with the name
 const HOST_MUTANTS = [
   { name: 'banned pid checked only after the signature', edits: [['if (s.banned.has(m.pid)) return;                                // 2. a removed pid never costs a signature check again', '']], scenario: bannedScenario, caught: ['bannedCostsNoVerify'] },
   { name: 'unknown pid on a full room verified (no cheap refusal)', edits: [['if (why) { strike(); refuseUnknown(m, why); return; }', '']], scenario: floodScenario2, caught: ['floodCostsNoVerify'] },
+  { name: 'per-pid buckets back before the signature (a forger drains a real player)', edits: [["if (!lim.pid(m.pid) || (m.t === 'guess' && !lim.guess(m.pid))) return;", ''],
+    ['if (known && m.seq <= known.seq) return;', "if (!lim.pid(m.pid) || (m.t === 'guess' && !lim.guess(m.pid))) return; if (known && m.seq <= known.seq) return;"]], scenario: drainScenario, caught: ['realGuessTaken'] },
   { name: 'signed refusals not rate limited', edits: [['if (!lim.refusal()) return; ', '']], scenario: floodScenario2, caught: ['refusalsRateLimited'] },
   { name: 'no strikes notice', edits: [['if (s.strikes >= STRIKES) showStrikes();', '']], scenario: floodScenario2, caught: ['strikesNotice'] },
   { name: 'lock not checked before the signature', edits: [["s.locked ? 'locked' : ", '']], scenario: lockedScenario, caught: ['lockedRefusedNoVerify'] },
