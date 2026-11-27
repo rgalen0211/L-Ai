@@ -304,7 +304,7 @@
     (async () => {
       // the room code is made from this screen's own key (codeOf): a phone pins a host key only when it gives the code the player typed. No signing, no room: never unsigned.
       // WEB polish 11-27 (web-games-polish-1127 1dcf25a5, folded by GAMES): nothing is drawn until the room is open, and a failure shows its reason with a Try again button.
-      const failed = text => { status.textContent = text; status.setAttribute('role', 'alert');
+      const failed = text => { status.setAttribute('role', 'alert'); status.textContent = text;        // role first, then the words, so a screen reader announces them (WEB web-games-final-1127 0087b3a8)
         const again = h('button', { class: 'button primary', type: 'button', id: 'gh-retry', onclick: () => location.reload() }, 'Try again');
         stage.replaceChildren(again); if (again.focus) again.focus(); };
       try { s.pair = await Room.keyPair(); s.code = await Room.codeOf(s.pair.pub); if (!s.code) throw new Error('no code'); } catch { s.pair = null; failed('This browser cannot sign the game\u2019s messages, so it cannot open a room. Open this page on a secure (https) address in an up-to-date browser.'); return; }

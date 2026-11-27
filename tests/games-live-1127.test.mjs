@@ -154,3 +154,8 @@ test('MODES: the room accepts mode line or gap only; the host offers Fill the ga
   const W = load(['assets/game-gap-rounds.js']);
   for (const r of W.ryagramGameGapRounds.rounds) assert.ok(!r.public.shown_text.toLowerCase().split(/[^a-z']+/).includes(r.answer[0].norm), 'the shown line never holds the word');
 });
+
+test('FAILED ROOM: the status line is an alert BEFORE its words are set, so a screen reader announces the failure (WEB 10:39)', () => {
+  const src = read('assets/app-games.js');
+  assert.match(src, /const failed = text => \{ status\.setAttribute\('role', 'alert'\); status\.textContent = text;/);
+});
