@@ -24,6 +24,7 @@ export const COMPILATION_REASONS: Readonly<Record<string, string>> = Object.free
   edit_failed: "the draft could not be made into a film list",
   build_failed: "the film could not be built; nothing left your computer",
   crash: "something went wrong on your computer",
+  stale: "your computer stopped reporting for two hours, so Ryagram closed this build; you can start it again in the Ryagram app",
 });
 export const COMPILATION_REASON_OTHER = "the Ryagram app reported a problem it has no plain words for";
 /** The five steps of the strip, in order. */
