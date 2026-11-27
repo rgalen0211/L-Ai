@@ -16,7 +16,8 @@ const tick = async (n = 12) => { for (let i = 0; i < n; i++) await new Promise((
 // ---- a fake DOM: just what the page uses ----
 class Text { constructor(t) { this.t = t; } get textContent() { return this.t; } }
 function makeDoc() {
-  const doc = { activeElement: null, roots: [], head: { append() {} } };
+  // the page's data scripts are kept, never run: a check that wants a slow county loads it by hand (onload) when it chooses
+  const doc = { activeElement: null, roots: [], scripts: [], head: { append(...s) { doc.scripts.push(...s); } } };
   class El {
     constructor(tag) { this.tag = tag; this.attrs = {}; this.children = []; this.listeners = {}; this.value = ''; }
     get id() { return this.attrs.id || ''; }
@@ -56,9 +57,10 @@ function makeDoc() {
 
 // the places answer: 14 invented points around the asked spot, or a failure while `fail` is set
 function fakeData() {
-  const d = { calls: 0, fail: false };
+  const d = { calls: 0, fail: false, gate: null };
   d.perfectCityPlaces = async (county, kind, lat, lon) => {
     d.calls++;
+    if (d.gate) return d.gate({ county, kind, lat, lon });          // a check holds this answer and lets it land when it chooses
     if (d.fail) throw new Error('Couldn’t load the business points.');
     const places = Array.from({ length: 14 }, (_, i) => ({ name: `Test Place ${i + 1}`, lat: lat + Math.sin(i * 2.4) * 0.01 * (1 + i % 4), lon: lon + Math.cos(i * 2.4) * 0.013 * (1 + i % 4) }));
     return { loaded: 14, places, credit: 'Map data (c) OpenStreetMap contributors (ODbL)' };
@@ -172,6 +174,127 @@ const CHECKS = {
     if (!st.includes('Supermarkets: no places of this kind are loaded for Greene County, Ohio (Beavercreek, Xenia) yet, so the page shows fast food instead.')) bad.push(`kind note: ${st}`);
     if (/supermarkets data/.test(st)) bad.push('kind note still says "supermarkets data"');
     return bad;
+  },
+  // CC1 10:11: a slow county A (Greene) lands after county B (Montgomery) was picked; B must stay on screen
+  async slowCounty(src) {
+    const bad = [], p = await open(src), all = p.win.ryagramPerfectCityData, greene = all.greene_oh;
+    delete all.greene_oh;                                            // Greene is not loaded yet: its script hangs until onload below
+    await p.pick('pc-county', 'greene_oh');
+    const s = p.doc.scripts.find((x) => /greene_oh/.test(String(x.src)));
+    if (!s) return ['setup: the page did not ask for the Greene data file'];
+    await p.pick('pc-county', 'montgomery_oh');
+    await p.type('39.7589', '-84.1916');                             // a spot in Montgomery (downtown Dayton)
+    if (!p.$('pc-spot')) bad.push('setup: the Montgomery spot was not drawn before Greene landed');
+    all.greene_oh = greene; s.onload(); await tick(30);             // A lands late
+    const st = p.$('pc-status').textContent;
+    if (p.$('pc-county').value !== 'montgomery_oh') bad.push(`the county select now says ${p.$('pc-county').value}`);
+    if (/Greene|Loading/.test(st)) bad.push(`the late Greene load changed the status line: ${st}`);
+    await p.type('39.7589', '-84.1916');                             // the same spot again: it must still be inside the county on screen
+    if (!p.$('pc-spot') || !p.$('pc-rings') || p.$('pc-status').textContent.includes(p.words.outside)) bad.push(`after Greene landed, a Montgomery spot is not drawn as inside the county (${p.$('pc-status').textContent})`);
+    return bad;
+  },
+  // CC1 10:11: a slow loaded-probe (Try again, Montgomery) lands after the county was changed to Greene; Greene's line must stay
+  async slowProbe(src) {
+    const bad = [], p = await open(src, { fail: true });
+    if (!p.$('pc-retry')) return ['setup: no Try again button'];
+    let release = null;
+    p.data.gate = () => new Promise((res) => { release = () => res({ loaded: 0, places: [] }); });
+    await p.click('pc-retry');                                       // the Montgomery probe is held; it will say nothing is loaded
+    if (!release) return ['setup: Try again did not ask the server'];
+    p.data.gate = null; p.data.fail = false;
+    await p.pick('pc-county', 'greene_oh');                          // Greene's own probe answers at once: 14 loaded
+    const before = p.$('pc-status').textContent;
+    if (!/Greene/.test(before) || before.includes(p.words.noPlaces)) bad.push(`setup: the Greene status line is ${before}`);
+    release(); await tick(30);                                       // the old probe lands late
+    const st = p.$('pc-status').textContent;
+    if (st !== before) bad.push(`the late Montgomery probe changed the status line to: ${st}`);
+    if (p.$('pc-retry')) bad.push('the late probe brought back a Try again button');
+    return bad;
+  },
+  // WORKER 10:17 (3): with no break points the legend read "under NaN"; it must show one plain swatch line
+  async legendNoBreaks(src) {
+    const bad = [], p = await open(src);
+    for (const u of p.win.ryagramPerfectCityData.montgomery_oh.units) u.income = null;      // no published income anywhere: no breaks
+    await p.pick('pc-shade', 'income');
+    const keys = p.doc.all().find((e) => (e.attrs.class || '') === 'pc-keys');
+    const t = keys ? keys.textContent : '';
+    if (/NaN|undefined/.test(t)) bad.push(`the legend prints NaN: ${t}`);
+    if (!keys || keys.children.length !== 1 || !/too few figures to band/.test(t)) bad.push(`the legend is not one plain swatch line: ${t}`);
+    await p.pick('pc-shade', 'density');
+    const k2 = p.doc.all().find((e) => (e.attrs.class || '') === 'pc-keys');
+    if (!k2 || k2.children.length !== 5) bad.push('setup: density with figures should still show five bands');
+    return bad;
+  },
+  // WORKER 10:17 (4): the Census top-code 250001 means "$250,000 or more", with no real margin
+  async incomeTopCode(src) {
+    const bad = [], p = await open(src);
+    await p.type('39.7589', '-84.1916');
+    const u = p.pc.unitAt([-84.1916, 39.7589], p.win.ryagramPerfectCityData.montgomery_oh.units);
+    if (!u) return ['setup: the spot is not in a block group'];
+    u.income = [250001, 31234];
+    await p.type('39.7589', '-84.1916');
+    const t = p.$('pc-unit').textContent;
+    if (!t.includes('$250,000 or more')) bad.push(`the top-coded income is not said as $250,000 or more: ${t}`);
+    if (t.includes('250,001') || t.includes('31,234')) bad.push(`the top code or its margin is printed: ${t}`);
+    return bad;
+  },
+  // WORKER 10:17 (5): two quick kind changes; the first answer lands while the second is still out, and must not draw
+  async staleKind(src) {
+    const bad = [], p = await open(src);
+    await p.type('39.7589', '-84.1916');
+    const held = [];
+    p.data.gate = (a) => new Promise((res) => held.push({ a, res }));
+    await p.pick('pc-kind', 'restaurant');
+    await p.pick('pc-kind', 'grocery');
+    if (held.length !== 2) return [`setup: ${held.length} held asks, not 2`];
+    const answer = (a) => ({ loaded: 3, places: [0, 1, 2].map((i) => ({ name: `Test Place ${a.kind} ${i}`, lat: a.lat + 0.001 * i, lon: a.lon })), credit: 'Map data (c) OpenStreetMap contributors (ODbL)' });
+    held[0].res(answer(held[0].a)); await tick(30);                // the first (restaurant) lands early, while grocery is still out
+    if (p.$('pc-status').textContent !== 'Loading...') bad.push(`the stale restaurant answer drew over the loading line: ${p.$('pc-status').textContent}`);
+    held[1].res(answer(held[1].a)); await tick(30);
+    const near = p.$('pc-nearest') ? p.$('pc-nearest').textContent : '';
+    if (!near.includes('Test Place grocery') || near.includes('restaurant')) bad.push(`the nearest list is not the grocery answer: ${near}`);
+    return bad;
+  },
+  // WEB 10:19: a refused typed spot is said next to the form (role=alert); a map click moves focus to the results heading
+  async typedAlertFocus(src) {
+    const bad = [], p = await open(src);
+    await p.type('39,7589', '-84.1916');
+    const al = p.$('pc-typed-alert');
+    if (!al || al.attrs.role !== 'alert' || !/comma is not accepted/.test(al.textContent)) bad.push(`no alert next to the form: ${al ? al.textContent : 'missing'}`);
+    if (!/comma is not accepted/.test(p.$('pc-status').textContent)) bad.push('#pc-status lost the message');
+    await p.clickMap(0.5, 0.5); await tick(30);
+    if (!p.$('pc-spot')) bad.push('setup: the map click did not put a spot down');
+    const f = p.doc.activeElement;
+    if (!f || f.id !== 'pc-results-head' || f.attrs.tabindex !== '-1') bad.push(`after a map click the focus is on ${f ? f.id || f.tag : 'nothing'}, not the results heading`);
+    if (p.$('pc-typed-alert').textContent !== '') bad.push('the old typed alert stayed after a good spot');
+    return bad;
+  },
+  // GEO review 10: in compare mode Try again asks again only for the spot that failed (each ask counts toward the day's limit)
+  async retryOneSpot(src) {
+    const bad = [], p = await open(src);
+    await p.type('39.7589', '-84.1916');
+    await p.click('pc-compare-add');
+    p.data.fail = true;
+    await p.type('39.7400', '-84.2600');                             // spot B's ask fails
+    p.data.fail = false;
+    if (!p.$('pc-retry')) return ['setup: no Try again after spot B failed'];
+    const asked = [];
+    p.data.gate = (a) => { asked.push(a); return Promise.resolve({ loaded: 14, places: [{ name: 'Test Place B', lat: a.lat, lon: a.lon }], credit: 'Map data (c) OpenStreetMap contributors (ODbL)' }); };
+    await p.click('pc-retry');
+    if (asked.length !== 1 || Math.abs(asked[0].lat - 39.74) > 1e-3) bad.push(`Try again asked ${asked.length} times (${asked.map((a) => a.lat).join(', ')}), not once for spot B`);
+    if (p.$('pc-retry')) bad.push('Try again is still offered after spot B loaded');
+    return bad;
+  },
+  // GEO review 11: at the 60 cap the legend says the dots are at most the nearest 60
+  async capNote(src) {
+    const bad = [], p = await open(src);
+    p.data.gate = (a) => Promise.resolve({ loaded: 200, max_places: 60, places: Array.from({ length: 60 }, (_, i) => ({ name: `Test Place ${i}`, lat: a.lat + 0.0005 * i, lon: a.lon })), credit: 'Map data (c) OpenStreetMap contributors (ODbL)' });
+    await p.type('39.7589', '-84.1916');
+    if (!/and the nearest five, at most the nearest 60\./.test(p.$('pc-map').textContent)) bad.push('the legend does not say at most the nearest 60 at the cap');
+    p.data.gate = null;
+    await p.type('39.7500', '-84.2000');                             // 14 places: under the cap
+    if (/at most the nearest 60/.test(p.$('pc-map').textContent)) bad.push('the cap words show under the cap');
+    return bad;
   }
 };
 
@@ -185,23 +308,44 @@ const PLANTS = {
   ],
   retryButton: [
     ["...(failed() ? [h('button'", "...(false ? [h('button'"],
-    ['} else await checkLoaded();', '}']
+    ['} else if (!(await checkLoaded())) return;', '}']
+  ],
+  slowCounty: [['if (stale()) return;                                            // a slow county landed', '// a slow county landed']],
+  slowProbe: [
+    ['        if (probeStale()) return false;\n        state.loaded', '        state.loaded'],
+    ['} else if (!(await checkLoaded())) return;', '} else await checkLoaded();']
   ],
   typedNumbers: [
     ['/^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*$/', '/^\\s*-?\\d+(\\.\\d+)?\\s*$/'],
     ["(a comma is not accepted)", ''],
     ['status.textContent = WORDS.badTyped + (!shown', 'status.textContent = WORDS.badTyped || (!shown']
   ],
-  kindNote: [['`${KINDS[state.kind]}: no places of this kind are loaded for ${c.label} yet', '`There is no ${KINDS[state.kind].toLowerCase()} data for ${c.label} yet']]
+  kindNote: [['`${KINDS[state.kind]}: no places of this kind are loaded for ${c.label} yet', '`There is no ${KINDS[state.kind].toLowerCase()} data for ${c.label} yet']],
+  legendNoBreaks: [['const keys = !br.length ?', 'const keys = false ?']],
+  incomeTopCode: [["inc[0] >= TOP_INCOME ? '$250,000 or more", "false ? '$250,000 or more"]],
+  // the old refresh: no token, and loadPlaces' false ignored
+  staleKind: [['const mine = ++refreshing, stale = () => mine !== refreshing;', 'const stale = () => false;',
+    'if (!(await loadPlaces()) || stale()) return;', 'await loadPlaces();']],
+  typedAlertFocus: [
+    ['typedAlert.textContent = status.textContent;', ''],
+    [".then((drawn) => { if (drawn) document.getElementById('pc-results-head')?.focus(); })", '']
+  ],
+  retryOneSpot: [['if ((aBad || !bBad) && !(await loadPlaces())) return;', 'if (!(await loadPlaces())) return;']],
+  capNote: [["const capNote = state.capKm != null || (two && state.b.capKm != null) ? ', at most the nearest 60' : '';", "const capNote = '';"]]
 };
 
 for (const [name, check] of Object.entries(CHECKS)) {
   test(`${name}: the page passes`, async () => assert.deepEqual(await check(PAGE), []));
   if (process.env.PC_PAGE_SRC) continue;
-  for (const [i, [from, to]] of PLANTS[name].entries()) {
+  // a plant is [from, to] or, for a fault that takes two lines back at once, [from, to, from2, to2]
+  for (const [i, plant] of PLANTS[name].entries()) {
     test(`${name}: MUST-FAIL ${i + 1} (the old line put back) is caught`, async () => {
-      assert.equal(count(PAGE, from), 1, `planted fault ${name} ${i + 1}: pattern not in the page exactly once: ${from}`);
-      const bad = await check(PAGE.replace(from, to));
+      let src = PAGE;
+      for (let j = 0; j < plant.length; j += 2) {
+        assert.equal(count(PAGE, plant[j]), 1, `planted fault ${name} ${i + 1}: pattern not in the page exactly once: ${plant[j]}`);
+        src = src.replace(plant[j], plant[j + 1]);
+      }
+      const bad = await check(src);
       assert.ok(bad.length > 0, `planted fault ${name} ${i + 1} was NOT caught`);
     });
   }

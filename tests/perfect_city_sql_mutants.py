@@ -46,7 +46,13 @@ FAULTS = [
      "'within', jsonb_build_object('1', count(*) filter (where n.km <= 1 and n.rn <= 60), '2', count(*) filter (where n.km <= 2 and n.rn <= 60),"
      " '5', count(*) filter (where n.km <= 5 and n.rn <= 60)),"),
     ("the daily cap is multiplied by 1000", PLACES, "when has_switch then 300 else", "when has_switch then 300000 else"),
-    ("a refused call is not counted", PLACES, "do update set calls = c.calls + 1", "do update set calls = c.calls"),
+    # what is true (WORKER 10:17): a SUCCESSFUL call adds exactly 1 (a refusal rolls back with its call, so nothing claims refused calls count)
+    ("a successful call does not add 1 to the day's count", PLACES, "do update set calls = c.calls + 1", "do update set calls = c.calls"),
+    ("the flip lets an inactive account in", PLACES, "                                 and ryagram_private.account_active(p_owner)\n", ""),
+    ("the flip lets a worker account in", PLACES, "                                 and not exists (select 1 from public.workers w where w.user_id = p_owner))) then",
+     "                                 )) then"),
+    ("service_role keeps execute on the page call", PLACES,
+     "from public, anon, authenticated, service_role;   -- service_role too, like the helpers", "from public, anon, authenticated;   -- service_role too, like the helpers"),
     ("the places answer returns osm_ref", PLACES,
      "jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon)", "jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon, 'osm_ref', n.osm_ref)"),
     ("the AI summary nearest carries a name", SUMMARY,
