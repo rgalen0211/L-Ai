@@ -6,7 +6,9 @@
 //      places carry their source word (observed, from OpenStreetMap);
 //   F. a malformed 'within' (a missing ring, a negative number, a string) falls back to counting the places sent and says 'at least';
 //   G. the prompts say tap or click, and the typed-spot message says the ranges (-90 to 90, -180 to 180);
-//   H. the survey years come from the data file (sources.income_years), never typed in the page.
+//   H. the survey years come from the data file (sources.income_years), never typed in the page;
+//   I. the kind on screen says what it counts and that the six food sub-kinds sit inside Fast food or Restaurants (FACES 11-27 H1);
+//   J. "Where these numbers come from": every source date read from the data file, the ODbL words linked (FACES 11-27 H2).
 // MUST-FAIL: each check also runs on a planted page with the old line put back, and must catch it. Every plant target is in the page exactly once.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -70,7 +72,7 @@ async function walk(src, { answer = 'one', within, census = CENSUS, typed = SPOT
   const rings = byId(roots, 'pc-rings');
   const cells = rings ? find(rings, (e) => e.tag === 'tbody').kids.map((tr) => text(tr.kids[1])) : [];
   const all = roots.map(text).join('\n') + '\n' + roots.flatMap(labels).join('\n');
-  return { all, cells, words: win.ryagramPerfectCityPage.WORDS, status: text(byId(roots, 'pc-status')), official: text(byId(roots, 'pc-official')),
+  return { all, cells, roots, words: win.ryagramPerfectCityPage.WORDS, status: text(byId(roots, 'pc-status')), official: text(byId(roots, 'pc-official')),
     credits: text(roots.find((r) => r.attrs && r.attrs.id === 'pc-credits') || byId(roots, 'pc-credits') || new El('p')),
     nearestHead: (() => { const ol = byId(roots, 'pc-nearest'); if (!ol) return ''; const res = roots.find((r) => find(r, (e) => e === ol)); const parent = find(res, (e) => e.kids.includes(ol)); const i = parent.kids.indexOf(ol); return text(parent.kids[i - 1]); })() };
 }
@@ -135,6 +137,31 @@ const CHECKS = {
     const far = await walk(src, { typed: [95, -84.19] });
     if (!/from -90 to 90/.test(far.status) || !/from -180 to 180/.test(far.status)) bad.push(`latitude 95: ${far.status}`);
     return bad;
+  },
+  // I (FACES 11-27 H1): the kind on screen says what it counts, under the pickers, with the overlap rule for a food kind
+  async definitions(src) {
+    const r = await walk(src), bad = [];
+    const def = text(byId(r.roots, 'pc-kind-def'));
+    if (!def.includes('Fast food: places the map data tags as fast food')) bad.push(`the kind definition is not shown: ${def}`);
+    if (!/also counted inside Fast food or Restaurants, so never add them together/.test(def)) bad.push(`the overlap rule is not shown: ${def}`);
+    return bad;
+  },
+  // J (FACES 11-27 H2): "Where these numbers come from", every date read from the data file; the ODbL words link to the OpenStreetMap copyright page
+  async provenance(src) {
+    const bad = [], r = await walk(src);
+    const list = byId(r.roots, 'pc-provenance'), t = text(list);
+    for (const w of ['Block group boundaries: U.S. Census Bureau (2020 geography), public domain. File saved November 2, 2026.',
+      'Official business counts: U.S. Census Bureau, County Business Patterns 2023, public domain. File saved October 4, 2026.',
+      'Fast food and restaurants: map data as of November 4, 2026, 23:35 UTC.',
+      "Supermarkets: saved November 4, 2026 (the map data's own date was not recorded).",
+      'Bank branches: FDIC Summary of Deposits, as of June 30, 2026, public domain.']) if (!t.includes(w)) bad.push(`missing: ${w}`);
+    const a = list && find(list, (e) => e.tag === 'a');
+    if (!a || a.attrs.href !== 'https://www.openstreetmap.org/copyright' || text(a) !== 'ODbL 1.0') bad.push('the ODbL words are not a link to openstreetmap.org/copyright');
+    const moved = CENSUS.replace('"as_of":"2026-11-04T23:35:51Z"', '"as_of":"2026-10-01T08:00:00Z"').replace('"cbp_saved":"2026-10-04"', '"cbp_saved":"2026-09-09"');
+    if (moved === CENSUS || !moved.includes('2026-09-09')) return ['setup: the data file has no osm as_of or cbp_saved'];
+    const t2 = text(byId((await walk(src, { census: moved })).roots, 'pc-provenance'));
+    if (!t2.includes('map data as of October 1, 2026, 08:00 UTC') || t2.includes('23:35') || !t2.includes('File saved September 9, 2026')) bad.push('the dates do not follow the data file');
+    return bad;
   }
 };
 
@@ -152,8 +179,52 @@ const PLANTS = {
   tapAndRanges: [
     ["pickB: 'Tap or click the map", "pickB: 'Click the map"],
     ['latitude (from -90 to 90) and a longitude (from -180 to 180) as numbers', 'latitude and a longitude as numbers']
+  ],
+  definitions: [
+    ['controls, kindDef, status,', 'controls, status,'],
+    ["FOOD_KINDS.includes(state.kind) ? KIND_OVERLAP : ''", "''"]
+  ],
+  provenance: [
+    ["h('h2', {}, 'Where these numbers come from'), provenanceList,", ''],
+    ['`map data as of ${dayWords(f.as_of)}`', "'map data as of November 4, 2026, 23:35 UTC'"],
+    ["h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'ODbL 1.0')", "'ODbL 1.0'"],
+    ['${saved(s.cbp_saved)}', 'File saved October 4, 2026.']
   ]
 };
+
+// I: every cuisine word and chain name of the exporter's SUBKINDS is named in that kind's sentence (alternate spellings of a name already said are
+// skipped), and grocery is shop=supermarket only, so the page says supermarket, never grocery.
+test('the kind sentences name the exporter\'s real cuisine words and chains, and supermarkets are supermarkets', () => {
+  const EXPORT = read('tools/perfect-city/export_perfect_city.py');
+  const win = {};
+  vm.runInContext(CORE + '\n' + PAGE, vm.createContext({ window: win, document: {}, setTimeout, console }));
+  const { KIND_DEFS, KINDS } = win.ryagramPerfectCityPage;
+  assert.deepEqual(Object.keys(KIND_DEFS).sort(), Object.keys(KINDS).sort());
+  const ALTERNATES = new Set(['churchs chicken', 'wendys', 'tex_mex', "pf chang's"]);
+  const rows = [...EXPORT.matchAll(/\{"id": "(\w+)".*?"cuisine": \[([^\]]*)\],\s*"brands": \[([^\]]*)\]\}/gs)];
+  assert.equal(rows.length, 6, 'SUBKINDS rows not found in the exporter');
+  const missing = [];
+  for (const [, id, cuisine, brands] of rows) {
+    for (const w of [...cuisine.matchAll(/"([^"]+)"/g), ...brands.matchAll(/"([^"]+)"/g)].map((m) => m[1])) {
+      if (!ALTERNATES.has(w) && !KIND_DEFS[id].toLowerCase().includes(w)) missing.push(`${id}: ${w}`);
+    }
+  }
+  assert.deepEqual(missing, []);
+  assert.match(EXPORT, /'grocery': \('shop', 'supermarket'\)\}/);
+  assert.match(KIND_DEFS.grocery, /supermarket/);
+  assert.doesNotMatch(KIND_DEFS.grocery, /grocer/i);
+  assert.match(KIND_DEFS.bank, /FDIC/);
+});
+
+test('the data files carry the source dates (copied from the cache receipts by the exporter)', () => {
+  for (const f of ['montgomery_oh', 'greene_oh']) {
+    const t = read(`assets/perfect-city/${f}.census.js`);
+    assert.match(t, /"saved":\{"boundaries":"\d{4}-\d\d-\d\d","population":"\d{4}-\d\d-\d\d","income":"\d{4}-\d\d-\d\d"\}/, f);
+    assert.match(t, /"osm":\[\{"what":"fast food and restaurants","saved":"\d{4}-\d\d-\d\d","as_of":/, f);
+    assert.match(t, /"fdic_as_of":"\d{4}-06-30"/, f);
+  }
+  assert.doesNotMatch(PAGE, /November 4|2026-11-0\d|June 30, 20\d\d/);      // no date typed in the page
+});
 
 for (const [name, check] of Object.entries(CHECKS)) {
   test(`${name}: the page passes`, async () => assert.deepEqual(await check(PAGE), []));

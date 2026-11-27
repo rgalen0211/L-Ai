@@ -11,6 +11,7 @@ Usage (system Python with pyshp and pyproj; no network):
   py -I -B tools/perfect-city/export_perfect_city.py census
   py -I -B tools/perfect-city/export_perfect_city.py official   (after census: adds County Business Patterns counts to the same files)
   py -I -B tools/perfect-city/export_perfect_city.py income-years   (sets sources.income_years from the ACS receipt; census does this too)
+  py -I -B tools/perfect-city/export_perfect_city.py sources   (sets the dates in sources from the cache receipts and the FDIC rows; census does this too)
   py -I -B tools/perfect-city/export_perfect_city.py places --out D:/Ryagram-scratch/GEO/perfect-city/places.sql
 Labels: population is OBSERVED (2020 Census P1); area and density are CALCULATED here from the boundary;
 median household income is an ESTIMATE (ACS B19013, with its margin of error).
@@ -120,7 +121,8 @@ def census(args):
                 'income': 'U.S. Census Bureau, American Community Survey 5-year, table B19013 (median household income, with margin of error): ESTIMATE',
                 'calculated': 'Area and people per square kilometre are CALCULATED here from the boundary file; shapes are simplified for the page.',
                 'licence': 'Public domain (U.S. government work).',
-                'income_years': acs_years(key)},
+                'income_years': acs_years(key),
+                **provenance(key)},
             'units': feats}
         # A script, not a .json fetch: the app's CSP allows scripts from 'self' but its connect-src is Supabase only.
         path = out_dir / f'{key}.census.js'
@@ -270,6 +272,9 @@ def places(args):
         print('SUBKINDS match the engine at', engine)
     else:
         print('RYAGRAM_ENGINE not set: SUBKINDS were NOT compared with the engine')
+    from collections import Counter
+    name_filter = load_name_filter()
+    dropped, drop_reasons, drop_log = set(), Counter(), []
     rows, outside = [], 0
     fdic_outside = {k: 0 for k in COUNTIES}
     for key in COUNTIES:
@@ -303,9 +308,21 @@ def places(args):
                 if not inside(lon, lat):
                     outside += 1
                     continue
-                for kind in kinds_of(tags):
+                kinds = kinds_of(tags)
+                ref = f"{e['type'][0]}{e['id']}"
+                # FACES 11-27 H3: a private home or a bare personal name is left out (OpenStreetMap kinds only; the FDIC rows below never pass here).
+                # Only counts and the reason are kept: the name is never printed or written.
+                keep, why = name_filter.decide(tags)
+                if not keep:
+                    for kind in kinds:
+                        dropped.add((key, kind, ref))
+                    if kinds:
+                        drop_reasons[why] += 1
+                        drop_log.append((key, ref, ','.join(kinds), why))
+                    continue
+                for kind in kinds:
                     name = (tags.get('name') or '')[:120]
-                    rows.append((key, kind, f"{e['type'][0]}{e['id']}", name, round(lat, 6), round(lon, 6)))
+                    rows.append((key, kind, ref, name, round(lat, 6), round(lon, 6)))
         fips = int(COUNTIES[key]['state'] + COUNTIES[key]['county'])
         in_fips = [r for r in fdic_rows if r.get('STCNTYBR') == fips]
         kept = 0
@@ -330,8 +347,22 @@ def places(args):
     lines += ['commit;', f'select count(*) as places_loaded from ryagram_private.perfect_city_places;  -- expect {len(rows)}']
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
-    from collections import Counter
     print(out, len(rows), 'places', dict(Counter((c, k) for c, k, *_ in rows)))
+    # the private-name filter: COUNTS only (never a name); the list beside the places file carries the map reference and the reason only
+    print('left out by the private-name filter (FACES 11-27):', len(dropped), 'rows', dict(sorted(Counter((c, k) for c, k, _ in dropped).items())))
+    print('  by reason (map objects):', dict(drop_reasons.most_common()))
+    log = out.with_name(out.stem + '.name-filter-dropped.tsv')
+    log.write_text('county\tosm_ref\tkinds\treason\n' + ''.join('\t'.join(r) + '\n' for r in sorted(drop_log)), encoding='utf-8', newline='\n')
+    print('  refs and reasons (no names):', log)
+
+
+def load_name_filter():
+    """tools/perfect-city/name_filter.py by its path (py -I puts no script folder on sys.path)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('_pc_name_filter', pathlib.Path(__file__).with_name('name_filter.py'))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def units_seed(args):
@@ -438,6 +469,46 @@ def acs_years(key):
     return f'{last - 4} to {last}'
 
 
+# "Where these numbers come from" (FACES 11-27, HIGH H2): the dates are COPIED from the cache's receipts (never typed), so the page reads them
+# from the data file. Only dates and plain words go in: no OpenStreetMap data. A receipt that does not record a date leaves it null, and the page
+# says so. FDIC's cache has no fetch receipt: only its snapshot date (June 30 of the list's YEAR, checked by fdic_branches) is recorded.
+OSM_FILES = (('osm_food_county', 'fast food and restaurants'), ('osm_grocery_county', 'supermarkets'))
+DATE_RE = re.compile(r'\d{4}-\d{2}-\d{2}')
+
+
+def receipt_date(path, field='retrieved'):
+    """The receipt's date field, or None when the receipt or the field is missing or not a date."""
+    if not path.exists():
+        return None
+    v = str(json.loads(path.read_text(encoding='utf-8')).get(field) or '')
+    return v if DATE_RE.match(v) else None
+
+
+def provenance(key):
+    """{'saved': {...}, 'osm': [...], 'cbp_saved': ..., 'fdic_as_of': ...} for sources: every date from a cache receipt or the FDIC rows."""
+    saved = {what: receipt_date(CACHE / key / f'{f}.receipt.json')
+             for what, f in (('boundaries', 'bg_boundaries.zip'), ('population', 'pop_p1_2020.json'), ('income', 'income_b19013.json'))}
+    osm = []
+    for f, what in OSM_FILES:
+        if (CACHE / key / f'{f}.json').exists():
+            r = CACHE / key / f'{f}.json.receipt.json'
+            osm.append({'what': what, 'saved': receipt_date(r), 'as_of': receipt_date(r, 'osm_data_as_of')})
+    years = cbp_years()
+    cbp_saved = receipt_date(CBP_DIR / f'cbp{years[0] % 100:02d}co.manifest.json') if years else None
+    fdic_year, _ = fdic_branches()
+    # no licence words here: the data files must never carry the OpenStreetMap notice (tests/perfect-city-core.test.cjs); the page names the licence
+    return {'saved': saved, 'osm': osm, 'cbp_saved': cbp_saved, 'fdic_as_of': f'{fdic_year}-06-30'}
+
+
+def sources_dates(args):
+    """Adds (or replaces) the provenance keys in each page data file's sources; every other field is read back and written unchanged."""
+    for key in COUNTIES:
+        doc = read_page_doc(key)
+        doc['sources'].update(provenance(key))
+        path = write_page_doc(key, doc)
+        print(path.relative_to(REPO), json.dumps({k: doc['sources'][k] for k in ('saved', 'osm', 'cbp_saved', 'fdic_as_of')}))
+
+
 def income_years(args):
     """Adds (or replaces) sources.income_years in each page data file; every other field is read back and written unchanged."""
     for key in COUNTIES:
@@ -467,6 +538,8 @@ if __name__ == '__main__':
     sub.add_parser('units-seed')
     sub.add_parser('official')
     sub.add_parser('income-years')
+    sub.add_parser('sources')
     p = sub.add_parser('places'); p.add_argument('--out', required=True)
     a = ap.parse_args()
-    {'census': census, 'places': places, 'units-seed': units_seed, 'official': official, 'income-years': income_years}[a.cmd](a)
+    {'census': census, 'places': places, 'units-seed': units_seed, 'official': official, 'income-years': income_years,
+     'sources': sources_dates}[a.cmd](a)

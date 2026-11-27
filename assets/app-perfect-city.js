@@ -28,6 +28,30 @@
     asian: 'Asian places are sorted by the map data\'s cuisine tag or a known chain name. Indian places are not counted here. Independent places are often not tagged with a cuisine, so Asian places are undercounted.',
     bank: 'FDIC-insured bank branches only. Credit unions are not included.'      // not a sorting rule: the FDIC list's own limit
   };
+  // What each kind counts, one plain sentence, shown under the Business picker for the kind on screen (FACES 11-27 H1). Built from the exporter's
+  // real tags (tools/perfect-city/export_perfect_city.py KINDS: grocery is shop=supermarket ONLY, so it says supermarket) and its SUBKINDS cuisine
+  // words and chain names (tests/perfect-city-words.test.mjs checks every one of them is named here). A name, brand or operator tag counts for a chain.
+  const KIND_DEFS = {
+    fast_food: 'Fast food: places the map data tags as fast food (amenity=fast_food).',
+    restaurant: 'Restaurants: places the map data tags as restaurants (amenity=restaurant). Cafes and bars are not counted.',
+    chicken: "Chicken places: fast food places or restaurants whose cuisine tag says chicken, or with KFC (Kentucky Fried Chicken), Popeyes, Chick-fil-A, Raising Cane's, Wingstop, Bojangles, Zaxby's, Church's Chicken, El Pollo Loco, Golden Chick, Slim Chickens, Bonchon or Lee's Famous Recipe in the name.",
+    burger: "Burger places: fast food places or restaurants whose cuisine tag says burger, or with McDonald's, Burger King, Wendy's, White Castle, Five Guys, Culver's, Whataburger, Sonic Drive-In, Jack in the Box, Carl's Jr., Hardee's, Smashburger, Steak n Shake, In-N-Out or Habit Burger in the name.",
+    pizza: "Pizza places: fast food places or restaurants whose cuisine tag says pizza, or with Domino's, Pizza Hut, Papa John's, Little Caesars, Marco's Pizza, Papa Murphy's, Jet's Pizza or Cici's in the name.",
+    sandwich: "Sandwich places: fast food places or restaurants whose cuisine tag is sandwich, sub or deli, or with Subway, Jimmy John's, Jersey Mike's, Firehouse Subs, Potbelly, Penn Station, Quiznos, Jason's Deli or Arby's in the name.",
+    mexican: "Mexican places: fast food places or restaurants whose cuisine tag is Mexican, Tex-Mex, tacos, taco or burrito, or with Taco Bell, Chipotle, Qdoba, Moe's Southwest, Taco John's or El Toro in the name.",
+    asian: "Asian places: fast food places or restaurants whose cuisine tag is Chinese, Japanese, sushi, Thai, Vietnamese, Korean, Asian, ramen or pho, or with Panda Express or P.F. Chang's in the name.",
+    grocery: 'Supermarkets: places the map data tags as a supermarket (shop=supermarket). Corner shops and convenience stores are not counted.',
+    bank: 'Bank branches: bank offices in the FDIC Summary of Deposits branch list, not OpenStreetMap.'
+  };
+  // the sub-kinds sit INSIDE fast food or restaurants (the exporter's kinds_of: a base kind plus at most one sub-kind), said for every food kind
+  const KIND_OVERLAP = 'Chicken, burger, pizza, sandwich, Mexican and Asian places are also counted inside Fast food or Restaurants, so never add them together. A place is in at most one of those six.';
+  const FOOD_KINDS = ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian'];
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  // a date from the data file in words: '2000-01-31' -> 'January 31, 2000'; with a UTC time ('...T08:05:59Z') -> 'January 31, 2000, 08:05 UTC'; else ''
+  const dayWords = (iso) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::\d{2})?Z)?$/.exec(String(iso || ''));
+    return m && MONTHS[+m[2] - 1] ? `${MONTHS[+m[2] - 1]} ${+m[3]}, ${m[1]}${m[4] ? `, ${m[4]}:${m[5]} UTC` : ''}` : '';
+  };
   const OFFICIAL_KIND = { fast_food: 'limited-service restaurants (fast food)', restaurant: 'full-service restaurants', grocery: 'supermarkets and grocery stores' };      // the County Business Patterns industry in plain words: no industry code on the page (CC1 09:48)
   // Kinds whose official line is said in its own plain words (County Business Patterns commercial banking, for bank; the code stays in the data file).
   const OFFICIAL_PLAIN = { bank: 'bank offices' };
@@ -83,7 +107,7 @@
     if (have()) return Promise.resolve(have());
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = `/assets/perfect-city/${county}.census.js?v=20261127pcm1`;      // pcm1: sources.income_years (pcf2) with not_counted naming sandwich, mexican and asian and the bank count (more-kinds d); b: the County Business Patterns counts
+      s.src = `/assets/perfect-city/${county}.census.js?v=20261127pcd1`;      // pcd1: the source dates in sources (saved, osm, cbp_saved, fdic_as_of: FACES 11-27 H2); pcm1:sources.income_years (pcf2) with not_counted naming sandwich, mexican and asian and the bank count (more-kinds d); b: the County Business Patterns counts
       s.onload = () => (have() ? resolve(have()) : reject(new Error('no data')));
       s.onerror = () => reject(new Error('no data'));
       document.head.append(s);
@@ -112,6 +136,7 @@
     const results = h('div', { class: 'pc-results', id: 'pc-results' });
     const status = h('p', { class: 'form-note', id: 'pc-status', role: 'status' });
     const credits = h('p', { class: 'meta', id: 'pc-credits' });
+    const provenanceList = h('ul', { class: 'soon-more', id: 'pc-provenance' });      // redrawn with the credits
     const notKnownList = h('ul', { class: 'soon-more', id: 'pc-not-known' }, notKnownFor(state.kind).map((t) => h('li', {}, t)));      // redrawn with the credits when the kind changes
     const latIn = h('input', { id: 'pc-lat', type: 'text', inputmode: 'decimal', size: '9', placeholder: '39.7589', autocomplete: 'off' });
     const lonIn = h('input', { id: 'pc-lon', type: 'text', inputmode: 'decimal', size: '9', placeholder: '-84.1916', autocomplete: 'off' });
@@ -138,11 +163,14 @@
       h('label', { class: 'pc-control', for: 'pc-lon' }, 'Longitude ', lonIn), ' ',
       h('button', { class: 'button secondary', type: 'submit', id: 'pc-go' }, 'Put the spot here'), typedAlert);
     let kindWrap = h('span');
+    // what the kind on screen counts, right under the pickers (FACES 11-27 H1): its sentence, and for a food kind the overlap rule
+    const kindDef = h('p', { class: 'meta', id: 'pc-kind-def' });
 
     function kindSelect() {
       const c = COUNTIES.find((x) => x.id === state.county);
       if (!c.kinds.includes(state.kind)) { state.kindNote = `${KINDS[state.kind]}: no places of this kind are loaded for ${c.label} yet, so the page shows ${kindLower(c.kinds[0])} instead.`; state.kind = c.kinds[0]; }
       const hadFocus = document.activeElement && document.activeElement.id === 'pc-kind';
+      kindDef.replaceChildren([KIND_DEFS[state.kind], FOOD_KINDS.includes(state.kind) ? KIND_OVERLAP : ''].filter(Boolean).join(' '));
       kindWrap.replaceChildren(select('pc-kind', 'Business', c.kinds.map((k) => [k, KINDS[k]]), state.kind, (v) => { state.kind = v; refresh(); }));
       if (hadFocus) document.getElementById('pc-kind')?.focus();
     }
@@ -303,7 +331,7 @@
       const row = (head, label, f) => h('tr', {}, h('th', { scope: 'row' }, head, label ? h('span', { class: 'pc-label' }, ' ' + label) : null), ...cols.map((k) => h('td', {}, f(k))));
       const rows = [
         row('Spot (latitude, longitude)', '', (k) => (k.spot ? `${k.spot[1].toFixed(5)}, ${k.spot[0].toFixed(5)}` : 'not placed yet')),
-        row('Census block group', '', (k) => cell(k, (x) => x.u.id)),
+        row('Census block group', 'for checking', (k) => cell(k, (x) => h('span', { class: 'meta pc-geoid-num' }, x.u.id))),
         row("People in the spot's block group", 'observed, 2020 Census', (k) => cell(k, (x) => (x.u.pop == null ? 'not published' : fmt(x.u.pop)))),
         row('People per square kilometre in the block group', 'calculated', (k) => cell(k, (x) => (x.u.density == null ? 'not available' : fmt(x.u.density)))),
         row('Median household income in the block group', `estimated, ${acsWords()}`, (k) => cell(k, (x) => incomeText(x.u.income))),
@@ -392,7 +420,8 @@
           h('li', {}, `People: ${u.pop == null ? 'not published' : fmt(u.pop)}`, u.pop == null ? null : h('span', { class: 'pc-label' }, ' observed, 2020 Census')),
           h('li', {}, `People per square kilometre: ${u.density == null ? 'not available' : fmt(u.density)}`, u.density == null ? null : h('span', { class: 'pc-label' }, ' calculated')),
           h('li', {}, `Median household income: ${incomeText(u.income)}`, u.income ? h('span', { class: 'pc-label' }, ` estimated, ${acsWords()}`) : null),
-          h('li', { class: 'meta' }, `Census block group ${u.id}`))];
+          // the 12-digit number is how a reader checks against the Census: kept, but small and labelled as a check (GEO gallery 2 item 10)
+          h('li', { class: 'meta pc-geoid' }, 'Census block group (for checking): ', h('span', { class: 'pc-geoid-num' }, u.id)))];
       const people = pc.peopleWithinArea(state.spot, c.units);
       if (state.places) {
         const near = pc.nearest(state.spot, state.places, 5), counts = ringCounts(state.spot, state.places, state.within, state.capKm);
@@ -429,6 +458,28 @@
         // what is true (CC1 10:11): the exporter reads saved files, never the API; their receipts name api.census.gov as where they were fetched once
         ` The people and income figures come from the U.S. Census Bureau (the 2020 Census and the ${acsWords()}), read from copies saved earlier from the Census Bureau Data API, not asked of it live. This product is not endorsed or certified by the Census Bureau.`);
       notKnownList.replaceChildren(...notKnownFor(state.kind).map((t) => h('li', {}, t)));
+      provenanceList.replaceChildren(...provenanceLines(s, o).map((parts) => h('li', {}, ...parts)));
+    }
+
+    // "Where these numbers come from" (FACES 11-27 H2): one line per source. Every date is READ from the data file's sources (copied there by the
+    // exporter from the cache's receipts), never typed here; a date the receipts do not record is said to be not recorded.
+    function provenanceLines(s, o) {
+      const saved = (iso) => (dayWords(iso) ? `File saved ${dayWords(iso)}.` : 'The save date was not recorded.');
+      const got = s.saved || {};
+      const lines = [
+        [`Block group boundaries: U.S. Census Bureau (2020 geography), public domain. ${saved(got.boundaries)}`],
+        [`People: U.S. Census Bureau, 2020 Census, public domain. ${saved(got.population)}`],
+        [`Median household income: U.S. Census Bureau, ${acsWords()}, public domain; a survey estimate with a margin of error. ${saved(got.income)}`]
+      ];
+      if (o && o.year) lines.push([`Official business counts: U.S. Census Bureau, County Business Patterns ${o.year}, public domain. ${saved(s.cbp_saved)}`]);
+      const osm = Array.isArray(s.osm) ? s.osm : [];
+      if (osm.length) {
+        const when = osm.map((f) => `${f.what[0].toUpperCase()}${f.what.slice(1)}: ${dayWords(f.as_of) ? `map data as of ${dayWords(f.as_of)}` : `${dayWords(f.saved) ? `saved ${dayWords(f.saved)}` : 'save date not recorded'} (the map data's own date was not recorded)`}.`);
+        lines.push(['Places from OpenStreetMap, made by volunteers: (c) OpenStreetMap contributors, licence ',
+          h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'ODbL 1.0'),'. ' + when.join(' ')]);
+      }
+      if (dayWords(s.fdic_as_of)) lines.push([`Bank branches: FDIC Summary of Deposits, as of ${dayWords(s.fdic_as_of)}, public domain.`]);
+      return lines;
     }
 
     // which: 'A' or 'B'. Only the spot that moved is asked about again (each spot is its own server call).
@@ -534,10 +585,11 @@
       select('pc-shade', 'Shade by', Object.entries(SHADES), state.shade, (v) => { state.shade = v; drawMap(); }));
     kindSelect();
     await refresh();
-    return [h('h1', { tabindex: '-1' }, 'Perfect City'), h('p', { class: 'form-intro' }, WORDS.intro), controls, status, retryWrap, mapBox, compareBar, typed, results,
+    return [h('h1', { tabindex: '-1' }, 'Perfect City'), h('p', { class: 'form-intro' }, WORDS.intro), controls, kindDef, status, retryWrap, mapBox, compareBar, typed, results,
       h('h2', {}, 'What this does not know'), notKnownList, credits,
+      h('h2', {}, 'Where these numbers come from'), provenanceList,
       h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.')];
   }
 
-  window.ryagramPerfectCityPage = Object.freeze({ view, COUNTIES, KINDS, KIND_LIMITS, WORDS, OFFICIAL_PLAIN, notKnownFor, creditLinked: (c) => OSM_CREDIT.test(String(c || '')) });
+  window.ryagramPerfectCityPage = Object.freeze({ view, COUNTIES, KINDS, KIND_LIMITS, KIND_DEFS, KIND_OVERLAP, WORDS, OFFICIAL_PLAIN, notKnownFor, creditLinked: (c) => OSM_CREDIT.test(String(c || '')) });
 })();

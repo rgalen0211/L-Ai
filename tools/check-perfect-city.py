@@ -166,7 +166,7 @@ def main():
                 # a typed spot (keyboard path): Xenia's middle
                 p.fill('#pc-lat', '39.6848'); p.fill('#pc-lon', '-83.9297'); p.click('#pc-go')
                 p.wait_for_selector('#pc-rings', timeout=5000)
-                check('Census block group 39057' in p.inner_text('#pc-results'), 'a typed spot lands in a Greene County block group')
+                check('Census block group (for checking): 39057' in p.inner_text('#pc-results'), 'a typed spot lands in a Greene County block group')
                 p.screenshot(path=str(out / f'4-greene-typed-{name}.png'), full_page=True)
                 # a food sub-kind (the Ryagram engine's chicken rule): offered in both counties, and picking it shows results for the same spot
                 labels = [o.inner_text() for o in p.locator('#pc-kind option').all()]
