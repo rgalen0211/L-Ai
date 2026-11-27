@@ -80,6 +80,15 @@
       let saved = true, message = '';
       const status = h('p', { class: 'form-note le-status', role: 'status' });
       const say = t => { message = t; status.textContent = t; };
+      const plainSecs = v => String(Math.round((Number(v) || 0) * 10) / 10);   // 12.4, 46: plain words for a screen reader (no 0:12 clock)
+      // What a trim or a move did, in words, for the polite status line (a screen-reader person gets no other confirmation). The clip is read after the change, so the numbers are the new ones.
+      const doneWords = (op, before) => {
+        const c = ed.state.clips.find(x => x.id === op.id); if (!c) return '';
+        if (op.op === 'trim_clip') return `Trimmed the clip to ${plainSecs(c.len)} seconds.`;
+        if (op.op === 'move_clip') return `Moved the clip to start at ${plainSecs(c.start)} seconds.`;
+        if (op.op === 'reorder_clip') { const vs = ed.state.clips.filter(x => x.track === 'video'), at = vs.indexOf(c); return before >= 0 && at >= 0 && at !== before ? `Moved the clip ${at > before ? 'later' : 'earlier'}, now number ${at + 1} of ${vs.length}.` : ''; }
+        return '';
+      };
 
       // ---- the film's own look card (Editor Step A, CONNECT 11-09; contract proposals/CONNECT-EDITOR-STEP-A-CONTRACT-1109.md). In the AI chat the Ryagram computer draws the film's REAL colours and one real still from its SAVED story; the connector checks the
       // card and the chat host rebuilds the picture element by element (host.drawCard) before anything is shown. The panel asks once, then asks again while it waits (never faster than every 15 s, at most 40 times). The person's own changes always win.
@@ -321,7 +330,7 @@
       const setPos = v => { position = v; paintPreview();
         const shown = bundleMode ? (tl ? tl.label(position) : '') : String(Math.round(position));
         posText.textContent = isData ? shown : `${mmss(position)} / ${mmss(ed.state.duration)}`;
-        range.setAttribute('aria-valuetext', isData ? (bundleMode ? shown : `Year ${Math.round(position)}`) : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead();
+        range.setAttribute('aria-valuetext', isData ? (bundleMode ? shown : `Year ${Math.round(position)}`) : `${plainSecs(position)} seconds of ${plainSecs(ed.state.duration)}`); paintHead();
         if (whyOn && whyState === 'ready') { const c = WHY.clipAt(whyReport, position), n = c ? c.n : null; if (n !== whyNowN) paintWhy(); } };      // the panel is redrawn only when the clip at the playhead changes
       const paintPreview = () => (isData ? drawData() : hostPreview ? drawHost() : drawClips());
       const endDrag = () => { if (!dragging) return; dragging = false; if (bundleMode && bundleState === 'ready') paintPreview(); };
@@ -710,9 +719,10 @@
       async function apply(op) {
         stopPlay();
         if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; }
+        const before = op.op === 'reorder_clip' ? ed.state.clips.filter(x => x.track === 'video').findIndex(x => x.id === op.id) : -1;
         const r = draft ? await draft.send([op]) : ed.do(op);                    // with a draft the server decides first; the screen follows only an accepted change
         if (r.ok) saved = false;
-        say(r.ok ? '' : r.reason);
+        say(r.ok ? doneWords(op, before) : r.reason);
         paint();
         return r.ok;
       }

@@ -41,3 +41,6 @@ body.ryagram-look .le-pro-side h2:first-child{margin-top:0}
   .le-pro-side{padding:12px}
 }
 .app-main .le-pro-row .button{margin-right:0}.le-pro-row{gap:8px}
+/* CLIP-FILM WALK 11-27: every Pro button is at least 44 wide (J, K, L were 40 to 43); on a phone the Pro tools are ONE swipeable row, so they no longer push the picture 450 px down the page (360 px wide: picture at y 1000 of 740) */
+.le-pro-row .button{min-width:44px}
+@media (max-width:760px){.le-pro .le-pro-row{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding-bottom:6px;-webkit-overflow-scrolling:touch}.le-pro .le-pro-row>*{flex:0 0 auto;scroll-snap-align:start;white-space:nowrap}.le-pro .le-pro-row .le-pro-tc{min-width:9.5em}}
