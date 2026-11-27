@@ -167,7 +167,7 @@ test('READY-MADE STARTS (NEXT-WEB 132; BUILDER 11-25 and 11-26 the six job start
 test('FIRST FILM (NEXT-WEB 132): with no projects the guided builder is the main button; with projects it is the quiet link', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /projects\.length \? 'Make a film step by step' : 'Try the tutorial: your first film'/);
-  assert.match(lib, /builderOn\(\) \? h\('div', \{ class: 'empty-first' \}, h\('p', \{ class: 'form-intro' \}, 'No films yet\. Your first picture is free\./);
+  assert.match(lib, /builderOn\(\) \? 'No films yet\. The quickest way to start is the big card above/);
 });
 
 test('BUY STRIP (NEXT-WEB 132 G5): after the free first picture the Render panel says what the full film uses and what the person has, in credits and never a price; it is hidden once a final film exists', () => {
