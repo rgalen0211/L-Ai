@@ -71,7 +71,8 @@ test('REJOIN: the phone remembers its seat in THIS TAB only (sessionStorage), re
   const src = read('assets/game-phone-live.js');
   assert.match(src, /sessionStorage\.getItem\(SEAT_KEY\)/); assert.ok(!/localStorage/.test(src), 'never localStorage: the seat dies with the tab');
   assert.match(src, /s\.pid = seat && seat\.code === s\.code && seat\.name\.toLowerCase\(\) === s\.name\.toLowerCase\(\) \? seat\.pid : newPid\(\);/);
-  assert.equal((src.match(/await leave\(\); writeSeat\(null\); join\('You left the room\.'\)/g) || []).length, 2, 'both Leave buttons forget the seat');
+  const leaves = (src.match(/'Leave the room'\)/g) || []).length, forget = (src.match(/await leave\(\); writeSeat\(null\); join\('You left the room\.'\)/g) || []).length;
+  assert.ok(leaves >= 3, 'a phone can leave in the lobby, during a round and at the final'); assert.equal(forget, leaves, 'every Leave button forgets the seat');
   assert.match(src, /else if \(m\.t === 'state' && s\.welcomed\) \{ s\.lastHeard = Date\.now\(\); onState\(m\); \}/, 'nothing from the room is shown before the host lets the phone in');
   // the stored value is checked before use
   const store = new Map(); const ss = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
