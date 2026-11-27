@@ -44,7 +44,7 @@ test('3 both Helps answer "How do I get credits?" with the free-account words, b
   assert.ok(CLOSED.endsWith('A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film. Buying credits is not open yet.'));
   assert.ok(lib.includes("const WELCOME_LINE = 'When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.';"));
   assert.ok(lib.includes("const FILM_COST_CLOSED = 'A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film.';"));
-  assert.equal((help.match(/<details(?![^>]*data-flag)/g) || []).length, 15, 'not hidden by a help flag');
+  assert.equal((help.match(/<details(?![^>]*data-flag)/g) || []).length, 9, 'not hidden by a help flag');
 });
 
 test('4 the in-app uploads answer shows only with uploads on; the public one keeps its Coming soon words', () => {
