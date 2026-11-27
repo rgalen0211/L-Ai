@@ -331,6 +331,63 @@ async function keptScenario(w) {
   return out;
 }
 
+// SCENARIO (F2 11-27): the host's guess limit drops a guess with no answer. No 'got' in 5 s (250 ms here): the phone stops saying Sending, says so on the guess
+// field (role alert) with Send enabled; a late got still marks the guess sent and clears that line.
+async function gotWaitScenario(w) {
+  const out = {};
+  try {
+    const t = await setup(w);
+    const join = await joinOk(t, 'Ana');
+    t.R.deliver(await question(t)); await until(() => !!t.q('#ph-guess'), 300);
+    t.q('#ph-guess').value = 'river bend';
+    await t.submit(t.root.all(e => e.tagName === 'form')[0]);
+    out.sending = /^Sending/.test(t.tx('#ph-sent'));
+    const NOT = 'Your guess did not reach the host. Send it again.';
+    await until(() => t.tx('#ph-guess-err') === NOT, 1000);
+    const err = t.q('#ph-guess-err');
+    out.notSentShown = !!err && err.textContent === NOT && err.attrs.role === 'alert' && t.q('#ph-guess').attrs['aria-invalid'] === 'true';
+    out.sendingCleared = !/Sending/.test(t.tx('#ph-sent') || '');
+    out.sendEnabled = !!t.q('#ph-send') && t.q('#ph-send').disabled !== true;
+    t.R.deliver(await t.hostSigned({ t: 'got', pid: join.pid, round: 0 }));
+    await until(() => /^Sent:/.test(t.tx('#ph-sent')), 300);
+    out.lateGotSent = /^Sent: .river bend.\. You can change it until time is up\.$/.test(t.tx('#ph-sent')) && t.tx('#ph-guess-err') === '';
+  } catch (e) { out.crashed = String(e && e.stack || e).slice(0, 300); }
+  return out;
+}
+
+test('MUST FAIL: a guess with no got in 5 s says it did not reach the host (Send enabled), and a late got still marks it sent', async () => {
+  assert.deepEqual(await gotWaitScenario({}), { sending: true, notSentShown: true, sendingCleared: true, sendEnabled: true, lateGotSent: true });
+});
+
+// SCENARIO (round 2, CC1 E): five 'No room with that code answered' in a row and the Join button waits 30 s (1.5 s here) with plain words; no join is sent meanwhile.
+async function missesScenario(w) {
+  const out = {};
+  try {
+    const t = await setup(w);
+    const TOO = 'Too many tries. Wait 30 seconds, then check the letters on the host' + "'" + 's screen.';
+    for (let i = 0; i < 5; i++) { t.type('wrxn gltz', 'Ana'); await t.submit(); }
+    const joinsAfter5 = t.R.from('join').length;
+    const btn = t.button(/^Join the room$/) || t.root.all(e => e.tagName === 'button')[0];
+    out.fiveTries = joinsAfter5 >= 5 && t.tx('#ph-code-err') === 'No room with that code answered. Check the letters on the host' + "'" + 's screen.';
+    out.tooManyShown = t.tx('#ph-join-note') === TOO && t.q('#ph-join-note').attrs.role === 'alert' && t.q('#ph-join-note').hidden === false && !!btn && btn.disabled === true;
+    t.type('wrxn gltz', 'Ana'); await t.submit();
+    out.sixthNotSent = t.R.from('join').length === joinsAfter5;
+    await sleep(MISS_WAIT_REAL + 200);
+    out.waitEnds = !!btn && btn.disabled === false && t.q('#ph-join-note').hidden === true;
+    const before = t.R.from('join').length;
+    const { going, join } = await startJoin(t);
+    t.R.deliver(await t.hostSigned({ t: 'welcome', pid: join.pid, ok: true, name: 'Ana', nonce: join.nonce, pub: t.host.pub }));
+    await going;
+    out.thenJoins = t.R.from('join').length > before && /You are in room HQRMWKTP/.test(t.text());
+  } catch (e) { out.crashed = String(e && e.stack || e).slice(0, 300); }
+  return out;
+}
+const MISS_WAIT_REAL = 30000 / SCALE;
+
+test('MUST FAIL: five wrong codes in a row: the Join button waits 30 s with plain words (role alert) and sends nothing meanwhile; then it works again', async () => {
+  assert.deepEqual(await missesScenario({}), { fiveTries: true, tooManyShown: true, sixthNotSent: true, waitEnds: true, thenJoins: true });
+});
+
 test('kept behaviour: the names check (when assets/game-names.js is there) stops a join before any connection; Sending then Sent; a rejoin keeps its pid with a new nonce; an old 6-letter seat is no seat', async () => {
   assert.deepEqual(await keptScenario({}), { namesChecked: true, sending: true, sent: true, rejoinSamePid: true, rejoined: true, oldSeatIgnored: true });
 });
@@ -344,7 +401,7 @@ test('two-press leave and the silent-host notice are still there', () => {
 
 test('the phone page loads the new phone script and stylesheet versions', () => {
   const html = read('game-phone/index.html');
-  assert.match(html, /\/assets\/game-phone-live\.js\?v=20261127g9"/); assert.match(html, /\/assets\/game-phone\.css\?v=20261127g4"/);
+  assert.match(html, /\/assets\/game-phone-live\.js\?v=20261127g10"/); assert.match(html, /\/assets\/game-phone\.css\?v=20261127g4"/);
 });
 
 test('the 11-27 holds lines added to the phone script are plain ASCII', () => {
@@ -369,6 +426,8 @@ const MUTANTS = [
   { name: 'a removal from any key', edits: [['if (!(await Room.verify(s.hostPub, s.code, m)) || m.seq <= s.hostSeq) return false;', '']], scenario: removedScenario, caught: ['forgedRemovalIgnored'] },
   { name: 'a closed room keeps its clocks', edits: [['stopTimer(); unwatch(); if (s.retry)', 'if (s.retry)']], scenario: closedScenario, caught: ['idleStopsTimers'] },
   { name: 'a closed room ignored', edits: [["if (m.phase === 'closed') { closedRoom(m.why); return; }", '']], scenario: closedScenario, caught: ['idleWords'] },
+  { name: 'no got timeout: Sending forever', edits: [['s.gotWait = setTimeout(() => {', 's.gotWait = (() => {']], scenario: gotWaitScenario, caught: ['notSentShown', 'sendingCleared'] },
+  { name: 'no wrong-code throttle', edits: [['if (s.misses >= MISSES_MAX) {', 'if (false) {']], scenario: missesScenario, caught: ['tooManyShown', 'sixthNotSent'] },
   { name: 'no names check', edits: [["|| namesProblem(H.clean(name.input.value))", '']], scenario: keptScenario, caught: ['namesChecked'] },
 ];
 

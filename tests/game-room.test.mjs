@@ -66,7 +66,7 @@ test('MUST FAIL: a room code is 8 letters with no I and no O, made from the host
   assert.equal(R.normCode(' ab-cd ef gh '), 'ABCDEFGH'); assert.equal(R.normCode('w x y z a b c d'), 'WXYZABCD'); assert.equal(R.normCode(null), '');
   assert.equal(R.showCode('ABCDEFGH'), 'ABCD EFGH'); assert.equal(R.showCode('abcd-efgh'), 'ABCD EFGH'); assert.equal(R.normCode(R.showCode('WXYZABCD')), 'WXYZABCD', 'the shown code types back in');
   assert.equal(R.channelName('ABCDEFGH'), 'ryagram-game-ABCDEFGH');
-  assert.ok(Object.isFrozen(R)); assert.deepEqual(Object.keys(R).sort(), ['CODE_KDF', 'CODE_LEN', 'CODE_LETTERS', 'LIMITS', 'LIMIT_PIDS', 'MAX_BYTES', 'channelName', 'codeOf', 'connect', 'keyPair', 'makeLimits', 'newNonce', 'normCode', 'pidOf', 'showCode', 'sign', 'validate', 'verify']);
+  assert.ok(Object.isFrozen(R)); assert.deepEqual(Object.keys(R).sort(), ['CODE_KDF', 'CODE_LEN', 'CODE_LETTERS', 'LIMITS', 'LIMIT_PIDS', 'MAX_BYTES', 'MAX_PLAYERS', 'channelName', 'codeOf', 'connect', 'keyPair', 'makeLimits', 'newNonce', 'normCode', 'pidOf', 'showCode', 'sign', 'validate', 'verify']);
 });
 
 test('MUST FAIL: validate accepts each good kind and returns a clean copy with unknown fields dropped', () => {
@@ -94,7 +94,9 @@ test('MUST FAIL: validate accepts each good kind and returns a clean copy with u
   assert.deepEqual(out.reveal.results[0], { name: 'Ana', points: 100, verdict: 'exact', text: 'over the hill' });
   assert.deepEqual(out.totals, full.totals); assert.equal(out.words_left, 3); assert.equal(out.left_s, 0);
   for (const phase of ['lobby', 'question', 'reveal', 'final', 'closed']) assert.ok(R.validate({ t: 'state', phase, round: 0, of: 0, players: ['Ana'] }), phase);
-  assert.ok(R.validate({ t: 'state', phase: 'final', round: 0, of: 0, players: Array.from({ length: 12 }, (_, i) => 'P' + i) }), '12 players');
+  assert.ok(R.validate({ t: 'state', phase: 'final', round: 0, of: 0, players: Array.from({ length: 8 }, (_, i) => 'P' + i) }), '8 players');
+  assert.equal(R.validate({ t: 'state', phase: 'final', round: 0, of: 0, players: Array.from({ length: 9 }, (_, i) => 'P' + i) }), null, '9 players: a room holds 8 (round 2 11-27)');
+  assert.equal(R.MAX_PLAYERS, 8);
   const copy = { t: 'join', pid: PID_A, name: 'Ana', nonce: NONCE_A }; assert.notEqual(R.validate(copy), copy, 'a copy, not the same object');
 });
 

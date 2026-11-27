@@ -165,7 +165,7 @@ async function hostScenario(w) {
   await settle();
   out.joinRateLimited = welcomeFor(Rr.pid).length === 3;
   // refused joins (a reserved name, from five new keys) are answered but remembered nowhere: no seat, no key kept
-  w.clock.off += 61000;          // the new-pid bucket (FACES 3.1) takes 6 new pids a minute and A, B, E and Rr took 4: a minute on, so all five below are answered
+  // the new-pid bucket (FACES 3.1, round 2: 16 a minute) has room: A, B, E and Rr took 4, so all five below are answered with no clock step
   const keysBefore = host.state().keys.size, playersBefore = host.state().players.length;
   const refused = [];
   for (let i = 0; i < 5; i++) { const X = await fakePhone(w, room, 'x' + i); refused.push(X); await X.send({ t: 'join', name: i % 2 ? 'ADMIN' : 'Host', pub: X.pair.pub }); }
@@ -414,7 +414,7 @@ async function ghostScenario(w) {
     out.replayedRefusedJoinCannotSeat = ringRolled && !player(X.pid) && welcomeFor(X.pid).length === 1;
     await X.send({ t: 'join', name: 'Ana', pub: X.pair.pub }); await settle();
     out.freshJoinStillWorks = !!player(X.pid);
-    // 100 throwaway pids join and leave (the room's clock steps 61 s after every 6, under the new-pid bucket of 6 a minute): the store stays bounded (it fills at the 94th),
+    // 100 throwaway pids join and leave (the room's clock steps 61 s after every 6: the host takes at most 8 new players in 5 s, and the new-pid bucket 16 a minute): the store stays bounded (it fills at the 94th),
     // and S (who leaves at the 88th, so gone under 10 minutes when the store is full) and X (seated) keep their keys; A, gone longer than 10 minutes, may be let go
     for (let i = 0; i < 100; i++) {
       if (i % 6 === 0) w.clock.off += 61000;
@@ -539,11 +539,13 @@ async function floodScenario(w) {
   try {
     const A = await fakePhone(w, room, 'a'), B = await fakePhone(w, room, 'b');
     await A.send({ t: 'join', name: 'Ana', pub: A.pair.pub }); await B.send({ t: 'join', name: 'Ben', pub: B.pair.pub }); await settle();
-    const burst = await phones('f', 20);
-    for (const [i, F] of burst.entries()) await F.send({ t: 'join', name: 'Fake' + i, pub: F.pair.pub });
+    // 30 new pids at one instant, all with a reserved name (refused only AFTER a signature check): the new-pid bucket (16 a minute; A and B took 2) lets 14 through
+    // (15 if the real clock under the test adds a token), so at most 15 cost a check; without the bucket the verify bucket (20) is the only cap
+    const burst = await phones('f', 30);
+    for (const F of burst) await F.send({ t: 'join', name: 'Host', pub: F.pair.pub });
     await settle();
-    const burstSeated = burst.filter(F => player(F.pid)).length, burstAnswered = answersTo(burst).length;          // A and B used 2 of the 6 new pids this minute allows
-    // a minute on: 6 more new pids; 2 fill the 8 seats, the other 4 find the room full; another minute on: 6 more, all to a full room
+    const burstVerified = burst.filter(F => verified.includes(F.pid)).length;
+    // a minute on: 6 new pids fill the 8 seats; another minute on: 6 more, all to a full room
     w.clock.off += 61000;
     const more = await phones('g', 6);
     for (const [i, F] of more.entries()) await F.send({ t: 'join', name: 'More' + i, pub: F.pair.pub });
@@ -552,18 +554,18 @@ async function floodScenario(w) {
     const more2 = await phones('k', 6);
     for (const [i, F] of more2.entries()) await F.send({ t: 'join', name: 'Late' + i, pub: F.pair.pub });
     await settle();
-    const extras1 = more.filter(F => !player(F.pid)), extras = [...extras1, ...more2];
-    out.roomJoinLimit = burstSeated === 4 && burstAnswered === 4 && host.state().players.length === 8 && extras1.length === 4 && !extras.some(F => player(F.pid))
+    const extras = more2;
+    out.roomJoinLimit = burstVerified >= 13 && burstVerified <= 15 && !burst.some(F => player(F.pid)) && more.every(F => player(F.pid)) && host.state().players.length === 8 && !extras.some(F => player(F.pid))
       && answersTo(extras).length >= 1 && answersTo(extras).every(m => m.ok === false && m.why === 'full' && /^Room is full\. All 8 seats are taken\./.test(m.problem))
-      && !extras.some(F => verified.includes(F.pid));          // a stranger on a full room costs no signature check
+      && extras.filter(F => verified.includes(F.pid)).length <= Math.min(1, answersTo(extras).length);          // a stranger on a full room costs a check only when its refusal is answered (one per 2 s)
     // refusals: one per 2 s for the whole room (each batch above came at one instant of the room's clock); a removed pid gets no answer and no signature check
-    const inFakes = [...burst, ...more].filter(F => player(F.pid));
+    const inFakes = more.filter(F => player(F.pid));
     for (const F of inFakes) host.kick(F.pid);
     await settle();
     const before = room.from('host', 'welcome').length, v0 = verified.length;
     for (const F of inFakes) { await F.send({ t: 'join', name: 'Again', pub: F.pair.pub }); await F.send({ t: 'join', name: 'Again', pub: F.pair.pub }); }
     await settle();
-    out.refusalsCapped = answersTo(extras1).length === 1 && answersTo(more2).length === 1
+    out.refusalsCapped = answersTo(more2).length === 1
       && inFakes.length === 6 && room.from('host', 'welcome').length === before && verified.length === v0 && !inFakes.some(F => player(F.pid));
     host.start(); await settle();
     const gotsBefore = room.from('host', 'got').length;
@@ -578,7 +580,7 @@ async function floodScenario(w) {
   return out;
 }
 
-test('MUST FAIL: room-wide limits: at most 6 new pids a minute, a full room refuses strangers with no signature check and at most one refusal per 2 s, a removed pid gets no answer, at most 2 guesses per pid per second', async () => {
+test('MUST FAIL: room-wide limits: at most 16 new pids a minute, a full room refuses strangers with no signature check and at most one refusal per 2 s, a removed pid gets no answer, at most 2 guesses per pid per second', async () => {
   assert.deepEqual(await floodScenario(world()), { roomJoinLimit: true, refusalsCapped: true, guessRateLimit: true, guessAfterASecond: true });
 });
 
@@ -656,7 +658,7 @@ async function limitsScenario(w) {
   { const { L, step } = fresh(); const A = () => L.pid('A'); out.pidBucket = takeN(A, 10) === 6 && (step(334), takeN(A, 5) === 1) && (step(1000), takeN(A, 10) === 3); }
   { const { L, step } = fresh(); const A = () => L.guess('A'); out.guessBucket = takeN(A, 10) === 3 && (step(500), takeN(A, 5) === 0) && (step(500), takeN(A, 5) === 1); }
   { const { L } = fresh(); out.pidsIndependent = takeN(() => L.pid('A'), 10) === 6 && takeN(() => L.pid('B'), 10) === 6 && takeN(() => L.guess('A'), 10) === 3 && takeN(() => L.guess('B'), 10) === 3; }
-  { const { L, step } = fresh(); out.newPidBucket = takeN(L.newPid, 10) === 6 && (step(5000), takeN(L.newPid, 5) === 0) && (step(5000), takeN(L.newPid, 5) === 1) && (step(60000), takeN(L.newPid, 10) === 6); }
+  { const { L, step } = fresh(); out.newPidBucket = takeN(L.newPid, 30) === 16 && (step(3000), takeN(L.newPid, 5) === 0) && (step(1000), takeN(L.newPid, 5) === 1) && (step(60000), takeN(L.newPid, 30) === 16); }
   { const { L, step } = fresh(); out.verifyBucket = takeN(L.verify, 50) === 20 && (step(50), takeN(L.verify, 5) === 1) && (step(1000), takeN(L.verify, 50) === 20); }
   { const { L, step } = fresh(); out.refusalBucket = takeN(L.refusal, 5) === 1 && (step(1000), takeN(L.refusal, 5) === 0) && (step(1000), takeN(L.refusal, 5) === 1) && (step(10000), takeN(L.refusal, 5) === 1); }
   { const { L, step, back } = fresh(); const A = () => L.pid('A'); out.clockBackGivesNothing = takeN(A, 10) === 6 && (back(60000), takeN(A, 5) === 0) && (step(60000 + 334), takeN(A, 5) === 1); }
@@ -675,9 +677,32 @@ async function limitsScenario(w) {
   return out;
 }
 
-test('MUST FAIL: rate limits (fake clock): room 60/30 per s, pid 6/3 per s, guess 3/1 per s, new pids 6 a minute, verifies 20 per s, refusals 1 per 2 s; per-pid tables hold at most 200; real use fits', async () => {
+test('MUST FAIL: rate limits (fake clock): room 60/30 per s, pid 6/3 per s, guess 3/1 per s, new pids 16 a minute, verifies 20 per s, refusals 1 per 2 s; per-pid tables hold at most 200; real use fits', async () => {
   assert.deepEqual(await limitsScenario(world()), { roomBucket: true, pidBucket: true, guessBucket: true, pidsIndependent: true, newPidBucket: true, verifyBucket: true, refusalBucket: true,
     clockBackGivesNothing: true, boundedPids: true, recentPidKept: true, realUseFits: true, defaultClock: true });
+});
+
+// PARTY (GEO A, round 2 11-27): a real party of 8 phones joins at one instant (no clock step at all) and all 8 are seated. With the old new-pid bucket of 6 a minute
+// two of them would have seen 'No room with that code answered'.
+async function partyScenario(w) {
+  const room = bus(w.G), host = mountHost(w, room), out = {};
+  await until(() => room.from('host', 'state').length > 0);
+  CODE = host.state().code;
+  const settle = async () => { await sleep(10); await host.settled(); await sleep(5); await host.settled(); };
+  try {
+    const L = [];
+    for (let i = 0; i < 8; i++) L.push(await fakePhone(w, room, 'party' + i));
+    for (const [i, F] of L.entries()) await F.send({ t: 'join', name: 'Guest' + i, pub: F.pair.pub });
+    await settle();
+    out.allEightSeated = host.state().players.length === 8 && L.every(F => host.state().players.some(p => p.pid === F.pid));
+    out.allAnsweredYes = L.every(F => room.from('host', 'welcome').some(m => m.pid === F.pid && m.ok === true));
+  } catch (e) { out.crashed = String(e).slice(0, 200); }
+  host.close();
+  return out;
+}
+
+test('MUST FAIL: a party of 8 phones joining at one instant (no clock step) are all seated', async () => {
+  assert.deepEqual(await partyScenario(world()), { allEightSeated: true, allAnsweredYes: true });
 });
 
 // Each mutant takes ONE check out (in memory only); the scenario must then report that forgery as getting through. A mutant that changes nothing would fail on its own text check.
@@ -700,7 +725,7 @@ const MUTANTS = [
   { name: 'room: the code from plain SHA-256 (the old fast code)', file: ROOMJS, edits: [["new Uint8Array(await subtle().deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(CODE_SALT), iterations: CODE_ITERATIONS }, base, 256))", "new Uint8Array(await subtle().digest('SHA-256', raw))"]], scenario: codeScenario, caught: ['knownVector', 'sameAsNodePbkdf2', 'slowOnPurpose'] },
   // 11-27 holds: the removed-pid check is now s.banned, dropped before any check (and again after the signature, and in onMessage): all three go
   { name: 'host: a removed pid let back in', file: HOST, edits: [['if (s.banned.has(m.pid)) return;', ''], ['if (s.closed || s.banned.has(m.pid)) return;', 'if (s.closed) return;']], scenario: controlsScenario, caught: ['kickedRejoinRefused'] },
-  { name: 'host: the lock ignored', file: HOST, edits: [['if (s.locked) { welcome(m.pid, false, LOCKED_TEXT); return; }', ''], ["s.locked ? 'locked' : ", '']], scenario: controlsScenario, caught: ['lockedRefused'] },          // 11-27: a new pid is refused before the signature (checked), a known one in onMessage
+  { name: 'host: the lock ignored', file: HOST, edits: [['if (s.locked && !s.keys.has(m.pid)) { welcome(m.pid, false, LOCKED_TEXT); return; }', ''], ["s.locked ? 'locked' : ", '']], scenario: controlsScenario, caught: ['lockedRefused'] },          // 11-27: a new pid is refused before the signature (checked), a known one in onMessage
   { name: 'host: a refused join not remembered (ghost seat)', file: HOST, edits: [['if (m.seq <= lastSeqOf(m.pid)) return;', ''], ['|| m.seq <= lastSeqOf(m.pid)) return;', ') return;']], scenario: ghostScenario, caught: ['replayedRefusedJoinCannotSeat'] },
   { name: 'host: kept keys let go oldest first, recently gone or not', file: HOST, edits: [['for (const [p] of old) { s.keys.delete(p); if (s.keys.size < KEEP_KEYS) return true; }', 'for (const [p] of [...s.keys].filter(([p]) => !seated(p))) { s.keys.delete(p); return true; }']], scenario: ghostScenario, caught: ['goneKeyKept'] },
   // 11-27 holds: the phone also drops a welcome that does not echo one of its own nonces (FACES 4), which alone stops this replay; the mutant takes out both guards
@@ -712,8 +737,8 @@ const MUTANTS = [
   // 11-27 holds: the old room-wide join window (8 new pids per 5 s, after the signature) can no longer be reached: the new-pid bucket (6 a minute, before it) is the
   // limit now, so the mutant is on that bucket. Likewise the refusals a stranger can draw are capped by lim.refusal (one per 2 s), so that is the one taken out.
   { name: 'host: no room-wide join limit (the new-pid bucket)', file: HOST, edits: [['if (!lim.newPid()) { strike(); return; }', '']], scenario: floodScenario, caught: ['roomJoinLimit'] },
-  { name: 'host: a stranger on a full room verified (no cheap refusal)', file: HOST, edits: [['if (why) { strike(); refuseUnknown(m, why); return; }', '']], scenario: floodScenario, caught: ['roomJoinLimit'] },
-  { name: 'host: refusals not capped', file: HOST, edits: [['if (!lim.refusal()) return; ', '']], scenario: floodScenario, caught: ['refusalsCapped'] },
+  { name: 'host: a stranger on a full room verified (no cheap refusal)', file: HOST, edits: [['if (why) { strike(); await refuseUnknown(m, why); return; }', '']], scenario: floodScenario, caught: ['roomJoinLimit'] },
+  { name: 'host: refusals not capped', file: HOST, edits: [['if (!lim.refusal() || !lim.verify()) return;', 'if (!lim.verify()) return;']], scenario: floodScenario, caught: ['refusalsCapped'] },
   { name: 'host: no guess rate limit', file: HOST, edits: [["if (m.t === 'guess' && !guessAllowed(m.pid)) return; ", '']], scenario: floodScenario, caught: ['guessRateLimit'] },
   { name: 'host: blank-looking names let in', file: HOST, edits: [['BLANKISH.test(name) || ', '']], scenario: names2Scenario, caught: ['blankRefused'] },
   { name: 'host: no look-alike map', file: HOST, edits: [['const i = LOOK_FROM.indexOf(c); return i >= 0 ? LOOK_TO[i] : c;', 'return c;']], scenario: names2Scenario, caught: ['cyrillicSame', 'reservedSkeleton'] },
@@ -736,7 +761,8 @@ const MUTANTS = [
   { name: 'limits: room bucket holds 600', file: ROOMJS, edits: [['room: Object.freeze({ cap: 60,', 'room: Object.freeze({ cap: 600,']], scenario: limitsScenario, caught: ['roomBucket'] },
   { name: 'limits: pid bucket holds 60', file: ROOMJS, edits: [['pid: Object.freeze({ cap: 6,', 'pid: Object.freeze({ cap: 60,']], scenario: limitsScenario, caught: ['pidBucket', 'pidsIndependent'] },
   { name: 'limits: guess bucket refills 10 per s', file: ROOMJS, edits: [['guess: Object.freeze({ cap: 3, n: 1,', 'guess: Object.freeze({ cap: 3, n: 10,']], scenario: limitsScenario, caught: ['guessBucket'] },
-  { name: 'limits: new pids refill every second, not every minute', file: ROOMJS, edits: [['newPid: Object.freeze({ cap: 6, n: 6, ms: 60000 })', 'newPid: Object.freeze({ cap: 6, n: 6, ms: 1000 })']], scenario: limitsScenario, caught: ['newPidBucket'] },
+  { name: 'limits: the new-pid bucket back to 6 (a party of 8 is cut)', file: ROOMJS, edits: [['newPid: Object.freeze({ cap: 16, n: 16, ms: 60000 })', 'newPid: Object.freeze({ cap: 6, n: 6, ms: 60000 })']], scenario: partyScenario, caught: ['allEightSeated', 'allAnsweredYes'] },
+  { name: 'limits: new pids refill every second, not every minute', file: ROOMJS, edits: [['newPid: Object.freeze({ cap: 16, n: 16, ms: 60000 })', 'newPid: Object.freeze({ cap: 16, n: 16, ms: 1000 })']], scenario: limitsScenario, caught: ['newPidBucket'] },
   { name: 'limits: verify bucket holds 200', file: ROOMJS, edits: [['verify: Object.freeze({ cap: 20,', 'verify: Object.freeze({ cap: 200,']], scenario: limitsScenario, caught: ['verifyBucket'] },
   { name: 'limits: a refusal every 0.2 s', file: ROOMJS, edits: [['refusal: Object.freeze({ cap: 1, n: 1, ms: 2000 })', 'refusal: Object.freeze({ cap: 1, n: 1, ms: 200 })']], scenario: limitsScenario, caught: ['refusalBucket'] },
   { name: 'limits: buckets never refill', file: ROOMJS, edits: [['tokens = Math.min(spec.cap, tokens + (t - last) * spec.n / spec.ms); last = t;', 'last = t;']], scenario: limitsScenario, caught: ['roomBucket', 'pidBucket', 'newPidBucket', 'refusalBucket', 'realUseFits'] },

@@ -218,9 +218,18 @@
       show(strikeBox, [STRIKES_TEXT, ' ', h('button', { class: 'button secondary', type: 'button', id: 'gh-strike-lock', onclick: act(() => setLock(true)) }, 'Lock the room')]);
     }
     const hideStrikes = () => { s.strikesShown = false; show(strikeBox, []); };
-    // An UNKNOWN pid asking to join a full, locked or started room: no signature check at all (a join from a pid the room does not know carries no authority, so refusing it
-    // unproven is safe and nothing is kept); at most one signed refusal per 2 s for the whole room (lim.refusal), the rest get no answer.
-    const refuseUnknown = (m, why) => { if (!lim.refusal()) return; welcome(m.pid, false, TEXT_OF[why], null, false, m.nonce || ''); };
+    // An UNKNOWN pid asking to join a full, locked or started room: at most one signed refusal per 2 s for the whole room (lim.refusal), the rest get no answer and cost
+    // no signature check. Round 2 (CC1 MUST, 11-27): a join that IS answered is verified first (one check per 2 s at most, from the verify bucket too), and only a join that
+    // verifies has its nonce (the nonce ring) and its pid's seq recorded before the refusal goes out, so the same recorded join cannot seat a ghost after Unlock or Play
+    // again. A join dropped by either bucket, or one that does not verify, records NOTHING (an unverified seq is never kept: a forged high seq would lock a real player out).
+    async function refuseUnknown(m, why) {
+      if (!lim.refusal() || !lim.verify()) return;
+      if (!m.pub || (await Room.pidOf(m.pub)) !== m.pid) return;
+      if (!(await Room.verify(m.pub, s.code, m))) return;
+      if (s.closed || s.banned.has(m.pid) || m.seq <= lastSeqOf(m.pid) || (m.nonce && s.nonceSeen.has(m.nonce))) return;
+      s.lastSeq.set(m.pid, m.seq); nonceTaken(m.nonce);          // recorded: this join can never be taken again
+      welcome(m.pid, false, TEXT_OF[why], null, false, m.nonce || '');
+    }
 
     // FACES 3.2: cheap checks first. Room.validate already ran in the room connection (format and length only, no crypto; it refuses a join without a nonce).
     async function checked(m) {
@@ -235,7 +244,7 @@
       if (m.t === 'join' && !known && !seated(m.pid)) {
         if (!lim.newPid()) { strike(); return; }                      // 5. new pids for the whole room
         const why = s.phase !== 'lobby' ? 'started' : s.locked ? 'locked' : s.players.length >= MAX_PLAYERS ? 'full' : '';
-        if (why) { strike(); refuseUnknown(m, why); return; }         // 6. no seat for a stranger: refused without a verify
+        if (why) { strike(); await refuseUnknown(m, why); return; }   // 6. no seat for a stranger: no verify unless the refusal is answered
       }
       let pub;
       if (m.t === 'join') {
@@ -279,26 +288,31 @@
       return nameProblem(name, s.players);
     };
 
+    // Only an ACCEPTED message counts as something happening for the idle clock (GEO LOW 11-27): a refused join, a leave or guess that is not taken, or anything that
+    // fails its checks never touches it, so someone with the code cannot keep an empty lobby open forever.
+    const seen = () => touch();
     function onMessage(m) {
       if (s.closed) return;
-      touch();
       if (m.t === 'join') {
         if (s.banned.has(m.pid)) return;
         const known = s.players.find(p => p.pid === m.pid);
-        if (known) { known.gone = false; seatNonce(m.pid, s.joinNonce); welcome(m.pid, true, null, known.name); broadcast(); refresh(); return; }
+        if (known) { known.gone = false; seatNonce(m.pid, s.joinNonce); welcome(m.pid, true, null, known.name); seen(); broadcast(); refresh(); return; }
         if (s.phase !== 'lobby') { welcome(m.pid, false, STARTED_TEXT); return; }
-        if (s.locked) { welcome(m.pid, false, LOCKED_TEXT); return; }
+        // F1 (11-27): a pid that held a seat in this room (its key is kept: a lobby leave, a page reload) is not a stranger, so a lock does not keep it out
+        // ('Players already in can still rejoin'); it still needs a free seat. A truly new pid gets 'locked'. A removed pid never gets here (banned).
+        if (s.locked && !s.keys.has(m.pid)) { welcome(m.pid, false, LOCKED_TEXT); return; }
         if (s.players.length >= MAX_PLAYERS) { welcome(m.pid, false, FULL_TEXT); return; }
         if (s.removedNames.has(nameKey(m.name))) { welcome(m.pid, false, REMOVED_NAME_TEXT); return; }          // a removed player's name, for the rest of this lobby
         const problem = joinNameProblem(m.name);
         if (problem) { welcome(m.pid, false, problem); return; }
-        s.players.push({ pid: m.pid, name: m.name }); s.totals.set(m.pid, 0); seatNonce(m.pid, s.joinNonce);
+        s.players.push({ pid: m.pid, name: m.name }); s.totals.set(m.pid, 0); seatNonce(m.pid, s.joinNonce); seen();
         welcome(m.pid, true, null, m.name);
         live.textContent = `${m.name} joined.`;
         refresh(); broadcast(); return;
       }
       if (m.t === 'leave') {
         const who = s.players.find(p => p.pid === m.pid); if (!who) return;
+        seen();
         live.textContent = `${who.name} left.`;                  // audit 10
         if (s.phase === 'lobby') { s.players = s.players.filter(p => p.pid !== m.pid); s.totals.delete(m.pid); unseat(m.pid); refresh(); broadcast(); return; }
         who.gone = true;                                          // after the start a player keeps their place on this game's scoreboard; Play again drops them (audit 3)
@@ -308,6 +322,7 @@
       if (m.t === 'guess') {
         if (s.phase !== 'question' || m.round !== s.round || !s.players.some(p => p.pid === m.pid)) return;
         const back = s.players.find(p => p.pid === m.pid); back.gone = false;
+        seen();
         s.guesses.set(m.pid, m.text);
         if (!s.gotPending.has(m.pid)) { s.gotPending.add(m.pid); post({ t: 'got', pid: m.pid, round: m.round }).catch(() => {}).then(() => { s.gotPending.delete(m.pid); }); }          // one 'got' waiting per pid
         refresh();
@@ -348,6 +363,7 @@
       welcome(pid, false, KICKED_TEXT, null, true);
       live.textContent = `${who.name} was removed.`;
       if (s.phase === 'question' && active().length && active().every(p => s.guesses.has(p.pid))) { reveal(`${who.name} was removed.`); return true; }
+      if (s.phase === 'reveal' && s.results) { s.results = s.results.filter(r => r.name !== who.name); draw(false); broadcast(); return true; }          // GEO M3: the removed player's row leaves the shown and sent reveal
       refresh(); broadcast(); return true;
     }
     // Allow again: the undo for a removal (the pid and the name may join again).

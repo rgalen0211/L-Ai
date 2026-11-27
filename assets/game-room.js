@@ -35,7 +35,7 @@
 (function () {
   const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';      // no I or O: on a TV across the room they read as 1 and 0
   const CODE_LEN = 8, MAX_BYTES = 8192;          // GAMES 11-27 v3: 8 letters (was 6) made from the host's public key (codeOf), so the code a player types also names the host's key
-  const NAME_MAX = 16, ANSWER_MAX = 120, PROBLEM_MAX = 200, HEARD_MAX = 400, VERDICT_MAX = 20, MAX_PLAYERS = 12;
+  const NAME_MAX = 16, ANSWER_MAX = 120, PROBLEM_MAX = 200, HEARD_MAX = 400, VERDICT_MAX = 20, MAX_PLAYERS = 8;          // one number with assets/app-games.js (8 seats; round 2 11-27)
   const PHASES = ['lobby', 'question', 'reveal', 'final', 'closed'];          // 'closed' (11-27 v3): the room has ended; the state may say why (CLOSED_WHY)
   const WELCOME_WHY = ['removed', 'full', 'locked', 'started', 'name', 'closed'];          // a refusal's fixed reason, so the phone does not depend on the free text in problem
   const CLOSED_WHY = ['idle', 'host', 'newcode'];
@@ -255,7 +255,7 @@
     room: Object.freeze({ cap: 60, n: 30, ms: 1000 }),          // every message from every sender in the room
     pid: Object.freeze({ cap: 6, n: 3, ms: 1000 }),             // messages from one known pid
     guess: Object.freeze({ cap: 3, n: 1, ms: 1000 }),           // guesses from one pid
-    newPid: Object.freeze({ cap: 6, n: 6, ms: 60000 }),         // joins from pids the room has not seen
+    newPid: Object.freeze({ cap: 16, n: 16, ms: 60000 }),       // joins from pids the room has not seen (16: a real party of 8 phones joining at once, each retrying once, fits; GEO A 11-27)
     verify: Object.freeze({ cap: 20, n: 20, ms: 1000 }),        // signature checks in the whole room
     refusal: Object.freeze({ cap: 1, n: 1, ms: 2000 }),         // signed refusals sent to unknown pids
   });
@@ -391,5 +391,5 @@
   }
 
   window.ryagramGameRoom = Object.freeze({ CODE_LETTERS, CODE_LEN, CODE_KDF, codeOf, normCode, showCode, channelName, validate, connect, MAX_BYTES, keyPair, pidOf, sign, verify,
-    newNonce, makeLimits, LIMITS, LIMIT_PIDS });
+    newNonce, makeLimits, LIMITS, LIMIT_PIDS, MAX_PLAYERS });
 })();

@@ -26,6 +26,9 @@
   const JOIN_WAIT_MS = 6000;
   const JOIN_RETRY_MS = 3000;          // FACES 3.4: one more join (with a new nonce) at 3 s; give up at JOIN_WAIT_MS
   const NONCE_KEEP_MS = 10000;          // FACES 4.3: a welcome must echo a nonce this phone sent in the last 10 s
+  const GOT_WAIT_MS = 5000;          // F2 11-27: the host's guess limit can drop a guess with no answer; no 'got' in 5 s and the phone says so (never 'Sending' forever)
+  const NOT_SENT_TEXT = 'Your guess did not reach the host. Send it again.';
+  const MISSES_MAX = 5, MISS_WAIT_MS = 30000;          // round 2 (CC1 E): after 5 'No room with that code answered' in a row, Join waits 30 s
   const SILENT_MS = 16000;          // the host sends its state at least every 5 s: three missed in a row means its screen has gone (GAMES a11y audit HIGH 2)
   // FACES 1.3 / 5 words (drafts for Ryan's yes). 'started' keeps the host's existing sentence.
   const WORDS = Object.freeze({
@@ -34,6 +37,7 @@
     locked: 'The room is locked. Ask the host to unlock it.',
     started: 'This game has already started. Wait for the next one.',
     noAnswer: 'No room with that code answered. Check the letters on the host' + "'" + 's screen.',
+    tooMany: 'Too many tries. Wait 30 seconds, then check the letters on the host' + "'" + 's screen.',
     idle: 'The host' + "'" + 's room closed because nothing happened for 15 minutes. Ask the host for the new code.',
     newcode: 'The host started a new room. Type the new code.',
     host: 'The host closed the room.',
@@ -151,7 +155,7 @@
     // (the host has gone, or drops this pid before any signature work), and forget the seat.
     // keepSeat (the silent host): the seat stays, so Join the room goes back in as the same player with the same score.
     function drop(keepSeat) {
-      stopTimer(); unwatch(); if (s.retry) clearTimeout(s.retry); s.retry = null;
+      stopTimer(); unwatch(); if (s.retry) clearTimeout(s.retry); s.retry = null; if (s.gotWait) clearTimeout(s.gotWait); s.gotWait = null;
       if (s.off) s.off(); s.off = null;
       const conn = s.conn; s.conn = null; s.welcomed = false; s.kept = false; s.leaveMsg = null; s.seatNonce = null;
       if (conn) { try { conn.close(); } catch { /* already gone */ } }
@@ -168,7 +172,9 @@
       const idle = text => { button.disabled = false; button.textContent = text || 'Join the room'; };
       // FACES 2 via assets/game-names.js when the page has it: problem(name, taken) gives { why: 'name', words } or null
       const namesProblem = n => { try { const N = typeof window !== 'undefined' ? window.ryagramGameNames : null; const p = N && typeof N.problem === 'function' ? N.problem(n, []) : null; return p && p.words ? String(p.words) : null; } catch { return null; } };
+      const tooMany = () => { button.disabled = true; joinNote.textContent = WORDS.tooMany; joinNote.hidden = false; };
       const attempt = async () => {
+        if (s.missWaitUntil && Date.now() < s.missWaitUntil) { tooMany(); return; }          // still waiting after too many wrong codes
         joinNote.hidden = true; joinNote.textContent = '';
         const cp = H.codeProblem(code.input.value), np = H.nameProblem(name.input.value, []) || namesProblem(H.clean(name.input.value));
         showErr(code, cp); showErr(name, np);
@@ -229,12 +235,17 @@
           sendJoin().catch(() => { if (!done) finish(null); });
           s.retry = setTimeout(() => { s.retry = null; if (!done && s.conn) sendJoin().catch(() => {}); }, JOIN_RETRY_MS);
         });
+        if (answer) s.misses = 0;
         if (!answer || !answer.ok) {
           const why = refusalWhy(answer);
           if (why === 'removed') { drop(); return removedScreen(); }          // removed before: the same words as removed mid-game, and the seat is forgotten
           await leave();
           idle(why === 'full' ? 'Try again' : null);
-          if (!answer) { showErr(code, WORDS.noAnswer); return code.input.focus(); }
+          if (!answer) {
+            s.misses = (s.misses || 0) + 1;
+            if (s.misses >= MISSES_MAX) { s.misses = 0; s.missWaitUntil = Date.now() + MISS_WAIT_MS; tooMany(); setTimeout(() => { s.missWaitUntil = 0; if (joinNote.textContent === WORDS.tooMany) { joinNote.hidden = true; joinNote.textContent = ''; } idle(); }, MISS_WAIT_MS); }
+            showErr(code, WORDS.noAnswer); return code.input.focus();
+          }
           if (why === 'name') { showErr(name, answer.problem || 'Please pick a different name.'); return name.input.focus(); }
           if (why === 'full' || why === 'locked' || why === 'started') { joinNote.textContent = WORDS[why]; joinNote.hidden = false; return button.focus(); }        // the code was right: say it above the form (8-player test LOW)
           if (why === 'closed') { joinNote.textContent = WORDS.host; joinNote.hidden = false; return button.focus(); }
@@ -286,7 +297,9 @@
         if (p) return guess.input.focus();
         const text = H.clean(guess.input.value);
         s.sentText = text; s.pending = text; sentLine.textContent = 'Sending…';          // set BEFORE the send: the host's 'got' can arrive before send() resolves (3-player test race); 'Sent' only on 'got' (audit 13)
-        try { await sendSigned({ t: 'guess', pid: s.pid, round: s.round, text }); } catch { s.pending = ''; sentLine.textContent = ''; showErr(guess, 'Your guess did not reach the host. Send it again.'); return guess.input.focus(); }
+        const round = s.round; if (s.gotWait) clearTimeout(s.gotWait);
+        s.gotWait = setTimeout(() => { s.gotWait = null; if (s.phase !== 'question' || s.round !== round || s.pending !== text) return; s.pending = ''; sentLine.textContent = ''; showErr(guess, NOT_SENT_TEXT); const b = stage.querySelector('#ph-send'); if (b && s.left > 0) b.disabled = false; }, GOT_WAIT_MS);          // no 'got' in 5 s: not sent (a late got still marks it sent)
+        try { await sendSigned({ t: 'guess', pid: s.pid, round: s.round, text }); } catch { if (s.gotWait) clearTimeout(s.gotWait); s.gotWait = null; s.pending = ''; sentLine.textContent = ''; showErr(guess, NOT_SENT_TEXT); return guess.input.focus(); }
       } }, guess.node, counter, el('button', { type: 'submit', class: 'ph-btn', id: 'ph-send' }, 'Send my guess'), sentLine);
       const leaveBtn = () => twoStepLeave();        // leave at any time, not only in the lobby (verify H1); a second press is needed so a mis-tap under Send does not drop the player
       s.left = m.left_s || 0;
@@ -331,6 +344,8 @@
 
     function gotIt(m) {
       if (s.phase !== 'question' || m.round !== s.round) return;
+      if (s.gotWait) { clearTimeout(s.gotWait); s.gotWait = null; }
+      if (!s.pending && s.sentText) { s.pending = s.sentText; const e = stage.querySelector('#ph-guess-err'), g = stage.querySelector('#ph-guess'); if (e && e.textContent === NOT_SENT_TEXT) { e.textContent = ''; if (g) g.removeAttribute('aria-invalid'); } }          // a late got: the guess did reach the host
       const line = stage.querySelector('#ph-sent'); if (line && s.pending) line.textContent = `Sent: “${s.pending}”${stopAfter(s.pending)} You can change it until time is up.`;        // the guess exactly as typed (verify2 LOW)
     }
 
