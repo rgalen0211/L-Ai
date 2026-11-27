@@ -5,6 +5,7 @@
 // Spec: MCP Apps extension (modelcontextprotocol/ext-apps, 2026-01-26): tool `_meta.ui.resourceUri`, resource mimeType `text/html;profile=mcp-app`, resource `_meta.ui` { csp, domain, prefersBorder }.
 
 import { EDITOR_BUILD, EDITOR_HTML } from "./editor_page.ts";
+import { COMPILATION_URI, compilationHtml, isCompilationUri } from "./compilation_card.ts";
 import { HOME_URI, homeHtml, isHomeUri } from "./home_panel.ts";
 import { probeCsp, probePage, probeResources } from "./probe.ts";
 
@@ -36,7 +37,7 @@ export interface McpAppConfig {
 }
 
 /** Which tools show which page. The tool's text and structured data are exactly what they were. */
-export const UI_TOOL_URIS: Readonly<Record<string, string>> = Object.freeze({ whoami_and_credits: CARD_URI, list_projects: CARD_URI });
+export const UI_TOOL_URIS: Readonly<Record<string, string>> = Object.freeze({ get_compilation_status: COMPILATION_URI, whoami_and_credits: CARD_URI, list_projects: CARD_URI });
 
 /** Claude's rule for `_meta.ui.domain`: the first 32 hex characters of the SHA-256 of the server URL, then `.claudemcpcontent.com` (Claude's "Get started with MCP Apps"). */
 export async function claudeUiDomain(serverUrl: string): Promise<string> {
@@ -143,6 +144,7 @@ export function cardHtml(appUrl?: string): string {
 
 export function resourceList(cfg?: McpAppConfig) {
   return [{ uri: CARD_URI, name: "Ryagram card", description: "A small card showing the Ryagram account and projects the AI is working with.", mimeType: MCP_APP_MIME },
+    { uri: COMPILATION_URI, name: "Ryagram compilation status", description: "Where one compilation stands: the request in words, a step line and a progress strip, with a button to open the Compilations page on the site.", mimeType: MCP_APP_MIME },
     ...(cfg?.chatEditor ? [{ uri: EDITOR_URI, name: "Ryagram editor", description: "The Ryagram live editor for one of the person's films.", mimeType: MCP_APP_MIME }] : []),
     ...(cfg?.homePanel ? [{ uri: HOME_URI, name: "Ryagram home", description: "The person's Ryagram departments, with what works today and what is coming soon.", mimeType: MCP_APP_MIME }] : []),
     ...probeResources(!!cfg?.probe, MCP_APP_MIME)];
@@ -158,6 +160,8 @@ export function readResource(uri: unknown, cfg: McpAppConfig) {
     // the same list in OpenAI's own spelling too, so a host that reads only that one still has the declared origin
     return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: probe, _meta: { ui, "openai/widgetCSP": { connect_domains: csp.connectDomains, resource_domains: csp.resourceDomains } } }] };
   }
+  // the Compilations status page: under the same one switch as the card (the caller serves resources only when it is on), and with exactly the card's own limits (no network, no frames): it is read as the card and only its text and address differ
+  if (isCompilationUri(uri)) { const r = readResource(CARD_URI, cfg)!; return { contents: [{ ...r.contents[0], uri: uri as string, text: compilationHtml(cfg.appUrl) }] }; }
   const editor = isEditorUri(uri);
   const home = isHomeUri(uri);
   if (uri !== CARD_URI && !(editor && cfg.chatEditor) && !(home && cfg.homePanel)) return null;
