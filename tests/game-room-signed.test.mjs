@@ -12,7 +12,7 @@ import vm from 'node:vm';
 
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const J = x => JSON.parse(JSON.stringify(x));
-let CODE = 'ABCDEF';          // set to the host's own code (made from its key) in each scenario
+let CODE = 'ABCDEFGH';          // set to the host's own code (made from its key) in each scenario
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function until(ok, ms = 3000) { const t0 = Date.now(); while (!ok()) { if (Date.now() - t0 > ms) return false; await sleep(5); } return true; }
 const SOURCES = ['assets/game-room.js', 'assets/game-score.js', 'assets/game-rounds.js', 'assets/app-games.js', 'assets/game-phone.js', 'assets/game-phone-live.js'];
@@ -85,7 +85,7 @@ async function fakePhone(w, room, name) {
   const pair = await w.G.keyPair(), pid = await w.G.pidOf(pair.pub), end = room.endpoint(name);
   let seq = 0;
   const ph = { pair, pid, end, last: null,
-    signed: async (m, extra = {}) => (ph.last = await w.G.sign(pair, CODE, { ...m, pid, seq: ++seq, ...extra })),
+    signed: async (m, extra = {}) => (ph.last = await w.G.sign(pair, CODE, { ...(m.t === 'join' ? { nonce: w.G.newNonce() } : {}), ...m, pid, seq: ++seq, ...extra })),
     send: async (m, extra) => end.send(await ph.signed(m, extra)) };
   return ph;
 }
@@ -98,7 +98,7 @@ test('MUST FAIL: the helper: a pid is bound to its key, a stored key gives the s
   assert.match(pid, /^[A-Za-z0-9]{20}$/); assert.notEqual(pid, await G.pidOf(b.pub));
   const back = await G.keyPair(J(a.jwk)); assert.equal(back.pub, a.pub, 'the seat key gives the same public key'); assert.equal(await G.pidOf(back.pub), pid);
   assert.deepEqual(Object.keys(a.jwk).sort(), ['crv', 'd', 'kty', 'x', 'y'], 'only the key itself is stored');
-  const join = await G.sign(a, CODE, { t: 'join', pid, name: ' Ana ', pub: a.pub, seq: 1 });
+  const join = await G.sign(a, CODE, { t: 'join', pid, name: ' Ana ', nonce: G.newNonce(), pub: a.pub, seq: 1 });
   const guess = await G.sign(back, CODE, { t: 'guess', pid, round: 2, text: 'over the hill', seq: 2 });
   const leave = await G.sign(a, CODE, { t: 'leave', pid, seq: 3 });
   for (const m of [join, guess, leave]) { assert.match(m.sig, /^[A-Za-z0-9_-]{86}$/); assert.equal(await G.verify(a.pub, CODE, G.validate(m)), true, m.t); }
@@ -124,19 +124,20 @@ test('MUST FAIL: the helper: a pid is bound to its key, a stored key gives the s
 test('MUST FAIL: validate takes pub/sig as base64url of 80 to 100 characters and seq as an integer 0 to 1e9, on the right kinds only, and keeps MAX_BYTES', async () => {
   const { G } = world();
   const k = 'A'.repeat(87), g = 'B'.repeat(86);
-  assert.deepEqual(J(G.validate({ t: 'join', pid: 'AnaPhone01', name: 'Ana', pub: k, seq: 0, sig: g })), { t: 'join', pid: 'AnaPhone01', name: 'Ana', pub: k, seq: 0, sig: g });
+  const n = 'AnaNonce_0123456789-xy';
+  assert.deepEqual(J(G.validate({ t: 'join', pid: 'AnaPhone01', name: 'Ana', nonce: n, pub: k, seq: 0, sig: g })), { t: 'join', pid: 'AnaPhone01', name: 'Ana', nonce: n, pub: k, seq: 0, sig: g });
   assert.deepEqual(J(G.validate({ t: 'guess', pid: 'AnaPhone01', round: 0, text: 'x', seq: 1e9, sig: g, pub: k })), { t: 'guess', pid: 'AnaPhone01', round: 0, text: 'x', seq: 1e9, sig: g }, 'pub is for join and welcome only');
-  assert.equal(G.validate({ t: 'welcome', pid: 'AnaPhone01', ok: true, pub: k, seq: 4, sig: g }).pub, k);
+  assert.equal(G.validate({ t: 'welcome', pid: 'AnaPhone01', ok: true, nonce: n, pub: k, seq: 4, sig: g }).pub, k);
   for (const t of ['state', 'got', 'leave']) {
     const base = t === 'state' ? { t, phase: 'lobby', round: 0, of: 5, players: [] } : t === 'got' ? { t, pid: 'AnaPhone01', round: 0 } : { t, pid: 'AnaPhone01' };
     assert.equal(G.validate({ ...base, seq: 7, sig: g }).seq, 7, t);
   }
   for (const v of ['A'.repeat(79), 'A'.repeat(101), 'A'.repeat(86) + '+', 'A'.repeat(86) + '=', 'A'.repeat(85) + '\u00e9', 7, false]) {
-    assert.equal(G.validate({ t: 'join', pid: 'AnaPhone01', name: 'Ana', pub: v }), null, `pub ${String(v).slice(-3)}`);
+    assert.equal(G.validate({ t: 'join', pid: 'AnaPhone01', name: 'Ana', nonce: n, pub: v }), null, `pub ${String(v).slice(-3)}`);
     assert.equal(G.validate({ t: 'leave', pid: 'AnaPhone01', sig: v }), null, `sig ${String(v).slice(-3)}`);
   }
   for (const v of [-1, 1.5, 1e9 + 1, '3', NaN, Infinity]) assert.equal(G.validate({ t: 'leave', pid: 'AnaPhone01', seq: v }), null, `seq ${v}`);
-  assert.equal(G.validate({ t: 'join', pid: 'AnaPhone01', name: 'Ana', pub: k, sig: g, pad: 'z'.repeat(8200) }), null, 'MAX_BYTES still applies');
+  assert.equal(G.validate({ t: 'join', pid: 'AnaPhone01', name: 'Ana', nonce: n, pub: k, sig: g, pad: 'z'.repeat(8200) }), null, 'MAX_BYTES still applies');
   assert.equal(G.MAX_BYTES, 8192);
 });
 
@@ -154,8 +155,8 @@ async function hostScenario(w) {
   const wa = welcomeFor(A.pid)[0];
   out.goodJoin = !!(wa && wa.ok && wa.pub && await w.G.verify(wa.pub, CODE, wa)) && !!player(A.pid) && !!player(B.pid);
   // a join whose pid is not made from its key (D's key, E's pid), and an unsigned join
-  await D.end.send(await w.G.sign(D.pair, CODE, { t: 'join', pid: E.pid, name: 'Dee', pub: D.pair.pub, seq: 1 }));
-  await D.end.send({ t: 'join', pid: 'Unsigned0001', name: 'Una' }); await settle();
+  await D.end.send(await w.G.sign(D.pair, CODE, { t: 'join', pid: E.pid, name: 'Dee', nonce: w.G.newNonce(), pub: D.pair.pub, seq: 1 }));
+  await D.end.send({ t: 'join', pid: 'Unsigned0001', name: 'Una', nonce: w.G.newNonce() }); await settle();
   out.pidMismatchRefused = !welcomeFor(E.pid).length && !player(E.pid);
   out.unsignedJoinRefused = !welcomeFor('Unsigned0001').length && !player('Unsigned0001');
   // at most 3 good joins per pid in 10 s: the 4th is dropped unanswered
@@ -194,7 +195,7 @@ async function hostScenario(w) {
   out.goodLeave = leftOk && backOk;
   out.replayedLeaveRefused = player(A.pid).gone === false;
   // a rejoin with A's pid but B's key is refused
-  await B.end.send(await w.G.sign(B.pair, CODE, { t: 'join', pid: A.pid, name: 'Ana', pub: B.pair.pub, seq: 9000 })); await settle();
+  await B.end.send(await w.G.sign(B.pair, CODE, { t: 'join', pid: A.pid, name: 'Ana', nonce: w.G.newNonce(), pub: B.pair.pub, seq: 9000 })); await settle();
   out.hijackJoinRefused = welcomeFor(A.pid).length === 2;
   // everything the host sent is signed by its own key, seq strictly up
   const sent = room.from('host'); let up = true;
@@ -221,7 +222,7 @@ async function phoneScenario(w) {
   try {
   const Eve = await fakePhone(w, room, 'eve');
   Eve.end.onMessage(m => { if (m.t === 'join' && !Eve.answered) { Eve.answered = true;
-    w.G.sign(Eve.pair, CODE, { t: 'welcome', pid: m.pid, ok: false, problem: 'That name is taken by Eve. Pick another.', pub: Eve.pair.pub, seq: 1 }).then(x => Eve.end.send(x)); } });
+    w.G.sign(Eve.pair, CODE, { t: 'welcome', pid: m.pid, ok: false, problem: 'That name is taken by Eve. Pick another.', nonce: m.nonce, pub: Eve.pair.pub, seq: 1 }).then(x => Eve.end.send(x)); } });
   root.querySelector('#ph-code').value = CODE.slice(0, 3).toLowerCase() + '-' + CODE.slice(3); root.querySelector('#ph-name').value = 'Ana';
   await submit(root.querySelector('form'));
   const text = () => root.textContent;
@@ -239,7 +240,7 @@ async function phoneScenario(w) {
   // Each step below is ordered so that a check taken out (the mutants) cannot hide a LATER check: e.g. a forged got let through sets a high seq, so the forged state uses a higher one.
   // A crash is recorded as crashed, never as a catch (a mutant must turn its own key false).
     // a forged welcome offering Eve's key, after the real one was taken: nothing changes
-    await Eve.end.send(await w.G.sign(Eve.pair, CODE, { t: 'welcome', pid: join.pid, ok: true, pub: Eve.pair.pub, seq: 1e8 }));
+    await Eve.end.send(await w.G.sign(Eve.pair, CODE, { t: 'welcome', pid: join.pid, ok: true, nonce: join.nonce, pub: Eve.pair.pub, seq: 1e8 }));
     await settle();
     out.forgedWelcomeRefused = !/Mallory/.test(text()) && /Players: Ana, Ben/.test(text());
     const oldLobby = room.from('host', 'state').filter(m => m.phase === 'lobby').pop();
@@ -297,7 +298,7 @@ async function namesScenario(w) {
   out.reservedRefused = ['host', 'Ryagram', 'ADMIN', wide('admin')].every(n => /kept for the game/.test(H.nameProblem(n, players) || ''));
   out.plainNamesOk = ['Hostess', 'Ben', 'Admiral'].every(n => H.nameProblem(n, players) === null);
   const hidden = [0xAD, 0x34F, 0x61C, 0x180E].map(c => 'A' + String.fromCharCode(c) + 'na');
-  out.newInvisiblesCleaned = hidden.every(n => { const v = G.validate({ t: 'join', pid: 'AnaPhone01', name: n }); return !!v && v.name === 'A na'; });
+  out.newInvisiblesCleaned = hidden.every(n => { const v = G.validate({ t: 'join', pid: 'AnaPhone01', name: n, nonce: NONCE_OK }); return !!v && v.name === 'A na'; });
   const roomSet = /const INVISIBLE = (.*?);/.exec(read('assets/game-room.js'))[1], phoneSet = /const INVISIBLE = (.*?);/.exec(read('assets/game-phone.js'))[1];
   out.sameSetOnPhone = roomSet === phoneSet && w.W.ryagramGamePhone.clean(hidden[0]) === 'A na';
   return out;
@@ -319,29 +320,31 @@ test('MUST FAIL: no signing, no game: without crypto.subtle the host opens no ro
   assert.match(hostRoot.textContent, /cannot sign the game/);
   const room = bus(w.G), root = new El('div'), P = w.W.ryagramGamePhone;
   w.W.ryagramGamePhoneLive.mount(root, { ...P, codeProblem: v => P.codeProblem(v, w.G.CODE_LEN) }, { ...w.G, connect: async () => { opened++; return room.endpoint('phone'); } }, { games: 'account' });
-  root.querySelector('#ph-code').value = 'ABCDEF'; root.querySelector('#ph-name').value = 'Ana';
+  root.querySelector('#ph-code').value = 'ABCDEFGH'; root.querySelector('#ph-name').value = 'Ana';
   await submit(root.querySelector('form'));
   assert.equal(opened, 0, 'the phone did not connect'); assert.equal(room.log.length, 0, 'nothing sent');
   assert.match(root.textContent, /cannot sign the game/);
 });
 
 // 11-27 HARDENING (WORKER and CC1 reviews; GAMES picture book). The room code is SLOW on purpose: PBKDF2-HMAC-SHA-256, 300,000 rounds, of the host's raw key.
-const VECTOR_PUB = 'BA' + 'A'.repeat(85), VECTOR_CODE = 'VNETNG';          // worked out once with node:crypto pbkdf2Sync (and checked again below)
+const VECTOR_PUB = 'BA' + 'A'.repeat(85), VECTOR_CODE = 'QGTSLDWH';          // worked out once with node:crypto pbkdf2Sync (and checked again below)
 async function codeScenario(w) {
   const G = w.G, out = {};
-  out.kdfParams = JSON.stringify(G.CODE_KDF) === JSON.stringify({ name: 'PBKDF2', hash: 'SHA-256', salt: 'ryagram-game-room-v2', iterations: 300000, bits: 256 }) && Object.isFrozen(G.CODE_KDF);
+  out.kdfParams = JSON.stringify(G.CODE_KDF) === JSON.stringify({ name: 'PBKDF2', hash: 'SHA-256', salt: 'ryagram-game-room-v3', iterations: 300000, bits: 256 }) && Object.isFrozen(G.CODE_KDF);
   const t0 = Date.now(); const c = await G.codeOf(VECTOR_PUB); const ms = Date.now() - t0;
   out.knownVector = c === VECTOR_CODE;
-  const raw = Buffer.from(VECTOR_PUB, 'base64url'), d = (await import('node:crypto')).pbkdf2Sync(raw, 'ryagram-game-room-v2', 300000, 32, 'sha256'); let want = '';
-  for (const b of d) if (b < 240 && want.length < 6) want += G.CODE_LETTERS[b % 24];
+  out.eightLetters = G.CODE_LEN === 8 && /^[ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/.test(c);
+  out.sixRefused = await G.connect({ kind: 'realtime', client: { channel() { throw new Error('opened'); } }, code: 'ABCDEF' }).then(() => false, e => /room code is 8 letters/.test(e.message));
+  const raw = Buffer.from(VECTOR_PUB, 'base64url'), d = (await import('node:crypto')).pbkdf2Sync(raw, 'ryagram-game-room-v3', 300000, 32, 'sha256'); let want = '';
+  for (const b of d) if (b < 240 && want.length < 8) want += G.CODE_LETTERS[b % 24];
   out.sameAsNodePbkdf2 = want === VECTOR_CODE && c === want;
   out.slowOnPurpose = ms >= 25;          // about 50-120 ms on the PC it was measured on; 25 ms is a floor that plain SHA-256 (well under 1 ms) can never reach
   const t1 = Date.now(); out.cached = (await G.codeOf(VECTOR_PUB)) === c && Date.now() - t1 < 20;
   return out;
 }
 
-test('MUST FAIL: codeOf is PBKDF2-HMAC-SHA-256 (salt ryagram-game-room-v2, 300,000 rounds, 256 bits), slow on purpose, cached per key, and gives the known vector', async () => {
-  assert.deepEqual(await codeScenario(world()), { kdfParams: true, knownVector: true, sameAsNodePbkdf2: true, slowOnPurpose: true, cached: true });
+test('MUST FAIL: codeOf is PBKDF2-HMAC-SHA-256 (salt ryagram-game-room-v3, 300,000 rounds, 256 bits), 8 letters, slow on purpose, cached per key, and gives the known vector; a 6-letter code is refused', async () => {
+  assert.deepEqual(await codeScenario(world()), { kdfParams: true, knownVector: true, eightLetters: true, sixRefused: true, sameAsNodePbkdf2: true, slowOnPurpose: true, cached: true });
 });
 
 // HOST CONTROLS: Remove (kick) and Lock the room, refused in plain words through the signed welcome, lines updated in place.
@@ -565,6 +568,87 @@ test('MUST FAIL: names: blank-looking characters, no letter or digit, more than 
   assert.deepEqual(await names2Scenario(world()), { blankRefused: true, marksCapped: true, cyrillicSame: true, punctuationSame: true, reservedSkeleton: true, plainOk: true });
 });
 
+// 11-27 v3 (holds contract section 1; FACES design sections 3 and 4): the join/welcome NONCE, the refusal reason (why), the 'closed' phase, showCode, and the RATE LIMITS
+// (makeLimits, on a fake clock as in FACES 3.6). Pure checks on the room library; each is also run against the mutants below.
+const NONCE_OK = 'AnaNonce_0123456789-xy';          // 22 base64url characters, invented
+async function nonceScenario(w) {
+  const G = w.G, out = {};
+  const join = { t: 'join', pid: 'AnaPhone01', name: 'Ana' }, welcome = { t: 'welcome', pid: 'AnaPhone01', ok: true };
+  out.joinNeedsNonce = G.validate(join) === null && !!G.validate({ ...join, nonce: NONCE_OK });
+  out.welcomeNeedsNonce = G.validate(welcome) === null && !!G.validate({ ...welcome, nonce: NONCE_OK }) && G.validate({ ...welcome, ok: false, why: 'full' }) === null;
+  const badNonces = [NONCE_OK.slice(1), NONCE_OK + 'A', NONCE_OK.slice(1) + '+', NONCE_OK.slice(1) + '/', NONCE_OK.slice(1) + '=', NONCE_OK.slice(1) + ' ', NONCE_OK.slice(1) + '.', 'A'.repeat(43), '', 22, null];
+  out.nonceFormat = badNonces.every(n => G.validate({ ...join, nonce: n }) === null && G.validate({ ...welcome, nonce: n }) === null);
+  const made = Array.from({ length: 50 }, () => G.newNonce());
+  out.newNonceFormat = made.every(n => /^[A-Za-z0-9_-]{22}$/.test(n) && !!G.validate({ ...join, nonce: n })) && new Set(made).size === 50;
+  // the nonce is inside the signature, and the signature label is ryagram-game-sig-2 (worked out here with node's own WebCrypto, not through game-room.js)
+  const a = await G.keyPair(), pid = await G.pidOf(a.pub);
+  const j = await G.sign(a, 'ABCDEFGH', { t: 'join', pid, name: 'Ana', nonce: NONCE_OK, pub: a.pub, seq: 1 });
+  out.nonceSigned = (await G.verify(a.pub, 'ABCDEFGH', j)) && !(await G.verify(a.pub, 'ABCDEFGH', { ...j, nonce: 'BenNonce_0123456789-xy' }));
+  const subtle = globalThis.crypto.subtle, key = await subtle.importKey('jwk', J(a.jwk), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const signAs = async label => {
+    const v = J(G.validate(j)); delete v.sig;
+    const bytes = new TextEncoder().encode(label + '\nABCDEFGH\n' + JSON.stringify(Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]]))));
+    return { ...j, sig: Buffer.from(await subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, bytes)).toString('base64url') };
+  };
+  out.sigLabel2 = (await G.verify(a.pub, 'ABCDEFGH', await signAs('ryagram-game-sig-2'))) && !(await G.verify(a.pub, 'ABCDEFGH', await signAs('ryagram-game-sig-1')));
+  return out;
+}
+
+test('MUST FAIL: nonce: join and welcome need a 22-character base64url nonce, newNonce makes one (different each time), the nonce is signed, and the label is ryagram-game-sig-2', async () => {
+  assert.deepEqual(await nonceScenario(world()), { joinNeedsNonce: true, welcomeNeedsNonce: true, nonceFormat: true, newNonceFormat: true, nonceSigned: true, sigLabel2: true });
+});
+
+async function whyScenario(w) {
+  const G = w.G, out = {};
+  const wel = x => G.validate({ t: 'welcome', pid: 'AnaPhone01', ok: false, nonce: NONCE_OK, ...x });
+  out.welcomeWhyValues = ['removed', 'full', 'locked', 'started', 'name', 'closed'].every(why => !!wel({ why }) && wel({ why }).why === why);
+  out.welcomeWhyOthersRefused = ['banned', 'Full', 'idle', 'newcode', '', ' full', 7, true].every(why => wel({ why }) === null);
+  out.whyOnlyOnRefusal = wel({ ok: true, why: 'full' }) === null && !!wel({ ok: true }) && !!wel({});
+  const st = x => G.validate({ t: 'state', phase: 'closed', round: 0, of: 5, players: [], ...x });
+  out.closedPhase = !!st({}) && st({}).phase === 'closed' && !!st({ players: ['Ana'] });
+  out.closedWhyValues = ['idle', 'host', 'newcode'].every(why => !!st({ why }) && st({ why }).why === why) && ['removed', 'full', 'Idle', '', 3].every(why => st({ why }) === null);
+  out.whyOnlyWhenClosed = ['lobby', 'question', 'reveal', 'final'].every(phase => st({ phase, why: 'idle' }) === null && !!st({ phase }));
+  out.showCode = G.showCode('abcdefgh') === 'ABCD EFGH' && G.showCode('ABCD-EFGH') === 'ABCD EFGH' && G.normCode(G.showCode('WXYZABCD')) === 'WXYZABCD';
+  return out;
+}
+
+test('MUST FAIL: why: a refusal welcome may say removed/full/locked/started/name/closed (nothing else, never on ok), a closed state may say idle/host/newcode (only when closed); showCode is ABCD EFGH', async () => {
+  assert.deepEqual(await whyScenario(world()), { welcomeWhyValues: true, welcomeWhyOthersRefused: true, whyOnlyOnRefusal: true, closedPhase: true, closedWhyValues: true, whyOnlyWhenClosed: true, showCode: true });
+});
+
+// RATE LIMITS on a fake clock (FACES 3.1 table): each bucket on its own makeLimits so one bucket's clock steps cannot refill another's test.
+async function limitsScenario(w) {
+  const G = w.G, out = {};
+  const fresh = () => { let t = 5000; return { L: G.makeLimits({ now: () => t }), step: ms => { t += ms; }, back: ms => { t -= ms; } }; };
+  const takeN = (f, n) => { let k = 0; for (let i = 0; i < n; i++) if (f()) k++; return k; };
+  { const { L, step } = fresh(); out.roomBucket = takeN(L.room, 100) === 60 && (step(34), takeN(L.room, 5) === 1) && (step(1000), takeN(L.room, 100) === 30); }
+  { const { L, step } = fresh(); const A = () => L.pid('A'); out.pidBucket = takeN(A, 10) === 6 && (step(334), takeN(A, 5) === 1) && (step(1000), takeN(A, 10) === 3); }
+  { const { L, step } = fresh(); const A = () => L.guess('A'); out.guessBucket = takeN(A, 10) === 3 && (step(500), takeN(A, 5) === 0) && (step(500), takeN(A, 5) === 1); }
+  { const { L } = fresh(); out.pidsIndependent = takeN(() => L.pid('A'), 10) === 6 && takeN(() => L.pid('B'), 10) === 6 && takeN(() => L.guess('A'), 10) === 3 && takeN(() => L.guess('B'), 10) === 3; }
+  { const { L, step } = fresh(); out.newPidBucket = takeN(L.newPid, 10) === 6 && (step(5000), takeN(L.newPid, 5) === 0) && (step(5000), takeN(L.newPid, 5) === 1) && (step(60000), takeN(L.newPid, 10) === 6); }
+  { const { L, step } = fresh(); out.verifyBucket = takeN(L.verify, 50) === 20 && (step(50), takeN(L.verify, 5) === 1) && (step(1000), takeN(L.verify, 50) === 20); }
+  { const { L, step } = fresh(); out.refusalBucket = takeN(L.refusal, 5) === 1 && (step(1000), takeN(L.refusal, 5) === 0) && (step(1000), takeN(L.refusal, 5) === 1) && (step(10000), takeN(L.refusal, 5) === 1); }
+  { const { L, step, back } = fresh(); const A = () => L.pid('A'); out.clockBackGivesNothing = takeN(A, 10) === 6 && (back(60000), takeN(A, 5) === 0) && (step(60000 + 334), takeN(A, 5) === 1); }
+  // bounded: 1000 made-up pids keep at most LIMIT_PIDS (200) in each per-pid table
+  { const { L } = fresh(); for (let i = 0; i < 1000; i++) { L.pid('Fake' + i); L.guess('Fake' + i); } const n = L.tracked(); out.boundedPids = G.LIMIT_PIDS === 200 && n.pid === 200 && n.guess === 200; }
+  // the one let go is the one used LONGEST ago: a drained pid that keeps sending stays drained while a flood of new pids passes through
+  { const { L } = fresh(); const Z = () => L.pid('Zed');
+    takeN(Z, 10); for (let i = 0; i < 199; i++) L.pid('Fake' + i); const stillOut = !Z(); for (let i = 199; i < 299; i++) L.pid('Fake' + i);
+    out.recentPidKept = stillOut && !Z(); }
+  // real use: 8 phones, one guess a second each, for 60 s of fake time: nothing dropped
+  { const { L, step } = fresh(); let ok = true;
+    for (let s = 0; s < 60; s++) { step(1000); for (let p = 0; p < 8; p++) ok = L.room() && L.pid('Phone' + p) && L.guess('Phone' + p) && L.verify() && ok; }
+    out.realUseFits = ok; }
+  // with no clock given it uses the page's own clock
+  { const L = G.makeLimits(); out.defaultClock = L.room() === true && L.pid('A') === true && Object.isFrozen(L); }
+  return out;
+}
+
+test('MUST FAIL: rate limits (fake clock): room 60/30 per s, pid 6/3 per s, guess 3/1 per s, new pids 6 a minute, verifies 20 per s, refusals 1 per 2 s; per-pid tables hold at most 200; real use fits', async () => {
+  assert.deepEqual(await limitsScenario(world()), { roomBucket: true, pidBucket: true, guessBucket: true, pidsIndependent: true, newPidBucket: true, verifyBucket: true, refusalBucket: true,
+    clockBackGivesNothing: true, boundedPids: true, recentPidKept: true, realUseFits: true, defaultClock: true });
+});
+
 // Each mutant takes ONE check out (in memory only); the scenario must then report that forgery as getting through. A mutant that changes nothing would fail on its own text check.
 const HOST = 'assets/app-games.js', PHONE = 'assets/game-phone-live.js', ROOMJS = 'assets/game-room.js';
 const MUTANTS = [
@@ -597,6 +681,34 @@ const MUTANTS = [
   { name: 'host: no guess rate limit', file: HOST, edits: [["if (m.t === 'guess' && !guessAllowed(m.pid)) return; ", '']], scenario: floodScenario, caught: ['guessRateLimit'] },
   { name: 'host: blank-looking names let in', file: HOST, edits: [['BLANKISH.test(name) || ', '']], scenario: names2Scenario, caught: ['blankRefused'] },
   { name: 'host: no look-alike map', file: HOST, edits: [['const i = LOOK_FROM.indexOf(c); return i >= 0 ? LOOK_TO[i] : c;', 'return c;']], scenario: names2Scenario, caught: ['cyrillicSame', 'reservedSkeleton'] },
+  // 11-27 v3 (holds contract section 1): the 8-letter code, the nonce, why, closed, and every rate-limit bucket
+  { name: 'room: the 6-letter code again', file: ROOMJS, edits: [['const CODE_LEN = 8, MAX_BYTES', 'const CODE_LEN = 6, MAX_BYTES']], scenario: codeScenario, caught: ['knownVector', 'eightLetters', 'sixRefused'] },
+  { name: 'room: the v2 salt (a 6-letter build could meet an 8-letter one)', file: ROOMJS, edits: [["'ryagram-game-room-v3', CODE_ITERATIONS", "'ryagram-game-room-v2', CODE_ITERATIONS"]], scenario: codeScenario, caught: ['kdfParams', 'knownVector', 'sameAsNodePbkdf2'] },
+  { name: 'room: a join without a nonce taken', file: ROOMJS, edits: [['join: { need: { pid, name, nonce }, may: WITH_PUB },', 'join: { need: { pid, name }, may: { nonce, ...WITH_PUB } },']], scenario: nonceScenario, caught: ['joinNeedsNonce'] },
+  { name: 'room: a welcome without a nonce taken', file: ROOMJS, edits: [["ok: v => typeof v === 'boolean' ? v : BAD, nonce }, may: { problem:", "ok: v => typeof v === 'boolean' ? v : BAD }, may: { nonce, problem:"]], scenario: nonceScenario, caught: ['welcomeNeedsNonce'] },
+  { name: 'room: a nonce of any length', file: ROOMJS, edits: [['const NONCE = /^[A-Za-z0-9_-]{22}$/;', 'const NONCE = /^[A-Za-z0-9_-]{8,64}$/;']], scenario: nonceScenario, caught: ['nonceFormat'] },
+  { name: 'room: a nonce of any characters', file: ROOMJS, edits: [['const NONCE = /^[A-Za-z0-9_-]{22}$/;', 'const NONCE = /^.{22}$/;']], scenario: nonceScenario, caught: ['nonceFormat'] },
+  { name: 'room: newNonce from 12 bytes', file: ROOMJS, edits: [['crypto.getRandomValues(new Uint8Array(16))', 'crypto.getRandomValues(new Uint8Array(12))']], scenario: nonceScenario, caught: ['newNonceFormat'] },
+  { name: 'room: the nonce left out of the signature', file: ROOMJS, edits: [['delete v.sig;', 'delete v.sig; delete v.nonce;']], scenario: nonceScenario, caught: ['nonceSigned'] },
+  { name: 'room: the old signature label', file: ROOMJS, edits: [["'ryagram-game-sig-2\\n'", "'ryagram-game-sig-1\\n'"]], scenario: nonceScenario, caught: ['sigLabel2'] },
+  { name: 'room: a welcome why of any short text', file: ROOMJS, edits: [['why: v => (WELCOME_WHY.includes(v) ? v : BAD)', 'why: v => text(v, 0, 20)']], scenario: whyScenario, caught: ['welcomeWhyOthersRefused'] },
+  { name: 'room: why on an ok welcome taken', file: ROOMJS, edits: [['also: m => m.why === undefined || m.ok === false },', '},']], scenario: whyScenario, caught: ['whyOnlyOnRefusal'] },
+  { name: "room: no 'closed' phase", file: ROOMJS, edits: [["'final', 'closed'];", "'final'];"]], scenario: whyScenario, caught: ['closedPhase', 'closedWhyValues'] },
+  { name: 'room: a closed why of any short text', file: ROOMJS, edits: [['why: v => (CLOSED_WHY.includes(v) ? v : BAD)', 'why: v => text(v, 0, 20)']], scenario: whyScenario, caught: ['closedWhyValues'] },
+  { name: 'room: why on a state of any phase', file: ROOMJS, edits: [["also: m => m.why === undefined || m.phase === 'closed',", '']], scenario: whyScenario, caught: ['whyOnlyWhenClosed'] },
+  { name: 'room: showCode with no space', file: ROOMJS, edits: [["n.slice(0, 4) + ' ' + n.slice(4)", 'n']], scenario: whyScenario, caught: ['showCode'] },
+  { name: 'limits: room bucket holds 600', file: ROOMJS, edits: [['room: Object.freeze({ cap: 60,', 'room: Object.freeze({ cap: 600,']], scenario: limitsScenario, caught: ['roomBucket'] },
+  { name: 'limits: pid bucket holds 60', file: ROOMJS, edits: [['pid: Object.freeze({ cap: 6,', 'pid: Object.freeze({ cap: 60,']], scenario: limitsScenario, caught: ['pidBucket', 'pidsIndependent'] },
+  { name: 'limits: guess bucket refills 10 per s', file: ROOMJS, edits: [['guess: Object.freeze({ cap: 3, n: 1,', 'guess: Object.freeze({ cap: 3, n: 10,']], scenario: limitsScenario, caught: ['guessBucket'] },
+  { name: 'limits: new pids refill every second, not every minute', file: ROOMJS, edits: [['newPid: Object.freeze({ cap: 6, n: 6, ms: 60000 })', 'newPid: Object.freeze({ cap: 6, n: 6, ms: 1000 })']], scenario: limitsScenario, caught: ['newPidBucket'] },
+  { name: 'limits: verify bucket holds 200', file: ROOMJS, edits: [['verify: Object.freeze({ cap: 20,', 'verify: Object.freeze({ cap: 200,']], scenario: limitsScenario, caught: ['verifyBucket'] },
+  { name: 'limits: a refusal every 0.2 s', file: ROOMJS, edits: [['refusal: Object.freeze({ cap: 1, n: 1, ms: 2000 })', 'refusal: Object.freeze({ cap: 1, n: 1, ms: 200 })']], scenario: limitsScenario, caught: ['refusalBucket'] },
+  { name: 'limits: buckets never refill', file: ROOMJS, edits: [['tokens = Math.min(spec.cap, tokens + (t - last) * spec.n / spec.ms); last = t;', 'last = t;']], scenario: limitsScenario, caught: ['roomBucket', 'pidBucket', 'newPidBucket', 'refusalBucket', 'realUseFits'] },
+  { name: 'limits: buckets refill past their cap', file: ROOMJS, edits: [['Math.min(spec.cap, tokens + (t - last) * spec.n / spec.ms)', 'tokens + (t - last) * spec.n / spec.ms']], scenario: limitsScenario, caught: ['refusalBucket'] },
+  { name: 'limits: a clock that goes back gives tokens', file: ROOMJS, edits: [['if (t > last) { tokens = Math.min(spec.cap, tokens + (t - last) * spec.n / spec.ms); last = t; }', '{ tokens = Math.min(spec.cap, tokens + Math.abs(t - last) * spec.n / spec.ms); last = t; }']], scenario: limitsScenario, caught: ['clockBackGivesNothing'] },
+  { name: 'limits: per-pid tables unbounded', file: ROOMJS, edits: [['while (map.size > LIMIT_PIDS) map.delete(map.keys().next().value);', '']], scenario: limitsScenario, caught: ['boundedPids'] },
+  { name: 'limits: one bucket shared by every pid', file: ROOMJS, edits: [['const key = String(p);', "const key = '';"]], scenario: limitsScenario, caught: ['pidsIndependent'] },
+  { name: 'limits: per-pid tables let go the oldest made, not the longest unused', file: ROOMJS, edits: [['if (b) map.delete(key);', 'if (b) { /* not moved */ }']], scenario: limitsScenario, caught: ['recentPidKept'] },
 ];
 
 for (const mu of MUTANTS) {
