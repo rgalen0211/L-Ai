@@ -41,7 +41,7 @@ test('RUN LINES: what the person\'s computer reported becomes a plain line: coun
   assert.equal(run(null), W.waiting);
   assert.match(run({ state: 'matching', matches: 7 }), /finding the matches on your computer\. 7 matches, counted on your computer\.$/);
   assert.match(run({ state: 'done', matches: 7, clips: 7, film_seconds: 41.2 }), /^Done\. Your film is on your computer\. 7 matches, 7 clips, 41 seconds long, counted on your computer\.$/);
-  assert.match(run({ state: 'failed', error_code: 'not_said' }), /It did not finish\. Your videos do not say it\.$/);
+  assert.match(run({ state: 'failed', error_code: 'not_said' }), /It did not finish. Your videos do not say these words. Try other words, or add more folders.$/);
   assert.match(run({ state: 'failed', error_code: '<b>x</b>' }), /Something went wrong\. Try again from the app\.$/);
   assert.match(run({ state: 'cancelled', matches: 3 }), /^Stopped\. 3 matches, counted on your computer\.$/);
   assert.equal(run({ state: 'nonsense' }), W.waiting);

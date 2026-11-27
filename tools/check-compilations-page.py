@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/compstates-shots')
 OUT.mkdir(parents=True, exist_ok=True)
 BS = chr(92)
-CODES = {'request_invalid': 'could not be read', 'song_request': 'song tools', 'folder_not_chosen': 'Choose where', 'folder_missing': 'not there any more', 'folder_empty': 'no videos',
-         'folders_overlap': 'same videos', 'no_speech': 'No speech', 'not_said': 'do not say it', 'edit_failed': 'film list', 'build_failed': 'Nothing left your computer', 'crash': 'went wrong'}
+CODES = {'request_invalid': 'could not be read', 'song_request': 'do not make songs', 'folder_not_chosen': 'choose where that folder', 'folder_missing': 'not there any more', 'folder_empty': 'no videos',
+         'folders_overlap': 'same videos', 'no_speech': 'No speech', 'not_said': 'do not say these words', 'edit_failed': 'turned into a film', 'build_failed': 'Nothing left your computer', 'crash': 'went wrong'}
 RUNS = [('waiting', None, 'Waiting for the Ryagram app'), ('planning', 'planning', 'planning your film'), ('matching', 'matching', '7 matches'), ('building', 'building', 'making your film'),
         ('done', 'done', '7 matches, 7 clips, 41 seconds long'), ('cancelled', 'cancelled', 'Stopped')] + [('failed-' + c, 'failed&compcode=' + c, w) for c, w in CODES.items()]
 PATHISH = re.compile('[A-Za-z]:[' + BS + BS + '/]')
@@ -45,7 +45,10 @@ def open_page(b, w, query):
     p = c.new_page(); errs = []
     p.on('pageerror', lambda e: errs.append(str(e)[:200]))
     p.goto(f'http://127.0.0.1:{PORT}/app/?mock{query}#/d/compilations', wait_until='load')
-    if '&compon' in query: p.wait_for_selector('#comp-phrase', timeout=15000)
+    if '&compon' in query:
+        try: p.wait_for_selector('#comp-phrase', timeout=15000)
+        except Exception:      # the mock's first paint is occasionally slow: one more load, then fail for real
+            p.reload(); p.wait_for_selector('#comp-phrase', timeout=30000)
     else: p.wait_for_timeout(1800)
     return c, p, errs
 

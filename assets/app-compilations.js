@@ -2,7 +2,7 @@
 // A compilation finds every time a phrase is said in the person's OWN footage and strings the moments together. The footage, the matches and the finished film stay on the person's computer
 // (tools/check-compilation-stays-local.py): this page only saves a REQUEST (the words, the NAMES of folders, a few switches) that the Ryagram app on the person's computer reads and builds from.
 // It never sends or reads a video, a picture or a path. The server calls are my_compilation_set and my_compilation_get (BUILDER's, branch builder-compilations-server-1127; the request has the connector's own shape, ryagram.compilation-request/0).
-// FOR RYAN'S YES: every public word on this page is new.
+// FOR RYAN'S YES: every public word on this page is new. The eleven error reasons are FACES' words with a next step each (proposals/FACES-COMPILATION-WORDS-1127.md, 11-27), verbatim; the keys are ours.
 (() => {
   const BS = String.fromCharCode(92);
   // A folder or picture is a NAME: no slash, no colon, nothing a path is made of (the connector's NAME_PATTERN).
@@ -63,7 +63,7 @@
     waiting: 'Waiting for the Ryagram app on your computer.',
     states: { planning: 'The Ryagram app is planning your film.', matching: 'The Ryagram app is finding the matches on your computer.', building: 'The Ryagram app is making your film on your computer.', done: 'Done. Your film is on your computer.', failed: 'It did not finish.', cancelled: 'Stopped.' },
     // the closed list of reasons the app can report (FACES 08:16, docs/COMPILATION-REPORT-1127.md); anything else reads as the generic line
-    errors: { request_invalid: 'Your AI’s request could not be read.', song_request: 'Songs are made in the song tools, not here.', folder_not_chosen: 'Choose where these videos are on your computer.', folder_missing: 'A folder you chose is not there any more.', folder_empty: 'A folder you chose has no videos.', folders_overlap: 'Two folders hold the same videos.', no_speech: 'No speech was found in your videos.', not_said: 'Your videos do not say it.', edit_failed: 'The draft could not be made into a film list.', build_failed: 'The film could not be built. Nothing left your computer.', crash: 'Something went wrong on your computer.' },
+    errors: { request_invalid: 'The request could not be read. Save it again, or ask your AI to write it again.', song_request: 'Compilations do not make songs. Take out the song and save again.', folder_not_chosen: 'A folder in your request is not chosen on your computer yet. Open the Ryagram app and choose where that folder is.', folder_missing: 'A folder you chose is not there any more. Open the Ryagram app and choose it again.', folder_empty: 'A folder you chose has no videos in it. Choose the folder that holds your videos.', folders_overlap: 'Two of your folders hold the same videos. Choose folders that do not overlap.', no_speech: 'No speech was found in your videos. Try videos where people talk.', not_said: 'Your videos do not say these words. Try other words, or add more folders.', edit_failed: 'The matches could not be turned into a film. Try again; if it happens twice, tell us.', build_failed: 'The film could not be built. Nothing left your computer. Try again in the Ryagram app.', crash: 'Something went wrong on your computer. Nothing left it. Close the app, open it and try again.' },
     noApp: 'The Ryagram app is not on a computer of yours yet. You can save a request now; the app reads it when you open it.'
   };
 
