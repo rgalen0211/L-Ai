@@ -22,6 +22,8 @@ const mutants = [
   ['the daily cap gets the generic code again', TL, 'code === "PTCAP" ? "daily_credit_cap"', 'code === "PTCAP" ? "error"'],
   ['a blocked film gets the generic code again', TL, 'code === "PTVEW" ? "not_available"', 'code === "PTVEW" ? "error"'],
   ['the dispatcher ignores the distinct code', 'supabase/functions/connect-core/dispatch.ts', 'code: errorCodeOf(e) }', 'code: "error" }'],
+  ['a Postgres-internal message is shown again (L6)', TL, 'if (DB_INTERNAL.test(msg)) return', 'if (false) return'],
+  ['"permission denied for" is no longer treated as an internal (L6)', TL, 'const DB_INTERNAL = /permission denied for|', 'const DB_INTERNAL = /'],
   ['a key of the rgc kind is no longer removed', TL, '(sk|ryg|rga|rgr|rgc)', '(sk|ryg|rga|rgr)'],
 ];
 
