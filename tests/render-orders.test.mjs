@@ -23,13 +23,13 @@ function ready(client) {
   return v;
 }
 
-test('ORDER: with auto_render off a full render is REQUESTED and waits for approval with its credits held; the job waits in awaiting_approval and the version is queued; the words say so', async () => {
+test('ORDER: with auto_render off a full render is REQUESTED and waits for approval with its credits held; nothing is queued; the words say so', async () => {
   const client = createFakeClient({ autoRender: false });
   ready(client);
   const data = win.ryagramData(client);
   const order = await data.requestFinalRender('prev1', 'app-test-key-0001');
   assert.equal(order.state, 'awaiting_approval');
-  assert.ok(client.db.jobs.some(j => j.job_type === 'final_render' && j.state === 'awaiting_approval'), 'the final_render job exists in awaiting_approval (holding the credits) and the version is queued, as on live (20261017000600)');
+  assert.ok(!client.db.jobs.some(j => j.job_type === 'final_render'), 'no final job exists until Ryan approves');
   const st = await data.orderStatus(order.id);
   assert.match(J.orderLine(st), /waiting for approval. We approve each one by hand for now. 10 credits are held. They come back if it is not approved\./);
   assert.equal(J.ORDER_WORDS[st.state], 'Waiting for approval');
@@ -110,24 +110,4 @@ test('POINTER: a project page points non-technical people to Request a film (onl
   const lib = read('assets/app-library.js');
   assert.match(lib, /const helpNote = requestsOn\(\) \? h\('p', \{ class: 'form-note request-pointer' \}, 'Not sure how to build a film\? ', h\('a', \{ href: '#\/request' \}, 'Request a film'\)/);
   assert.match(lib, /h\('h1', \{ tabindex: '-1' \}, project\.title\),\r?\n\s+helpNote,/);
-});
-
-// Claude 11-26 19:28 (live): the request left the account at 0 available and the quote HELD, the final_render job in awaiting_approval, the version queued. The mock used to show none of that
-// (it quoted a fixed 10 and made no job), which is why the page error after the click never reproduced here. This pins the live SHAPE the page has to live with after the click.
-test('LIVE SHAPE after the request (auto_render off): quote from the film price, balance 0 available and the quote held, the awaiting job, version queued, status reply as the database sends it', async () => {
-  const client = createFakeClient({ autoRender: false, credits: 8 });
-  const v = ready(client);
-  v.story_spec = { schema: 1, engine: 'sequence', sequence: { clips: [{ kind: 'render', view: 'map' }] } };
-  const data = win.ryagramData(client);
-  await data.requestFinalRender('prev1', 'app-live-shape-01');
-  const order = client.db.render_orders[0];
-  assert.equal(order.stages[0].credits_quoted, 8, 'the order is quoted at the film type price, not a fixed 10');
-  const job = client.db.jobs.find(j => j.job_type === 'final_render');
-  assert.equal(job.state, 'awaiting_approval'); assert.equal(job.held, 8); assert.equal(order.stages[0].job_id, job.id);
-  assert.equal(v.state, 'queued');
-  assert.deepEqual(plain((await data.creditBalances()).map(b => [b.available, b.held])), [[0, 8]]);
-  const st = await data.orderStatus(order.id);
-  assert.deepEqual(Object.keys(st).sort(), ['created_at', 'delivery', 'ended_at', 'error_code', 'id', 'project_id', 'source', 'stages', 'state', 'version_id', 'want']);
-  assert.match(J.orderLine(st), /8 credits are held/);
-  assert.equal((await data.listJobs('v1')).filter(j => j.job_type === 'final_render').length, 1);
 });
