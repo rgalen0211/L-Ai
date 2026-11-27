@@ -21,8 +21,8 @@ test('NO PATHS, NO EMPTIES, NO OVERSIZE: a path, a slash, a drive letter, dots, 
   assert.ok(C.buildRequest({ phrase: 'x', folders: Array.from({ length: 11 }, (_, i) => 'f' + i).join(',') }).error);
   assert.ok(C.buildRequest({ phrase: 'see C:' + BS + 'temp', folders: 'A' }).error, 'a place in the words');
 });
-test('SWITCH: compilations is an account switch, the department module promotes it only behind featureOn, the page only calls the proposed RPC and reads under RLS', () => {
-  assert.match(read('assets/ryagram-config.js'), /^\s*compilations: 'account',/m);
+test('SWITCH: compilations is ON for everyone (launch step 82a), the department module promotes it only behind featureOn, the page only calls the proposed RPC and reads under RLS', () => {
+  assert.match(read('assets/ryagram-config.js'), /^\s*compilations: true,/m);
   const d = read('assets/app-departments.js');
   assert.ok(d.includes("featureOn('compilations') === true") && d.includes("if (id === 'compilations' && compilationsOn()"));
   const data = read('assets/app-data.js');
