@@ -8,6 +8,13 @@
 .games-host .gh-mark{display:inline-block;margin:0 6px 4px 0;padding:2px 6px;border-radius:6px;border:1px solid var(--line,#3a3a44)}
 .games-host .gh-exact{border-color:#6fcf8f;font-weight:700}
 .games-host .gh-near{border-style:dashed;border-color:#e6c35a}
-.games-host .gh-missed{opacity:.75;text-decoration:line-through}
+.games-host .gh-missed{text-decoration:line-through}
 .games-host button{min-height:44px}
 .games-host h2[tabindex="-1"]:focus{outline:none}
+.games-host .gh-modes{border:1px solid var(--line,#3a3a44);border-radius:12px;padding:10px 14px;margin:12px 0;display:grid;gap:8px}
+.games-host .gh-modes legend{font-weight:700;padding:0 6px}
+.games-host .gh-mode{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer}
+.games-host .gh-mode input{width:22px;height:22px}
+.games-host .gh-results li,.games-host .gh-final li{font-size:1.15rem}
+.games-host .gh-final{list-style:none;padding:0}
+@media (min-width:1600px){.games-host .gh-results li,.games-host .gh-final li,.games-host button{font-size:1.3rem}}

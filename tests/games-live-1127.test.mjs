@@ -72,11 +72,63 @@ test('REJOIN: the phone remembers its seat in THIS TAB only (sessionStorage), re
   assert.match(src, /sessionStorage\.getItem\(SEAT_KEY\)/); assert.ok(!/localStorage/.test(src), 'never localStorage: the seat dies with the tab');
   assert.match(src, /s\.pid = seat && seat\.code === s\.code && seat\.name\.toLowerCase\(\) === s\.name\.toLowerCase\(\) \? seat\.pid : newPid\(\);/);
   assert.equal((src.match(/await leave\(\); writeSeat\(null\); join\('You left the room\.'\)/g) || []).length, 2, 'both Leave buttons forget the seat');
-  assert.match(src, /else if \(m\.t === 'state' && s\.welcomed\) onState\(m\);/, 'nothing from the room is shown before the host lets the phone in');
+  assert.match(src, /else if \(m\.t === 'state' && s\.welcomed\) \{ s\.lastHeard = Date\.now\(\); onState\(m\); \}/, 'nothing from the room is shown before the host lets the phone in');
   // the stored value is checked before use
   const store = new Map(); const ss = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
   const W = load(['assets/game-phone-live.js'], { sessionStorage: ss });
   assert.equal(typeof W.ryagramGamePhoneLive.mount, 'function');
   const body = src.slice(src.indexOf('function readSeat'), src.indexOf('const writeSeat'));
   assert.match(body, /\/\^\[A-Z\]\{4\}\$\/\.test\(v\.code\)/); assert.match(body, /\/\^\[A-Za-z0-9\]\{8,32\}\$\/\.test\(v\.pid\)/); assert.match(body, /catch \{ return null; \}/);
+});
+
+test('NO ANSWER BEFORE THE REVEAL: across a whole game (host mounted on a fake room), no message before a reveal holds any of that round\'s answer, and every reveal holds it whole with the engine\'s points', async () => {
+  const mkEl = tag => ({ tag, kids: [], attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener() {}, append(...k) { this.kids.push(...k); }, replaceChildren(...k) { this.kids = k; }, querySelector() { return null; }, focus() {} });
+  const h = (tag, attrs, ...kids) => { const e = mkEl(tag); for (const [k, v] of Object.entries(attrs || {})) if (v != null && v !== false && !k.startsWith('on')) e.setAttribute(k, v); e.kids = kids.flat(); return e; };
+  const W = load(['assets/game-score.js', 'assets/game-rounds.js', 'assets/app-games.js'], { location: { hostname: '127.0.0.1', search: '?relay=http://127.0.0.1:9', hash: '#/d/games', origin: 'http://127.0.0.1:1' },
+    setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} });
+  const sent = []; let onMsg = null;
+  const Room = { newCode: () => 'ABCD', connect: async () => ({ send: async m => { sent.push(JSON.parse(JSON.stringify(m))); }, onMessage: cb => { onMsg = cb; return () => {}; }, close() {} }) };
+  const R = W.ryagramGameRounds, S = W.ryagramGameScore;
+  const host = W.ryagramGamesHost.mount(mkEl('div'), { h, Room, Score: S, Rounds: R, cfg: {} });
+  await new Promise(r => setTimeout(r, 0));
+  assert.ok(onMsg, 'the host listens to the room');
+  onMsg({ t: 'join', pid: 'aaaaaaaa1', name: 'Ana' }); onMsg({ t: 'join', pid: 'bbbbbbbb1', name: 'Ben' });
+  onMsg({ t: 'join', pid: 'cccccccc1', name: 'ANA' });
+  assert.ok(sent.some(m => m.t === 'welcome' && m.pid === 'cccccccc1' && m.ok === false), 'a name differing only in case is refused');
+  host.start();
+  for (let i = 0; i < R.rounds.length; i++) {
+    const words = R.rounds[i].answer.map(w => w.word.toLowerCase().replace(/[^a-z0-9']/g, '')).filter(w => w.length > 3 && !R.rounds[i].public.heard_text.toLowerCase().includes(w));
+    const mark = sent.length;
+    onMsg({ t: 'guess', pid: 'aaaaaaaa1', round: i, text: R.rounds[i].answer.map(w => w.word).join(' ') });
+    const pre = sent.slice(0, sent.length).filter(m => m.t === 'state' && m.phase === 'question' && m.round === i);
+    assert.ok(pre.length >= 1, `round ${i + 1} was sent as a question`);
+    for (const m of pre) for (const w of words) assert.ok(!JSON.stringify(m).toLowerCase().includes(w), `round ${i + 1}: '${w}' was sent before the reveal`);
+    onMsg({ t: 'guess', pid: 'bbbbbbbb1', round: i, text: 'nothing like it' });           // both in: the host reveals at once
+    const rev = sent.slice(mark).find(m => m.t === 'state' && m.phase === 'reveal' && m.round === i);
+    assert.ok(rev, `round ${i + 1} was revealed`);
+    assert.equal(rev.reveal.answer_text, R.rounds[i].answer.map(w => w.word).join(' '));
+    const ana = rev.reveal.results.find(r => r.name === 'Ana');
+    assert.equal(ana.points, S.scoreGuess(R.rounds[i], R.rounds[i].answer.map(w => w.word).join(' ')).points);
+    host.next();
+  }
+  const fin = sent.filter(m => m.t === 'state' && m.phase === 'final').pop();
+  assert.ok(fin, 'the final was sent');
+  const sum = R.rounds.reduce((t, r) => t + S.scoreGuess(r, r.answer.map(w => w.word).join(' ')).points, 0);
+  assert.equal(fin.totals.find(t => t.name === 'Ana').total, sum);
+  host.close();
+});
+
+test('MODES: the room accepts mode line or gap only; the host offers Fill the gap only when its rounds are loaded, sends mode with every state, and a gap question shows the line with its gap (never the word)', async () => {
+  const Room = load(['assets/game-room.js'], { TextEncoder }).ryagramGameRoom;
+  const base = { t: 'state', phase: 'lobby', round: 0, of: 5, players: [] };
+  assert.equal(Room.validate({ ...base, mode: 'gap' }).mode, 'gap'); assert.equal(Room.validate({ ...base, mode: 'line' }).mode, 'line');
+  assert.equal(Room.validate({ ...base, mode: 'quiz' }), null); assert.equal(Room.validate(base).mode, undefined);
+  const host = read('assets/app-games.js');
+  assert.match(host, /gap: GapRounds \|\| \(typeof window !== 'undefined' && window\.ryagramGameGapRounds\) \|\| null/);
+  assert.match(host, /MODE_ROUNDS\.gap \? h\('fieldset'/);
+  assert.match(host, /const setMode = m => \{ if \(s\.phase !== 'lobby' \|\| !MODE_ROUNDS\[m\]\) return;/, 'the mode changes only in the lobby');
+  assert.match(host, /heard_text: s\.mode === 'gap' \? r\.shown_text : r\.heard_text/);
+  const html = read('app/index.html'); assert.ok(html.indexOf('/assets/game-gap-rounds.js?v=') > 0 && html.indexOf('/assets/game-gap-rounds.js?v=') < html.indexOf('/assets/app-games.js?v='));
+  const W = load(['assets/game-gap-rounds.js']);
+  for (const r of W.ryagramGameGapRounds.rounds) assert.ok(!r.public.shown_text.toLowerCase().split(/[^a-z']+/).includes(r.answer[0].norm), 'the shown line never holds the word');
 });

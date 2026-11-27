@@ -38,51 +38,61 @@
     });
   }
 
-  function mount(root, { h, Room, Score, Rounds, cfg, seconds }) {
+  function mount(root, { h, Room, Score, Rounds, GapRounds, cfg, seconds }) {
     const secs = seconds || ROUND_SECONDS;
     const s = { code: Room.newCode(), conn: null, off: null, players: [], phase: 'lobby', round: -1, guesses: new Map(), totals: new Map(), left: 0, timer: null, results: null, closed: false };
     const live = h('p', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite', id: 'gh-live' });
     const stage = h('div', { class: 'gh-stage' });
     const status = h('p', { class: 'form-note', id: 'gh-status', role: 'status' }, 'Opening a room…');
     const joinUrl = `${location.origin}/game-phone/`;
-    const rounds = Rounds.rounds;
+    // GAMES 11-27: two modes. 'line' = Guess the next line (assets/game-rounds.js); 'gap' = Fill the gap (assets/game-gap-rounds.js: a line with ONE word hidden, scored by the
+    // same engine rules on a one-word answer). The gap mode is offered only when its rounds are loaded.
+    const MODE_ROUNDS = { line: Rounds, gap: GapRounds || (typeof window !== 'undefined' && window.ryagramGameGapRounds) || null };
+    s.mode = 'line';
+    let rounds = Rounds.rounds;
+    const setMode = m => { if (s.phase !== 'lobby' || !MODE_ROUNDS[m]) return; s.mode = m; rounds = MODE_ROUNDS[m].rounds; draw(); broadcast(); };
 
     const publicState = () => {
-      const base = { t: 'state', phase: s.phase, round: Math.max(0, s.round), of: rounds.length, players: s.players.map(p => p.name) };
-      if (s.phase === 'question') { const r = rounds[s.round].public; return { ...base, heard_text: r.heard_text, words_left: r.words_left, left_s: s.left, answered: s.players.filter(p => s.guesses.has(p.pid)).map(p => p.name) }; }
+      const base = { t: 'state', mode: s.mode, phase: s.phase, round: Math.max(0, s.round), of: rounds.length, players: s.players.map(p => p.name) };
+      if (s.phase === 'question') { const r = rounds[s.round].public; return { ...base, heard_text: s.mode === 'gap' ? r.shown_text : r.heard_text, words_left: r.words_left, left_s: s.left, answered: s.players.filter(p => s.guesses.has(p.pid)).map(p => p.name) }; }
       if (s.phase === 'reveal') return { ...base, reveal: { answer_text: rounds[s.round].public && rounds[s.round].answer.map(w => w.word).join(' '), results: s.results.map(({ name, points, verdict, text }) => ({ name, points, verdict, text })) }, totals: totalsList() };
       if (s.phase === 'final') return { ...base, totals: totalsList() };
       return base;
     };
-    const totalsList = () => s.players.map(p => ({ name: p.name, total: s.totals.get(p.pid) || 0 }));
-    const broadcast = () => { if (s.conn) s.conn.send(publicState()).catch(() => { status.textContent = 'A message did not reach the phones. It will be sent again.'; }); };
+    const totalsList = () => ranks(s.players.map(p => ({ name: p.name, total: s.totals.get(p.pid) || 0 }))).map(({ name, total }) => ({ name, total }));        // ranked, so every phone lists the same order (GAMES a11y audit 5)
+    const active = () => s.players.filter(p => !p.gone);
+    const endDot = t => String(t).replace(/[.!?]+$/, '');          // the answer may end with its own full stop: never two (audit 8)
+    const broadcast = () => { if (s.conn) s.conn.send(publicState()).catch(() => { status.textContent = 'A message did not reach the phones. It is sent again every 5 seconds.'; }); };
     const stopTimer = () => { if (s.timer) clearInterval(s.timer); s.timer = null; };
 
     function onMessage(m) {
       if (s.closed) return;
       if (m.t === 'join') {
         const known = s.players.find(p => p.pid === m.pid);
-        if (known) { s.conn.send({ t: 'welcome', pid: m.pid, ok: true }).catch(() => {}); broadcast(); return; }
+        if (known) { known.gone = false; s.conn.send({ t: 'welcome', pid: m.pid, ok: true }).catch(() => {}); broadcast(); return; }
         if (s.phase !== 'lobby') { s.conn.send({ t: 'welcome', pid: m.pid, ok: false, problem: 'This game has already started. Wait for the next one.' }).catch(() => {}); return; }
         const problem = nameProblem(m.name, s.players);
         if (problem) { s.conn.send({ t: 'welcome', pid: m.pid, ok: false, problem }).catch(() => {}); return; }
         s.players.push({ pid: m.pid, name: m.name }); s.totals.set(m.pid, 0);
         s.conn.send({ t: 'welcome', pid: m.pid, ok: true }).catch(() => {});
         live.textContent = `${m.name} joined.`;
-        draw(); broadcast(); return;
+        refresh(); broadcast(); return;
       }
       if (m.t === 'leave') {
-        if (s.phase !== 'lobby') return;                      // after the start a player keeps their place on the scoreboard
-        const before = s.players.length; s.players = s.players.filter(p => p.pid !== m.pid);
-        if (s.players.length !== before) { draw(); broadcast(); }
+        const who = s.players.find(p => p.pid === m.pid); if (!who) return;
+        live.textContent = `${who.name} left.`;                  // audit 10
+        if (s.phase === 'lobby') { s.players = s.players.filter(p => p.pid !== m.pid); s.totals.delete(m.pid); refresh(); broadcast(); return; }
+        who.gone = true;                                          // after the start a player keeps their place on this game's scoreboard; Play again drops them (audit 3)
+        if (s.phase === 'question' && active().length && active().every(p => s.guesses.has(p.pid))) reveal(); else refresh();
         return;
       }
       if (m.t === 'guess') {
         if (s.phase !== 'question' || m.round !== s.round || !s.players.some(p => p.pid === m.pid)) return;
+        const back = s.players.find(p => p.pid === m.pid); back.gone = false;
         s.guesses.set(m.pid, m.text);
         s.conn.send({ t: 'got', pid: m.pid, round: m.round }).catch(() => {});
-        draw();
-        if (s.players.every(p => s.guesses.has(p.pid))) reveal();
+        refresh();
+        if (active().every(p => s.guesses.has(p.pid))) reveal();
       }
     }
 
@@ -99,12 +109,24 @@
       s.results = scoreRound(Score, rounds[s.round], s.players, s.guesses);
       for (const r of s.results) { const p = s.players.find(x => x.name === r.name); s.totals.set(p.pid, (s.totals.get(p.pid) || 0) + r.points); }
       s.phase = 'reveal';
-      live.textContent = `The answer was: ${rounds[s.round].answer.map(w => w.word).join(' ')}.`;
+      live.textContent = `The answer was: ${endDot(rounds[s.round].answer.map(w => w.word).join(' '))}.`;
       draw(true); broadcast();
     }
-    function finish() { s.phase = 'final'; stopTimer(); live.textContent = 'The game is over.'; draw(true); broadcast(); }
-    function again() { s.phase = 'lobby'; s.round = -1; s.guesses = new Map(); s.results = null; for (const p of s.players) s.totals.set(p.pid, 0); draw(true); broadcast(); }
+    function finish() { s.phase = 'final'; stopTimer(); const top = ranks(totalsList()).filter(t => t.place === 1).map(t => t.name); live.textContent = `The game is over. ${top.join(' and ')} ${top.length > 1 ? 'share' : 'takes'} first place.`; draw(true); broadcast(); }
+    function again() { s.players = active(); s.phase = 'lobby'; s.round = -1; s.guesses = new Map(); s.results = null; for (const p of s.players) s.totals.set(p.pid, 0); draw(true); broadcast(); }
 
+    // Changes that do NOT change the phase (a join, a leave, a guess) update their own lines in place, so the host's keyboard focus stays where it is (audit HIGH 1).
+    function refresh() {
+      const q = sel => (stage.querySelector ? stage.querySelector(sel) : null);
+      if (s.phase === 'lobby') {
+        const pl = q('#gh-players'), st = q('#gh-start');
+        if (!pl || !st) return draw();
+        pl.textContent = s.players.length ? `Players (${s.players.length} of ${MAX_PLAYERS}): ${s.players.map(x => x.name).join(', ')}` : 'No one has joined yet.';
+        if (s.players.length) st.removeAttribute('disabled'); else st.setAttribute('disabled', '');
+      } else if (s.phase === 'question') {
+        const an = q('#gh-answered'); if (an) an.textContent = `Guesses in: ${active().filter(x => s.guesses.has(x.pid)).length} of ${active().length}`;
+      }
+    }
     const markWord = m => h('span', { class: `gh-mark gh-${m.mark}` }, m.word, h('span', { class: 'visually-hidden' }, ` (${m.mark})`));
     function draw(focus) {
       let kids;
@@ -113,14 +135,18 @@
           h('p', { class: 'gh-code-line' }, 'Room code ', h('strong', { class: 'gh-code', id: 'gh-code' }, s.code)),
           h('p', {}, 'On a phone, open ', h('strong', {}, joinUrl), ' and type the room code.'),
           h('p', { class: 'meta', id: 'gh-players' }, s.players.length ? `Players (${s.players.length} of ${MAX_PLAYERS}): ${s.players.map(p => p.name).join(', ')}` : 'No one has joined yet.'),
+          MODE_ROUNDS.gap ? h('fieldset', { class: 'gh-modes', id: 'gh-modes' }, h('legend', {}, 'Which game?'),
+            ...[['line', 'Guess the next line', 'A line stops partway; type what comes next.'], ['gap', 'Fill the gap', 'A line has one word missing; type the missing word.']].map(([v, label, hint]) =>
+              h('label', { class: 'gh-mode', for: `gh-mode-${v}` }, h('input', { type: 'radio', name: 'gh-mode', id: `gh-mode-${v}`, value: v, checked: s.mode === v ? true : null, onchange: () => setMode(v) }), ' ', h('strong', {}, label), h('span', { class: 'meta' }, ` ${hint}`)))) : null,
           h('button', { class: 'button primary', type: 'button', id: 'gh-start', disabled: s.players.length ? null : true, onclick: () => startRound(0) }, 'Start the game')];
       } else if (s.phase === 'question') {
         const r = rounds[s.round].public;
         kids = [h('h2', { tabindex: '-1' }, `Round ${s.round + 1} of ${rounds.length}`), h('p', { class: 'meta', id: 'gh-clock' }, `${s.left} seconds left`),
-          h('p', { class: 'meta' }, 'Read this line aloud, then stop: the players guess what comes next. (These sample rounds have no video.)'),
-          h('p', { class: 'gh-heard', id: 'gh-heard' }, `“${r.heard_text} …”`),
-          h('p', { class: 'meta' }, `${r.words_left} word${r.words_left === 1 ? ' is' : 's are'} left to guess.`),
-          h('p', { id: 'gh-answered' }, `Guesses in: ${s.players.filter(p => s.guesses.has(p.pid)).length} of ${s.players.length}`),
+          ...(s.mode === 'gap'
+            ? [h('p', { class: 'meta' }, 'Read this line aloud and say "blank" for the gap: the players type the missing word.'), h('p', { class: 'gh-heard', id: 'gh-heard' }, `“${r.shown_text}”`), h('p', { class: 'meta' }, 'One word is missing.')]
+            : [h('p', { class: 'meta' }, 'Read this line aloud, then stop: the players guess what comes next. (These sample rounds have no video.)'), h('p', { class: 'gh-heard', id: 'gh-heard' }, `“${r.heard_text} …”`),
+               h('p', { class: 'meta' }, `${r.words_left} word${r.words_left === 1 ? ' is' : 's are'} left to guess.`)]),
+          h('p', { id: 'gh-answered', 'aria-live': 'polite' }, `Guesses in: ${active().filter(p => s.guesses.has(p.pid)).length} of ${active().length}`),
           h('button', { class: 'button secondary', type: 'button', id: 'gh-reveal', onclick: reveal }, 'Show the answer now')];
       } else if (s.phase === 'reveal') {
         const round = rounds[s.round], last = s.round + 1 >= rounds.length;
@@ -130,7 +156,7 @@
           h('button', { class: 'button primary', type: 'button', id: 'gh-next', onclick: () => (last ? finish() : startRound(s.round + 1)) }, last ? 'See the final scores' : 'Next round')];
       } else {
         const rk = ranks(totalsList());
-        kids = [h('h2', { tabindex: '-1' }, 'Final scores'), h('ol', { id: 'gh-final' }, rk.map(t => h('li', {}, `${t.place}. ${t.name}: ${t.total}`))),
+        kids = [h('h2', { tabindex: '-1' }, 'Final scores'), h('ul', { id: 'gh-final', class: 'gh-final' }, rk.map(t => h('li', {}, `${t.place}. ${t.name}: ${t.total}`))),
           h('p', { class: 'meta' }, 'A tie shares the place.'), h('button', { class: 'button primary', type: 'button', id: 'gh-again', onclick: again }, 'Play again with the same players')];
       }
       stage.replaceChildren(...kids);
@@ -138,7 +164,7 @@
     }
 
     function close() {
-      if (s.closed) return; s.closed = true; stopTimer();
+      if (s.closed) return; s.closed = true; stopTimer(); if (s.beat) clearInterval(s.beat);
       if (s.off) s.off(); if (s.conn) s.conn.close(); s.conn = null;
       window.removeEventListener('hashchange', onHash);
     }
@@ -153,12 +179,14 @@
       s.off = s.conn.onMessage(onMessage);
       status.textContent = `Room ${s.code} is open.`;
       draw(); broadcast();
+      s.beat = setInterval(() => { if (!s.closed && s.phase !== 'question') broadcast(); }, 5000);        // the question phase sends every 5 s from its own clock
     })();
 
     root.replaceChildren(h('p', { class: 'form-note', role: 'note' }, h('strong', {}, 'DRAFT. '), 'Five sample rounds made from a made-up script. Names and guesses pass between this screen and the phones and are not kept.'),
       status, live, stage);
     draw();
-    return { close, state: () => s };
+    // the same functions the host's buttons call (tests drive a whole game through them)
+    return { close, state: () => s, start: () => startRound(0), reveal, next: () => (s.round + 1 >= rounds.length ? finish() : startRound(s.round + 1)) };
   }
 
   window.ryagramGamesHost = Object.freeze({ on, roomOptions, nameProblem, ranks, scoreRound, mount, MAX_PLAYERS, ROUND_SECONDS });

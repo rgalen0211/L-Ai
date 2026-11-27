@@ -9,6 +9,7 @@
   const local = () => ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
   const liveOn = cfg => !!cfg && (cfg.games === true || cfg.games === 'account');
   const JOIN_WAIT_MS = 6000;
+  const SILENT_MS = 16000;          // the host sends its state at least every 5 s: three missed in a row means its screen has gone (GAMES a11y audit HIGH 2)
 
   // Which room the page uses: the test relay only when this page AND the relay are on this computer; otherwise Supabase Realtime with the public key.
   function roomOptions(cfg, code) {
@@ -47,10 +48,14 @@
     }
     const showErr = (f, msg) => { f.err.textContent = msg || ''; if (msg) f.input.setAttribute('aria-invalid', 'true'); else f.input.removeAttribute('aria-invalid'); };
     const stopTimer = () => { if (s.timer) clearInterval(s.timer); s.timer = null; };
-    async function leave() { stopTimer(); if (s.off) s.off(); s.off = null; if (s.conn) { try { await s.conn.send({ t: 'leave', pid: s.pid }); } catch { /* the room is gone */ } s.conn.close(); } s.conn = null; }
+    const endDot = t => String(t || '').replace(/[.!?]+$/, '');
+    const watch = () => { if (s.watch) clearInterval(s.watch); s.lastHeard = Date.now(); s.watch = setInterval(() => {
+      if (s.welcomed && s.conn && Date.now() - s.lastHeard > SILENT_MS) { clearInterval(s.watch); s.watch = null; silent(); } }, 2000); };
+    const unwatch = () => { if (s.watch) clearInterval(s.watch); s.watch = null; };
+    async function leave() { stopTimer(); unwatch(); if (s.off) s.off(); s.off = null; if (s.conn) { try { await s.conn.send({ t: 'leave', pid: s.pid }); } catch { /* the room is gone */ } s.conn.close(); } s.conn = null; }
 
     function join(note) {
-      s.round = -1; s.phase = '';
+      s.round = -1; s.phase = ''; live.textContent = ''; banner.hidden = false;
       const code = field('ph-code', 'Room code', `The ${Room.CODE_LEN} letters on the host's screen.`, el('input', { type: 'text', inputmode: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: '9', class: 'ph-input ph-code' }));
       const name = field('ph-name', 'Your name', `For the scoreboard, at most ${H.NAME_MAX} letters.`, el('input', { type: 'text', autocomplete: 'nickname', maxlength: String(H.NAME_MAX + 8), class: 'ph-input' }));
       const button = el('button', { type: 'submit', class: 'ph-btn' }, 'Join the room');
@@ -77,7 +82,8 @@
           const t = setTimeout(() => resolve(null), JOIN_WAIT_MS);
           s.off = s.conn.onMessage(m => {
             if (m.t === 'welcome' && m.pid === s.pid) { clearTimeout(t); resolve(m); }
-            else if (m.t === 'state' && s.welcomed) onState(m);          // nothing from the room is shown before the host has let this phone in
+            else if (m.t === 'state' && s.welcomed) { s.lastHeard = Date.now(); onState(m); }          // nothing from the room is shown before the host has let this phone in
+            else if (m.t === 'got' && m.pid === s.pid && s.welcomed) gotIt(m);
           });
           s.conn.send({ t: 'join', pid: s.pid, name: s.name }).catch(() => { clearTimeout(t); resolve(null); });
         });
@@ -88,7 +94,7 @@
           if (answer && /name/i.test(why || '')) { showErr(name, why); return name.input.focus(); }
           showErr(code, why || 'The host did not let you in.'); return code.input.focus();
         }
-        s.welcomed = true; writeSeat({ code: s.code, pid: s.pid, name: s.name });
+        s.welcomed = true; writeSeat({ code: s.code, pid: s.pid, name: s.name }); banner.hidden = true; watch();        // the draft note collapses once in, so Send stays on a small screen (audit 16)
         live.textContent = `You joined room ${s.code} as ${s.name}.`;
         lobby();
       } }, code.node, name.node, button);
@@ -101,7 +107,7 @@
     function lobby(players) {
       s.phase = 'lobby';
       show([el('h2', { tabindex: '-1' }, `You are in room ${s.code}`), el('p', {}, `Your name: `, el('strong', {}, s.name)),
-        el('p', { class: 'ph-meta', id: 'ph-lobby-players' }, players && players.length ? `Players: ${players.join(', ')}` : 'Waiting for the host to start.'),
+        el('p', { class: 'ph-meta', id: 'ph-lobby-players', 'aria-live': 'polite' }, players && players.length ? `Players: ${players.join(', ')}` : 'Waiting for the host to start.'),
         el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
     }
 
@@ -109,12 +115,13 @@
       stopTimer();
       const draw = () => { counter.textContent = s.left > 0 ? `${s.left} seconds left` : 'Time is up'; };
       draw();
-      s.timer = setInterval(() => { s.left = Math.max(0, s.left - 1); draw(); if (!s.left) stopTimer(); }, 1000);
+      s.timer = setInterval(() => { s.left = Math.max(0, s.left - 1); draw(); if (!s.left) { stopTimer(); const b = stage.querySelector('#ph-send'); if (b) b.disabled = true; } }, 1000);        // time is up: no guess can land late (audit 13)
     }
 
     function question(m) {
       s.phase = 'question'; s.round = m.round; s.sentText = '';
-      const guess = field('ph-guess', 'Your guess for the next line', `Type the words you think come next. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left.`,
+      const gap = m.mode === 'gap';           // GAMES 11-27: Fill the gap shows the whole line with one word missing and asks for that word
+      const guess = field('ph-guess', gap ? 'The missing word' : 'Your guess for the next line', gap ? 'Type the one word that goes in the gap.' : `Type the words you think come next. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left.`,
         el('textarea', { rows: '3', maxlength: String(H.ANSWER_MAX + 40), autocomplete: 'off', class: 'ph-input ph-guess' }));
       const counter = el('p', { class: 'ph-count', id: 'ph-guess-count' }, H.counterText(''));
       const clock = el('p', { class: 'ph-meta', id: 'ph-clock', 'aria-live': 'off' });
@@ -127,18 +134,19 @@
         if (p) return guess.input.focus();
         const text = H.clean(guess.input.value);
         try { await s.conn.send({ t: 'guess', pid: s.pid, round: s.round, text }); } catch { showErr(guess, 'Your guess did not reach the host. Send it again.'); return guess.input.focus(); }
-        s.sentText = text; sentLine.textContent = `Sent: “${text}”. You can change it until time is up.`;
+        s.sentText = text; s.pending = text; sentLine.textContent = 'Sending…';          // 'Sent' only when the host says it has it (audit 13)
       } }, guess.node, counter, el('button', { type: 'submit', class: 'ph-btn', id: 'ph-send' }, 'Send my guess'), sentLine);
       s.left = m.left_s || 0;
-      live.textContent = `Round ${m.round + 1} of ${m.of}. ${m.words_left} words are left to guess.`;
-      show([el('h2', { tabindex: '-1' }, `Round ${m.round + 1} of ${m.of}`), clock, el('p', { class: 'ph-label' }, 'What was said so far'), el('p', { class: 'ph-heard' }, `“${m.heard_text} …”`), form]);
+      live.textContent = gap ? `Round ${m.round + 1} of ${m.of}. Fill the gap: one word is missing.` : `Round ${m.round + 1} of ${m.of}. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left to guess.`;
+      show([el('h2', { tabindex: '-1' }, gap ? `Round ${m.round + 1} of ${m.of}: fill the gap` : `Round ${m.round + 1} of ${m.of}`), clock,
+        el('p', { class: 'ph-label' }, gap ? 'The line, with one word missing' : 'What was said so far'), el('p', { class: 'ph-heard', id: 'ph-heard' }, gap ? `“${m.heard_text}”` : `“${m.heard_text} …”`), form]);
       tick(clock);
     }
 
     function reveal(m) {
       s.phase = 'reveal'; stopTimer();
       const mine = (m.reveal && m.reveal.results || []).find(r => r.name === s.name);
-      live.textContent = `The answer was: ${m.reveal ? m.reveal.answer_text : ''}. You scored ${mine ? mine.points : 0}.`;
+      live.textContent = `The answer was: ${endDot(m.reveal ? m.reveal.answer_text : '')}. You scored ${mine ? mine.points : 0}.`;
       show([el('h2', { tabindex: '-1' }, `Round ${m.round + 1}: the answer`), el('p', { class: 'ph-heard', id: 'ph-answer' }, `“${m.reveal ? m.reveal.answer_text : ''}”`),
         el('p', { id: 'ph-mine' }, mine ? `You: ${mine.points} points (${mine.verdict}).` : 'You sent no guess this round.'),
         el('ul', { class: 'ph-meta' }, (m.reveal && m.reveal.results || []).map(r => el('li', {}, `${r.name}: ${r.points}`))),
@@ -147,10 +155,26 @@
 
     function final(m) {
       s.phase = 'final'; stopTimer();
-      const totals = m.totals || [];
-      live.textContent = 'The game is over.';
-      show([el('h2', { tabindex: '-1' }, 'The game is over'), el('ol', { id: 'ph-totals' }, totals.map(t => el('li', {}, `${t.name}: ${t.total}`))),
+      const totals = m.totals || [];             // ranked by the host (highest first); a tie shares the place
+      let place = 0, last = null; const placed = totals.map((t, i) => { if (t.total !== last) { place = i + 1; last = t.total; } return { ...t, place }; });
+      const me = placed.find(t => t.name === s.name);
+      const nth = n => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
+      live.textContent = me ? `The game is over. You came ${nth(me.place)} with ${me.total}.` : 'The game is over.';
+      show([el('h2', { tabindex: '-1' }, 'The game is over'), me ? el('p', { id: 'ph-place' }, `You came ${nth(me.place)} with ${me.total} points.`) : null,
+        el('ul', { id: 'ph-totals', class: 'ph-meta' }, placed.map(t => el('li', {}, `${t.place}. ${t.name}: ${t.total}`))),
         el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
+    }
+
+    function gotIt(m) {
+      if (s.phase !== 'question' || m.round !== s.round) return;
+      const line = stage.querySelector('#ph-sent'); if (line && s.pending) line.textContent = `Sent: “${s.pending}”. You can change it until time is up.`;
+    }
+
+    function silent() {
+      stopTimer();
+      live.textContent = 'The host’s screen stopped answering.';
+      show([el('h2', { tabindex: '-1' }, 'The host’s screen stopped answering'), el('p', {}, 'If the host opened a new room, join again with the new code on their screen.'),
+        el('button', { type: 'button', class: 'ph-btn', id: 'ph-again', onclick: async () => { await leave(); join(); } }, 'Join a room')]);
     }
 
     function onState(m) {
@@ -161,9 +185,8 @@
       if (m.phase === 'final') { if (s.phase !== 'final') final(m); }
     }
 
-    root.replaceChildren(el('div', { class: 'ph-screen' },
-      el('p', { class: 'ph-banner', role: 'note' }, el('strong', {}, 'DRAFT. '), 'Text only: no microphone and no camera. Your name and guesses go to the host’s screen in this room and are not kept.'),
-      el('h1', {}, 'Guess the next line'), live, stage));
+    const banner = el('p', { class: 'ph-banner', role: 'note' }, el('strong', {}, 'DRAFT. '), 'Text only: no microphone and no camera. Your name and guesses go to the host’s screen in this room and are not kept.');
+    root.replaceChildren(el('div', { class: 'ph-screen' }, banner, el('h1', {}, 'Guess the next line'), live, stage));
     join();
     window.addEventListener('pagehide', () => { leave(); });
     return { leave };

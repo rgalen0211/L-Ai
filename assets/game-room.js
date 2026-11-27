@@ -12,6 +12,7 @@
   const CODE_LEN = 4, MAX_BYTES = 8192;
   const NAME_MAX = 16, ANSWER_MAX = 120, PROBLEM_MAX = 200, HEARD_MAX = 400, VERDICT_MAX = 20, MAX_PLAYERS = 12;
   const PHASES = ['lobby', 'question', 'reveal', 'final'];
+  const MODES = ['line', 'gap'];
   const LOCAL_HOSTS = ['127.0.0.1', 'localhost', '[::1]', '::1'];
   const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
   const PID = /^[A-Za-z0-9]{8,32}$/;
@@ -71,7 +72,8 @@
     got: { need: { pid, round: v => int(v, 0, 99) } },
     state: {
       need: { phase: v => PHASES.includes(v) ? v : BAD, round: v => int(v, 0, 99), of: v => int(v, 0, 99), players: v => list(v, MAX_PLAYERS, name) },
-      may: { answered: v => list(v, MAX_PLAYERS, name), heard_text: v => text(v, 0, HEARD_MAX), words_left: v => int(v, 0, 50), left_s: v => int(v, 0, 600), reveal, totals: v => list(v, MAX_PLAYERS, total) },
+      may: { answered: v => list(v, MAX_PLAYERS, name), heard_text: v => text(v, 0, HEARD_MAX), words_left: v => int(v, 0, 50), left_s: v => int(v, 0, 600), reveal, totals: v => list(v, MAX_PLAYERS, total),
+             mode: v => (MODES.includes(v) ? v : BAD) },          // GAMES 11-27: which game the round is ('line' = Guess the next line, 'gap' = Fill the gap); absent means 'line'
     },
     leave: { need: { pid } },
   };
