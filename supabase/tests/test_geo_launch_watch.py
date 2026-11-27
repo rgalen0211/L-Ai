@@ -191,6 +191,12 @@ class Watch(unittest.TestCase):
         self.jobs(1, "failed", ended="now() - interval '10 minutes'", code="queue_timeout")
         self.assert_only(8)
 
+    def test_GEO_08c_one_full_film_refused_at_claim(self):
+        # GEO 11-27: claim_next_job fails a final_render whose ladder evidence is off with ladder_missing and the render PC
+        # logs nothing, so ONE such failure is LOOK (it was ok below 3 before).
+        self.jobs(1, "failed", ended="now() - interval '10 minutes'", code="ladder_missing")
+        self.assert_only(8)
+
     def test_GEO_09_scheduled_call_errors(self):
         self.c.execute("insert into net._http_response (status_code) values (200), (200)")
         self.assert_ok()

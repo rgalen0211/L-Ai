@@ -67,9 +67,9 @@ with r(n, what, value, look, when_look, what_you_do) as (
          exists (select 1 from public.jobs where state in ('failed', 'editorial_action_required') and ended_at > now() - interval '1 hour'
                   group by coalesce(error_code, 'no_code') having count(*) >= 3)
            or exists (select 1 from public.jobs where state = 'failed' and ended_at > now() - interval '1 hour'
-                       and error_code in ('queue_timeout', 'engine_unsupported', 'limit_exceeded', 'crash', 'start_failed', 'no_receipt', 'no_output', 'no_commit', 'worker_error', 'upload_failed', 'straggler')),
+                       and error_code in ('queue_timeout', 'engine_unsupported', 'limit_exceeded', 'crash', 'start_failed', 'no_receipt', 'no_output', 'no_commit', 'worker_error', 'upload_failed', 'straggler', 'ladder_missing')),
          'any one code 3 or more times, or any machine-side code',
-         'Tell CC1 the codes (queue_timeout = the render PC is off: row 7; engine_unsupported = a blocked film got through). A stranger''s failed free preview by the machine is not counted against them (A14).'
+         'Tell CC1 the codes (queue_timeout = the render PC is off: row 7; engine_unsupported = a blocked film got through; ladder_missing = an approved full film the server refused at claim because its sheet, preview or approval evidence did not match: send CC1 the job id, never retry it by hand). A stranger''s failed free preview by the machine is not counted against them (A14).'
   union all
   select 9, 'scheduled calls answered with an error in the last hour',
          (select count(*) filter (where status_code is null or status_code not between 200 and 299) from net._http_response where created > now() - interval '1 hour')
