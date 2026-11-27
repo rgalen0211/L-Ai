@@ -189,6 +189,7 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .app-nav-link{padding:10px 4px;min-height:40px;display:inline-flex;align-items:center}
 @media(max-width:520px){.nav.has-admin{flex-wrap:wrap;row-gap:4px}.nav.has-admin .app-account{flex:1 0 100%;justify-content:flex-end;flex-wrap:wrap}.nav.has-admin .app-account .button{white-space:nowrap}}
 .app-foot a,.sign-in-help a,.form-intro a{display:inline-block;padding:10px 2px}
+.app-foot a{display:inline-flex;align-items:center;min-height:44px;min-width:44px;box-sizing:border-box}
 .sign-in-help .help-line{display:block;margin:2px 0}
 .link-button{min-height:40px;padding:10px 2px}
 .sign-in-help{margin:18px 0}

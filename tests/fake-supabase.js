@@ -931,7 +931,8 @@
     if (typeof location !== 'undefined' && /[?&]tester/.test(location.search || '') && !db.account_settings.length) db.account_settings.push({ owner_id: 'u-ryan', upload_retention: 'keep', local_compute: true });      // ?tester: a tester account in mock mode
     // (the account the mock switches to by signing in as 'other...' is a plain account, so a tab that goes admin -> sign out -> other account can be walked)
     const adminMock = () => !(seed.admin === false || (typeof location !== 'undefined' && /[?&]nonadmin/.test(location.search || '')) || (session && session.user && session.user.id === 'u-other'));
-    let session = user ? { user } : null;
+    // ?signedout: the mock starts with NO session (a visitor with no account), so the signed-out pages can be walked; signing in from the form still works.
+    let session = user && !(typeof location !== 'undefined' && /[?&]signedout(&|$|#)/.test(location.search || '')) ? { user } : null;
     const authListeners = new Set();
     const client = {
       db, log, jobChanged, now, newId: id,
