@@ -1,0 +1,2145 @@
+{
+ "doc": {
+  "what": "Golden numbers: what ryagram/maprace/localarea.py (compute_numbers) returns for nine chosen clicks on a MADE-UP place. A second implementation (GEO's JavaScript) is right when it reproduces them as stated under 'tolerance'.",
+  "distance": "nearest_km, nearest[].km, within: the geodesic distance on the WGS84 ellipsoid (a = 6378137 m, 1/f = 298.257223563), computed by pyproj Geod.inv (Karney), NOT a sphere and NOT haversine. nearest_km and nearest[].km are in km rounded to 4 decimals (Python round, half to even on the binary float). within[r] = the number of points whose UNROUNDED distance is <= r km (a point at exactly r counts). nearest = the five points of smallest distance, ties kept in file order (points are sorted by id first). A click exactly on a point gives km 0.0. Points outside every in-county block group are dropped before anything is counted ('points' below are the ones kept).",
+  "sphere_note": "A sphere changes distances: with the mean radius R = 6371.0088 km, haversine d = 2R asin(sqrt(sin^2(dlat/2) + cos(lat1) cos(lat2) sin^2(dlon/2))), the golden's nearest_km differs by up to 'sphere_reference_summary.max_abs_diff_nearest_km' on these cases (about 0.3 per cent). Strict equality to 4 decimals needs the ellipsoid; see tolerance.",
+  "area": "units[].area_km2 is CALCULATED by the engine from the polygon in the map's equal-area projection (Albers, ryagram.maprace.geometry.PROJECTION): |sum of the signed shoelace areas of all rings| / 1e6. Outer rings run clockwise and holes anticlockwise in the file, so a hole subtracts. A page can reproduce it to about 0.3 per cent with the spherical-excess or any equal-area formula; it is not used for the checks below except through people_est.",
+  "people_est": "people_est[r] = ESTIMATED people within r km of the click = sum over in-county block groups that have a population of pop x share, where share = (area of the block group inside the disc of radius r km round the click) / (the block group's area_km2), clipped to 0..1; people are assumed even inside a block group. A block group with no population (null) adds nothing. The engine measures the inside area by counting cells of r/200 km in the click-centred azimuthal-equidistant projection (true distances from the click), after deciding whole-in (farthest vertex <= r) and whole-out exactly. Rounding of the total: if total >= 100 round to the nearest 10 (Python round(x, -1), half to even) else to the nearest whole number. NOTE: a block group is NOT all-in or all-out by its centre; the share is by area.",
+  "ring_leaves_place": "ring_leaves_place[r] = true when the disc of radius r reaches past the loaded county: county_edge_km < r, where county_edge_km is the shortest straight (azimuthal-equidistant) distance from the click to an 'exterior edge' = an edge of an in-county block group that no other in-county block group shares (holes included; edges are matched by their two vertices rounded to 1e-7 degree, undirected). The list is in 'exterior_edges'. county_edge_km is rounded to 4 decimals. A click on the line has edge 0. Other-county block groups (in_place = false) are context only: they are not loaded, so a ring reaching them leaves the place.",
+  "click_block_group": "The id of the first unit in file order, with in_place true, whose rings hold the click (ray casting, even-odd over all its rings so holes work; a point is inside when (yi > y) != (yj > y) and x < (xj - xi)(y - yi)/(yj - yi) + xi, summed by parity). A click exactly on a shared boundary goes to the first matching unit by that rule.",
+  "points": "Points are the fast_food nodes of osm_food_county.json (amenity = fast_food only, a restaurant or a bar is ignored), kept when inside an in-county block group. All names are made up.",
+  "nearest_caveat": "nearest_may_miss_across_edge = (nearest_km is null or nearest_km > county_edge_km): a nearer place across the county line is not loaded, so the page must say so."
+ },
+ "radii_km": [
+  1.0,
+  2.0,
+  5.0
+ ],
+ "category": "fast_food",
+ "place_folder": "tests/fixtures/perfect_city_made_up",
+ "made_up": true,
+ "tolerance": {
+  "nearest_km": "exact to 4 decimals with the WGS84 geodesic; haversine on R = 6371.0088 differs (see sphere_reference), so a page using a sphere must allow 0.5 per cent or use the geodesic",
+  "within": "exact for a geodesic; with a sphere a point within 0.3 per cent of a radius can flip",
+  "people_est": "within 2 per cent of the golden figure or 30 people, whichever is larger, for any method that computes the area share (this test holds the engine to 1.5 per cent of an independent 20 m lattice); a method that counts a block group in full by its centre is NOT the same estimate and will differ by tens of per cent",
+  "ring_leaves_place": "exact, except when |county_edge_km - radius| < 0.01 km",
+  "county_edge_km": "within 0.002 km"
+ },
+ "units": [
+  {
+   "id": "999990000011",
+   "in_place": true,
+   "pop": 2630,
+   "income": 26000.0,
+   "area_km2": 6.260614860778809,
+   "centroid": [
+    -99.08573500000429,
+    37.91124127267202
+   ],
+   "rings": [
+    [
+     [
+      -99.1,
+      37.9
+     ],
+     [
+      -99.1,
+      37.922482
+     ],
+     [
+      -99.07147,
+      37.922482
+     ],
+     [
+      -99.07147,
+      37.9
+     ],
+     [
+      -99.1,
+      37.9
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000021",
+   "in_place": true,
+   "pop": 2120,
+   "income": 32000.0,
+   "area_km2": 6.260614860809326,
+   "centroid": [
+    -99.0572049999992,
+    37.91124127265037
+   ],
+   "rings": [
+    [
+     [
+      -99.07147,
+      37.9
+     ],
+     [
+      -99.07147,
+      37.922482
+     ],
+     [
+      -99.04294,
+      37.922482
+     ],
+     [
+      -99.04294,
+      37.9
+     ],
+     [
+      -99.07147,
+      37.9
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000031",
+   "in_place": true,
+   "pop": 1610,
+   "income": 38000.0,
+   "area_km2": 6.260614860809326,
+   "centroid": [
+    -99.02867499999958,
+    37.91124127265193
+   ],
+   "rings": [
+    [
+     [
+      -99.04294,
+      37.9
+     ],
+     [
+      -99.04294,
+      37.922482
+     ],
+     [
+      -99.01441,
+      37.922482
+     ],
+     [
+      -99.01441,
+      37.9
+     ],
+     [
+      -99.04294,
+      37.9
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000041",
+   "in_place": true,
+   "pop": 1100,
+   "income": 44000.0,
+   "area_km2": 6.260614860809326,
+   "centroid": [
+    -99.00014499999884,
+    37.91124127264965
+   ],
+   "rings": [
+    [
+     [
+      -99.01441,
+      37.9
+     ],
+     [
+      -99.01441,
+      37.922482
+     ],
+     [
+      -98.98588,
+      37.922482
+     ],
+     [
+      -98.98588,
+      37.9
+     ],
+     [
+      -99.01441,
+      37.9
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000051",
+   "in_place": true,
+   "pop": 590,
+   "income": 50000.0,
+   "area_km2": 6.260614860839843,
+   "centroid": [
+    -98.97161499999231,
+    37.91124127262312
+   ],
+   "rings": [
+    [
+     [
+      -98.98588,
+      37.9
+     ],
+     [
+      -98.98588,
+      37.922482
+     ],
+     [
+      -98.95735,
+      37.922482
+     ],
+     [
+      -98.95735,
+      37.9
+     ],
+     [
+      -98.98588,
+      37.9
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000061",
+   "in_place": true,
+   "pop": 2970,
+   "income": 56000.0,
+   "area_km2": 6.260834300445556,
+   "centroid": [
+    -98.94308450001137,
+    37.911241272759625
+   ],
+   "rings": [
+    [
+     [
+      -98.95735,
+      37.9
+     ],
+     [
+      -98.95735,
+      37.922482
+     ],
+     [
+      -98.928819,
+      37.922482
+     ],
+     [
+      -98.928819,
+      37.9
+     ],
+     [
+      -98.95735,
+      37.9
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000071",
+   "in_place": true,
+   "pop": 2460,
+   "income": 62000.0,
+   "area_km2": 6.258733179412842,
+   "centroid": [
+    -99.08573500000396,
+    37.93372327180838
+   ],
+   "rings": [
+    [
+     [
+      -99.1,
+      37.922482
+     ],
+     [
+      -99.1,
+      37.944964
+     ],
+     [
+      -99.07147,
+      37.944964
+     ],
+     [
+      -99.07147,
+      37.922482
+     ],
+     [
+      -99.1,
+      37.922482
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000081",
+   "in_place": true,
+   "pop": 1950,
+   "income": 68000.0,
+   "area_km2": 6.258733179473877,
+   "centroid": [
+    -99.05720499999242,
+    37.93372327176188
+   ],
+   "rings": [
+    [
+     [
+      -99.07147,
+      37.922482
+     ],
+     [
+      -99.07147,
+      37.944964
+     ],
+     [
+      -99.04294,
+      37.944964
+     ],
+     [
+      -99.04294,
+      37.922482
+     ],
+     [
+      -99.07147,
+      37.922482
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000091",
+   "in_place": true,
+   "pop": 1440,
+   "income": 74000.0,
+   "area_km2": 6.258733179382324,
+   "centroid": [
+    -99.02867500001054,
+    37.933723271837025
+   ],
+   "rings": [
+    [
+     [
+      -99.04294,
+      37.922482
+     ],
+     [
+      -99.04294,
+      37.944964
+     ],
+     [
+      -99.01441,
+      37.944964
+     ],
+     [
+      -99.01441,
+      37.922482
+     ],
+     [
+      -99.04294,
+      37.922482
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000101",
+   "in_place": true,
+   "pop": 930,
+   "income": 80000.0,
+   "area_km2": 6.258733179443359,
+   "centroid": [
+    -99.0001449999986,
+    37.93372327178816
+   ],
+   "rings": [
+    [
+     [
+      -99.01441,
+      37.922482
+     ],
+     [
+      -99.01441,
+      37.944964
+     ],
+     [
+      -98.98588,
+      37.944964
+     ],
+     [
+      -98.98588,
+      37.922482
+     ],
+     [
+      -99.01441,
+      37.922482
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000111",
+   "in_place": true,
+   "pop": 420,
+   "income": null,
+   "area_km2": 6.258733179443359,
+   "centroid": [
+    -98.97161499999794,
+    37.93372327178498
+   ],
+   "rings": [
+    [
+     [
+      -98.98588,
+      37.922482
+     ],
+     [
+      -98.98588,
+      37.944964
+     ],
+     [
+      -98.95735,
+      37.944964
+     ],
+     [
+      -98.95735,
+      37.922482
+     ],
+     [
+      -98.98588,
+      37.922482
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000121",
+   "in_place": true,
+   "pop": 2800,
+   "income": 92000.0,
+   "area_km2": 6.258952553161621,
+   "centroid": [
+    -98.94308450000386,
+    37.93372327186765
+   ],
+   "rings": [
+    [
+     [
+      -98.95735,
+      37.922482
+     ],
+     [
+      -98.95735,
+      37.944964
+     ],
+     [
+      -98.928819,
+      37.944964
+     ],
+     [
+      -98.928819,
+      37.922482
+     ],
+     [
+      -98.95735,
+      37.922482
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000131",
+   "in_place": true,
+   "pop": 2290,
+   "income": 98000.0,
+   "area_km2": 6.256850521484375,
+   "centroid": [
+    -99.0857349999934,
+    37.956205270906075
+   ],
+   "rings": [
+    [
+     [
+      -99.1,
+      37.944964
+     ],
+     [
+      -99.1,
+      37.967446
+     ],
+     [
+      -99.07147,
+      37.967446
+     ],
+     [
+      -99.07147,
+      37.944964
+     ],
+     [
+      -99.1,
+      37.944964
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000141",
+   "in_place": true,
+   "pop": null,
+   "income": 104000.0,
+   "area_km2": 6.256850521453857,
+   "centroid": [
+    -99.05720500000007,
+    37.95620527093221
+   ],
+   "rings": [
+    [
+     [
+      -99.07147,
+      37.944964
+     ],
+     [
+      -99.07147,
+      37.967446
+     ],
+     [
+      -99.04294,
+      37.967446
+     ],
+     [
+      -99.04294,
+      37.944964
+     ],
+     [
+      -99.07147,
+      37.944964
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000151",
+   "in_place": true,
+   "pop": 1270,
+   "income": 110000.0,
+   "area_km2": 5.255843477539062,
+   "centroid": [
+    -99.02867499999012,
+    37.95620531423218
+   ],
+   "rings": [
+    [
+     [
+      -99.04294,
+      37.944964
+     ],
+     [
+      -99.04294,
+      37.967446
+     ],
+     [
+      -99.01441,
+      37.967446
+     ],
+     [
+      -99.01441,
+      37.944964
+     ],
+     [
+      -99.04294,
+      37.944964
+     ]
+    ],
+    [
+     [
+      -99.034381,
+      37.951709
+     ],
+     [
+      -99.022969,
+      37.951709
+     ],
+     [
+      -99.022969,
+      37.960701
+     ],
+     [
+      -99.034381,
+      37.960701
+     ],
+     [
+      -99.034381,
+      37.951709
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000161",
+   "in_place": true,
+   "pop": 760,
+   "income": 116000.0,
+   "area_km2": 6.256850521453857,
+   "centroid": [
+    -99.00014500000036,
+    37.95620527093269
+   ],
+   "rings": [
+    [
+     [
+      -99.01441,
+      37.944964
+     ],
+     [
+      -99.01441,
+      37.967446
+     ],
+     [
+      -98.98588,
+      37.967446
+     ],
+     [
+      -98.98588,
+      37.944964
+     ],
+     [
+      -99.01441,
+      37.944964
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000171",
+   "in_place": true,
+   "pop": 250,
+   "income": 122000.0,
+   "area_km2": 6.25685052142334,
+   "centroid": [
+    -98.9716150000058,
+    37.95620527095601
+   ],
+   "rings": [
+    [
+     [
+      -98.98588,
+      37.944964
+     ],
+     [
+      -98.98588,
+      37.967446
+     ],
+     [
+      -98.95735,
+      37.967446
+     ],
+     [
+      -98.95735,
+      37.944964
+     ],
+     [
+      -98.98588,
+      37.944964
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000181",
+   "in_place": true,
+   "pop": 2630,
+   "income": 128000.0,
+   "area_km2": 6.257069829223632,
+   "centroid": [
+    -98.9430844999986,
+    37.95620527098482
+   ],
+   "rings": [
+    [
+     [
+      -98.95735,
+      37.944964
+     ],
+     [
+      -98.95735,
+      37.967446
+     ],
+     [
+      -98.928819,
+      37.967446
+     ],
+     [
+      -98.928819,
+      37.944964
+     ],
+     [
+      -98.95735,
+      37.944964
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000191",
+   "in_place": true,
+   "pop": 2120,
+   "income": 20000.0,
+   "area_km2": 6.254966887084961,
+   "centroid": [
+    -99.08573500000092,
+    37.97868727007413
+   ],
+   "rings": [
+    [
+     [
+      -99.1,
+      37.967446
+     ],
+     [
+      -99.1,
+      37.989928
+     ],
+     [
+      -99.07147,
+      37.989928
+     ],
+     [
+      -99.07147,
+      37.967446
+     ],
+     [
+      -99.1,
+      37.967446
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000201",
+   "in_place": true,
+   "pop": 1610,
+   "income": 26000.0,
+   "area_km2": 6.254966887115478,
+   "centroid": [
+    -99.05720499999569,
+    37.97868727005281
+   ],
+   "rings": [
+    [
+     [
+      -99.07147,
+      37.967446
+     ],
+     [
+      -99.07147,
+      37.989928
+     ],
+     [
+      -99.04294,
+      37.989928
+     ],
+     [
+      -99.04294,
+      37.967446
+     ],
+     [
+      -99.07147,
+      37.967446
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000211",
+   "in_place": true,
+   "pop": 1100,
+   "income": 32000.0,
+   "area_km2": 6.254966887084961,
+   "centroid": [
+    -99.0286750000018,
+    37.9786872700779
+   ],
+   "rings": [
+    [
+     [
+      -99.04294,
+      37.967446
+     ],
+     [
+      -99.04294,
+      37.989928
+     ],
+     [
+      -99.01441,
+      37.989928
+     ],
+     [
+      -99.01441,
+      37.967446
+     ],
+     [
+      -99.04294,
+      37.967446
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000221",
+   "in_place": true,
+   "pop": 590,
+   "income": null,
+   "area_km2": 6.254966887084961,
+   "centroid": [
+    -99.0001450000009,
+    37.97868727007488
+   ],
+   "rings": [
+    [
+     [
+      -99.01441,
+      37.967446
+     ],
+     [
+      -99.01441,
+      37.989928
+     ],
+     [
+      -98.98588,
+      37.989928
+     ],
+     [
+      -98.98588,
+      37.967446
+     ],
+     [
+      -99.01441,
+      37.967446
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000231",
+   "in_place": true,
+   "pop": 2970,
+   "income": 44000.0,
+   "area_km2": 6.254966887084961,
+   "centroid": [
+    -98.97161500000051,
+    37.97868727007269
+   ],
+   "rings": [
+    [
+     [
+      -98.98588,
+      37.967446
+     ],
+     [
+      -98.98588,
+      37.989928
+     ],
+     [
+      -98.95735,
+      37.989928
+     ],
+     [
+      -98.95735,
+      37.967446
+     ],
+     [
+      -98.98588,
+      37.967446
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000241",
+   "in_place": true,
+   "pop": 2460,
+   "income": 50000.0,
+   "area_km2": 6.255186128875732,
+   "centroid": [
+    -98.94308449999095,
+    37.97868727009028
+   ],
+   "rings": [
+    [
+     [
+      -98.95735,
+      37.967446
+     ],
+     [
+      -98.95735,
+      37.989928
+     ],
+     [
+      -98.928819,
+      37.989928
+     ],
+     [
+      -98.928819,
+      37.967446
+     ],
+     [
+      -98.95735,
+      37.967446
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000251",
+   "in_place": true,
+   "pop": 1950,
+   "income": 56000.0,
+   "area_km2": 6.2530822766113285,
+   "centroid": [
+    -99.08573500000091,
+    38.00116926921137
+   ],
+   "rings": [
+    [
+     [
+      -99.1,
+      37.989928
+     ],
+     [
+      -99.1,
+      38.01241
+     ],
+     [
+      -99.07147,
+      38.01241
+     ],
+     [
+      -99.07147,
+      37.989928
+     ],
+     [
+      -99.1,
+      37.989928
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000261",
+   "in_place": true,
+   "pop": 1440,
+   "income": 62000.0,
+   "area_km2": 6.2530822766113285,
+   "centroid": [
+    -99.05720500000093,
+    38.00116926921203
+   ],
+   "rings": [
+    [
+     [
+      -99.07147,
+      37.989928
+     ],
+     [
+      -99.07147,
+      38.01241
+     ],
+     [
+      -99.04294,
+      38.01241
+     ],
+     [
+      -99.04294,
+      37.989928
+     ],
+     [
+      -99.07147,
+      37.989928
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000271",
+   "in_place": true,
+   "pop": 930,
+   "income": 68000.0,
+   "area_km2": 6.2530822766418455,
+   "centroid": [
+    -99.02867499999546,
+    38.001169269189454
+   ],
+   "rings": [
+    [
+     [
+      -99.04294,
+      37.989928
+     ],
+     [
+      -99.04294,
+      38.01241
+     ],
+     [
+      -99.01441,
+      38.01241
+     ],
+     [
+      -99.01441,
+      37.989928
+     ],
+     [
+      -99.04294,
+      37.989928
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000281",
+   "in_place": true,
+   "pop": 420,
+   "income": 74000.0,
+   "area_km2": 6.2530822766113285,
+   "centroid": [
+    -99.0001450000014,
+    38.00116926921394
+   ],
+   "rings": [
+    [
+     [
+      -99.01441,
+      37.989928
+     ],
+     [
+      -99.01441,
+      38.01241
+     ],
+     [
+      -98.98588,
+      38.01241
+     ],
+     [
+      -98.98588,
+      37.989928
+     ],
+     [
+      -99.01441,
+      37.989928
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000291",
+   "in_place": true,
+   "pop": 2800,
+   "income": 80000.0,
+   "area_km2": 6.2530822766113285,
+   "centroid": [
+    -98.97161500000051,
+    38.00116926921126
+   ],
+   "rings": [
+    [
+     [
+      -98.98588,
+      37.989928
+     ],
+     [
+      -98.98588,
+      38.01241
+     ],
+     [
+      -98.95735,
+      38.01241
+     ],
+     [
+      -98.95735,
+      37.989928
+     ],
+     [
+      -98.98588,
+      37.989928
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999990000301",
+   "in_place": true,
+   "pop": 2290,
+   "income": 86000.0,
+   "area_km2": 6.25330145223999,
+   "centroid": [
+    -98.94308450001034,
+    38.00116926930992
+   ],
+   "rings": [
+    [
+     [
+      -98.95735,
+      37.989928
+     ],
+     [
+      -98.95735,
+      38.01241
+     ],
+     [
+      -98.928819,
+      38.01241
+     ],
+     [
+      -98.928819,
+      37.989928
+     ],
+     [
+      -98.95735,
+      37.989928
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "999998000011",
+   "in_place": false,
+   "pop": null,
+   "income": null,
+   "area_km2": 6.25685052142334,
+   "centroid": [
+    -98.91455400000606,
+    37.956205270957575
+   ],
+   "rings": [
+    [
+     [
+      -98.928819,
+      37.944964
+     ],
+     [
+      -98.928819,
+      37.967446
+     ],
+     [
+      -98.900289,
+      37.967446
+     ],
+     [
+      -98.900289,
+      37.944964
+     ],
+     [
+      -98.928819,
+      37.944964
+     ]
+    ]
+   ]
+  }
+ ],
+ "points": [
+  {
+   "id": "node/5001",
+   "name": "Made-up Stall 01",
+   "lon": -98.98785,
+   "lat": 37.934264
+  },
+  {
+   "id": "node/5002",
+   "name": "Made-up Stall 02",
+   "lon": -98.98446,
+   "lat": 37.912002
+  },
+  {
+   "id": "node/5003",
+   "name": "Made-up Stall 03",
+   "lon": -99.011573,
+   "lat": 37.955043
+  },
+  {
+   "id": "node/5004",
+   "name": "Made-up Stall 04",
+   "lon": -98.996868,
+   "lat": 37.941587
+  },
+  {
+   "id": "node/5005",
+   "name": "Made-up Stall 05",
+   "lon": -99.056064,
+   "lat": 37.942062
+  },
+  {
+   "id": "node/5006",
+   "name": "Made-up Stall 06",
+   "lon": -98.958676,
+   "lat": 37.919415
+  },
+  {
+   "id": "node/5007",
+   "name": "Made-up Stall 07",
+   "lon": -99.04902,
+   "lat": 37.972339
+  },
+  {
+   "id": "node/5008",
+   "name": "Made-up Stall 08",
+   "lon": -98.964826,
+   "lat": 38.01104
+  },
+  {
+   "id": "node/5009",
+   "name": "Made-up Stall 09",
+   "lon": -98.962958,
+   "lat": 37.952187
+  },
+  {
+   "id": "node/5010",
+   "name": "Made-up Stall 10",
+   "lon": -99.007734,
+   "lat": 37.970312
+  },
+  {
+   "id": "node/5011",
+   "name": "Made-up Stall 11",
+   "lon": -99.057206,
+   "lat": 37.979124
+  },
+  {
+   "id": "node/5012",
+   "name": "Made-up Stall 12",
+   "lon": -98.977386,
+   "lat": 38.010108
+  },
+  {
+   "id": "node/5013",
+   "name": "Made-up Stall 13",
+   "lon": -99.043678,
+   "lat": 37.950074
+  },
+  {
+   "id": "node/5014",
+   "name": "Made-up Stall 14",
+   "lon": -99.070424,
+   "lat": 37.901765
+  },
+  {
+   "id": "node/5015",
+   "name": "Made-up Stall 15",
+   "lon": -98.966038,
+   "lat": 37.904632
+  },
+  {
+   "id": "node/5016",
+   "name": "Made-up Stall 16",
+   "lon": -98.997731,
+   "lat": 37.927619
+  },
+  {
+   "id": "node/5017",
+   "name": "Made-up Stall 17",
+   "lon": -99.004745,
+   "lat": 37.957916
+  },
+  {
+   "id": "node/5018",
+   "name": "Made-up Stall 18",
+   "lon": -99.031964,
+   "lat": 37.920528
+  },
+  {
+   "id": "node/5019",
+   "name": "Made-up Stall 19",
+   "lon": -98.989425,
+   "lat": 37.980547
+  },
+  {
+   "id": "node/5020",
+   "name": "Made-up Stall 20",
+   "lon": -99.0478,
+   "lat": 38.009204
+  },
+  {
+   "id": "node/5021",
+   "name": "Made-up Stall 21",
+   "lon": -98.957144,
+   "lat": 37.94385
+  },
+  {
+   "id": "node/5022",
+   "name": "Made-up Stall 22",
+   "lon": -98.979339,
+   "lat": 37.914109
+  },
+  {
+   "id": "node/5023",
+   "name": "Made-up Stall 23",
+   "lon": -98.995962,
+   "lat": 37.961722
+  },
+  {
+   "id": "node/5024",
+   "name": "Made-up Stall 24",
+   "lon": -98.980194,
+   "lat": 38.001617
+  },
+  {
+   "id": "node/5025",
+   "name": "Made-up Stall 25",
+   "lon": -99.032063,
+   "lat": 37.99356
+  },
+  {
+   "id": "node/5026",
+   "name": "Made-up Stall 26",
+   "lon": -98.994131,
+   "lat": 37.901816
+  },
+  {
+   "id": "node/5027",
+   "name": "Made-up Stall 27",
+   "lon": -99.03581,
+   "lat": 37.912317
+  },
+  {
+   "id": "node/5028",
+   "name": "Made-up Stall 28",
+   "lon": -99.004096,
+   "lat": 37.941612
+  },
+  {
+   "id": "node/5029",
+   "name": "Made-up Stall 29",
+   "lon": -99.074345,
+   "lat": 37.990344
+  },
+  {
+   "id": "node/5030",
+   "name": "Made-up Stall 30",
+   "lon": -99.087646,
+   "lat": 37.909636
+  },
+  {
+   "id": "node/5031",
+   "name": "Made-up Stall 31",
+   "lon": -99.066286,
+   "lat": 38.000984
+  },
+  {
+   "id": "node/5032",
+   "name": "Made-up Stall 32",
+   "lon": -99.005992,
+   "lat": 37.954957
+  },
+  {
+   "id": "node/5033",
+   "name": "Made-up Stall 33",
+   "lon": -99.035594,
+   "lat": 37.911234
+  },
+  {
+   "id": "node/5034",
+   "name": "Made-up Stall 34",
+   "lon": -99.022385,
+   "lat": 37.934675
+  },
+  {
+   "id": "node/5035",
+   "name": "Made-up Stall 35",
+   "lon": -99.03545,
+   "lat": 37.91379
+  },
+  {
+   "id": "node/5036",
+   "name": "Made-up Stall 36",
+   "lon": -98.938168,
+   "lat": 37.989021
+  },
+  {
+   "id": "node/5037",
+   "name": "Made-up Stall 37",
+   "lon": -99.025658,
+   "lat": 37.963558
+  },
+  {
+   "id": "node/5038",
+   "name": "Made-up Stall 38",
+   "lon": -99.09639,
+   "lat": 38.007944
+  },
+  {
+   "id": "node/5039",
+   "name": "Made-up Stall 39",
+   "lon": -99.07268,
+   "lat": 37.939233
+  },
+  {
+   "id": "node/5040",
+   "name": "Made-up Stall 40",
+   "lon": -98.957566,
+   "lat": 37.920577
+  }
+ ],
+ "exterior_edges": [
+  [
+   -99.1,
+   37.9,
+   -99.1,
+   37.922482
+  ],
+  [
+   -99.07147,
+   37.9,
+   -99.1,
+   37.9
+  ],
+  [
+   -99.1,
+   37.922482,
+   -99.1,
+   37.944964
+  ],
+  [
+   -99.1,
+   37.944964,
+   -99.1,
+   37.967446
+  ],
+  [
+   -99.1,
+   37.967446,
+   -99.1,
+   37.989928
+  ],
+  [
+   -99.1,
+   37.989928,
+   -99.1,
+   38.01241
+  ],
+  [
+   -99.1,
+   38.01241,
+   -99.07147,
+   38.01241
+  ],
+  [
+   -99.04294,
+   37.9,
+   -99.07147,
+   37.9
+  ],
+  [
+   -99.07147,
+   38.01241,
+   -99.04294,
+   38.01241
+  ],
+  [
+   -99.01441,
+   37.9,
+   -99.04294,
+   37.9
+  ],
+  [
+   -99.04294,
+   38.01241,
+   -99.01441,
+   38.01241
+  ],
+  [
+   -99.034381,
+   37.960701,
+   -99.034381,
+   37.951709
+  ],
+  [
+   -99.034381,
+   37.951709,
+   -99.022969,
+   37.951709
+  ],
+  [
+   -99.022969,
+   37.960701,
+   -99.034381,
+   37.960701
+  ],
+  [
+   -99.022969,
+   37.951709,
+   -99.022969,
+   37.960701
+  ],
+  [
+   -98.98588,
+   37.9,
+   -99.01441,
+   37.9
+  ],
+  [
+   -99.01441,
+   38.01241,
+   -98.98588,
+   38.01241
+  ],
+  [
+   -98.95735,
+   37.9,
+   -98.98588,
+   37.9
+  ],
+  [
+   -98.98588,
+   38.01241,
+   -98.95735,
+   38.01241
+  ],
+  [
+   -98.928819,
+   37.9,
+   -98.95735,
+   37.9
+  ],
+  [
+   -98.95735,
+   38.01241,
+   -98.928819,
+   38.01241
+  ],
+  [
+   -98.928819,
+   37.922482,
+   -98.928819,
+   37.9
+  ],
+  [
+   -98.928819,
+   37.944964,
+   -98.928819,
+   37.922482
+  ],
+  [
+   -98.928819,
+   37.967446,
+   -98.928819,
+   37.944964
+  ],
+  [
+   -98.928819,
+   37.989928,
+   -98.928819,
+   37.967446
+  ],
+  [
+   -98.928819,
+   38.01241,
+   -98.928819,
+   37.989928
+  ]
+ ],
+ "cases": [
+  {
+   "name": "centre",
+   "why": "well inside: the 1 and 2 km rings stay in, the 5 km ring reaches past the east edge",
+   "click": [
+    -98.971615,
+    37.956205
+   ],
+   "click_block_group": "999990000171",
+   "nearest_km": 0.8819,
+   "nearest": [
+    {
+     "name": "Made-up Stall 09",
+     "km": 0.8819,
+     "lon": -98.962958,
+     "lat": 37.952187
+    },
+    {
+     "name": "Made-up Stall 21",
+     "km": 1.8704,
+     "lon": -98.957144,
+     "lat": 37.94385
+    },
+    {
+     "name": "Made-up Stall 23",
+     "km": 2.2256,
+     "lon": -98.995962,
+     "lat": 37.961722
+    },
+    {
+     "name": "Made-up Stall 04",
+     "km": 2.7494,
+     "lon": -98.996868,
+     "lat": 37.941587
+    },
+    {
+     "name": "Made-up Stall 01",
+     "km": 2.8226,
+     "lon": -98.98785,
+     "lat": 37.934264
+    }
+   ],
+   "within": {
+    "1": 1,
+    "2": 2,
+    "5": 17
+   },
+   "people_est": {
+    "1": 130,
+    "2": 1980,
+    "5": 18150
+   },
+   "ring_leaves_place": {
+    "1": false,
+    "2": false,
+    "5": true
+   },
+   "county_edge_km": 3.7611,
+   "nearest_may_miss_across_edge": false,
+   "sphere_reference": {
+    "nearest_km": 0.8808,
+    "within": {
+     "1": 1,
+     "2": 2,
+     "5": 17
+    }
+   }
+  },
+  {
+   "name": "west_edge",
+   "why": "0.3 km inside the west edge: the 1 km ring leaves the place",
+   "click": [
+    -99.096572,
+    37.956205
+   ],
+   "click_block_group": "999990000131",
+   "nearest_km": 2.8211,
+   "nearest": [
+    {
+     "name": "Made-up Stall 39",
+     "km": 2.8211,
+     "lon": -99.07268,
+     "lat": 37.939233
+    },
+    {
+     "name": "Made-up Stall 05",
+     "km": 3.8911,
+     "lon": -99.056064,
+     "lat": 37.942062
+    },
+    {
+     "name": "Made-up Stall 29",
+     "km": 4.263,
+     "lon": -99.074345,
+     "lat": 37.990344
+    },
+    {
+     "name": "Made-up Stall 11",
+     "km": 4.2938,
+     "lon": -99.057206,
+     "lat": 37.979124
+    },
+    {
+     "name": "Made-up Stall 07",
+     "km": 4.5462,
+     "lon": -99.04902,
+     "lat": 37.972339
+    }
+   ],
+   "within": {
+    "1": 0,
+    "2": 0,
+    "5": 6
+   },
+   "people_est": {
+    "1": 790,
+    "2": 2770,
+    "5": 12340
+   },
+   "ring_leaves_place": {
+    "1": true,
+    "2": true,
+    "5": true
+   },
+   "county_edge_km": 0.3013,
+   "nearest_may_miss_across_edge": true,
+   "sphere_reference": {
+    "nearest_km": 2.8197,
+    "within": {
+     "1": 0,
+     "2": 0,
+     "5": 6
+    }
+   }
+  },
+  {
+   "name": "se_corner",
+   "why": "0.4 km from both the south and the east edge",
+   "click": [
+    -98.933391,
+    37.903597
+   ],
+   "click_block_group": "999990000061",
+   "nearest_km": 2.8331,
+   "nearest": [
+    {
+     "name": "Made-up Stall 06",
+     "km": 2.8331,
+     "lon": -98.958676,
+     "lat": 37.919415
+    },
+    {
+     "name": "Made-up Stall 40",
+     "km": 2.841,
+     "lon": -98.957566,
+     "lat": 37.920577
+    },
+    {
+     "name": "Made-up Stall 15",
+     "km": 2.8735,
+     "lon": -98.966038,
+     "lat": 37.904632
+    },
+    {
+     "name": "Made-up Stall 22",
+     "km": 4.2058,
+     "lon": -98.979339,
+     "lat": 37.914109
+    },
+    {
+     "name": "Made-up Stall 02",
+     "km": 4.587,
+     "lon": -98.98446,
+     "lat": 37.912002
+    }
+   ],
+   "within": {
+    "1": 0,
+    "2": 0,
+    "5": 6
+   },
+   "people_est": {
+    "1": 820,
+    "2": 2330,
+    "5": 7050
+   },
+   "ring_leaves_place": {
+    "1": true,
+    "2": true,
+    "5": true
+   },
+   "county_edge_km": 0.3992,
+   "nearest_may_miss_across_edge": true,
+   "sphere_reference": {
+    "nearest_km": 2.8309,
+    "within": {
+     "1": 0,
+     "2": 0,
+     "5": 6
+    }
+   }
+  },
+  {
+   "name": "on_a_point",
+   "why": "exactly on a point: nearest_km 0.0",
+   "click": [
+    -99.011573,
+    37.955043
+   ],
+   "click_block_group": "999990000161",
+   "nearest_km": 0.0,
+   "nearest": [
+    {
+     "name": "Made-up Stall 03",
+     "km": 0.0,
+     "lon": -99.011573,
+     "lat": 37.955043
+    },
+    {
+     "name": "Made-up Stall 32",
+     "km": 0.4906,
+     "lon": -99.005992,
+     "lat": 37.954957
+    },
+    {
+     "name": "Made-up Stall 17",
+     "km": 0.6795,
+     "lon": -99.004745,
+     "lat": 37.957916
+    },
+    {
+     "name": "Made-up Stall 37",
+     "km": 1.5574,
+     "lon": -99.025658,
+     "lat": 37.963558
+    },
+    {
+     "name": "Made-up Stall 23",
+     "km": 1.5594,
+     "lon": -98.995962,
+     "lat": 37.961722
+    }
+   ],
+   "within": {
+    "1": 3,
+    "2": 8,
+    "5": 20
+   },
+   "people_est": {
+    "1": 510,
+    "2": 1920,
+    "5": 13400
+   },
+   "ring_leaves_place": {
+    "1": false,
+    "2": true,
+    "5": true
+   },
+   "county_edge_km": 1.0015,
+   "nearest_may_miss_across_edge": false,
+   "sphere_reference": {
+    "nearest_km": 0.0,
+    "within": {
+     "1": 3,
+     "2": 8,
+     "5": 20
+    }
+   }
+  },
+  {
+   "name": "no_point_within_1km",
+   "why": "in the empty spot: no point within 1 km",
+   "click": [
+    -98.971615,
+    37.978687
+   ],
+   "click_block_group": "999990000231",
+   "nearest_km": 1.5783,
+   "nearest": [
+    {
+     "name": "Made-up Stall 19",
+     "km": 1.5783,
+     "lon": -98.989425,
+     "lat": 37.980547
+    },
+    {
+     "name": "Made-up Stall 24",
+     "km": 2.6544,
+     "lon": -98.980194,
+     "lat": 38.001617
+    },
+    {
+     "name": "Made-up Stall 23",
+     "km": 2.85,
+     "lon": -98.995962,
+     "lat": 37.961722
+    },
+    {
+     "name": "Made-up Stall 09",
+     "km": 3.0382,
+     "lon": -98.962958,
+     "lat": 37.952187
+    },
+    {
+     "name": "Made-up Stall 36",
+     "km": 3.1543,
+     "lon": -98.938168,
+     "lat": 37.989021
+    }
+   ],
+   "within": {
+    "1": 0,
+    "2": 1,
+    "5": 13
+   },
+   "people_est": {
+    "1": 1490,
+    "2": 4530,
+    "5": 17260
+   },
+   "ring_leaves_place": {
+    "1": false,
+    "2": false,
+    "5": true
+   },
+   "county_edge_km": 3.7432,
+   "nearest_may_miss_across_edge": false,
+   "sphere_reference": {
+    "nearest_km": 1.5746,
+    "within": {
+     "1": 0,
+     "2": 1,
+     "5": 13
+    }
+   }
+  },
+  {
+   "name": "on_a_shared_boundary",
+   "why": "exactly on the line between two block groups",
+   "click": [
+    -99.01441,
+    37.933723
+   ],
+   "click_block_group": "999990000101",
+   "nearest_km": 0.709,
+   "nearest": [
+    {
+     "name": "Made-up Stall 34",
+     "km": 0.709,
+     "lon": -99.022385,
+     "lat": 37.934675
+    },
+    {
+     "name": "Made-up Stall 28",
+     "km": 1.2605,
+     "lon": -99.004096,
+     "lat": 37.941612
+    },
+    {
+     "name": "Made-up Stall 16",
+     "km": 1.6153,
+     "lon": -98.997731,
+     "lat": 37.927619
+    },
+    {
+     "name": "Made-up Stall 04",
+     "km": 1.772,
+     "lon": -98.996868,
+     "lat": 37.941587
+    },
+    {
+     "name": "Made-up Stall 18",
+     "km": 2.1276,
+     "lon": -99.031964,
+     "lat": 37.920528
+    }
+   ],
+   "within": {
+    "1": 1,
+    "2": 4,
+    "5": 21
+   },
+   "people_est": {
+    "1": 600,
+    "2": 2430,
+    "5": 12440
+   },
+   "ring_leaves_place": {
+    "1": false,
+    "2": false,
+    "5": true
+   },
+   "county_edge_km": 2.1334,
+   "nearest_may_miss_across_edge": false,
+   "sphere_reference": {
+    "nearest_km": 0.7074,
+    "within": {
+     "1": 1,
+     "2": 4,
+     "5": 21
+    }
+   }
+  },
+  {
+   "name": "beside_the_hole",
+   "why": "0.3 km above the hole of the donut block group",
+   "click": [
+    -99.028675,
+    37.963399
+   ],
+   "click_block_group": "999990000151",
+   "nearest_km": 0.2657,
+   "nearest": [
+    {
+     "name": "Made-up Stall 37",
+     "km": 0.2657,
+     "lon": -99.025658,
+     "lat": 37.963558
+    },
+    {
+     "name": "Made-up Stall 03",
+     "km": 1.7661,
+     "lon": -99.011573,
+     "lat": 37.955043
+    },
+    {
+     "name": "Made-up Stall 13",
+     "km": 1.9814,
+     "lon": -99.043678,
+     "lat": 37.950074
+    },
+    {
+     "name": "Made-up Stall 10",
+     "km": 1.9937,
+     "lon": -99.007734,
+     "lat": 37.970312
+    },
+    {
+     "name": "Made-up Stall 07",
+     "km": 2.0447,
+     "lon": -99.04902,
+     "lat": 37.972339
+    }
+   ],
+   "within": {
+    "1": 1,
+    "2": 4,
+    "5": 19
+   },
+   "people_est": {
+    "1": 550,
+    "2": 2100,
+    "5": 14670
+   },
+   "ring_leaves_place": {
+    "1": true,
+    "2": true,
+    "5": true
+   },
+   "county_edge_km": 0.2995,
+   "nearest_may_miss_across_edge": false,
+   "sphere_reference": {
+    "nearest_km": 0.2651,
+    "within": {
+     "1": 1,
+     "2": 4,
+     "5": 19
+    }
+   }
+  },
+  {
+   "name": "block_group_without_population",
+   "why": "in the block group that has no population figure",
+   "click": [
+    -99.057205,
+    37.956205
+   ],
+   "click_block_group": "999990000141",
+   "nearest_km": 1.3699,
+   "nearest": [
+    {
+     "name": "Made-up Stall 13",
+     "km": 1.3699,
+     "lon": -99.043678,
+     "lat": 37.950074
+    },
+    {
+     "name": "Made-up Stall 05",
+     "km": 1.573,
+     "lon": -99.056064,
+     "lat": 37.942062
+    },
+    {
+     "name": "Made-up Stall 07",
+     "km": 1.9298,
+     "lon": -99.04902,
+     "lat": 37.972339
+    },
+    {
+     "name": "Made-up Stall 39",
+     "km": 2.3235,
+     "lon": -99.07268,
+     "lat": 37.939233
+    },
+    {
+     "name": "Made-up Stall 11",
+     "km": 2.5439,
+     "lon": -99.057206,
+     "lat": 37.979124
+    }
+   ],
+   "within": {
+    "1": 0,
+    "2": 3,
+    "5": 15
+   },
+   "people_est": {
+    "1": 0,
+    "2": 1880,
+    "5": 18290
+   },
+   "ring_leaves_place": {
+    "1": false,
+    "2": false,
+    "5": true
+   },
+   "county_edge_km": 2.0059,
+   "nearest_may_miss_across_edge": false,
+   "sphere_reference": {
+    "nearest_km": 1.368,
+    "within": {
+     "1": 0,
+     "2": 3,
+     "5": 15
+    }
+   }
+  },
+  {
+   "name": "beside_the_other_county",
+   "why": "0.2 km from the east county line; a stall lies across it",
+   "click": [
+    -98.931105,
+    37.956205
+   ],
+   "click_block_group": "999990000181",
+   "nearest_km": 2.668,
+   "nearest": [
+    {
+     "name": "Made-up Stall 21",
+     "km": 2.668,
+     "lon": -98.957144,
+     "lat": 37.94385
+    },
+    {
+     "name": "Made-up Stall 09",
+     "km": 2.8348,
+     "lon": -98.962958,
+     "lat": 37.952187
+    },
+    {
+     "name": "Made-up Stall 36",
+     "km": 3.6949,
+     "lon": -98.938168,
+     "lat": 37.989021
+    },
+    {
+     "name": "Made-up Stall 40",
+     "km": 4.5879,
+     "lon": -98.957566,
+     "lat": 37.920577
+    },
+    {
+     "name": "Made-up Stall 06",
+     "km": 4.7486,
+     "lon": -98.958676,
+     "lat": 37.919415
+    }
+   ],
+   "within": {
+    "1": 0,
+    "2": 0,
+    "5": 5
+   },
+   "people_est": {
+    "1": 830,
+    "2": 3010,
+    "5": 13450
+   },
+   "ring_leaves_place": {
+    "1": true,
+    "2": true,
+    "5": true
+   },
+   "county_edge_km": 0.2009,
+   "nearest_may_miss_across_edge": true,
+   "sphere_reference": {
+    "nearest_km": 2.6646,
+    "within": {
+     "1": 0,
+     "2": 0,
+     "5": 5
+    }
+   }
+  }
+ ],
+ "sphere_reference_summary": {
+  "max_abs_diff_nearest_km": 0.0037
+ }
+}
