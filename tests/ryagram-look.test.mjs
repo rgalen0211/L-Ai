@@ -65,7 +65,7 @@ test('the other sheets do not redefine the look tokens for a page that wears it'
 test('the pages that do NOT wear the look are exactly the ones left out on purpose (a new page is dressed or named here)', () => {
   const left = pages.filter(f => !wearing.includes(f)).sort();
   assert.deepEqual(left, [
-    '_archive/consulting/index.html', '_archive/consulting/thank-you.html', '_archive/consulting/workflow-audit-thanks.html', '_archive/consulting/workflow-audit/index.html', 'index.html', 'privacy-policy.html', 'thank-you.html', 'workflow-audit-thanks.html', 'workflow-audit/index.html',   // the L'Ai consulting pages: a brand decision for Ryan
+    'index.html', 'privacy-policy.html', 'thank-you.html', 'workflow-audit-thanks.html', 'workflow-audit/index.html',   // the L'Ai consulting pages: a brand decision for Ryan
     'ryagram/index.html',                                                   // the waiting page: the reference the look is taken from
     'preview-demo/index.html',                                              // saved for offline use by name: a new sheet needs the saved list changed too
   ].sort());
