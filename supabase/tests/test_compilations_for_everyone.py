@@ -275,7 +275,10 @@ class Compilations(unittest.TestCase):
         sa, sb = self.put(a), self.put(b, dict(REQ, phrase="b"))
         old = self.report(tok, a, sa, "planning")
         self.d().execute("update compilation_runs set updated_at = now() - interval '3 hours' where id = %s", (old,))
-        self.assertTrue(self.report(tok, b, sb, "planning"))
+        try:
+            self.assertTrue(self.report(tok, b, sb, "planning"))
+        except psycopg.Error as e:
+            self.fail(f"a build silent for 3 hours still blocked the next one: {e.diag.message_primary}")
         self.assertEqual(self.admin("select state || ':' || error_code from compilation_runs where id = %s", old), "failed:stale")
 
     def test_a_run_silent_for_two_hours_reads_as_stale_with_the_computer_off_and_the_next_report_starts_a_new_build(self):
@@ -330,7 +333,10 @@ class Compilations(unittest.TestCase):
         pid, tok = self.project(), self.sign_in(OTHER)
         sha = self.put(pid)
         for i in range(31):                    # the person keeps fixing a folder and trying again, through the real report
-            self.report(tok, pid, sha, "planning")
+            try:
+                self.report(tok, pid, sha, "planning")
+            except psycopg.Error as e:
+                self.fail(f"plan {i + 1} stopped by a folder problem was refused: {e.diag.message_primary}")
             self.report(tok, pid, sha, "failed", error="folder_missing")
         rid = self.report(tok, pid, sha, "planning")
         self.assertTrue(rid, "31 plans stopped by a folder problem do not block a real build")
@@ -366,7 +372,8 @@ class Compilations(unittest.TestCase):
                 self.refused(self.put, pid, dict(REQ, folders=[v]), code="22023")
         for k in ("filePath", "folder_path", "uri", "href", "src", "dir", "location"):
             with self.subTest(k=k):
-                self.refused(self.put, pid, dict(REQ, **{k: "x"}), code="22023")
+                self.assertIn("never a file, a path or a link", self.refused(self.put, pid, dict(REQ, **{k: "x"}), code="22023"),
+                              "a file key is refused AS a file key (the key check), not only as an unknown part")
         for ok in (["Rock & Roll"], ["Sam's videos", "Holiday 2025"]):
             with self.subTest(ok=ok):
                 self.assertRegex(self.put(pid, dict(REQ, folders=ok, note="a phrase about http and files, Q3/Q4 talks, an A:B ratio")), r"^[0-9a-f]{64}$")
