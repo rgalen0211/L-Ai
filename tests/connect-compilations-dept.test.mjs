@@ -102,7 +102,7 @@ test('a report about an EARLIER version of the request is not shown as the answe
 test('a report with an invented state is treated as no report; negative or silly numbers are not shown', async () => {
   const { w, call } = world();
   const id = await asked(call);
-  w.setCompilationRun(A.userId, id, { state: 'exploded', matches: 5 });
+  w.setCompilationRun(A.userId, id, { state: 'exploded', matches: 5, current: true });
   const r = await call(A, 'get_compilation_status', { project_id: id });
   assert.equal(r.data.run, null);
   w.setCompilationRun(A.userId, id, { state: 'matching', matches: -4, current: true });
