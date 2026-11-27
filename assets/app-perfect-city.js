@@ -46,6 +46,11 @@
   };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   const km1 = (x) => (x < 10 ? x.toFixed(2) : x.toFixed(1));
+  // The Census top-codes median household income at 250001, meaning "$250,000 or more"; its margin is then not a real figure (WORKER 10:17)
+  const TOP_INCOME = 250001;
+  const incomeText = (inc) => (!inc ? 'not published for this block group'
+    : inc[0] >= TOP_INCOME ? '$250,000 or more (the survey does not publish higher; no margin of error is given for it)'
+      : '$' + fmt(inc[0]) + (inc[1] ? ` (plus or minus $${fmt(inc[1])}, the survey's 90% margin of error)` : ''));
   // the spot sent to the server: 4 decimals (about 11 m), like perfect_city_summary_for; half away from zero, as Postgres round() does
   const r4 = (x) => Math.sign(x) * Math.round(Math.abs(x) * 1e4) / 1e4;
 
@@ -89,21 +94,24 @@
     const compareBar = h('div', { class: 'pc-typed', id: 'pc-compare-bar' });
     // +39.7589, .5 and 39. are numbers; a comma decimal (39,7589) is not, and the message says so
     const num = (v) => (/^\s*[+-]?(\d+\.?\d*|\.\d+)\s*$/.test(v) ? Number(v) : NaN);
+    // a refused typed spot is said next to the form too (role=alert), not only in #pc-status above the map, far away on a phone (WEB 10:19)
+    const typedAlert = h('p', { class: 'form-note', id: 'pc-typed-alert', role: 'alert' });
     const typed = h('form', { class: 'pc-typed', onsubmit: (e) => {
       e.preventDefault();
       const lat = num(latIn.value), lon = num(lonIn.value);
-      if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) place([lon, lat], state.compare ? state.target : 'A');
+      if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) { typedAlert.textContent = ''; place([lon, lat], state.compare ? state.target : 'A'); }
       else {
         // the results stay for the spot already put down: say which one, so the bad text in the box is not read as their spot
         const shown = state.census && state.spot && pc.unitAt(state.spot, state.census.units) ? state.spot : null;
         status.textContent = WORDS.badTyped + (!shown ? '' : state.compare ? ' The results below are still for the spots already on the map.'
           : ` The results below are still for the spot at ${shown[1].toFixed(5)}, ${shown[0].toFixed(5)}.`);
+        typedAlert.textContent = status.textContent;
         latIn.focus();
       }
     } },h('span', { class: 'meta' }, 'Or type a spot: '), targetWrap,
       h('label', { class: 'pc-control', for: 'pc-lat' }, 'Latitude ', latIn), ' ',
       h('label', { class: 'pc-control', for: 'pc-lon' }, 'Longitude ', lonIn), ' ',
-      h('button', { class: 'button secondary', type: 'submit', id: 'pc-go' }, 'Put the spot here'));
+      h('button', { class: 'button secondary', type: 'submit', id: 'pc-go' }, 'Put the spot here'), typedAlert);
     let kindWrap = h('span');
 
     function kindSelect() {
@@ -212,14 +220,19 @@
         if (state.loading) return;                                   // a county is loading: this map is the old one
         const box = root.getBoundingClientRect();
         const pt = [((e.clientX - box.left) / box.width) * W, ((e.clientY - box.top) / box.height) * H];
-        place(P.inv(pt), state.compare ? state.target : 'A');
+        typedAlert.textContent = '';
+        // after a map click the keyboard and screen reader land on the results heading, not left on the map (WEB 10:19)
+        place(P.inv(pt), state.compare ? state.target : 'A').then((drawn) => { if (drawn) document.getElementById('pc-results-head')?.focus(); });
       });
       const legendTitle = SHADES[state.shade] + (state.shade === 'density' ? ' (calculated)' : ' (estimated)');
-      const lab = (v) => (state.shade === 'income' ? '$' + fmt(v) : fmt(v));
-      const keys = FILL.map((f, i) => h('li', {}, h('span', { class: 'pc-swatch', 'data-fill': f }), ' ',
-        i === 0 ? `under ${lab(br[0])}` : i === FILL.length - 1 ? `${lab(br[i - 1])} or more` : `${lab(br[i - 1])} to ${lab(br[i])}`));
+      const lab = (v) => (state.shade === 'income' ? (v >= TOP_INCOME ? '$250,000' : '$' + fmt(v)) : fmt(v));
+      // no break points (no published figure at all, or too few): one plain swatch line, never "under NaN" (WORKER 10:17)
+      const keys = !br.length ? [h('li', {}, h('span', { class: 'pc-swatch', 'data-fill': FILL[0] }), ' ', 'every block group with a published figure (too few figures to band)')]
+        : FILL.map((f, i) => h('li', {}, h('span', { class: 'pc-swatch', 'data-fill': f }), ' ',
+          i === 0 ? `under ${lab(br[0])}` : i === FILL.length - 1 ? `${lab(br[i - 1])} or more` : `${lab(br[i - 1])} to ${lab(br[i])}`));
+      const capNote = state.capKm != null || (two && state.b.capKm != null) ? ', at most the nearest 60' : '';
       const legend = h('div', { class: 'pc-legend' }, h('p', { class: 'meta' }, legendTitle), h('ul', { class: 'pc-keys' }, keys),
-        h('p', { class: 'meta' }, 'Grey: no published figure.' + (inA && inB ? ' Rings: 1, 2 and 5 km around each spot (A: white circle, yellow dashes; B: cyan square, cyan dotted rings).' : inA ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : inB ? ' Cyan dotted rings: 1, 2 and 5 km around spot B (cyan square).' : '') + (!anyPlaces ? '' : two ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of either spot, and the nearest five to each.' : ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.')));
+        h('p', { class: 'meta' }, 'Grey: no published figure.' + (inA && inB ? ' Rings: 1, 2 and 5 km around each spot (A: white circle, yellow dashes; B: cyan square, cyan dotted rings).' : inA ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : inB ? ' Cyan dotted rings: 1, 2 and 5 km around spot B (cyan square).' : '') + (!anyPlaces ? '' : two ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of either spot, and the nearest five to each' + capNote + '.' : ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five' + capNote + '.')));
       // the swatch colours are attributes on SVG squares (the page's CSP allows no inline style)
       legend.querySelectorAll('.pc-swatch').forEach((s) => { const f = s.getAttribute('data-fill'); s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: f })])); });
       mapBox.replaceChildren(root, legend);
@@ -260,12 +273,12 @@
         row('Census block group', '', (k) => cell(k, (x) => x.u.id)),
         row("People in the spot's block group", 'observed, 2020 Census', (k) => cell(k, (x) => (x.u.pop == null ? 'not published' : fmt(x.u.pop)))),
         row('People per square kilometre in the block group', 'calculated', (k) => cell(k, (x) => (x.u.density == null ? 'not available' : fmt(x.u.density)))),
-        row('Median household income in the block group', `estimated, ${acsWords()}`, (k) => cell(k, (x) => (x.u.income ? '$' + fmt(x.u.income[0]) + (x.u.income[1] ? ` (plus or minus $${fmt(x.u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'))),
+        row('Median household income in the block group', `estimated, ${acsWords()}`, (k) => cell(k, (x) => incomeText(x.u.income))),
         row(`Nearest ${kind.toLowerCase()}`, 'observed, from OpenStreetMap; distance calculated, straight line', (k) => placesCell(k, (x) => (x.near ? `${km1(x.near.km)} km (${x.near.name || 'no name in the map data'})` : 'none found'))),
         ...pc.RINGS_KM.map((r, i) => row(`${kind} within ${r} km`, 'calculated', (k) => placesCell(k, (x) => countText(x.counts[i])))),
         ...pc.RINGS_KM.map((r, i) => row(`People within ${r} km`, 'estimated', (k) => cell(k, (x) => peopleCell(x.people[i]))))
       ];
-      results.replaceChildren(h('h2', {}, 'Two spots side by side'),
+      results.replaceChildren(h('h2', { id: 'pc-results-head', tabindex: '-1' }, 'Two spots side by side'),
         h('div', { class: 'pc-table-wrap' }, h('table', { class: 'pc-table pc-compare', id: 'pc-compare' },
           h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Figure'), h('th', { scope: 'col' }, 'Spot A'), h('th', { scope: 'col' }, 'Spot B'))),
           h('tbody', {}, rows))),
@@ -321,9 +334,11 @@
       status.textContent = WORDS.looking;
       try {
         if (state.spot) {
-          if (!(await loadPlaces())) return;                         // a newer spot was put down meanwhile: that one draws
-          if (state.compare && state.b.spot && !(await loadPlacesB())) return;
-        } else await checkLoaded();
+          // only the spot whose ask failed is asked again: each ask counts toward the day's limit (GEO review 10)
+          const aBad = state.placesNote === WORDS.placesError, bBad = !!(state.compare && state.b.spot && state.b.note === WORDS.placesError);
+          if ((aBad || !bBad) && !(await loadPlaces())) return;      // a newer spot was put down meanwhile: that one draws
+          if (bBad && !(await loadPlacesB())) return;
+        } else if (!(await checkLoaded())) return;                  // a newer probe, county or spot superseded it: that one draws
       } finally { state.retrying = false; }
       drawAll();
       status.textContent = state.compare ? statusLine() : (state.placesNote || (state.spot ? summaryLine() : ''));
@@ -336,13 +351,13 @@
       if (!state.spot) { results.replaceChildren(h('p', { class: 'form-intro' }, WORDS.pickSpot)); return; }
       const u = pc.unitAt(state.spot, c.units);
       if (!u) { results.replaceChildren(h('p', { class: 'form-intro' }, WORDS.pickSpot)); return; }      // the status line says 'outside the county' (once)
-      const out = [h('h2', {}, 'Around this spot'),
+      const out = [h('h2', { id: 'pc-results-head', tabindex: '-1' }, 'Around this spot'),
         h('p', { class: 'meta', id: 'pc-spot-text' }, `Spot: ${state.spot[1].toFixed(5)}, ${state.spot[0].toFixed(5)} (latitude, longitude)`),
         h('h3', {}, 'The block group the spot is in'),
         h('ul', { class: 'pc-facts', id: 'pc-unit' },
           h('li', {}, `People: ${u.pop == null ? 'not published' : fmt(u.pop)}`, u.pop == null ? null : h('span', { class: 'pc-label' }, ' observed, 2020 Census')),
           h('li', {}, `People per square kilometre: ${u.density == null ? 'not available' : fmt(u.density)}`, u.density == null ? null : h('span', { class: 'pc-label' }, ' calculated')),
-          h('li', {}, `Median household income: ${u.income ? '$' + fmt(u.income[0]) + (u.income[1] ? ` (plus or minus $${fmt(u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'}`, u.income ? h('span', { class: 'pc-label' }, ` estimated, ${acsWords()}`) : null),
+          h('li', {}, `Median household income: ${incomeText(u.income)}`, u.income ? h('span', { class: 'pc-label' }, ` estimated, ${acsWords()}`) : null),
           h('li', { class: 'meta' }, `Census block group ${u.id}`))];
       const people = pc.peopleWithinArea(state.spot, c.units);
       if (state.places) {
@@ -374,7 +389,8 @@
         `U.S. Census Bureau, ${acsWords()} median household income (estimated)`].concat(o && o.year ? [`U.S. Census Bureau, County Business Patterns ${o.year} business counts (observed)`] : []);
       credits.replaceChildren(`Sources: ${plain.join('; ')}. Area and people per square kilometre are calculated here from the boundaries; the shapes are simplified for the page.${credit ? ' ' + credit + ' ' : ''}`,
         credit ? h('span', { class: 'pc-credit-link' }, '(', h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright'), ').') : '',
-        ' This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.');
+        // what is true (CC1 10:11): the exporter reads saved files, never the API; their receipts name api.census.gov as where they were fetched once
+        ` The people and income figures come from the U.S. Census Bureau (the 2020 Census and the ${acsWords()}), read from copies saved earlier from the Census Bureau Data API, not asked of it live. This product is not endorsed or certified by the Census Bureau.`);
     }
 
     // which: 'A' or 'B'. Only the spot that moved is asked about again (each spot is its own server call).
@@ -386,9 +402,10 @@
       if (inside && !state.dayLimit) { drawMap(); status.textContent = WORDS.looking; }
       let fresh;
       if (which === 'B' && state.compare) fresh = await loadPlacesB(); else fresh = await loadPlaces();
-      if (!fresh) return;                                          // a newer spot was put down meanwhile: that one draws
+      if (!fresh) return false;                                    // a newer spot was put down meanwhile: that one draws
       drawAll();
       status.textContent = statusLine();
+      return true;                                                 // drawn (the map click moves focus to the results heading)
     }
 
     function statusLine() {
@@ -418,25 +435,39 @@
     }
 
     // Is anything loaded at all? Asked once per county and kind, at the county's middle, so the note shows before any spot (MEDIUM 6).
+    // Its own request token, like fetchPlaces: a late answer is dropped when a newer probe was sent, the county or kind changed, or a spot was put down
+    // meanwhile (CC1 10:11). Returns false for a dropped answer: whoever superseded it draws.
+    let probed = 0;
     async function checkLoaded() {
-      if (state.spot) return;
-      if (state.dayLimit) { state.placesNote = state.dayLimit; return; }
+      if (state.spot) return true;
+      if (state.dayLimit) { state.placesNote = state.dayLimit; return true; }
+      const mine = ++probed, county = state.county, kind = state.kind;
+      const probeStale = () => mine !== probed || county !== state.county || kind !== state.kind || state.spot != null;
       const [x0, y0, x1, y1] = state.census.bbox;
       try {
-        const r = await data.perfectCityPlaces(state.county, state.kind, r4((y0 + y1) / 2), r4((x0 + x1) / 2));
+        const r = await data.perfectCityPlaces(county, kind, r4((y0 + y1) / 2), r4((x0 + x1) / 2));
+        if (probeStale()) return false;
         state.loaded = r && Number.isFinite(r.loaded) ? r.loaded : null;
         state.placesNote = r && r.loaded > 0 ? '' : WORDS.noPlaces;
       } catch (e) {
+        if (probeStale()) return false;
         if (/today.s limit/i.test(String(e && e.message))) state.dayLimit = String(e.message);
         state.placesNote = state.dayLimit || WORDS.placesError;
       }
+      return true;
     }
 
+    // Each county or kind change gets a token: only the newest refresh may write. A second county change while one loads is not blocked; the
+    // newest choice wins and the older load, landing late, is dropped (CC1 10:11), so the county named in the select is the one on screen.
+    let refreshing = 0;
     async function refresh() {
+      const mine = ++refreshing, stale = () => mine !== refreshing;
       status.textContent = 'Loading...';
       state.loading = true;
-      try { state.census = await loadCensus(state.county); }
+      let census;
+      try { census = await loadCensus(state.county); }
       catch {
+        if (stale()) return;                                          // a newer county was picked meanwhile: that one draws
         state.loading = false;
         const wanted = COUNTIES.find((c) => c.id === state.county);
         if (state.census) {                                           // keep the county that is on screen, and say so
@@ -446,11 +477,14 @@
         } else status.textContent = 'The map data could not be loaded. Try again later.';
         return;
       }
+      if (stale()) return;                                            // a slow county landed after a newer pick: drop it
+      state.census = census;
       state.loading = false;
       kindSelect();
-      await loadPlaces();
-      if (state.compare) await loadPlacesB();
-      await checkLoaded();
+      // a false is a stale answer (a newer kind, county or spot asked meanwhile): whoever asked later draws (WORKER 10:17, two quick kind changes)
+      if (!(await loadPlaces()) || stale()) return;
+      if (state.compare && (!(await loadPlacesB()) || stale())) return;
+      if (!(await checkLoaded()) || stale()) return;
       drawAll();
       status.textContent = [state.kindNote, state.compare ? statusLine() : (state.placesNote || (state.spot ? summaryLine() : ''))].filter(Boolean).join(' ');
       state.kindNote = '';

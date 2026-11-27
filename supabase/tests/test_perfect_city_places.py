@@ -150,12 +150,29 @@ class PerfectCityPlaces(core.Base):
         self.assertGreater(within_1, 0)
         self.assertEqual(got["within"], {"1": within_1, "2": 80, "5": 82})
 
-    def test_a_daily_count_refuses_in_words_past_the_cap_and_a_refused_call_counts(self):
+    def calls_today(self, who):
+        row = self.owner("select calls from ryagram_private.perfect_city_calls where owner_id = %s and day = (now() at time zone 'utc')::date", who).fetchone()
+        return row[0] if row else 0
+
+    def test_the_day_count_goes_up_by_one_per_successful_call_and_a_call_over_the_cap_is_refused(self):
+        # What is TRUE (WORKER 10:17): each call is its own statement (autocommit), and a refusal raises, which rolls the whole call back, its count
+        # included. So a successful call adds exactly 1, and a refused call adds nothing. This never claims a refused call counts.
         self.switch_on(OTHER)
-        self.owner("insert into ryagram_private.perfect_city_calls (owner_id, day, calls) values (%s, (now() at time zone 'utc')::date, 299)", OTHER)
-        self.get(OTHER)                                                                    # call 300: allowed
-        e = self.refused(OTHER, "montgomery_oh", "fast_food", code="54000")                  # call 301: refused in words
+        self.owner("insert into ryagram_private.perfect_city_calls (owner_id, day, calls) values (%s, (now() at time zone 'utc')::date, 298)", OTHER)
+        self.get(OTHER)                                                                    # call 299: allowed
+        self.assertEqual(self.calls_today(OTHER), 299, "a successful call must add exactly 1")
+        self.get(OTHER)                                                                    # call 300: allowed, the last one
+        self.assertEqual(self.calls_today(OTHER), 300, "a successful call must add exactly 1")
+        e = self.refused(OTHER, "montgomery_oh", "fast_food", code="54000")                  # over the cap: refused in words
         self.assertIn("Try again tomorrow", e.diag.message_primary)
+        self.assertNotIn("count too", e.diag.message_primary)
+        self.assertEqual(self.calls_today(OTHER), 300, "the refusal rolled back with its call: the count stays at 300")
+        self.refused(OTHER, "montgomery_oh", "fast_food", code="54000")                      # and stays refused for the day
+        self.make_admin(RYAN)
+        self.refused(RYAN, "montgomery_oh", "fast_food", 40.6, -84.2, code="22023")         # refused for another reason: not counted either
+        self.assertEqual(self.calls_today(RYAN), 0)
+        self.owner("delete from public.app_admins where user_id = %s", RYAN)
+        self.owner("delete from ryagram_private.perfect_city_calls where owner_id = %s", RYAN)
         self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
         self.owner("insert into ryagram_private.perfect_city_calls (owner_id, day, calls) values (%s, (now() at time zone 'utc')::date, 40)", RYAN)
         self.refused(RYAN, "montgomery_oh", "fast_food", code="54000")                        # let in by the public flip only: 40 a day
@@ -167,6 +184,43 @@ class PerfectCityPlaces(core.Base):
         self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
         self.assertEqual(self.get(OTHER)["loaded"], 4)
         self.refused("anon", "montgomery_oh", "fast_food", code="42501")                     # a visitor still cannot
+
+    def test_the_public_flip_never_lets_in_a_waiting_account_or_a_worker(self):
+        # WORKER 10:17: the flip key checks the person too, with the waiting list's own account_active (the summary_for path takes any owner uuid)
+        self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
+        self.assertEqual(self.get(OTHER)["loaded"], 4)                                     # setup: an active account gets in by the flip
+        self.owner("insert into public.account_status (user_id, status, source) values (%s, 'waiting', 'signup') "
+                   "on conflict (user_id) do update set status = 'waiting'", OTHER)
+        self.refused(OTHER, "montgomery_oh", "fast_food", code="42501")                    # waiting: never by the flip
+        for who in (OTHER, WORKER):                                                         # the AI path, owner given directly: waiting, and the worker
+            with self.assertRaises(psycopg.Error, msg=who) as cm:
+                self.owner("select ryagram_private.perfect_city_summary_for(%s, 'montgomery_oh', 'fast_food', 39.7505, -84.2)", who)
+            self.assertEqual(cm.exception.sqlstate, "42501", who)
+        self.switch_on(OTHER)                                                               # the switch key works as before
+        self.assertEqual(self.get(OTHER)["loaded"], 4)
+
+    def test_under_supabases_default_privileges_service_role_cannot_run_the_page_call(self):
+        # GEO 11-27 review: supabase_stub.sql has no default grants, so the revoke from service_role was unproven. Here Supabase's real default
+        # privileges are on (the way test_app_downloads.py does it), then every migration runs again.
+        name = "pc" + str(abs(hash(self.id())) % 100000)
+        with psycopg.connect(core._server.get_uri(), autocommit=True) as c:
+            c.execute(f"create database {name}")
+        drop = ("revoke usage on schema public from anon, authenticated;", "revoke all on schema public from public;",
+                "alter default privileges revoke execute on functions from public;", "alter default privileges in schema public revoke execute on functions from public;")
+        lines = [l for l in (core.ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8").splitlines(True) if not l.startswith("create role") and l.strip() not in drop]
+        c = psycopg.connect(core._server.get_uri(database=name), autocommit=True)
+        try:
+            c.execute("".join(lines))
+            c.execute("alter default privileges in schema public grant execute on functions to anon, authenticated, service_role")
+            for path in core.MIGRATIONS:
+                c.execute(path.read_text(encoding="utf-8"))
+            for role in ("anon", "service_role", "public"):
+                self.assertFalse(c.execute(f"select has_function_privilege('{role}', '{SIG}', 'EXECUTE')").fetchone()[0], role)
+            self.assertTrue(c.execute(f"select has_function_privilege('authenticated', '{SIG}', 'EXECUTE')").fetchone()[0])
+        finally:
+            c.close()
+            with psycopg.connect(core._server.get_uri(), autocommit=True) as c2:
+                c2.execute(f"drop database {name}")
 
     # ---------------------------------------------------------------------------------------------- (c) an admin
     def test_an_app_admin_without_the_switch_is_allowed(self):

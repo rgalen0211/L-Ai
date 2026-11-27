@@ -8,13 +8,14 @@
 --   * public.perfect_city_places(county, kind, lat, lon): for ONE spot, the places within 5 km of it plus the nearest five (never a whole county in one
 --     call: RENDERER 08:24, the licence question), with how many are loaded, the true counts within 1, 2 and 5 km ('within', counted before the 60 cap),
 --     and the OpenStreetMap credit; never the osm_ref. Signed in only, and only for
---     an account whose per-account switch list names 'perfectCity', an app admin, or everyone once the department is 'working' (the public flip); else 42501. Unknown county or kind, or a spot outside the county: 22023.
+--     an account whose per-account switch list names 'perfectCity', an app admin, or every ACTIVE person once the department is 'working' (the public flip: never a waiting account, never a worker account); else 42501. Unknown county or kind, or a spot outside the county: 22023.
 --   * ryagram_private.perfect_city_summary_for(owner, county, kind, lat, lon): the AI tool's summary (CONNECT wraps it with its token check), the same gate
 --     for that owner, schema ryagram.perfect-city-summary/0 (proposals/CONNECT-DEPT-PERFECT-CITY-1127.md part B).
 --   * ryagram_private.perfect_city_km and perfect_city_check: the haversine distance (the same formula as assets/perfect-city-core.js) and the shared gate.
 --   * LIMITS (RENDERER 08:40/08:43, so the private table cannot be rebuilt by stepping a spot across a county): at most 60 places per call, and a per-account
 --     per-day call count in ryagram_private.perfect_city_calls (300 a day with the switch, 40 a day for an account let in only by the public flip; admins 2,000),
---     refused in words (54000) past it. Every helper is closed to service_role too.
+--     refused in words (54000) past it. Only calls that SUCCEED are counted: the refusal raises, and a raise rolls back the whole call, its count included
+--     (WORKER 10:17). Every helper is closed to service_role too.
 -- Apply AFTER: 20260928000300_2a_worker_is_not_a_person.sql (require_signed_in), 20261003000300_admin_waitlist_by_film.sql (app_admins),
 -- 20261110000400_account_switches.sql (switches_on), 20261104000100_waiting_accounts.sql (the gate; this file ends with gate_apply()).
 -- Undo: supabase/rollbacks/20261127000900_perfect_city_places_rollback.sql (every object below; the loaded rows are lost, nothing else).
@@ -69,17 +70,20 @@ begin
   -- Who may: the owner's own switch, an app admin, or the department opened for everyone (departments.status 'working', the public flip; CC1 08:10).
   is_admin := p_owner is not null and exists (select 1 from public.app_admins a where a.user_id = p_owner);
   has_switch := p_owner is not null and exists (select 1 from public.account_settings s where s.owner_id = p_owner and 'perfectCity' = any (s.switches_on));
+  -- the public flip lets in only an ACTIVE person (ryagram_private.account_active, the waiting list's own test) who is not a worker account (WORKER 10:17)
   if p_owner is null or not (is_admin or has_switch
-                             or exists (select 1 from public.departments d where d.id = 'geo_intelligence' and d.status = 'working')) then
+                             or (exists (select 1 from public.departments d where d.id = 'geo_intelligence' and d.status = 'working')
+                                 and ryagram_private.account_active(p_owner)
+                                 and not exists (select 1 from public.workers w where w.user_id = p_owner))) then
     raise exception 'Perfect City is not switched on for this account.' using errcode = '42501';
   end if;
-  -- the day's call count (UTC day), counted before any other check so a refused call still counts
+  -- the day's call count (UTC day). A refusal anywhere in the call (here or below) raises, which rolls the count back too: only successful calls count
   cap := case when is_admin then 2000 when has_switch then 300 else 40 end;
   insert into ryagram_private.perfect_city_calls as c (owner_id, day, calls) values (p_owner, (now() at time zone 'utc')::date, 1)
     on conflict (owner_id, day) do update set calls = c.calls + 1
     returning c.calls into used;
   if used > cap then
-    raise exception 'This account has reached today''s limit of % Perfect City requests (refused ones count too). Try again tomorrow.', cap using errcode = '54000';
+    raise exception 'This account has reached today''s limit of % Perfect City requests. Try again tomorrow.', cap using errcode = '54000';
   end if;
   if p_county is null or p_county not in ('montgomery_oh', 'greene_oh') then
     raise exception 'Choose a county: montgomery_oh or greene_oh.' using errcode = '22023';
@@ -122,8 +126,8 @@ grant execute on function public.perfect_city_places(text, text, double precisio
 -- Every number carries its basis word; distances are straight lines. NO people figure (GEO 11-27 decision, after CC1 09:43/09:48): the server has only
 -- block-group centres, and the centre method is not the page's estimate (the page shares each block group by the part of its area inside the ring).
 -- Measured on different spot samples, the centre method was off at 5 km by a median of about 4% (GEO's population-weighted spots) and about 8%, up to 40%
--- at the edges (RENDERER's uniform spots), and far worse at 1 and 2 km. So the summary says the people estimate is on the page only, and the page and
--- the AI cannot disagree.
+-- at the edges (RENDERER's uniform spots), and far worse at 1 and 2 km (GEO's estimate check of 11-27, kept outside the repo). So the server gives no people
+-- figure at all; the page's area-weighted estimate is page-only, and the summary says so. The two methods do NOT match, and nothing here claims they do.
 create function ryagram_private.perfect_city_summary_for(p_owner uuid, p_county text, p_kind text, p_lat double precision, p_lon double precision)
 returns jsonb language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -158,7 +162,7 @@ begin
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.'),
     'credits', jsonb_build_array(
       'U.S. Census Bureau, 2020 Census block groups (used to check that the spot is inside the county).',
-      'This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.',
+      'The block groups come from U.S. Census Bureau files saved earlier, not asked of the Census Bureau live. This product is not endorsed or certified by the Census Bureau.',
       'Map data (c) OpenStreetMap contributors (ODbL)'));
 end $$;
 revoke execute on function ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision) from public, anon, authenticated, service_role;

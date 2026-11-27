@@ -51,7 +51,7 @@
 
   // About how many people live within each ring, AREA-WEIGHTED: ESTIMATED. Method, in words: each block group's people are shared by the part of its
   // area inside the ring (a 96-sided circle, clipped in a flat local projection), which assumes people are spread evenly inside each block group.
-  // GEO's 11-27 check (proposals/GEO-PERFECT-CITY-ESTIMATE-CHECK-1127.md) found the centre method off by a median 58% at 1 km, with false zeros; this is
+  // GEO's estimate check of 11-27 (kept outside the repo) found the centre method off by a median 58% at 1 km, with false zeros; this is
   // the Ryagram engine's own method (ryagram/geo/catchment.py residents_inside). Rounded to the nearest 100.
   const AREA_METHOD = "each block group's people shared by the part of its area inside the ring, assuming people are spread evenly inside it";
   function shoelace(pts) { let a = 0; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]); return Math.abs(a) / 2; }
