@@ -9,9 +9,8 @@ import { checkStoryStructured } from "./story_check.ts";
 import { describeMeasured, measure, parseCsv, PREPARED_LIMITS } from "./prepared.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
 import { BLOCKED_VIEWS } from "../_shared/blocked_views.ts";
-import { KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
+import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
-import { makeGamesTools } from "./games_tools.ts";
 import { homeView } from "./home_panel.ts";
 import { LIMITS, type ChecklistItem, type CompilationRequest, type Data, type GeoRow, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
@@ -38,13 +37,10 @@ export function friendlyError(e: unknown): string {
 }
 
 /** The desktop app is for invited testers and administrators for now (the rule of request_app_download). A person without it cannot use a tool that hands work to the app: the tool refuses, nothing is saved, no plan is left waiting for an app that will never open it.
- *  `desktop_app` absent = an older server that does not say: allowed (nothing changes until migration 20261123000500).
- *  `viaCompilations` (compilation tools only): an account whose Compilations switch is on (BUILDER 11-27, migration 20261127000300: device_decide lets such an account sign in its own computer) is let through
- *  even though desktop_app, which is still the tester / administrator rule, says false. The database's own gate (connect_compilations_open) is the last word. */
-async function noDesktopApp(ctx: ToolCtx, what: string, viaCompilations = false): Promise<ToolResult | null> {
+ *  `desktop_app` absent = an older server that does not say: allowed (nothing changes until migration 20261123000500). */
+async function noDesktopApp(ctx: ToolCtx, what: string): Promise<ToolResult | null> {
   const w = await ctx.data.whoami();
   if (w.desktop_app !== false) return null;
-  if (viaCompilations && (await compilationsOpen(ctx))) return null;
   return refuse(`${what} needs the Ryagram desktop app, which is not open to this account yet. NOTHING was saved or written down. Tell the person plainly that this is not available to them yet; a data film made in the website works for them.`,
     "not_available", { data: { ok: false, saved: false, started: false, reason: "desktop_app_not_open" } });
 }
@@ -296,20 +292,19 @@ const looksLikePlace = (s: string) => PLACE.test(s);
 const LINKISH = /[A-Za-z][A-Za-z0-9+.-]*:\/\/|\bwww\.|\b[A-Za-z0-9-]+\.(com|org|net|gov|edu|io|co|us|uk)\b\/?/i;
 const looksLikeLink = (s: string) => LINKISH.test(s);
 const MAX_CHECKLIST = 12;
-/** The most folders a request may name: the Ryagram app's own limit (FACES 11-27; BUILDER's server lowers its own from 10 to 8 to match), so a request the connector accepts is never one the app then refuses. */
-const MAX_FOLDERS = 8;
 const MAX_CARDS = 4;
 
 const setCompilationRequest: ToolDef = {
   name: "set_compilation_request", title: "Ask for a compilation", scope: "write", readOnly: false, destructive: true, idempotent: true,
-  description: "Writes down a request for a compilation film (for example every time a phrase is said) on one of the person's projects. It is DATA only: a phrase, the NAMES of folders the person has "
+  description: "Writes down a request for a compilation film (for example every time a phrase is said, optionally as a song) on one of the person's projects. It is DATA only: a phrase, the NAMES of folders the person has "
     + "already chosen in their Ryagram desktop app, switches, and picture/text overlays. The AI cannot see or send videos, pictures or file paths. Nothing is built from here and no credit is used: the person opens the "
     + "Ryagram desktop app on their own computer, checks the request and builds the film there. The desktop app is not open to everyone yet: ask the person first whether they have it, and if they do not, tell them plainly that compilations are not available to them yet. Saving again replaces the earlier request.",
   inputSchema: obj({
     project_id: uuid,
     phrase: { type: "string", minLength: 1, maxLength: 200, description: "The words to find in the person's videos." },
     search: { type: "string", enum: ["every", "words"], description: "every = every time the phrase is said; words = the words in this order, one place each." },
-    folders: { type: "array", minItems: 1, maxItems: MAX_FOLDERS, items: { type: "string", pattern: NAME_PATTERN, not: { enum: [".", ".."] } }, description: "The NAMES of the person's folders, as the desktop app shows them. Never paths." },
+    folders: { type: "array", minItems: 1, maxItems: 10, items: { type: "string", pattern: NAME_PATTERN, not: { enum: [".", ".."] } }, description: "The NAMES of the person's folders, as the desktop app shows them. Never paths." },
+    song: { type: "boolean", description: "Sing the phrase to a tune (song mode). Default false." },
     clean_cuts: { type: "boolean", description: "Move each cut to the nearest shot change without cutting a word. Default false." },
     rules: { type: "array", maxItems: 20, items: obj({
       phrase: { type: "string", minLength: 1, maxLength: 200 }, picture: { type: "string", pattern: PICTURE_PATTERN, description: "The NAME of a picture the person has added in the app." },
@@ -334,7 +329,7 @@ const setCompilationRequest: ToolDef = {
       description: "Optional guided footage: a checklist of footage the PERSON gets for themselves (Ryagram downloads nothing and the AI sends no file). The desktop app shows it beside the request and ticks an item when its folder holds the files." },
   }, ["project_id", "phrase", "folders"]),
   async run(a, ctx) {
-    { const gate = await noDesktopApp(ctx, "A compilation request", true); if (gate) return gate; }
+    { const gate = await noDesktopApp(ctx, "A compilation request"); if (gate) return gate; }
     const phrase = cleanText(a.phrase, 200);
     if (!phrase) return refuse("Give the words to look for.", "args");
     const rules = ((a.rules as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ phrase: cleanText(r.phrase, 200), picture: String(r.picture), seconds: Number(r.seconds), mode: r.mode as CompilationRequest["rules"][number]["mode"] }));
@@ -360,132 +355,12 @@ const setCompilationRequest: ToolDef = {
       return refuse(`You can send ${LIMITS.compilationRequestsPerDayPerUser} compilation requests a day through a connection. Try tomorrow.`, "rate");
     }
     const request: CompilationRequest = { schema: "ryagram.compilation-request/0", phrase, search: (a.search ?? "every") as "every" | "words",
-      folders, song: false, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(cards.length ? { cards } : {}), ...(a.clip_labels ? { clip_labels: a.clip_labels as "file" | "file_and_time" } : {}), ...(checklist.length ? { checklist } : {}) };
+      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(cards.length ? { cards } : {}), ...(a.clip_labels ? { clip_labels: a.clip_labels as "file" | "file_and_time" } : {}), ...(checklist.length ? { checklist } : {}) };
     const saved = await ctx.data.saveCompilationRequest(String(a.project_id), request);
     if (!saved) return NOT_YOURS("project");
-    return ok(`Saved the request for ${untrusted("phrase", phrase)} on this project, for ${folders.length} folder${folders.length === 1 ? "" : "s"}. `
+    return ok(`Saved the request for ${untrusted("phrase", phrase)}${request.song ? " as a song" : ""} on this project, for ${folders.length} folder${folders.length === 1 ? "" : "s"}. `
       + "Nothing has been built and no credit was used. If the person has the Ryagram desktop app (it is not open to everyone yet), it shows the request there and they build the film on their own computer; their videos never leave it. If they do not have the app, tell them plainly that compilations are not available to them yet.",
       { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length, cards: cards.length, ...(request.clip_labels ? { clip_labels: request.clip_labels } : {}), checklist: checklist.length });
-  },
-};
-
-// ---------------------------------------------------------------------------------------------- the Compilations department (CONNECT 11-27; contract: proposals/CONNECT-DEPT-COMPILATIONS-1127.md)
-// A compilation is found and built on the PERSON'S OWN computer, from clips that never leave it. The site holds only the request (data) and the small reports the person's computer sends back (a state and counts).
-// So these tools read that request and those reports; none can start a search, ask for matches, make a preview or spend a credit, because the server has nothing to search and nothing to render.
-
-/** Is the Compilations department open for this person? The database's own rule is the last word (every server call refuses in words when it is off); this is the connector's early, plain answer from what it can read:
- *  the account's switch list names 'compilations', or the person's departments list says Compilations works for them, or the account already has the desktop app (the invited testers who use set_compilation_request today keep it).
- *  Anything unreadable counts as off. The site-wide public lever (ops_settings) cannot be read from here: it reaches the connector through the departments list.
- *  THIS IS ONLY A PRE-FILTER, NEVER THE AUTHORITY: THE DATABASE IS. connect_compilations_open (migration 20261127000400, final version) follows BUILDER's ryagram_private.compilations_on EXCLUSIVELY once it exists (no tester door,
- *  no administrator door), and before it exists is closed by default except for an invited tester. It refuses in words (42501) what this lets through; an account this says "open" for can still be refused there, and the tool then says what
- *  the database said. The third door above (the desktop app, i.e. an invited tester) is kept only because the database's fallback admits that same tester until BUILDER's migration is applied; after it, the database refuses a tester
- *  who has no switch and this pre-filter's "yes" costs one round trip, never a wrong save. */
-export async function compilationsOpen(ctx: ToolCtx): Promise<boolean> {
-  const switches = await ctx.data.switches().catch(() => [] as string[]);
-  if (Array.isArray(switches) && switches.includes("compilations")) return true;
-  const rows = await ctx.data.departments().catch(() => null);
-  if (Array.isArray(rows) && rows.some((r) => r && r.id === "compilations" && r.status === "working")) return true;
-  const w = await ctx.data.whoami().catch(() => null);
-  return !!w && w.desktop_app === true;
-}
-const COMPILATIONS_CLOSED = "Compilations are not open for this Ryagram account yet. Nothing was looked up. Tell the person plainly that this is not available to them yet; a data film made in the website works for them.";
-const closedResult = () => refuse(COMPILATIONS_CLOSED, "not_available", { data: { ok: false, looked_up: false, reason: "compilations_not_open" } });
-
-/** What the person's computer reported as the reason a build stopped, in plain words. An unknown code gets the general sentence: the code itself is never shown as words. */
-export const COMPILATION_STOPPED: Record<string, string> = {
-  // the closed list of reasons the Ryagram app can report (FACES, docs/COMPILATION-REPORT-1127.md, the same list WEB's Compilations page words)
-  request_invalid: "the request could not be read",
-  song_request: "songs are made in the song tools, not in a compilation",
-  folder_not_chosen: "the person has not yet chosen where these videos are on their computer",
-  folder_missing: "a folder the person chose is not there any more",
-  folder_empty: "a folder the person chose has no videos",
-  folders_overlap: "two of the folders hold the same videos",
-  no_speech: "no speech was found in the person's videos",
-  not_said: "the person's videos do not say it",
-  edit_failed: "the draft could not be made into a film list",
-  build_failed: "the film could not be built; nothing left the person's computer",
-  crash: "something went wrong on the person's computer",
-  stale: "the person's computer stopped reporting for two hours, so Ryagram closed this build; they can start it again in the Ryagram app",      // BUILDER's node_compilation_report (migration 20261127000300) closes a build silent for 2 hours with this code
-};
-const RUN_STATES = new Set(["planning", "matching", "building", "done", "failed", "cancelled"]);
-const cleanCount = (v: unknown, max = 1_000_000): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.min(Math.round(v), max) : null);
-const plainText = (v: unknown, n: number): string => (typeof v === "string" ? cleanText(v, n) ?? "" : "");
-
-export interface CompilationSummary { phrase: string; search: string | null; folders: string[]; song: boolean; clean_cuts: boolean; rules: number; texts: number; cards: number; checklist: number; note: string }
-/** The request as the AI may see it again: words and counts only. A phrase or folder name that looks like a place on a computer is dropped, every text is cut, the note is cut at 200 characters, nothing else is kept. */
-export function summariseRequest(req: unknown): CompilationSummary | null {
-  if (!req || typeof req !== "object" || Array.isArray(req)) return null;
-  const r = req as Record<string, unknown>;
-  const safe = (s: string) => (s && !looksLikePlace(s) ? s : "");
-  const folders = (Array.isArray(r.folders) ? r.folders : []).map((f) => plainText(f, 81)).filter((f) => f && f.length <= 80 && !looksLikePlace(f) && !/[\\/:]/.test(f)).slice(0, 10);
-  const count = (v: unknown) => (Array.isArray(v) ? Math.min(v.length, 50) : 0);
-  return { phrase: safe(plainText(r.phrase, 200)), search: r.search === "every" || r.search === "words" ? r.search : null, folders, song: r.song === true, clean_cuts: r.clean_cuts === true,
-    rules: count(r.rules), texts: count(r.texts), cards: count(r.cards), checklist: count(r.checklist), note: safe(plainText(r.note, 200)) };
-}
-
-/** The state of the build on the person's own computer, in plain words. Counts only; the film itself is on that computer. */
-export function runWords(run: { state: string; matches: number | null; clips: number | null; film_seconds: number | null; error_code: string | null } | null, current: boolean): string {
-  if (!run || !RUN_STATES.has(run.state)) return "Waiting for the Ryagram app on the person's computer to pick it up. Nothing is searched or built on Ryagram's side.";
-  // a report that was made for an earlier version of the request (the request was saved again after it) is not the answer for this one: say so, instead of a bare "waiting" that hides that a film may already exist for the old version (FACES 11-27: no "earlier version" line)
-  if (!current) return "The last report from the person's computer was for an earlier version of this request, so it is not shown. Waiting for the Ryagram app on the person's computer to pick up this version. Nothing is searched or built on Ryagram's side.";
-  const n = (v: number | null, one: string, many: string) => (v === null ? "" : `${v} ${v === 1 ? one : many}`);
-  switch (run.state) {
-    case "planning": return "The Ryagram app on the person's computer has the request and is planning the film.";
-    case "matching": return run.matches === null ? "Matching: the app is looking through the person's clips." : `Matching: found ${n(run.matches, "place", "places")} so far.`;
-    case "building": return `Building the film on the person's computer${run.clips === null ? "" : ": " + n(run.clips, "clip", "clips") + " so far"}.`;
-    case "done": return `Done${run.clips === null && run.film_seconds === null ? "" : ": " + [n(run.clips, "clip", "clips"), run.film_seconds === null ? "" : `${run.film_seconds} seconds`].filter(Boolean).join(", ")}. The film is on the person's computer: they open the Ryagram app to see it. It is never sent to Ryagram.`;
-    case "cancelled": return "Stopped: the person stopped it on their computer.";
-    default: return `Stopped: ${(run.error_code !== null && Object.hasOwn(COMPILATION_STOPPED, run.error_code) ? COMPILATION_STOPPED[run.error_code] : null) ?? "the Ryagram app reported a problem it has no plain words for"}.`;
-  }
-}
-
-const getCompilationStatus: ToolDef = {
-  name: "get_compilation_status", title: "Where a compilation stands", scope: "read", readOnly: true, idempotent: true,
-  description: "Reads where one compilation stands, for one of the person's OWN projects: the request saved on it (the words to find, the folder NAMES, how many overlays it has) and what the Ryagram app on the person's own computer last reported "
-    + "(waiting, matching with a count of places found, building, done with the number of clips and seconds, or stopped with a plain reason). It changes nothing, costs nothing and starts nothing. "
-    + "It cannot show the matches themselves, any words from the person's videos, a file name or path, or the film: the clips and the film stay on the person's computer, and only the person can open them in the Ryagram app. "
-    + "To ask for a compilation, use set_compilation_request first. If Compilations is not open for the account it says so and nothing is looked up.",
-  inputSchema: obj({ project_id: uuid }, ["project_id"]),
-  async run(a, ctx) {
-    if (!(await compilationsOpen(ctx))) return closedResult();
-    const unavailable = () => refuse("Compilation status is not available just now. Nothing was looked up.", "not_available", { data: { ok: false, looked_up: false } });
-    if (!ctx.data.compilationGet) return unavailable();
-    if (!(await ctx.policy.hit(ctx.principal, "compilation_reads", LIMITS.compilationReadsPerHourPerUser, 3600))) {
-      return refuse(`The limit of ${LIMITS.compilationReadsPerHourPerUser} compilation status checks an hour is reached. Do not check again; tell the person.`, "rate", { data: { ok: false, retry_after_seconds: 3600 } });
-    }
-    let row;
-    try { row = await ctx.data.compilationGet(String(a.project_id)); }
-    catch (e) { if ((e as { code?: string })?.code === "unavailable") return unavailable(); throw e; }        // the database has no such function yet (migration not applied): said plainly, none of the database's text is passed on
-    if (!row) return NOT_YOURS("project");
-    const summary = summariseRequest(row.request);
-    if (!summary) return ok("This project has no compilation request yet. Use set_compilation_request to write one; the person then builds the film in the Ryagram app on their own computer.", { project_id: String(a.project_id), has_request: false, credits: 0, looked_up: true });
-    const rr = row.run && typeof row.run === "object" ? row.run : null;
-    const state = rr && RUN_STATES.has(String(rr.state)) ? String(rr.state) : null;
-    const run = rr && state ? { state, matches: cleanCount(rr.matches), clips: cleanCount(rr.clips), film_seconds: cleanCount(rr.film_seconds, 86_400), error_code: typeof rr.error_code === "string" && /^[a-z0-9_]{1,40}$/.test(rr.error_code) ? rr.error_code : null } : null;
-    const current = rr?.current === true;                  // a run whose 'current' is null (no stored request hash) is NOT shown as current (security review 11-27 L2)
-    const head = `Compilation request: ${untrusted("phrase", summary.phrase || "(no words)")}${summary.search ? `, ${summary.search === "every" ? "every time it is said" : "the words in this order"}` : ""}; ${summary.folders.length} folder${summary.folders.length === 1 ? "" : "s"}${summary.folders.length ? " (" + summary.folders.map((f) => untrusted("folder-name", f)).join(", ") + ")" : ""}; ${summary.rules} picture rule${summary.rules === 1 ? "" : "s"}, ${summary.texts} text${summary.texts === 1 ? "" : "s"}, ${summary.cards} card${summary.cards === 1 ? "" : "s"}.`;
-    const note = summary.note ? ` Note on the request: ${untrusted("request-note", summary.note)}` : "";
-    return ok(`${head}${note}\nWhere it stands: ${runWords(run, current)}\nNo credit is used for a compilation.`,
-      { project_id: String(a.project_id), has_request: true, request: (({ note: _note, ...rest }) => rest)(summary), request_text_is_untrusted: true, request_sha256: typeof row.sha256 === "string" && /^[0-9a-f]{64}$/.test(row.sha256) ? row.sha256 : null,
-        run: run && current ? { state: run.state, matches: run.matches, clips: run.clips, film_seconds: run.film_seconds, error_code: run.error_code } : null,
-        run_is_for_an_earlier_request: !!run && !current, film_stays_on_the_persons_computer: true, credits: 0, looked_up: true });
-  },
-};
-
-export const COMPILATIONS_PAGE = "#/d/compilations";
-const openCompilationsPage: ToolDef = {
-  name: "open_compilations_page", title: "Where to make a compilation", scope: "read", readOnly: true, idempotent: true,
-  description: "Tells the person where to go in the Ryagram app to make a compilation: the Compilations page, where they can see their requests and where each one stands. Read-only and free; it starts nothing. "
-    + "The film is found and built by the Ryagram app on the person's own computer from clips that never leave it, so nothing here can search clips, show matches or make a preview. If Compilations is not open for the account it says so.",
-  inputSchema: obj(),
-  async run(_a, ctx) {
-    if (!(await compilationsOpen(ctx))) return closedResult();
-    if (!(await ctx.policy.hit(ctx.principal, "compilation_reads", LIMITS.compilationReadsPerHourPerUser, 3600))) {
-      return refuse(`The limit of ${LIMITS.compilationReadsPerHourPerUser} compilation checks an hour is reached. Do not check again; tell the person.`, "rate", { data: { ok: false, retry_after_seconds: 3600 } });
-    }
-    return ok("The person opens the Compilations page in the Ryagram app (its address ends with " + COMPILATIONS_PAGE + "). There they see their requests and where each one stands. "
-      + "The Ryagram app on their own computer finds the phrase in their clips and builds the film there: the clips and the film never leave their computer, and no credit is used.",
-      { page: COMPILATIONS_PAGE, builds_on: "the person's own computer", credits: 0 });
   },
 };
 
@@ -882,12 +757,12 @@ const suggestNextStep: ToolDef = {
     picture: { type: "string", enum: [...PICTURES], description: "The picture they asked for. globe is accepted only so you can be told it is coming soon." },
     have_app: { type: "boolean", description: "Compilation: whether they have the Ryagram desktop app for Windows." },
     folders_named: { type: "boolean", description: "Compilation: true once they have told you the NAMES of their video folders." },
-    chose: { type: "string", maxLength: 20, description: "Compilation: pass phrase once the person has given you the phrase to look for (every time it is said in their videos). Anything else is not offered and you are asked again." },
+    chose: { type: "string", enum: [...CHOSE], description: "Compilation: phrase (every time it is said) or song." },
     department: { type: "string", maxLength: 60, description: "A part of Ryagram they asked for that you do not see a tool for." },
   }),
   async run(a, ctx) {
     const step = nextStep(a as Known);
-    if (step.kind === "compilation" && (await ctx.data.whoami()).desktop_app === false && !(await compilationsOpen(ctx))) {
+    if (step.kind === "compilation" && (await ctx.data.whoami()).desktop_app === false) {
       return ok("A compilation is made in the Ryagram desktop app, which is not open to this account yet. Tell the person plainly that a compilation is not available to them yet, and offer a data film instead (ask again with kind data_film).",
         { step: "not_available", asking: null, reask: false, ask: null, options: ["a data film instead"], say: null, then: "Continue with kind data_film if they want one.", kind: "compilation", already_known: step.known });
     }
@@ -1572,7 +1447,5 @@ const listMyData: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, getCompilationStatus, openCompilationsPage, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, submitPrepared, listMyData, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome];
-// GAMES (CONNECT 11-27): two read-only tools in games_tools.ts, each gated by the account's own `games` switch; one line of their own so department branches merge cleanly
-TOOLS.push(...makeGamesTools());
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, submitPrepared, listMyData, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

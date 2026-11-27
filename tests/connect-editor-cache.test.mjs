@@ -8,7 +8,6 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { JS, buildId, early } from '../tools/build-chat-editor.mjs';
 import { EDITOR_BUILD, EDITOR_HTML } from '../supabase/functions/connect-core/editor_page.ts';
-import { COMPILATION_URI } from '../supabase/functions/connect-core/compilation_card.ts';
 import { CARD_URI, EDITOR_URI, EDITOR_URI_LEGACY, isEditorUri, readResource, resourceList } from '../supabase/functions/connect-core/mcp_app.ts';
 
 const ON = { enabled: true, chatEditor: true };
@@ -20,8 +19,8 @@ test('the page address carries the build, so a host that keeps pages by address 
   assert.equal(EDITOR_URI, 'ui://ryagram/editor-' + EDITOR_BUILD);
   assert.notEqual(EDITOR_URI, EDITOR_URI_LEGACY, 'the address changed from the one hosts may hold from before');
   assert.equal(EDITOR_BUILD, buildId(), 'the committed id is the one the generator makes from the sources');
-  assert.deepEqual(resourceList(ON).map((r) => r.uri), [CARD_URI, COMPILATION_URI, EDITOR_URI], 'only the current address is listed');
-  assert.deepEqual(resourceList(CARD_ONLY).map((r) => r.uri), [CARD_URI, COMPILATION_URI]);
+  assert.deepEqual(resourceList(ON).map((r) => r.uri), [CARD_URI, EDITOR_URI], 'only the current address is listed');
+  assert.deepEqual(resourceList(CARD_ONLY).map((r) => r.uri), [CARD_URI]);
 });
 
 test('the build id is a hash of the WHOLE page (any source, the policy or the first script), worked out here from the committed page itself', () => {

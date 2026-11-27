@@ -36,7 +36,7 @@ const mutants = [
   ['the panel takes the database label', H, `const label = w.label;`, `const label = r.label;`],
   ['the geographic line promises where a business would do well', H, `so it does not say where a business would do well.`, `so it says where a business would do well.`],
   ['a date is promised', H, `No price and no date.`, `No price, due 2027.`],
-  ['the compilations line differs from the site', H, `Save a request for a phrase in your footage. The film needs`, `Save a request for a phrase in your videos. The film needs`],
+  ['the compilations line differs from the site', H, `Say a phrase. Ryagram finds every time it is said in your own footage`, `Say a phrase. Ryagram finds the best time it is said in your own footage`],
   ['the page loads a script from outside', H, `<title>Ryagram home</title>`, `<title>Ryagram home</title><script src=\\"https://x.example/a.js\\"></script>`],
   ['the page builds from markup', H, `root.textContent='';`, `root.innerHTML='';`],
   ['any fragment may be opened', H, `function openPage(page){if(appUrl&&PAGE.test(page||'')){`, `function openPage(page){if(appUrl){`],
@@ -69,12 +69,12 @@ const mutants = [
   ['my films always opens the projects page', H, `page: filmsOn ? MY_FILMS.pageOn : MY_FILMS.page };`, `page: MY_FILMS.page };`],
   ['my films always opens the films page', H, `page: filmsOn ? MY_FILMS.pageOn : MY_FILMS.page };`, `page: MY_FILMS.pageOn };`],
   ['any switch turns the films page on', H, `switches.includes("myFilms")`, `switches.length > 0`],
-  ['a switch list that cannot be read throws', TL, `    const switches = await ctx.data.switches().catch(() => [] as string[]);`, `    const switches = await ctx.data.switches();`],
+  ['a switch list that cannot be read throws', TL, `await ctx.data.switches().catch(() => [] as string[]);`, `await ctx.data.switches();`],
   ['the geographic line is not GEO\'s', H, `Ask about places with free public data: who lives near a spot`, `Ask a map a question: where would a new shop do well, who lives near a spot`],
   ['the first rule says every number is labelled a second time', H, `rules: ["It counts places,`, `rules: ["Every number is labelled: observed, calculated, estimated or simulated.", "It counts places,`],
   ['the geographic line loses the site\'s last sentence', H, ` how counties have changed. Every number says whether it was counted, calculated or estimated.",`, ` how counties have changed.",`],
   ['a score is promised', H, `No score and no ranking of places.`, `A score for every place.`],
-  ['a database that cannot answer throws', TL, `    const rows = await ctx.data.departments().catch(() => null);`, `    const rows = await ctx.data.departments();`],
+  ['a database that cannot answer throws', TL, `const rows = await ctx.data.departments().catch(() => null);`, `const rows = await ctx.data.departments();`],
   ['the tool is not read-only', TL, `scope: "read", readOnly: true, idempotent: true, homePanel: true,`, `scope: "read", readOnly: false, idempotent: true, homePanel: true,`],
 ];
 
