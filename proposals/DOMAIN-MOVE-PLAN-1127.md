@@ -29,6 +29,7 @@ The prep column says whether a step can be done BEFORE the move without changing
 | `CNAME` | `uselai.com` | no | becomes `NEW` (step 5) |
 | about 20 `<link rel="canonical" href="https://uselai.com/...">` | SEO | no | rewrite to NEW after the switch (FACES' LOW 1: full https canonical once the domain is final) |
 | `index.html` (front door) | relative links only (WEB's branch) | already done | nothing |
+| share preview `og:image` on `/` and `/ryagram/`, `sitemap.xml` (4 URLs), the `Sitemap:` line in `robots.txt` (GEO `geo-home-share-1127`) | full addresses on purpose: previews and sitemaps need one | no | rewrite to NEW at step 7; tests `home-share-1127`, `robots-txt-1127` and `home-door-1127` pin them, so they change in the same commit |
 | `ryagram@uselai.com` mailto and visible text (app, help, connect-ai, report, ryagram, terms, privacy, ai-content; JS `CONTACT` constants in `ryagram.js`, `creator-beta.js`, `app-connect.js`, `app-data.js`, `app-tester-wizard.js`, `report.js`) | contact address | no | only after `ryagram@NEW` receives mail (step 3). **Terms and Privacy wording is legal: the attorney decides.** |
 | `assets/funnel.js:32` regex `uselai\.com` | drops self-referrals | **yes**: accept both | |
 | `assets/app-auth.js:335,356` and `app-library.js:1605` | use `location.origin` | already domain-free | nothing |
