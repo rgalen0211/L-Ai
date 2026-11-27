@@ -1,6 +1,6 @@
 {
   "what": "The live preview editor's op vocabulary, as cases. Run by BOTH supabase/tests/test_live_editor.py (ryagram_private.edit_op_problem, the authority) and tests/connect-edit-tools.test.mjs (connect-core/edit_state.ts, its twin), so the two cannot drift. 'word' must appear in the refusal's sentence. The SQL run adds the three extra_look_keys as rows of edit_look_keys; the node run adds them to LOOK_KEYS.",
-  "look_keys": ["choropleth.high", "choropleth.low", "network.base_color", "network.color", "network.context_color", "page.background", "sequence.theme", "state.fill", "state.outline_width"],
+  "look_keys": ["choropleth.high", "choropleth.low", "network.base_color", "network.color", "network.context_color", "page.background", "sequence.theme", "state.fill", "state.outline_width", "text.scale", "layout.legend_position"],
   "extra_look_keys": [
     { "key": "test.shape", "kind": "enum", "choices": ["circle", "square"] },
     { "key": "test.width", "kind": "number", "min": 0, "max": 8 },
@@ -116,6 +116,15 @@
     { "mode": "data", "ok": false, "word": "between 0 and 4", "op": {"op": "set_look", "key": "state.outline_width", "value": 4.5} },
     { "mode": "data", "ok": false, "word": "between 0 and 4", "op": {"op": "set_look", "key": "state.outline_width", "value": -1} },
     { "mode": "data", "ok": false, "word": "needs a number", "op": {"op": "set_look", "key": "state.outline_width", "value": "thick"} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "text.scale", "value": 0.85} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "text.scale", "value": 1} },
+    { "mode": "data", "ok": false, "word": "between 0.85 and 1", "op": {"op": "set_look", "key": "text.scale", "value": 0.84} },
+    { "mode": "data", "ok": false, "word": "between 0.85 and 1", "op": {"op": "set_look", "key": "text.scale", "value": 1.01} },
+    { "mode": "data", "ok": false, "word": "needs a number", "op": {"op": "set_look", "key": "text.scale", "value": "0.9"} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "layout.legend_position", "value": "bottom_right"} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "layout.legend_position", "value": "bottom_left"} },
+    { "mode": "data", "ok": false, "word": "bottom_left, bottom_right", "op": {"op": "set_look", "key": "layout.legend_position", "value": "top_left"} },
+    { "mode": "data", "ok": true, "op": {"op": "unset_look", "key": "layout.legend_position"} },
     { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "sequence.theme", "value": "dark"} },
     { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "sequence.theme", "value": "light"} },
     { "mode": "data", "ok": false, "word": "light, dark", "op": {"op": "set_look", "key": "sequence.theme", "value": "blue"} },

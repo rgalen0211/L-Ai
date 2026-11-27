@@ -1,6 +1,6 @@
 // The live editor's data-film mode, the part that is not the page: what the look panel offers, RENDERER's six presets, how a look becomes the story's look block that
 // ENGINE's drawer (assets/preview/look-draw.js) reads, and the scrubber's numbers. NEXT-WEB 154. Pure: no DOM, no network, no storage; the page calls it.
-// Only the keys the live worker accepts TODAY are ever saved (choropleth.low, choropleth.high, page.background, sequence.theme, state.outline_width); the drawer's other keys
+// Only the keys the live worker accepts TODAY are ever saved (choropleth.low, choropleth.high, page.background, sequence.theme, state.outline_width; text.scale and layout.legend_position are accepted too but the preview does not draw them, so they have no row here: the website's own-film panel offers them); the drawer's other keys
 // (middle colour, metal finish, glow) are named in WAITING and are neither offered nor saved until the worker's schema takes them.
 (() => {
   const isBanded = b => !!b && b.mode === 'banded';
@@ -47,6 +47,8 @@
     if (l['choropleth.low'] !== undefined || l['choropleth.high'] !== undefined) { so.choropleth = {}; if (l['choropleth.low'] !== undefined) so.choropleth.low = l['choropleth.low']; if (l['choropleth.high'] !== undefined) so.choropleth.high = l['choropleth.high']; }
     if (l['page.background'] !== undefined) so.page = { background: l['page.background'] };
     if (l['state.outline_width'] !== undefined) so.state = { outline_width: l['state.outline_width'] };
+    if (l['text.scale'] !== undefined) so.text = { scale: l['text.scale'] };                                   // engine-style-keys-1127: not drawn by the preview (it reports them in `ignored`), honoured by the final film
+    if (l['layout.legend_position'] !== undefined) so.layout = { legend_position: l['layout.legend_position'] };
     const seq = { style_overrides: so };
     if (l['sequence.theme'] !== undefined) seq.theme = l['sequence.theme'];
     return seq;

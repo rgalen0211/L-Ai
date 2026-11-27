@@ -170,7 +170,7 @@ test('LOOK ROWS: each change is ONE set_look with a key the draft accepts and a 
 });
 
 test('LOOK ROWS: every key the rows send is one the database lists as accepted (edit_look_keys), so the draft never refuses a row', () => {
-  const sql = read('supabase/migrations/20261027000400_live_editor.sql');
+  const sql = read('supabase/migrations/20261027000400_live_editor.sql') + read('supabase/migrations/20261127000100_look_keys_text_scale_legend_position.sql');   // the table's first rows + the reviewed insert that adds text.scale and layout.legend_position
   const sent = [...ROWS_SRC.matchAll(/key: '([a-z_.]+)'/g)].map(m => m[1]).concat([...ROWS_SRC.matchAll(/colour\('([a-z_.]+)'/g)].map(m => m[1]));
   assert.ok(new Set(sent).size >= 4, 'found the keys: ' + sent);
   for (const k of new Set(sent)) { assert.ok(sql.includes(`('${k}',`), `${k} is in edit_look_keys`); assert.ok(LOOK_KEYS[k], `${k} is in the editor core`); }
@@ -184,4 +184,24 @@ test('WIRING: a person’s own film is a project in the address with no host and
   assert.match(SRC, /routeProject \? 'Edit your film' : isData \? 'Edit your film: obesity and fast food'/);
   assert.match(SRC, /\.\.\.\(realFilm \? \[view\] : \[view, cardOn \? cardBox : null, scrub, stripHolder, ticks,/, 'the made-up year slider, strip and ticks are not on the page for a real film');
   assert.match(SRC, /routeProject \? \(realFilm \? 'No drawing is made up for your film\. ' :/);
+});
+
+test('LOOK ROWS (engine-style-keys-1127): Text size (0.85 to 1, smaller only) and Key position send one set_look each, refuse out-of-range, and the unset goes back to the film\'s own', () => {
+  const byId = (r, id) => r.root.all(e => e.attrs && e.attrs.id === id)[0];
+  const r = lookRows();
+  const ts = byId(r, 'le-look-text-scale'), lp = byId(r, 'le-look-legend-position');
+  assert.ok(ts && lp, 'both rows exist'); assert.equal(ts.attrs.min, '0.85'); assert.equal(ts.attrs.max, '1'); assert.equal(ts.value, ''); assert.equal(lp.value, '');
+  assert.deepEqual(lp.children.map(o => o.value), ['', 'bottom_left', 'bottom_right']);
+  for (const w of ['Text size', 'Key position']) assert.ok(r.root.text.includes(w), w);
+  ts.value = '0.9'; ts.fire('change'); lp.value = 'bottom_right'; lp.fire('change');
+  assert.deepEqual(JSON.parse(JSON.stringify(r.ops)), [{ op: 'set_look', key: 'text.scale', value: 0.9 }, { op: 'set_look', key: 'layout.legend_position', value: 'bottom_right' }]);
+  for (const op of r.ops) assert.equal(LOOK_KEYS[op.key](op.value), true, `${op.key} = ${op.value}`);
+  const bad = lookRows(); const bts = byId(bad, 'le-look-text-scale');
+  for (const v of ['1.2', '0.5', 'abc', '1.01']) { bts.value = v; bts.fire('change'); assert.equal(bts.value, '', 'never a ' + v + ' left standing'); }
+  assert.deepEqual(JSON.parse(JSON.stringify(bad.ops)), [], 'nothing out of range is sent'); assert.ok(bad.said.length === 4 && bad.said.every(t => t.includes('0.85 to 1')));
+  const set = lookRows({ look: { 'text.scale': 0.9, 'layout.legend_position': 'bottom_right' } });
+  assert.equal(byId(set, 'le-look-text-scale').value, '0.9'); assert.equal(byId(set, 'le-look-legend-position').value, 'bottom_right');
+  const own = lookRows({ look: { 'layout.legend_position': 'bottom_right' } }); const ol = byId(own, 'le-look-legend-position'); ol.value = ''; ol.fire('change');
+  assert.deepEqual(JSON.parse(JSON.stringify(own.ops)), [{ op: 'unset_look', key: 'layout.legend_position' }]);
+  assert.equal(LOOK_KEYS['text.scale'](1.01), false); assert.equal(LOOK_KEYS['layout.legend_position']('top_left'), false);
 });

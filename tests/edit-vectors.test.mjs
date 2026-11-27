@@ -29,7 +29,7 @@ test('the vectors cover every op, accepted and refused, with the exact sentences
     if (c.refusal) assert.equal(typeof c.refusal, 'string', c.name);
   }
   assert.ok(new Set(v.cases.filter(c => c.refusal).map(c => c.refusal)).size >= 18);
-  assert.deepEqual(v.look_keys.slice().sort(), ['choropleth.high', 'choropleth.low', 'network.base_color', 'network.color', 'network.context_color', 'page.background', 'sequence.theme', 'state.fill', 'state.outline_width']);
+  assert.deepEqual(v.look_keys.slice().sort(), ['choropleth.high', 'choropleth.low', 'network.base_color', 'network.color', 'network.context_color', 'page.background', 'sequence.theme', 'state.fill', 'state.outline_width', 'text.scale', 'layout.legend_position'].sort());
   assert.ok(v.local_only_fields.includes('speaker') && !v.local_only_fields.includes('ai_altered'));
 });
 

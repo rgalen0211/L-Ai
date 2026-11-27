@@ -9,7 +9,9 @@
   "choropleth.low",
   "choropleth.high",
   "state.outline_width",
-  "sequence.theme"
+  "sequence.theme",
+  "text.scale",
+  "layout.legend_position"
  ],
  "ops": [
   "set_look",
@@ -23350,6 +23352,166 @@
      "text_chars": 20
     }
    }
+  },
+  {
+   "name": "169 data set_look",
+   "state": "data",
+   "state_before": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d"
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_look",
+    "key": "text.scale",
+    "value": 0.85
+   },
+   "state_after": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d",
+     "text.scale": 0.85
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 1
+   }
+  },
+  {
+   "name": "170 data set_look",
+   "state": "data",
+   "state_before": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d"
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_look",
+    "key": "text.scale",
+    "value": 1
+   },
+   "state_after": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d",
+     "text.scale": 1
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 1
+   }
+  },
+  {
+   "name": "171 data set_look",
+   "state": "data",
+   "state_before": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d"
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_look",
+    "key": "text.scale",
+    "value": 0.84
+   },
+   "refusal": "That value is not allowed for this setting."
+  },
+  {
+   "name": "172 data set_look",
+   "state": "data",
+   "state_before": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d"
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_look",
+    "key": "text.scale",
+    "value": 1.01
+   },
+   "refusal": "That value is not allowed for this setting."
+  },
+  {
+   "name": "173 data set_look",
+   "state": "data",
+   "state_before": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d"
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_look",
+    "key": "text.scale",
+    "value": "0.9"
+   },
+   "refusal": "That value is not allowed for this setting."
+  },
+  {
+   "name": "174 data set_look",
+   "state": "data",
+   "state_before": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d"
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_look",
+    "key": "layout.legend_position",
+    "value": "bottom_right"
+   },
+   "state_after": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d",
+     "layout.legend_position": "bottom_right"
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 1
+   }
+  },
+  {
+   "name": "175 data set_look",
+   "state": "data",
+   "state_before": {
+    "look": {
+     "network.color": "#6fd1bd",
+     "state.fill": "#23232d"
+    },
+    "clips": [],
+    "duration": 0,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_look",
+    "key": "layout.legend_position",
+    "value": "top_left"
+   },
+   "refusal": "That value is not allowed for this setting."
   }
  ]
 }

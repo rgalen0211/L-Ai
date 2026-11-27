@@ -302,6 +302,11 @@
                   "type": "string",
                   "maxLength": 7,
                   "pattern": "^#[0-9a-fA-F]{6}$"
+                },
+                "scale": {
+                  "type": "number",
+                  "minimum": 0.85,
+                  "maximum": 1.0
                 }
               },
               "required": []
@@ -431,6 +436,12 @@
                 },
                 "show_no_data_glyph": {
                   "type": "boolean"
+                },
+                "legend_position": {
+                  "enum": [
+                    "bottom_left",
+                    "bottom_right"
+                  ]
                 }
               },
               "required": []

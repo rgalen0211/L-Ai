@@ -186,7 +186,7 @@ test('PLACEMENT: the switch sits in the top row, the tools right under it, the s
 
 test('PLAIN WORDS (WEB audit 11-20): every look key the editor knows has a plain name in the history, an unknown key says "a look setting", and the time and frame is not a live region', () => {
   const D = win0.ryagramEditorPro.describe;
-  const names = { 'network.color': 'line colour', 'network.base_color': 'base lines colour', 'network.context_color': 'background lines colour', 'state.fill': 'land colour', 'page.background': 'page colour', 'choropleth.low': 'low colour', 'choropleth.high': 'high colour', 'state.outline_width': 'border width', 'sequence.theme': 'theme' };
+  const names = { 'network.color': 'line colour', 'network.base_color': 'base lines colour', 'network.context_color': 'background lines colour', 'state.fill': 'land colour', 'page.background': 'page colour', 'choropleth.low': 'low colour', 'choropleth.high': 'high colour', 'state.outline_width': 'border width', 'sequence.theme': 'theme', 'text.scale': 'text size', 'layout.legend_position': 'key position' };
   for (const [k, w] of Object.entries(names)) { assert.equal(D({ op: 'set_look', key: k, value: 3 }), `Set the ${w} to 3`, k); assert.equal(D({ op: 'unset_look', key: k }), `Put the ${w} back to the film’s own`, k); }
   assert.equal(D({ op: 'set_look', key: 'hatch.line_color', value: '#fff' }), 'Set a look setting to #fff');
   assert.equal(D({ op: 'unset_look', key: 'x.y' }), 'Put a look setting back to the film’s own');

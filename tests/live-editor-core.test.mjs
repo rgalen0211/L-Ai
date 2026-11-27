@@ -180,11 +180,17 @@ test('the ops the page sends are exactly the closed list, and every one of them 
   assert.deepEqual(plain(E.OPS), ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip', 'set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look']);
   const s = E.newState(base());
   for (const op of E.OPS) assert.equal(typeof E.check(s, { op }), 'string', op + ' with no arguments must be refused');
-  assert.deepEqual(plain(Object.keys(E.LOOK_KEYS).sort()), ['choropleth.high', 'choropleth.low', 'network.base_color', 'network.color', 'network.context_color', 'page.background', 'sequence.theme', 'state.fill', 'state.outline_width']);
+  assert.deepEqual(plain(Object.keys(E.LOOK_KEYS).sort()), ['choropleth.high', 'choropleth.low', 'network.base_color', 'network.color', 'network.context_color', 'page.background', 'sequence.theme', 'state.fill', 'state.outline_width', 'text.scale', 'layout.legend_position'].sort());
   const sk = E.newState({ look: {} });
   assert.equal(E.check(sk, { op: 'set_look', key: 'state.outline_width', value: 4 }), null);
   assert.equal(typeof E.check(sk, { op: 'set_look', key: 'state.outline_width', value: 4.1 }), 'string');
   assert.equal(typeof E.check(sk, { op: 'set_look', key: 'state.outline_width', value: '2' }), 'string');
+  assert.equal(E.check(sk, { op: 'set_look', key: 'text.scale', value: 0.85 }), null);                        // engine-style-keys-1127: text size is smaller-only
+  assert.equal(E.check(sk, { op: 'set_look', key: 'text.scale', value: 1 }), null);
+  for (const bad of [0.84, 1.01, 2, 0, -1, '0.9', null, NaN, Infinity]) assert.equal(typeof E.check(sk, { op: 'set_look', key: 'text.scale', value: bad }), 'string', 'text.scale ' + String(bad));
+  assert.equal(E.check(sk, { op: 'set_look', key: 'layout.legend_position', value: 'bottom_right' }), null);
+  assert.equal(E.check(sk, { op: 'set_look', key: 'layout.legend_position', value: 'bottom_left' }), null);
+  for (const bad of ['top_left', 'Bottom_Right', '', 1, null]) assert.equal(typeof E.check(sk, { op: 'set_look', key: 'layout.legend_position', value: bad }), 'string', 'legend_position ' + String(bad));
   assert.equal(E.check(sk, { op: 'set_look', key: 'sequence.theme', value: 'light' }), null);
   assert.equal(typeof E.check(sk, { op: 'set_look', key: 'sequence.theme', value: 'sepia' }), 'string');
   assert.equal(E.check(sk, { op: 'set_look', key: 'choropleth.low', value: '#112233' }), null);

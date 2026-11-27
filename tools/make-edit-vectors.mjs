@@ -212,7 +212,15 @@ const CASES = [
   ['comp_lanes', { op: 'set_clip_text', id: 's1', text: 'twenty letters long!' }],
   ['comp_lanes', { op: 'set_clip_text', id: 's1', text: 'twenty-one letters 1.' }],
   ['comp_lanes', { op: 'reorder_clip', id: 'v3', index: 0 }],
-  ['comp_lanes', { op: 'trim_clip', id: 'v1', edge: 'end', to: 3 }]
+  ['comp_lanes', { op: 'trim_clip', id: 'v1', edge: 'end', to: 3 }],
+  // engine-style-keys-1127: appended (not inserted) so the cases above keep their numbers
+  ['data', { op: 'set_look', key: 'text.scale', value: 0.85 }],
+  ['data', { op: 'set_look', key: 'text.scale', value: 1 }],
+  ['data', { op: 'set_look', key: 'text.scale', value: 0.84 }],
+  ['data', { op: 'set_look', key: 'text.scale', value: 1.01 }],
+  ['data', { op: 'set_look', key: 'text.scale', value: '0.9' }],
+  ['data', { op: 'set_look', key: 'layout.legend_position', value: 'bottom_right' }],
+  ['data', { op: 'set_look', key: 'layout.legend_position', value: 'top_left' }]
 ];
 
 export function build() {

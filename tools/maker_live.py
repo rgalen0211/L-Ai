@@ -83,6 +83,7 @@ LOOK_KEYS = {
     "network.color": ("colour", None), "network.base_color": ("colour", None), "network.context_color": ("colour", None), "state.fill": ("colour", None), "page.background": ("colour", None),
     "choropleth.low": ("colour", None), "choropleth.high": ("colour", None),
     "state.outline_width": ("number", (0, 4)), "sequence.theme": ("enum", ("light", "dark")),
+    "text.scale": ("number", (0.85, 1)), "layout.legend_position": ("enum", ("bottom_left", "bottom_right")),
 }
 
 

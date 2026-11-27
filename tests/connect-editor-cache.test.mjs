@@ -91,7 +91,7 @@ const REVIEWED = {
   'assets/app-editor-draft.js': {},
   'assets/preview/text-layout.js': {},
   'assets/app-editor-timeline.js': { padStart: 1, toLowerCase: 1 },          // reviewed 2026-11-13 (WEB): padStart is called on String(Math.floor(...)) and toLowerCase on String(ev.key || ''), both always strings
-  'assets/app-editor.js': { padStart: 2, split: 1, trim: 3, toLowerCase: 2 },          // trim: 3 since 2026-11-20 (WEB): the Border width box's `String(num.value).trim() !== ''` (wrapped in String, always a string)
+  'assets/app-editor.js': { padStart: 2, split: 1, trim: 4, toLowerCase: 2 },          // trim: 3 since 2026-11-20 (WEB): the Border width box's `String(num.value).trim() !== ''` (wrapped in String, always a string); trim: 4 since 2026-11-27 (engine-style-keys-1127): the same line for the Text size box
   'tools/chat-editor/live-host.js': { trimStart: 1, startsWith: 3, trim: 2 },
 };
 test('every string-method call in a script the chat page loads is a reviewed one', () => {

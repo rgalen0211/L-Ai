@@ -19,7 +19,10 @@
     // the map views' keys (WORKER's schema accepts them today; CONNECT's edit_look_keys holds them): checked here so an AI's change to them is applied, not skipped
     'choropleth.low': COLOR, 'choropleth.high': COLOR,
     'state.outline_width': v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 4,
-    'sequence.theme': v => v === 'light' || v === 'dark'
+    'sequence.theme': v => v === 'light' || v === 'dark',
+    // ENGINE's engine-style-keys-1127: the type size (smaller only) and the map key's corner (state and county maps only; the worker refuses it elsewhere)
+    'text.scale': v => typeof v === 'number' && Number.isFinite(v) && v >= 0.85 && v <= 1,
+    'layout.legend_position': v => v === 'bottom_left' || v === 'bottom_right'
   });
   // The vocabulary is CONNECT's (tests/edit-op-cases.json is run by both the SQL and TypeScript checks): the data mode's set_look / unset_look and the compilation mode's clip ops plus add_clip.
   const OPS = ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip', 'set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look'];
@@ -1128,7 +1131,7 @@
       // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
       function committedWords() {
         if (bundleMode) { const rows = DD.rowsFor(RL, bundle).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
-        if (isData) { const rows = LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined).concat(realFilm ? [['sequence.theme', 'Theme'], ['state.outline_width', 'Border width'], ['choropleth.low', 'Low colour'], ['choropleth.high', 'High colour']].filter(([k]) => ed.state.look[k] !== undefined) : []); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l} ${ed.state.look[k]}`)] : ['The film’s own look: nothing changed.']; }
+        if (isData) { const rows = LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined).concat(realFilm ? [['sequence.theme', 'Theme'], ['state.outline_width', 'Border width'], ['text.scale', 'Text size'], ['layout.legend_position', 'Key position'], ['choropleth.low', 'Low colour'], ['choropleth.high', 'High colour']].filter(([k]) => ed.state.look[k] !== undefined) : []); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l} ${ed.state.look[k]}`)] : ['The film’s own look: nothing changed.']; }
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
       }
@@ -1322,6 +1325,19 @@
           num.value = good !== undefined ? String(good) : '';                    // an empty or out-of-range box puts the last good value back and says so (never a '9' left standing over a draft that holds 2)
           if (raw !== '') say('Border width is from 0 to 4.');
         });
+        // Text size (smaller only: the engine's real checks fail above 1) and the map key's corner (state and county maps only; the worker refuses it on other views): ENGINE's engine-style-keys-1127.
+        const ts = ed.state.look['text.scale'];
+        const tsNum = h('input', { type: 'number', id: 'le-look-text-scale', min: '0.85', max: '1', step: '0.01', placeholder: 'the film’s own', value: ts !== undefined ? String(ts) : '', disabled: locked });
+        tsNum.addEventListener('change', () => {
+          const raw = String(tsNum.value).trim(), v = Number(raw), good = ed.state.look['text.scale'];
+          if (raw !== '' && Number.isFinite(v) && v >= 0.85 && v <= 1) { apply({ op: 'set_look', key: 'text.scale', value: v }); return; }
+          tsNum.value = good !== undefined ? String(good) : '';
+          if (raw !== '') say('Text size is from 0.85 to 1.');
+        });
+        const lp = ed.state.look['layout.legend_position'];
+        const lpSel = h('select', { id: 'le-look-legend-position', disabled: locked }, [['', 'The film’s own'], ['bottom_left', 'Bottom left'], ['bottom_right', 'Bottom right']].map(([v, t]) => h('option', { value: v }, t)));
+        lpSel.value = lp || '';
+        lpSel.addEventListener('change', () => apply(lpSel.value === '' ? { op: 'unset_look', key: 'layout.legend_position' } : { op: 'set_look', key: 'layout.legend_position', value: lpSel.value }));
         const colour = (key, label, dflt) => {
           const input = h('input', { type: 'color', id: `le-look-${key.replace(/\./g, '-')}`, value: ed.state.look[key] !== undefined ? ed.state.look[key] : dflt, disabled: locked });
           input.addEventListener('change', () => apply({ op: 'set_look', key, value: input.value }));
@@ -1329,6 +1345,8 @@
         };
         return [row('Theme', sel, theme ? 'Dark or light page and text.' : 'Not set: the film’s own theme is used.', 'sequence.theme'),
           row('Border width', num, bw !== undefined ? 'From 0 to 4.' + SHOWS_IN_FILM() : 'From 0 to 4. Not set: the film’s own width is used.' + SHOWS_IN_FILM(), 'state.outline_width'),
+          row('Text size', tsNum, ts !== undefined ? 'From 0.85 to 1 (1 is the film’s own size; smaller only).' + SHOWS_IN_FILM() : 'From 0.85 to 1. Not set: the film’s own size is used.' + SHOWS_IN_FILM(), 'text.scale'),
+          row('Key position', lpSel, lp ? 'Bottom left or bottom right. State and county maps only.' + SHOWS_IN_FILM() : 'Not set: the key sits bottom left. State and county maps only.' + SHOWS_IN_FILM(), 'layout.legend_position'),
           colour('choropleth.low', 'Low colour (flat-colour maps)', light ? '#eef1f6' : '#232838'), colour('choropleth.high', 'High colour (flat-colour maps)', light ? '#16233f' : '#e8eefb'),
           h('p', { class: 'meta le-defaults' }, 'Low and high colour show only on a map drawn in flat colour: a map drawn in textures, a bar race or a living map ignores them, and this page cannot tell which yours is, so a change here may not show in the film. These are saved to your film’s draft.' + (renderPath() ? ' The film above changes when the final film is made.' : ' The final film made from the film’s page does not use them yet.'))];
       }

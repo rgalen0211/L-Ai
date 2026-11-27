@@ -16,7 +16,10 @@
     // the map views' keys (WORKER's schema accepts them today; CONNECT's edit_look_keys holds them): checked here so an AI's change to them is applied, not skipped
     'choropleth.low': COLOR, 'choropleth.high': COLOR,
     'state.outline_width': v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 4,
-    'sequence.theme': v => v === 'light' || v === 'dark'
+    'sequence.theme': v => v === 'light' || v === 'dark',
+    // ENGINE's engine-style-keys-1127: the type size (smaller only) and the map key's corner (state and county maps only; the worker refuses it elsewhere)
+    'text.scale': v => typeof v === 'number' && Number.isFinite(v) && v >= 0.85 && v <= 1,
+    'layout.legend_position': v => v === 'bottom_left' || v === 'bottom_right'
   });
   // The vocabulary is CONNECT's (tests/edit-op-cases.json is run by both the SQL and TypeScript checks): the data mode's set_look / unset_look and the compilation mode's clip ops plus add_clip.
   const OPS = ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip', 'set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look'];
