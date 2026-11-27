@@ -81,7 +81,7 @@ const press = async (view, id) => { const b = all(wrap(view), n => n.attrs && n.
 test('A COMING SOON PAGE: tag, heading, one line, the picture only where there is one, the button, the draft note; no email or send path', async () => {
   const { view } = await pageOf('compilations');
   const t = textOf(view);
-  assert.ok(t.includes('Coming soon') && t.includes('Compilations') && t.includes('Say a phrase.') && t.includes('Tell me when it’s ready') && !t.includes('DRAFT WORDING'));
+  assert.ok(t.includes('Coming soon') && t.includes('Compilations') && t.includes('Save a request for a phrase') && t.includes('Tell me when it’s ready') && !t.includes('DRAFT WORDING'));
   assert.equal(all(wrap(view), n => n.attrs && /soon-picture/.test(n.attrs.class || '')).length, 1, 'Compilations has its picture');
   const g = await pageOf('games');
   assert.equal(all(wrap(g.view), n => n.attrs && /soon-picture/.test(n.attrs.class || '')).length, 0, 'Games has none yet');
@@ -177,9 +177,9 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261127p1g/);        // GAMES 11-27: the games block only, on push 1 (games-on-push1-1127)
-  assert.match(html, /app-data\.js\?v=20261123a/);
-  assert.match(html, /app-library\.js\?v=20261127m1/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
+  assert.match(html, /app-departments\.js\?v=20261127r1d/);        // GAMES 11-27: the games block on push 1 (games-on-push1-1127); Compilations page promotion (WEB 11-27)
+  assert.match(html, /app-data\.js\?v=20261127r1a/);
+  assert.match(html, /app-library\.js\?v=20261127r1l/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
 });
 
 test('THE MOCK MIRRORS THE PROPOSED SERVER: five departments (one works), interest once per person per department, an unannounced id refused, withdraw removes it', async () => {

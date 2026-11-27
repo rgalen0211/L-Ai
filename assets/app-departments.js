@@ -7,7 +7,7 @@
   // The public wording below is APPROVED as drafted (Ryan 2026-10-28 10:59, Q303 / Q244): the draft note that used to sit on every Coming soon page is gone.
   const KNOWN = {
     data_films: { label: 'Data films', page: true, sentence: 'Questions answered with public data, drawn as a short animated film, with every source shown.' },
-    compilations: { label: 'Compilations', line: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.', picture: 'phrase' },
+    compilations: { label: 'Compilations', line: 'Save a request for a phrase in your footage. The film needs the Ryagram app, not open to everyone yet.', picture: 'phrase' },
     geo_intelligence: { label: 'Perfect City', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
     games: { label: 'Games', line: 'Play with your own data and footage in small games you can share.', placeholder: true },
     animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' },
@@ -97,7 +97,9 @@
   const flagOn = () => window.ryagramConfig?.departments === true && window.ryagramConfig?.aiFirst === true && window.ryagramConfig?.connectAi === true;
 
   // ---------------------------------------------------------------- the bar and the pages
-  function create({ h, data, startUi }) {
+  // The Compilations department is a WORKING page only for an account that has the per-account switch 'compilations' (WEB 11-27, wave 8): the page's own switch, like liveEditor, so the server's row can stay 'soon' for everyone else.
+  const compilationsOn = () => !!(window.ryagramSwitches && window.ryagramSwitches.featureOn('compilations') === true);
+  function create({ h, data, startUi, pages = {} }) {
     let model = null, cleanup = () => {}, mountToken = 0;
     // May this account start films by talking to an AI? The SAME gate #/start itself uses (app-start.js canStart: connectAccess() exactly true; a failing check is no). Every way into #/start on these pages asks this,
     // and the Coming soon sign-up asks it too (the server's register_department_interest answers only an invited account). Without app-start.js loaded the answer is no.
@@ -112,6 +114,9 @@
       for (const id of PAGE_ONLY) if (!model.working.includes(id) && !model.soon.includes(id)) model.soon = ORDER.filter(x => model.soon.includes(x) || x === id);
       if (gamesHostOn()) { model.soon = model.soon.filter(x => x !== 'games'); if (!model.working.includes('games')) model.working = ORDER.filter(x => model.working.includes(x) || x === 'games'); }
       else if (announced.has('games') && !model.working.includes('games') && !model.soon.includes('games')) model.soon = ORDER.filter(x => model.soon.includes(x) || x === 'games');        // the server says Games works (CC1 08:10: departments_for reads switches_on) but the host screen is not here: Coming soon, never gone from the bar
+      if (compilationsOn() && typeof pages.compilations === 'function' && !model.working.includes('compilations')) {      // promoted by the switch: the bar lists it with the working ones
+        model.soon = model.soon.filter(x => x !== 'compilations'); model.working = ORDER.filter(x => model.working.includes(x) || x === 'compilations');
+      }
       model.announced = announced;
       return model;
     }
@@ -286,6 +291,7 @@
       const m = model || await load();
       if (!m || !known(id)) return unavailable();
       if (id === 'games' && m.working.includes(id) && gamesHostOn()) return gamesPage();
+      if (id === 'compilations' && compilationsOn() && typeof pages.compilations === 'function') return pages.compilations();
       if (m.working.includes(id)) return workingPage(id);
       if (m.soon.includes(id)) return soonPage(id);
       return unavailable();
