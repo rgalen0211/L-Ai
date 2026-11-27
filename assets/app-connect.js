@@ -24,11 +24,11 @@
     return /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base) ? base + CONNECT_PATH : '';
   }
   const CONNECT_STEPS = {
-    claude: { label: 'Claude', note: 'Claude on the web, Desktop or your phone. On a Free, Pro or Max plan you add it yourself (a Free plan can have one custom connector). On Team or Enterprise an administrator adds it first.',
+    claude: { label: 'Claude', note: 'Claude on the web, Desktop or your phone. On a Free, Pro or Max plan you add it yourself (a Free plan can have one custom connector). On Team or Enterprise an administrator adds it first. If your screen looks different, ask Claude how to add a custom connector and give it the address above.',
       steps: ['Open Customize, then Connectors. Press + Add, then Add custom connector.', 'Name it Ryagram. For the address, paste the address above. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically.',
         'Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Approve.', 'In a chat, turn the Ryagram connector on and try: “Using Ryagram, show my credits.”'] },
-    chatgpt: { label: 'ChatGPT', note: 'This works only on plans that allow custom MCP connectors. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan.',
-      steps: ['In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste the address above, and choose OAuth for authentication.', 'Accept the notice about custom servers, then Create and Connect.',
+    chatgpt: { label: 'ChatGPT', note: 'This works only on plans that allow custom MCP connectors. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan. If your screen looks different, ask ChatGPT how to add a custom connector and give it the address above.',
+      steps: ['In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste the address above, and choose OAuth for authentication. (MCP is the kind of connector that uses an address; OAuth is the sign-in kind.)', 'Accept the notice about custom servers, then Create and Connect.',
         'Sign in to Ryagram, check the address, and press Approve.', 'ChatGPT asks you to confirm actions that save or start something. Read what it will do before you confirm.'] }
   };
   const AFTER_ALLOW = 'After you press Approve, your AI appears in the list above.';
