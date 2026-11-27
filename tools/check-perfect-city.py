@@ -81,6 +81,7 @@ def main():
                 check(5 <= n_dots <= 14, f'after a spot: only the places near it are drawn ({n_dots})')
                 check(p.locator('#pc-rings tbody tr').count() == 3 and 'about' in p.inner_text('#pc-rings'), 'three rings, people said as about N')
                 check(p.locator('#pc-spot').count() == 1 and p.locator('circle.pc-ring').count() == 3, 'the spot and its three rings are on the map')
+                official_fast_food = p.inner_text('#pc-official') if p.locator('#pc-official').count() == 1 else ''
                 check(p.input_value('#pc-lat') != '' and p.input_value('#pc-lon') != '', 'the spot is written into the typed fields')
                 nk = p.inner_text('#pc-not-known')
                 check('straight lines' in nk and 'OpenStreetMap' in nk and 'no success score' in nk, 'what it does not know is said')
@@ -158,6 +159,10 @@ def main():
                 check('Nearest chicken places' in p.inner_text('#pc-results') and p.locator('#pc-nearest li').count() == 5,
                       'Chicken places: the five nearest are listed for the spot')
                 check('Chicken places (calculated)' in p.inner_text('#pc-rings'), 'Chicken places: the rings count them, labelled calculated')
+                official_chicken = p.inner_text('#pc-official') if p.locator('#pc-official').count() == 1 else ''
+                check('Census County Business Patterns 2023 counts 515 limited-service restaurant (fast food, NAICS 722513) establishments in this county (observed); the map data has 14 of this kind loaded.' == official_fast_food
+                      and official_chicken == 'The Census does not count chicken, burger or pizza places separately.',
+                      f'the official Census count is said beside the loaded count (Montgomery fast food), and chicken says the Census does not count it ({official_fast_food!r}, {official_chicken!r})')
                 p.screenshot(path=str(out / f'4b-greene-chicken-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()

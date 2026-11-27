@@ -12,6 +12,7 @@
     { id: 'greene_oh', label: 'Greene County, Ohio (Beavercreek, Xenia)', kinds: ['fast_food', 'restaurant', 'chicken', 'burger', 'pizza'] }
   ];
   const KINDS = { fast_food: 'Fast food', restaurant: 'Restaurants', chicken: 'Chicken places', burger: 'Burger places', pizza: 'Pizza places', grocery: 'Supermarkets' };      // chicken, burger, pizza: the Ryagram engine's rules (tools/perfect-city/export_perfect_city.py SUBKINDS)
+  const OFFICIAL_KIND = { fast_food: 'limited-service restaurant (fast food)', restaurant: 'full-service restaurant', grocery: 'supermarket and grocery store' };      // the County Business Patterns industry, said as a noun before 'establishments'
   const SHADES = { density: 'People per square kilometre', income: 'Median household income' };
   const FILL = ['#dfe6f3', '#b3c2e0', '#8299c7', '#55699f', '#2f3f73'];      // pale to dark blue (FACES' shade palette B)
   const NO_DATA = '#4a4a52';
@@ -34,7 +35,8 @@
     compareRemove: 'Remove the second spot',
     pickB: 'Click the map, or type a latitude and longitude, to put spot B.',
     compareMarks: 'Spot A: white circle and yellow rings. Spot B: blue square and blue rings.',
-    compareNote: 'Each spot is looked up on its own. This shows what is around each spot side by side; it does not say which spot is better.'
+    compareNote: 'Each spot is looked up on its own. This shows what is around each spot side by side; it does not say which spot is better.',
+    notCounted: 'The Census does not count chicken, burger or pizza places separately.'
   };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   const km1 = (x) => (x < 10 ? x.toFixed(2) : x.toFixed(1));
@@ -44,7 +46,7 @@
     if (have()) return Promise.resolve(have());
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = `/assets/perfect-city/${county}.census.js?v=20261127a`;
+      s.src = `/assets/perfect-city/${county}.census.js?v=20261127b`;      // b: the County Business Patterns counts (official) added
       s.onload = () => (have() ? resolve(have()) : reject(new Error('no data')));
       s.onerror = () => reject(new Error('no data'));
       document.head.append(s);
@@ -61,7 +63,7 @@
   async function view({ h, data }) {
     const pc = window.ryagramPerfectCity;
     // spot A is state.spot (with its places); compare mode adds spot B (state.b), asked of the server ON ITS OWN, so the 60-place cap and the daily count apply per spot
-    const state = { county: COUNTIES[0].id, kind: 'fast_food', shade: 'density', spot: null, census: null, places: null, placesNote: '', credit: '',
+    const state = { county: COUNTIES[0].id, kind: 'fast_food', shade: 'density', spot: null, census: null, places: null, loaded: null, placesNote: '', credit: '',
       compare: false, target: 'A', b: { spot: null, places: null, note: '', credit: '' } };
     const noB = () => ({ spot: null, places: null, note: '', credit: '' });
     const select = (id, label, options, value, onchange) => {
@@ -91,7 +93,7 @@
 
     function kindSelect() {
       const c = COUNTIES.find((x) => x.id === state.county);
-      if (!c.kinds.includes(state.kind)) { state.kindNote = `${KINDS[state.kind]} are not available in ${c.label}, so the page shows ${KINDS[c.kinds[0]].toLowerCase()}.`; state.kind = c.kinds[0]; }
+      if (!c.kinds.includes(state.kind)) { state.kindNote = `There is no ${KINDS[state.kind].toLowerCase()} data for ${c.label} yet, so the page shows ${KINDS[c.kinds[0]].toLowerCase()}.`; state.kind = c.kinds[0]; }
       const hadFocus = document.activeElement && document.activeElement.id === 'pc-kind';
       kindWrap.replaceChildren(select('pc-kind', 'Business', c.kinds.map((k) => [k, KINDS[k]]), state.kind, (v) => { state.kind = v; refresh(); }));
       if (hadFocus) document.getElementById('pc-kind')?.focus();
@@ -104,7 +106,7 @@
     const spotOf = (which) => (which === 'B' ? (state.compare ? state.b.spot : null) : state.spot);
     const keyOf = (spot) => (spot ? [state.county, state.kind, spot[0], spot[1]].join('|') : '');
     async function fetchPlaces(which) {
-      const spot = spotOf(which), got = { places: null, note: '', credit: '' };
+      const spot = spotOf(which), got = { places: null, note: '', credit: '', loaded: null };
       const mine = ++asked[which];
       if (!spot || !state.census || !pc.unitAt(spot, state.census.units)) return got;      // outside the county: no server call
       const key = keyOf(spot);
@@ -112,6 +114,7 @@
       try {
         const r = await data.perfectCityPlaces(state.county, state.kind, spot[1], spot[0]);
         if (stale()) return null;
+        got.loaded = r && Number.isFinite(r.loaded) ? r.loaded : null;
         if (!r || !(r.loaded > 0)) { got.note = WORDS.noPlaces; return got; }
         got.places = Array.isArray(r.places) ? r.places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)) : [];
         got.credit = typeof r.credit === 'string' ? r.credit : '';
@@ -125,7 +128,7 @@
     async function loadPlaces() {
       const r = await fetchPlaces('A');
       if (!r) return false;
-      state.places = r.places; state.placesNote = r.note; state.credit = r.credit;
+      state.places = r.places; state.placesNote = r.note; state.credit = r.credit; state.loaded = r.loaded;
       return true;
     }
     async function loadPlacesB() {
@@ -189,6 +192,21 @@
       legend.querySelectorAll('.pc-swatch').forEach((s) => { const f = s.getAttribute('data-fill'); s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: f })])); });
       mapBox.replaceChildren(root, legend);
     }
+
+    // The official count beside the map data (County Business Patterns, public domain), so a stranger can see how complete the map data is.
+    // A code with no published row is 'fewer than 3 or none (not published)', never 0. There is no CBP code for chicken, burger or pizza.
+    function officialLine() {
+      const o = state.census.official;
+      if (!o || !o.kinds) return null;
+      const k = o.kinds[state.kind];
+      if (!k) return o.not_counted && o.not_counted.includes(state.kind) ? h('p', { class: 'meta', id: 'pc-official' }, WORDS.notCounted) : null;
+      const name = OFFICIAL_KIND[state.kind] || k.label.toLowerCase();
+      const what = name.endsWith(')') ? `${name.slice(0, -1)}, NAICS ${k.naics})` : `${name} (NAICS ${k.naics})`;      // 'restaurant (fast food, NAICS 722513)'
+      const n = Number.isFinite(k.est) ? fmt(k.est) : 'fewer than 3 or none (not published)';
+      const m = state.loaded == null ? 'the map data count is not known' : `the map data has ${fmt(state.loaded)} of this kind loaded`;
+      return h('p', { class: 'meta', id: 'pc-official' }, `Census County Business Patterns ${o.year} counts ${n} ${what} establishments in this county (observed); ${m}.`);
+    }
+
 
     // area weighting counts any block group the ring touches; if none is touched, say so instead of a bare 0.
     const peopleCell = (p) => (p.blockGroups === 0 ? 'none counted (see the method below)' : `about ${fmt(p.about)}`);
@@ -274,14 +292,17 @@
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, 'People (estimated)'))),
             h('tbody', {}, people.map((p) => h('tr', {}, h('th', { scope: 'row' }, `${p.km} km`), h('td', {}, peopleCell(p)))))));
       }
+      const off = officialLine();
+      if (off) out.push(off);
       out.push(h('p', { class: 'meta' }, 'People within a ring: ' + people[0].method + ', rounded to the nearest 100.'));
       results.replaceChildren(...out);
     }
 
     function drawCredits() {
       const s = state.census.sources;
+      const o = state.census.official;
       const credit = state.credit || (state.compare ? state.b.credit : '');
-      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}. ${s.calculated}${credit ? ' ' + credit + ' (' : ''}`,
+      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}${o && o.source ? '; ' + o.source.replace(/\.$/, '') : ''}. ${s.calculated}${credit ? ' ' + credit + ' (' : ''}`,
         credit ? h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright') : '',
         `${credit ? ').' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
     }
@@ -328,6 +349,7 @@
       const [x0, y0, x1, y1] = state.census.bbox;
       try {
         const r = await data.perfectCityPlaces(state.county, state.kind, (y0 + y1) / 2, (x0 + x1) / 2);
+        state.loaded = r && Number.isFinite(r.loaded) ? r.loaded : null;
         state.placesNote = r && r.loaded > 0 ? '' : WORDS.noPlaces;
       } catch { state.placesNote = WORDS.placesError; }
     }

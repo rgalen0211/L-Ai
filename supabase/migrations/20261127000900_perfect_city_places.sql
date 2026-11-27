@@ -77,7 +77,7 @@ begin
     on conflict (owner_id, day) do update set calls = c.calls + 1
     returning c.calls into used;
   if used > cap then
-    raise exception 'Perfect City has answered % questions for this account today, the most it gives in a day. Try again tomorrow.', cap using errcode = '54000';
+    raise exception 'This account has reached today''s limit of % Perfect City requests (refused ones count too). Try again tomorrow.', cap using errcode = '54000';
   end if;
   if p_county is null or p_county not in ('montgomery_oh', 'greene_oh') then
     raise exception 'Choose a county: montgomery_oh or greene_oh.' using errcode = '22023';
