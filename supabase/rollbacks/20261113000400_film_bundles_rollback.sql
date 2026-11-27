@@ -11,6 +11,10 @@ begin
   if exists (select 1 from public.jobs where job_type = 'film_bundle') then
     raise exception 'A film bundle job exists on this database; this undo is for before the first one. Nothing was changed. Send this sentence to CONNECT.';
   end if;
+  -- BUILDER 11-25: 20261125000100 rewrote this file's claim ordering line (joined_line_at); undo it FIRST, or the claim below is not put back
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'jobs' and column_name = 'joined_line_at') then
+    raise exception 'Undo 20261125000100 first: run rollbacks/20261125000100_queue_order_joined_line_rollback.sql, then this file. Nothing was changed.';
+  end if;
 end $do$;
 
 drop function if exists public.request_film_bundle(uuid, text);
