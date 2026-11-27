@@ -15,7 +15,7 @@ test('EMPTY STATE: no films yet says the first picture is free and gives ONE but
 test('FACES PHONE WALK (11-27): Files has no inner scroll box; the delivery not-found says why and gives a button; the ghost hero picture is off on a phone; in-sentence links get a 44 px target', () => {
   assert.ok(lib.includes("{ id: 'files', label: 'Files', el: h('div', {}, files.el) },"));
   assert.ok(lib.includes("We can\u2019t find that film. It may have expired (films are kept 30 days) or belong to another account."));
-  assert.ok(lib.includes("h('a', { class: 'button primary', href: '#/', id: 'delivery-home' }, 'Open your projects')"));
+  assert.ok(lib.includes("href: myFilmsOn() && window.ryagramFilms ? '#/films' : '#/', id: 'delivery-home' }, myFilmsOn() && window.ryagramFilms ? 'Open My films' : 'Open your projects')"));
   const css = fs.readFileSync(new URL('../assets/app-pages-ds.css', import.meta.url), 'utf8');
   assert.match(css, /@media\(max-width:700px\)\{\.page-hero \.hero-frame\{display:none\}\}/);
   assert.match(css, /\.help-answers p a,\.home-more p a,\.credit-balance a\{display:inline-block;padding:11px 0;margin:-11px 0\}/);
