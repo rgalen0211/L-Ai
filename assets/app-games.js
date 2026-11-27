@@ -173,8 +173,9 @@
 
     (async () => {
       const opts = roomOptions(cfg, s.code);
-      if (!opts) { status.textContent = 'This page could not open a game room. Reload and try again.'; return; }
-      try { s.conn = await Room.connect(opts); } catch { status.textContent = 'This page could not open a game room. Check your connection and reload.'; return; }
+      const failed = text => { status.textContent = text; status.setAttribute('role', 'alert'); stage.replaceChildren(h('button', { class: 'button primary', type: 'button', id: 'gh-retry', onclick: () => location.reload() }, 'Try again')); };        // no room code and no Start button when there is no room (WEB polish 11-27)
+      if (!opts) { failed('This page could not open a game room. Reload and try again.'); return; }
+      try { s.conn = await Room.connect(opts); } catch { failed('This page could not open a game room. Check your connection and reload.'); return; }
       if (s.closed) { s.conn.close(); return; }
       s.off = s.conn.onMessage(onMessage);
       status.textContent = `Room ${s.code} is open.`;
@@ -184,7 +185,7 @@
 
     root.replaceChildren(h('p', { class: 'form-note', role: 'note' }, h('strong', {}, 'DRAFT. '), 'Five sample rounds made from a made-up script. Names and guesses pass between this screen and the phones and are not kept.'),
       status, live, stage);
-    draw();
+    // the stage stays empty until the room is open: a room code shown before then would send players to a room that does not exist yet (WEB polish 11-27)
     // the same functions the host's buttons call (tests drive a whole game through them)
     return { close, state: () => s, start: () => startRound(0), reveal, next: () => (s.round + 1 >= rounds.length ? finish() : startRound(s.round + 1)) };
   }
