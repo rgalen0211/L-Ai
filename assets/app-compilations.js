@@ -33,7 +33,7 @@
     if (!folders.length) return { error: 'Name at least one folder of yours that holds the videos.' };
     if (folders.length > LIMITS.folders) return { error: 'Name at most 10 folders.' };
     const bad = folders.find(n => !NAME.test(n) || n === '.' || n === '..');
-    if (bad) return { error: `“${cut(bad, 40)}” is not a folder name. Type only the folder’s name, like Interviews, never where it is.` };
+    if (bad) return { error: 'That is not a folder name. Type only the folder’s name, like Interviews, never where it is.' };      // never echoes what was typed: it may be a place on the person’s computer
     return { request: { schema: 'ryagram.compilation-request/0', phrase, search: f.search === 'words' ? 'words' : 'every', folders, song: false, clean_cuts: false, rules: [], texts: [], note } };
   }
 
@@ -47,7 +47,7 @@
 
   // The newest run -> the line under a request. Counts only; no path, no transcript text ever arrives.
   function runLine(run, W) {
-    if (!run || typeof run.state !== 'string') return W.waiting;
+    if (!run || typeof run.state !== 'string' || run.current === false) return W.waiting;      // a run that belongs to an older save of the request is not shown as this one's (absent = current)
     const base = W.states[run.state] || W.waiting;
     if (run.state === 'failed') return `${base} ${W.errors[run.error_code] || 'Something went wrong. Try again from the app.'}`;
     const bits = [];
@@ -59,11 +59,11 @@
 
   const WORDS = {
     intro: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together.',
-    local: 'Your videos never leave your computer. This page saves only your request: the words, and the names of your folders. The Ryagram app on your computer finds the matches and makes the film there.',
+    local: 'Your videos never leave your computer. This page saves only your request: the words, the names of your folders, your note and the name of your compilation. The Ryagram app on your computer finds the matches and makes the film there.',
     waiting: 'Waiting for the Ryagram app on your computer.',
     states: { planning: 'The Ryagram app is planning your film.', matching: 'The Ryagram app is finding the matches on your computer.', building: 'The Ryagram app is making your film on your computer.', done: 'Done. Your film is on your computer.', failed: 'It did not finish.', cancelled: 'Stopped.' },
     // the closed list of reasons the app can report (FACES 08:16, docs/COMPILATION-REPORT-1127.md); anything else reads as the generic line
-    errors: { request_invalid: 'The request could not be read. Save it again, or ask your AI to write it again.', song_request: 'Compilations do not make songs. Take out the song and save again.', folder_not_chosen: 'A folder in your request is not chosen on your computer yet. Open the Ryagram app and choose where that folder is.', folder_missing: 'A folder you chose is not there any more. Open the Ryagram app and choose it again.', folder_empty: 'A folder you chose has no videos in it. Choose the folder that holds your videos.', folders_overlap: 'Two of your folders hold the same videos. Choose folders that do not overlap.', no_speech: 'No speech was found in your videos. Try videos where people talk.', not_said: 'Your videos do not say these words. Try other words, or add more folders.', edit_failed: 'The matches could not be turned into a film. Try again; if it happens twice, tell us.', build_failed: 'The film could not be built. Nothing left your computer. Try again in the Ryagram app.', crash: 'Something went wrong on your computer. Nothing left it. Close the app, open it and try again.' },
+    errors: { request_invalid: 'The request could not be read. Save it again, or ask your AI to write it again.', song_request: 'Compilations do not make songs. Take out the song and save again.', folder_not_chosen: 'A folder in your request is not chosen on your computer yet. Open the Ryagram app and choose where that folder is.', folder_missing: 'A folder you chose is not there any more. Open the Ryagram app and choose it again.', folder_empty: 'A folder you chose has no videos in it. Choose the folder that holds your videos.', folders_overlap: 'Two of your folders hold the same videos. Choose folders that do not overlap.', no_speech: 'No speech was found in your videos. Try videos where people talk.', not_said: 'Your videos do not say these words. Try other words, or add more folders.', edit_failed: 'The matches could not be turned into a film. Try again; if it happens twice, tell us.', build_failed: 'The film could not be built. Nothing left your computer. Try again in the Ryagram app.', stale: 'That request was replaced by a newer one.', crash: 'Something went wrong on your computer. Nothing left it. Close the app, open it and try again.' },
     noApp: 'The Ryagram app is not on a computer of yours yet. You can save a request now; the app reads it when you open it.'
   };
 
@@ -88,7 +88,7 @@
         if (!first) return;
         const have = folderList(folders.value);
         if (!have.includes(first)) { have.push(first); folders.value = have.join('\n'); }
-        picked.textContent = `Added the folder name “${cut(first, 80)}” (${files.length} file${files.length === 1 ? '' : 's'} in it). Only its name is used; nothing was read or sent.`;
+        picked.textContent = 'Added one folder. Only its name is used; nothing was read or sent.';
         picker.value = '';
       });
       const note = h('textarea', { id: 'comp-note', rows: '2', maxlength: '500' });
@@ -101,7 +101,11 @@
           try {
             const name = clean(title.value, 120) || clean(phrase.value, 80);
             const made = await data.createProject(name);
-            await data.setMyCompilationRequest(made.project.id, built.request);
+            try { await data.setMyCompilationRequest(made.project.id, built.request); }
+            catch (err) {      // a refused save must not leave an empty project behind: archive it (the data layer's own call), then show the refusal
+              try { if (typeof data.archiveProject === 'function') await data.archiveProject(made.project.id); } catch { /* nothing more to do */ }
+              throw err;
+            }
             status.textContent = SAVED;
             title.value = ''; phrase.value = ''; note.value = '';
             await drawRequests();
@@ -130,7 +134,7 @@
       const list = h('div', { class: 'comp-requests' });
       async function drawRequests() {
         let rows;
-        try { rows = await data.myCompilationRequests(); } catch (err) { list.replaceChildren(h('p', { class: 'form-note', role: 'alert' }, err.message)); return; }
+        try { rows = await data.myCompilationRequests(); } catch (err) { list.replaceChildren(h('p', { class: 'form-note', role: 'alert' }, window.ryagramJobs ? window.ryagramJobs.plainRefusal(err && err.message) : 'Couldn’t load your requests.')); return; }
         rows = Array.isArray(rows) ? rows.slice(0, 50) : [];
         let haveApp = null;
         try { haveApp = typeof data.myLocalCompute === 'function' ? await data.myLocalCompute() : null; } catch { haveApp = null; }
