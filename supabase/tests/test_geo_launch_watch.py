@@ -24,7 +24,7 @@ import test_2a_core as core  # noqa: E402
 
 WATCH = core.ROOT / "live-steps" / "watch_launch_day.sql"
 UNDO_WATCH = core.ROOT / "live-steps" / "watch_launch_day_after_welcome_undo.sql"
-A_FROM = "20261120000100"            # A1 is the first of the sitting's 19 files; every later 2026112x file is A1-A19
+A_FROM = "20261120000100"            # A1-A19 plus BUILDER's 20261125000100 (this branch sits on it)            # A1 is the first of the sitting's 19 files; every later 2026112x file is A1-A19
 A_FILES = {p.name for p in core.MIGRATIONS if p.name >= A_FROM + "_" and p.name.startswith("202611")}
 LIVE_MAIN = "e947f26af8ccb8b58ba01754ca803e853f4e6f04"
 LIVE_LEDGER = subprocess.run(["git", "-C", str(core.ROOT), "show", LIVE_MAIN + ":supabase/phase-2b/credits_ledger.sql"],
@@ -106,8 +106,8 @@ class Watch(unittest.TestCase):
     def jobs(self, k, state, *, made="now()", claimed=None, ended=None, code=None):
         self.c.execute("set session_replication_role = replica")          # the throwaway database only: no project/version rows needed
         for _ in range(k):
-            self.c.execute(f"insert into public.jobs (owner_id, project_id, version_id, job_type, story, story_sha256, state, created_at, queued_at, claimed_at, ended_at, error_code) "
-                           f"values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'preview', '{{}}', repeat('a', 64), '{state}', {made}, {made}, {claimed or 'null'}, {ended or 'null'}, {code and repr(code) or 'null'})")
+            self.c.execute(f"insert into public.jobs (owner_id, project_id, version_id, job_type, story, story_sha256, state, created_at, queued_at, joined_line_at, claimed_at, ended_at, error_code) "
+                           f"values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'preview', '{{}}', repeat('a', 64), '{state}', {made}, {made}, {made}, {claimed or 'null'}, {ended or 'null'}, {code and repr(code) or 'null'})")
         self.c.execute("set session_replication_role = origin")
 
     # -- the tests
@@ -164,10 +164,21 @@ class Watch(unittest.TestCase):
         self.jobs(1, "queued", made="now() - interval '31 minutes'")
         self.assert_only(5)
 
-    def test_GEO_05b_a_retried_job_waits_from_its_new_queue_time(self):
+    def test_GEO_05b_a_retried_job_keeps_its_wait(self):
+        self.jobs(1, "queued", made="now() - interval '40 minutes'")
+        self.c.execute("update public.jobs set queued_at = now() - interval '10 minutes'")   # put back after a fault 10 min ago: it keeps its place AND its wait
+        self.assert_only(5)
+
+    def test_GEO_05c_an_approved_old_film_waits_from_its_approval(self):
         self.jobs(1, "queued", made="now() - interval '3 hours'")
-        self.c.execute("update public.jobs set queued_at = now() - interval '10 minutes'")   # made 3 h ago, queued again 10 min ago (RENDERER LOW a)
+        self.c.execute("update public.jobs set joined_line_at = now() - interval '5 minutes', queued_at = now() - interval '5 minutes'")   # asked for 3 h ago, approved 5 min ago
         self.assert_ok()
+
+    def test_GEO_05d_the_trigger_really_keeps_the_place_on_a_retry(self):
+        self.jobs(1, "running", made="now() - interval '40 minutes'")
+        self.c.execute("update public.jobs set state = 'queued', queued_at = now()")   # the real trigger runs here (origin role)
+        self.assertEqual(self.c.execute("select round(extract(epoch from now() - joined_line_at) / 60) from public.jobs").fetchone()[0], 40)
+        self.assert_only(5)
 
     def test_GEO_06_claimed_not_started(self):
         self.jobs(1, "claimed", claimed="now() - interval '9 minutes'")

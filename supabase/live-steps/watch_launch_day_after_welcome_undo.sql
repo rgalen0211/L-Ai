@@ -1,4 +1,4 @@
--- LAUNCH-DAY WATCH AFTER A WELCOME-CREDITS UNDO (row 13 left out), ONE PASTE (GEO, Wed 11-25; Claude 08:05 wave 2 D, CC1 09:05). Read-only: ONE select, changes nothing. Live steps 58 and 65 in one,
+-- LAUNCH-DAY WATCH AFTER A WELCOME-CREDITS UNDO (row 13 left out), ONE PASTE (READY-IF-HIT twin: ONLY with BUILDER's builder-queue-order-1125 joined_line_at, in the SAME push; row 5 reads joined_line_at) (GEO, Wed 11-25; Claude 08:05 wave 2 D, CC1 09:05). Read-only: ONE select, changes nothing. Live steps 58 and 65 in one,
 -- plus the email budget and the made-up-address flood. Once an hour from the opening until 22:30: paste ALL into the SQL Editor, Run.
 -- Read the FIRST row: 'OK: nothing to do' or 'LOOK: rows ...'. For each row marked LOOK, do what its 'what_you_do' says. Never change a setting
 -- on your own except the two levers named here (step 48 closes sign-up, step 71 brakes the queue); everything else: tell CC1.
@@ -41,9 +41,9 @@ with r(n, what, value, look, when_look, what_you_do) as (
          'The emails may not be arriving: Supabase, Edge Functions, join, Logs (lines starting join invite:) and the Resend dashboard (bounced or refused). Tell CC1.'
   union all
   select 5, 'jobs waiting for the render PC, and the oldest wait',
-         (select count(*) from public.jobs where state = 'queued' and run_on = 'house') || ' waiting; oldest queued '
-         || coalesce((select round(extract(epoch from now() - min(queued_at)) / 60)::text from public.jobs where state = 'queued' and run_on = 'house'), '0') || ' min ago',
-         coalesce((select extract(epoch from now() - min(queued_at)) / 60 from public.jobs where state = 'queued' and run_on = 'house'), 0) > 30,
+         (select count(*) from public.jobs where state = 'queued' and run_on = 'house') || ' waiting; oldest in line since '
+         || coalesce((select round(extract(epoch from now() - min(joined_line_at)) / 60)::text from public.jobs where state = 'queued' and run_on = 'house'), '0') || ' min ago',
+         coalesce((select extract(epoch from now() - min(joined_line_at)) / 60 from public.jobs where state = 'queued' and run_on = 'house'), 0) > 30,
          'the oldest is over 30 min',
          'Check row 7 (is the render PC there?). At 25 waiting, or the oldest over 90 min, brake the queue with live step 71 (BUILDER), as LAUNCH-WED-1125.md says. Tell CC1.'
   union all
