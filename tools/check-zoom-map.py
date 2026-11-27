@@ -1,6 +1,7 @@
 """Zoom map prototype page check (GEO 11-27): the path a signed-in account with the switch zoomMap walks on #/labs/map, in real
 headless Chrome against the mock (?mock&zoommap), at desktop (1280) and phone (390) widths: the states, click a state and see its
-counties (loaded only then), click a county, back out (focus to the state list), the same by keyboard (the selects), a county file that
+counties (loaded only then), click a county, back out (focus to the state list), the same by keyboard (the selects), the Year list
+(default 2024; the numbers, caption, map label and legend year follow it, the band edges do not move), a county file that
 fails to load (a clean whole map, then a click, the list and Try again each reload it), DC winning its own tap, and the page staying shut
 without the switch (one plain line).
 Local only: a server on 127.0.0.1 with its own port, nothing sent anywhere. Screenshots go to --out (outside the repo).
@@ -84,6 +85,24 @@ def main():
                 check(not [u for u in asked if '/st-' in u], 'no county file asked for before a state is chosen')
                 check(p.locator('#zm-back').is_hidden(), 'no Back button on the whole map')
                 check('estimated' in p.inner_text('#zm-legend'), 'the legend says estimated')
+                check(p.input_value('#zm-year') == '2024' and 'July 1, 2024' in p.inner_text('#zm-caption') and '2024' in p.get_attribute('#zm-svg', 'aria-label'),
+                      'the Year list starts on 2024; the caption and the map label say 2024')
+                b24 = p.inner_text('#zm-legend .zm-keys')
+                check('over all 5 years (2020 to 2024) at once' in p.inner_text('#zm-bands') and 'a change of colour means a change in people' in p.inner_text('#zm-bands'),
+                      'the legend says the bands are computed over all five years')
+                ohio_tip = lambda: p.evaluate("document.querySelector('#zm-svg path.zm-state[data-id=\"39\"] title').textContent")
+                check(ohio_tip() == 'Ohio, 2024: 11,883,304 people (estimated)', f'Ohio on the map, 2024: {ohio_tip()}')
+                fills = lambda: p.evaluate("[...document.querySelectorAll('#zm-svg path')].map((x) => x.getAttribute('fill')).join(',')")
+                f24 = fills()
+                p.select_option('#zm-year', '2020')
+                check('July 1, 2020' in p.inner_text('#zm-legend-year') and 'July 1, 2020' in p.inner_text('#zm-caption') and '2020' in p.get_attribute('#zm-svg', 'aria-label'),
+                      'year 2020: the legend, the caption and the map label say 2020')
+                check(p.inner_text('#zm-legend .zm-keys') == b24, 'year 2020: the band edges did not move')
+                check(ohio_tip() == 'Ohio, 2020: 11,798,905 people (estimated)', f'Ohio on the map, 2020 (POPESTIMATE2020 in the CSV): {ohio_tip()}')
+                print(f'       ({sum(a != b for a, b in zip(f24.split(","), fills().split(",")))} of 49 states change colour from 2024 to 2020)')
+                p.screenshot(path=str(out / f'1b-states-2020-{name}.png'), full_page=True)
+                p.select_option('#zm-year', '2024')
+                check(fills() == f24 and ohio_tip().startswith('Ohio, 2024'), 'back to 2024: the same colours as at the start')
                 check(no_scroll(), 'no sideways scroll (whole map)')
                 p.screenshot(path=str(out / f'1-states-{name}.png'), full_page=True)
 
@@ -107,6 +126,28 @@ def main():
                 check('Franklin County' in p.inner_text('#zm-detail') and 'estimated' in f and 'calculated' in f, 'click a county: its people (estimated) and share of the state (calculated)')
                 check(p.locator('path.zm-county.zm-picked').count() == 1 and p.input_value('#zm-county') == '39049', 'the county is marked on the map and in the list')
                 p.screenshot(path=str(out / f'3-county-{name}.png'), full_page=True)
+                fc = lambda: p.inner_text('#zm-county-facts')
+                check('People in 2024: 1,356,303' in fc() and '+31,798 (+2.4%)' in p.inner_text('#zm-county-change') and 'calculated' in p.inner_text('#zm-county-change'),
+                      'Franklin County 2024: 1,356,303 people, change since 2020 +31,798 (+2.4%), calculated')
+                check('+84,399 (+0.7%)' in p.inner_text('#zm-state-change'), 'Ohio: change since 2020 +84,399 (+0.7%)')
+                k24 = p.inner_text('#zm-legend .zm-keys')
+
+                # 3b. the Year list by keyboard: up to 2020, then down to 2022
+                p.focus('#zm-year')
+                p.keyboard.press('ArrowUp', delay=20)
+                for _ in range(3):
+                    p.keyboard.press('ArrowUp')
+                check(p.input_value('#zm-year') == '2020' and 'People in 2020: 1,324,505' in fc(), 'keyboard: Year 2020, Franklin County 1,324,505 people')
+                check('pick a later year' in p.inner_text('#zm-county-change') and p.locator('#zm-2020').count() == 1, 'year 2020: no change line, and the July 1, 2020 note')
+                check(p.inner_text('#zm-legend .zm-keys') == k24 and 'July 1, 2020' in p.inner_text('#zm-legend-year'), 'year 2020: the county band edges did not move; the legend says 2020')
+                check('Ohio, 2020' in p.get_attribute('#zm-svg', 'aria-label') and 'Ohio, counties: population on July 1, 2020' in p.inner_text('#zm-caption'), 'year 2020: the map label and caption')
+                p.screenshot(path=str(out / f'3b-county-2020-{name}.png'), full_page=True)
+                p.keyboard.press('ArrowDown')
+                p.keyboard.press('ArrowDown')
+                check(p.input_value('#zm-year') == '2022' and 'People in 2022: 1,327,687' in fc() and '+3,182 (+0.2%)' in p.inner_text('#zm-county-change'),
+                      'keyboard: Year 2022, Franklin County 1,327,687 people, +3,182 (+0.2%) since 2020')
+                check(p.evaluate('document.activeElement && document.activeElement.id') == 'zm-year', 'the Year list keeps the focus')
+                p.select_option('#zm-year', '2024')
 
                 # 4. back out
                 p.click('#zm-back')
@@ -130,10 +171,10 @@ def main():
                 check(view_box() == US_BOX and p.locator('#zm-svg path.zm-county').count() == 0, 'keyboard: Enter on Back zooms out')
                 p.select_option('#zm-state', '44')
                 check(counties(5), 'Rhode Island: 5 counties (a small state zooms in too)')
-                check('one band per county' in p.inner_text('#zm-bands') and 'one fifth' not in p.inner_text('#zm-bands'), 'Rhode Island legend: one band per county, not one fifth in each')
+                check('over all 5 years' in p.inner_text('#zm-bands') and '25 figures' in p.inner_text('#zm-bands'), 'Rhode Island legend: its 5 counties over 5 years, 25 figures')
                 p.screenshot(path=str(out / f'5-rhode-island-{name}.png'), full_page=True)
                 nd = p.inner_text('#zm-not-done')
-                check('No animation over time' in nd and 'One value only' in nd and 'Alaska and Hawaii' in nd, 'what the prototype does not do is said')
+                check('Five years only' in nd and 'no animation' in nd and 'One value only' in nd and 'Alaska and Hawaii' in nd, 'what the prototype does not do is said (five years)')
                 check('Census Bureau' in p.inner_text('#zm-sources') and 'public domain' in p.inner_text('#zm-sources'), 'the source line')
                 p.click('#zm-back')
                 check('Small states: pick them from the State list.' in p.inner_text('#zm-small'), 'the small-states line under the map')
