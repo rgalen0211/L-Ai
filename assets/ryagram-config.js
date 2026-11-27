@@ -120,7 +120,8 @@ window.ryagramConfig = Object.freeze({
   // THE GAMES DEPARTMENT, LIVE (GAMES 11-27, Claude 08:10 'turn the other departments on'): a live round of Guess the next line. 'account' = ON only for an account whose own switch list names
   // `games` (the server's my_switches(), set by an admin), so Ryan's own account first. For those accounts the Games page in the top bar hosts a room (assets/app-games.js); /game-phone/
   // opens in live mode for anyone (no sign-in on a phone), but a room exists only while such a host has one open. Undo: false (everyone back to Coming soon and the sample room).
-  games: 'account',
+  // LAUNCH 11-27 (web-config-games-on-1127; CC1-AFTER-RESET-1127): games is now true = OPEN FOR EVERYONE, in the same step the server opens the department for everyone (otherwise others get the generic working page). Undo: 'account' (only named accounts) or false.
+  games: true,
   // The Geographic Intelligence demo page (/geo-demo/; NEXT-WEB 198): shaded areas, markers, a clicked site, a ring and labelled counts, on SYNTHETIC data only. Draft words for Ryan. OFF until he has seen it.
   geoDemo: false,
   // Open sign-up (Ryan 11-21 11:30; LAUNCH-WED-1125 row 1): this switch SHOWS "Create an account" (sign-in page, /ryagram/) and runs the join call. TRUE on branch web-signup-open-1122, for the Wed 11-25 push ONLY AFTER the server half is on:
