@@ -25,7 +25,7 @@
   },
   "status": "Which departments WORK for an account and which are Coming soon is the server's my_departments() answer; the panel never decides it. The words below are what a Coming soon card says.",
   "lines": {
-    "compilations": "Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.",
+    "compilations": "Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together.",
     "geo_intelligence": "Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.",
     "games": "Play with your own data and footage in small games you can share.",
     "animation_studio": "Simple cartoons you direct: characters you can pose, with mouths that move to your voice.",

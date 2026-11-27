@@ -14,7 +14,7 @@ const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8'
 
 // The migration text: a pinned copy under tests/fixtures/ (named with the commit it came from) is what the tests use, so they do not go quiet if the branch is deleted.
 // When the branch is still there it is compared to the pin; a difference is noted in the test output (drift), not silently ignored.
-const PIN = 'tests/fixtures/compilations-server-aa53b232-20261127000300.sql';
+const PIN = 'tests/fixtures/compilations-server-87675142-20261127000300.sql';
 let SQL = null, SKIP = false, BRANCH_SQL = null;
 try { SQL = read(PIN).replace(/\r/g, ''); } catch (e) { SKIP = `the pinned migration ${PIN} is missing`; }
 try {

@@ -105,6 +105,23 @@ with sync_playwright() as pw:
         c, p, errs = open_page(b, w, '')
         check('coming soon' in p.inner_text('body').lower(), f'{w} switch off: Coming soon'); width_ok(p, 'switch off')
         p.screenshot(path=str(OUT / f'off-{w}.png')); c.close()
+    # (fold2) a 120-character unbroken phrase and title, and ten long folder names, never push a phone sideways; both flip tabs show whole at 360 and 390
+    for w in (1280, 390, 360):
+        c, p, errs = open_page(b, w, '&compon&comprun=done')
+        tabs = p.evaluate("(()=>{const t=document.querySelector('.flip-tabs');return [t.scrollWidth,t.clientWidth,[...document.querySelectorAll('.flip-tab')].map(e=>{const r=e.getBoundingClientRect(),q=t.getBoundingClientRect();return r.left>=q.left-1&&r.right<=q.right+1})]})()")
+        check(tabs[0] <= tabs[1] + 1 and all(tabs[2]), f'{w} both tabs show whole {tabs}')
+        RECT = "(()=>{const card=document.querySelector('.flip-panel:not([hidden]) .comp-requests')||document.querySelector('.comp-requests');const cr=card.getBoundingClientRect().right;return [...card.querySelectorAll('li,li strong,li .meta,.comp-run')].filter(e=>e.offsetParent).map(e=>Math.round(e.getBoundingClientRect().right-cr)).filter(d=>d>1)})()"
+        cases = {'200-char phrase': ('W' * 200, 'T' * 120), 'emoji': ('😀' * 100, '😀' * 60), 'RTL': ('א' * 200, 'א' * 120)}
+        for cname, (ph, tt) in cases.items():
+            p.reload(); p.wait_for_selector('#comp-phrase', timeout=30000)
+            p.fill('#comp-title', tt)
+            save(p, ph[:200], chr(10).join(('Folder' + str(i)).ljust(80, 'x') for i in range(10)))
+            p.wait_for_timeout(1500)
+            if not p.is_visible('.comp-run'): p.locator('button.flip-tab').nth(1).click(); p.wait_for_timeout(300)
+            over = p.evaluate(RECT); check(not over, f'{w} {cname} + long folders: every row, title, quote line and run line stays inside its card {over}')
+            sw = p.evaluate('document.documentElement.scrollWidth'); check(sw <= w, f'{w} {cname}: no sideways scroll ({sw})')
+            p.screenshot(path=str(OUT / f'longtext-{cname.split()[0]}-{w}.png'))
+        c.close()
     b.close()
 print('RESULT', 'PASS' if ok else 'FAIL')
 sys.exit(0 if ok else 1)

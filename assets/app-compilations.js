@@ -56,12 +56,14 @@
   function runLine(run, W) {
     if (!run || typeof run.state !== 'string') return W.waiting;
     if (run.current === false) return W.earlier;      // a run that belongs to an older save of the request is not shown as this one's (absent = current)
-    const base = W.states[run.state] || W.waiting;
+    if (run.state === 'stale') return W.errors.stale;      // its words sit with the reasons; no counts under it
+    const base = W.states[run.state];
+    if (!base) return W.waiting;      // a state this page does not know: only the waiting line, never counts
     if (run.state === 'failed') return `${base} ${W.errors[run.error_code] || 'Something went wrong. Try again from the app.'}`;
     const bits = [];
     if (Number.isFinite(Number(run.matches)) && run.matches !== null && run.matches !== undefined) bits.push(`${Number(run.matches)} match${Number(run.matches) === 1 ? '' : 'es'}`);
     if (Number.isFinite(Number(run.clips)) && run.clips !== null && run.clips !== undefined) bits.push(`${Number(run.clips)} clip${Number(run.clips) === 1 ? '' : 's'}`);
-    if (run.state === 'done' && Number.isFinite(Number(run.film_seconds)) && run.film_seconds !== null) bits.push(`${Math.round(Number(run.film_seconds))} seconds long`);
+    if (run.state === 'done' && Number.isFinite(Number(run.film_seconds)) && run.film_seconds !== null) { const sec = Math.round(Number(run.film_seconds)); bits.push(`${sec} second${sec === 1 ? '' : 's'} long`); };
     return bits.length ? `${base} ${bits.join(', ')}, counted on your computer.` : base;
   }
 
@@ -72,7 +74,7 @@
     earlier: 'This is for an earlier version of your request. Save again to start over.',
     states: { planning: 'The Ryagram app is planning your film.', matching: 'The Ryagram app is finding the matches on your computer.', building: 'The Ryagram app is making your film on your computer.', done: 'Done. Your film is on your computer.', failed: 'It did not finish.', cancelled: 'Stopped.' },
     // the closed list of reasons the app can report (FACES 08:16, docs/COMPILATION-REPORT-1127.md); anything else reads as the generic line
-    errors: { request_invalid: 'The request could not be read. Save it again, or ask your AI to write it again.', song_request: 'Compilations do not make songs. Take out the song and save again.', folder_not_chosen: 'A folder in your request is not chosen on your computer yet. Open the Ryagram app and choose where that folder is.', folder_missing: 'A folder you chose is not there any more. Open the Ryagram app and choose it again.', folder_empty: 'A folder you chose has no videos in it. Choose the folder that holds your videos.', folders_overlap: 'Two of your folders hold the same videos. Choose folders that do not overlap.', no_speech: 'No speech was found in your videos. Try videos where people talk.', not_said: 'Your videos do not say these words. Try other words, or add more folders.', edit_failed: 'The matches could not be turned into a film. Try again; if it happens twice, tell us.', build_failed: 'The film could not be built. Nothing left your computer. Try again in the Ryagram app.', stale: 'The build stopped reporting. You can start it again from the app.', crash: 'Something went wrong on your computer. Nothing left it. Close the app, open it and try again.' },
+    errors: { request_invalid: 'The request could not be read. Save it again, or ask your AI to write it again.', song_request: 'Compilations do not make songs. Take out the song and save again.', folder_not_chosen: 'A folder in your request is not chosen on your computer yet. Open the Ryagram app and choose where that folder is.', folder_missing: 'A folder you chose is not there any more. Open the Ryagram app and choose it again.', folder_empty: 'A folder you chose has no videos in it. Choose the folder that holds your videos.', folders_overlap: 'Two of your folders hold the same videos. Choose folders that do not overlap.', no_speech: 'No speech was found in your videos. Try videos where people talk.', not_said: 'Your videos do not say these words. Try other words, or add more folders.', edit_failed: 'The matches could not be turned into a film. Try again; if it happens twice, use Contact at the bottom of the page.', build_failed: 'The film could not be built. Nothing left your computer. Try again in the Ryagram app.', stale: 'The build stopped reporting. You can start it again from the app.', crash: 'Something went wrong on your computer. Nothing left it. Close the app, open it and try again.' },
     noApp: 'The Ryagram app is not on a computer of yours yet. You can save a request now; the app reads it when you open it.'
   };
 
@@ -148,7 +150,7 @@
         let haveApp = null;      // true/false only when the list of the person's signed-in computers loaded; the tester flag is not this question
         try { const mine = typeof data.myComputers === 'function' ? await data.myComputers() : null; haveApp = Array.isArray(mine) ? mine.length > 0 : null; } catch { haveApp = null; }
         list.replaceChildren(...[
-          haveApp === false ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp, ' ', h('a', { href: '/get-app/', class: 'comp-link' }, 'Get the Ryagram app')) : null,
+          haveApp === false && !rows.some(r => r && r.run && typeof r.run.state === 'string') ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp, ' ', h('a', { href: '/get-app/', class: 'comp-link' }, 'Get the Ryagram app')) : null,
           rows.length ? h('ul', { class: 'project-list comp-rows' }, rows.map(r => h('li', {},
             h('strong', {}, cut(r.title || 'A compilation', 120)), h('span', { class: 'meta' }, ` ${requestLine(r, date)}`),
             h('p', { class: 'form-note comp-run', role: 'status' }, runLine(r.run, WORDS))))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
@@ -156,8 +158,8 @@
       await drawRequests();
 
       flip = window.ryagramFlip.create({ h, label: 'Compilations', address: false, sections: [
-        { id: 'start', label: 'Start a compilation', el: start },
-        { id: 'requests', label: 'Your requests', el: h('div', {}, savedNote, list) }
+        { id: 'start', label: 'Start', el: start },
+        { id: 'requests', label: 'Requests', el: h('div', {}, savedNote, list) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('h1', { tabindex: '-1' }, 'Compilations'), flip.el];
     }

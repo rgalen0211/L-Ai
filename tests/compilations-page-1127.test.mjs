@@ -69,3 +69,20 @@ test('GAMES REVIEW 11-27: an old run is not shown, a typed place is never echoed
   const page = read('assets/app-compilations.js');
   assert.ok(page.includes('data.archiveProject(made.project.id)') && page.includes('plainRefusal') && page.includes("'Added one folder.") && !page.includes('err.message)); return; }'));
 });
+test('WEB 11-27 fold2: unknown state shows only the waiting line, stale its own sentence, edit_failed points nowhere, the no-app line hides once a run is reported, no songs promise', () => {
+  const W = C.WORDS;
+  assert.equal(C.runLine({ state: 'zzz', matches: 4, clips: 2 }, W), W.waiting);
+  assert.equal(C.runLine({ state: 'stale', matches: 4 }, W), W.errors.stale);
+  assert.ok(!/tell us/.test(W.errors.edit_failed) && /Contact/.test(W.errors.edit_failed));
+  const pg = read('assets/app-compilations.js');
+  assert.ok(pg.includes("haveApp === false && !rows.some(r => r && r.run"), 'the no-app line is hidden when a run is already reported');
+  assert.ok(pg.includes("label: 'Start', el: start") && pg.includes("label: 'Requests', el:"));
+  assert.ok(!read('assets/app-departments.js').includes('into songs'));
+});
+test('WEB fold2: film length is singular for one second, plural for 0 and more', () => {
+  const W = C.WORDS;
+  assert.match(C.runLine({ state: 'done', film_seconds: 1 }, W), /1 second long/);
+  assert.doesNotMatch(C.runLine({ state: 'done', film_seconds: 1 }, W), /1 seconds/);
+  assert.match(C.runLine({ state: 'done', film_seconds: 0 }, W), /0 seconds long/);
+  assert.match(C.runLine({ state: 'done', film_seconds: 41 }, W), /41 seconds long/);
+});

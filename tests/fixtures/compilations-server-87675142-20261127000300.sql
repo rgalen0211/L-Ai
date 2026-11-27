@@ -59,7 +59,7 @@ begin
     return 'A compilation request holds folder names and a phrase only, never a file, a path or a link.';
   end if;
   -- THE REQUEST'S OWN RULES, the same as the connector's set_compilation_request schema (supabase/functions/connect-core/tools.ts, NAME_PATTERN and its limits) and the page's buildRequest
-  -- (assets/app-compilations.js): CC1 09:10 and FACES 09:18. Only the twelve known parts; a phrase; 1 to 10 folder NAMES; songs are not open; every list within its limits.
+  -- (assets/app-compilations.js): CC1 09:10 and FACES 09:18. Only the thirteen known parts; a phrase; 1 to 10 folder NAMES; songs are not open; every list within its limits.
   for k in select jsonb_object_keys(p) loop
     if k <> all (array['schema', 'phrase', 'search', 'mode', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist']) then
       return 'That compilation request has a part Ryagram does not know: ' || left(k, 40) || '.';
@@ -102,7 +102,7 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'rules') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'phrase') is distinct from 'string' or (char_length(btrim(e ->> 'phrase')) < 1 or char_length(e ->> 'phrase') > 200)
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['phrase', 'picture', 'seconds', 'mode']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['phrase', 'picture', 'seconds', 'mode']))
          or jsonb_typeof(e -> 'picture') is distinct from 'string' or (e ->> 'picture') !~* '^[^\\/:*?"<>|[:cntrl:]]{1,100}\.(png|jpg|jpeg|webp)$'
          or jsonb_typeof(e -> 'seconds') is distinct from 'number' or (case when jsonb_typeof(e -> 'seconds') = 'number' then (e ->> 'seconds')::numeric end) not between 0.5 and 10
          or jsonb_typeof(e -> 'mode') is distinct from 'string' or (e ->> 'mode') not in ('full', 'centre', 'corner', 'lower_third') then
@@ -116,7 +116,7 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'texts') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) < 1 or char_length(e ->> 'text') > 120
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['text', 'start_s', 'length_s', 'position', 'size']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['text', 'start_s', 'length_s', 'position', 'size']))
          or jsonb_typeof(e -> 'start_s') is distinct from 'number' or (case when jsonb_typeof(e -> 'start_s') = 'number' then (e ->> 'start_s')::numeric end) not between 0 and 3600
          or jsonb_typeof(e -> 'length_s') is distinct from 'number' or (case when jsonb_typeof(e -> 'length_s') = 'number' then (e ->> 'length_s')::numeric end) not between 0.5 and 30
          or jsonb_typeof(e -> 'position') is distinct from 'string' or (e ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')
@@ -131,7 +131,7 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'cards') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) < 1 or char_length(e ->> 'text') > 120
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['text', 'where', 'seconds']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['text', 'where', 'seconds']))
          or jsonb_typeof(e -> 'where') is distinct from 'string' or (e ->> 'where') not in ('start', 'end')
          or jsonb_typeof(e -> 'seconds') is distinct from 'number' or (case when jsonb_typeof(e -> 'seconds') = 'number' then (e ->> 'seconds')::numeric end) not between 0.5 and 10 then
         return 'Each card needs its words (at most 120 characters), start or end, and 0.5 to 10 seconds.';
@@ -144,7 +144,7 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'checklist') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'what') is distinct from 'string' or char_length(btrim(e ->> 'what')) < 1 or char_length(e ->> 'what') > 200
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['what', 'from', 'must_contain', 'folder', 'count']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['what', 'from', 'must_contain', 'folder', 'count']))
          or (e ? 'from' and (jsonb_typeof(e -> 'from') <> 'string' or char_length(e ->> 'from') > 200))
          or (e ? 'must_contain' and (jsonb_typeof(e -> 'must_contain') <> 'string' or char_length(e ->> 'must_contain') > 200))
          or (e ? 'count' and (jsonb_typeof(e -> 'count') <> 'number' or (e ->> 'count') !~ '^[0-9]+$' or coalesce((case when (e ->> 'count') ~ '^[0-9]{1,6}$' then (e ->> 'count')::int end), 0) not between 1 and 20)) then
@@ -263,10 +263,10 @@ begin
   end if;
   if run.id is null then
     if p_state in ('done', 'failed', 'cancelled') then
-      raise exception 'That compilation was not started.' using errcode = '22023';
+      raise exception 'There is no build running for this request: a new build starts with planning.' using errcode = '22023';
     end if;
     if p_state <> 'planning' then
-      raise exception 'That build already ended. Start a new one.' using errcode = '22023';
+      raise exception 'There is no build running for this request: a new build starts with planning, even after one ended.' using errcode = '22023';
     end if;
     -- only a NEW build must be for the project's current request; a build already running keeps its own (the person may edit the request meanwhile)
     if not exists (select 1 from public.compilation_requests r join public.projects p on p.id = r.project_id
@@ -325,6 +325,25 @@ begin
     raise notice 'request_app_download already gives the app to a compilations account, left alone.';
   elsif (length(def) - length(replace(def, o, ''))) / length(o) <> 1 then
     raise exception 'request_app_download is not the one this change expects (its tester-or-admin check differs from the repository); nothing was changed. Send this sentence to BUILDER.';
+  else
+    execute replace(def, o, nw);
+  end if;
+end $do$;
+
+-- (2c) THE AI KNOWS A COMPILATIONS ACCOUNT MAY HAVE THE APP (GAMES 09:54): public.connect_whoami's 'desktop_app' answer (20261123000500) mirrors request_app_download's rule, and the connector refuses
+--      compilations when it is false; it now also answers true for an account with compilations on. Live text, one clause; left alone if already done; an older connect_whoami without a
+--      desktop_app answer at all (20261123000500 not applied) is left alone too (the connector reads a missing answer as allowed); refused in words if the answer is there but its clause differs.
+do $do$
+declare def text; o constant text := 'or exists (select 1 from public.app_admins a where a.user_id = me));';
+        nw constant text := 'or exists (select 1 from public.app_admins a where a.user_id = me) or ryagram_private.compilations_on(me));';
+begin
+  def := replace(pg_get_functiondef('public.connect_whoami(text)'::regprocedure), chr(13), '');
+  if position('compilations_on(me)' in def) > 0 then
+    raise notice 'connect_whoami already says a compilations account may have the app, left alone.';
+  elsif position('desktop_app' in def) = 0 then
+    raise notice 'connect_whoami has no desktop_app answer on this database (20261123000500 not applied), left alone.';
+  elsif (length(def) - length(replace(def, o, ''))) / length(o) <> 1 then
+    raise exception 'connect_whoami is not the one this change expects (its desktop_app check differs from the repository); nothing was changed. Send this sentence to BUILDER.';
   else
     execute replace(def, o, nw);
   end if;
