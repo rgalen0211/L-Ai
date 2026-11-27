@@ -202,8 +202,10 @@ class PerfectCityPlaces(core.Base):
             with self.assertRaises(psycopg.Error, msg=who) as cm:
                 self.owner("select ryagram_private.perfect_city_summary_for(%s, 'montgomery_oh', 'fast_food', 39.7505, -84.2)", who)
             self.assertEqual(cm.exception.sqlstate, "42501", who)
-        self.switch_on(OTHER)                                                               # the switch key works as before
-        self.assertEqual(self.get(OTHER)["loaded"], 4)
+        self.switch_on(OTHER)                                                               # the switch key cannot bypass the waiting list either
+        self.refused(OTHER, "montgomery_oh", "fast_food", code="42501")                    # (require_active runs before every Perfect City call)
+        self.owner("update public.account_status set status = 'active' where user_id = %s", OTHER)
+        self.assertEqual(self.get(OTHER)["loaded"], 4)                                     # active again, with the switch: in
 
     def test_under_supabases_default_privileges_service_role_cannot_run_the_page_call(self):
         # GEO 11-27 review: supabase_stub.sql has no default grants, so the revoke from service_role was unproven. Here Supabase's real default
