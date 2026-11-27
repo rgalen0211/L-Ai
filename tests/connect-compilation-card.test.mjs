@@ -157,7 +157,8 @@ test('the page is self-contained: one inline script, no network, no markup from 
 test('the look: the connector\'s newer one (Georgia wordmark, 18px card, orange pill button with dark ink), a phone width with no sideways scroll, buttons at least 44px', () => {
   for (const x of ['font:400 24px/1 Georgia', 'border-radius:18px', 'background:#ff8a3d', 'color:#14141a', 'border-radius:999px', 'min-height:44px', 'max-width:640px', 'min-width:0', 'overflow-wrap:anywhere', '@media (max-width:360px)']) assert.ok(STYLE.includes(x), x);
   assert.ok(!/overflow-x\s*:\s*scroll|[;{]width:\s*\d{3,}px|min-width:\s*[1-9]\d{2,}px/.test(STYLE), 'nothing fixed wide');
-  assert.ok(STYLE.includes('minmax(0,1fr)'), 'the long phrase column can shrink');
+  assert.ok(STYLE.includes('.row{display:grid;grid-template-columns:88px minmax(0,1fr)'), 'the long phrase column can shrink (also in the phone-width rule)');
+  assert.ok(STYLE.includes('.row{grid-template-columns:76px minmax(0,1fr)'));
 });
 
 // A tiny DOM: only what the page uses. innerHTML is a trap: setting it fails the test.
@@ -252,6 +253,12 @@ for (const [name, run, step, sentence] of FIXTURES) {
   });
 }
 
+test('a report that is marked as for an earlier request is never drawn as where THIS request stands, even if the data also carries it', () => {
+  const p = load();
+  p.fire(RESULT({ ...REQ, run: { state: 'done', clips: 9, film_seconds: 30, error_code: null }, run_is_for_an_earlier_request: true }));
+  assert.equal(stepLine(p.root), 'Waiting for the Ryagram app on your computer to pick it up.');
+});
+
 test('every reason the tool can report has words in the panel (the two lists have the same keys), and none promises more than the tool says', async () => {
   assert.deepEqual(Object.keys(COMPILATION_REASONS).sort(), Object.keys(COMPILATION_STOPPED).sort());
   const s = server(ON); const id = await asked(s);
@@ -317,12 +324,12 @@ test('numbers are clamped: counts that are text, negative, NaN or huge are not s
 test('words from the data are only ever TEXT: markup stays markup, control and direction characters are removed, long words are cut, and no element but the page\'s own kinds is made', () => {
   const evil = '<img src=x onerror=alert(1)><script>alert(2)</script>';
   const p = load();
-  p.fire(RESULT({ looked_up: true, has_request: true, request: { phrase: evil, search: 'words', folders: [evil, 'a\u0000b‮c⁦d‏e\u009ff\nx', 'z'.repeat(500)], rules: 1, texts: 0, cards: 0 }, run: { state: 'failed', error_code: '<b>x</b>' } }));
+  p.fire(RESULT({ looked_up: true, has_request: true, request: { phrase: evil, search: 'words', folders: [evil, 'a\u0000b\u202ec\u2066d\u200fe\u009ff\nx', 'z'.repeat(500)], rules: 1, texts: 0, cards: 0 }, run: { state: 'failed', error_code: '<b>x</b>' } }));
   assert.ok(p.root.all().every((n) => ['main', 'div', 'span', 'h1', 'p', 'button'].includes(n.tag)), 'only the page\'s own kinds of element');
   assert.equal(rowOf(p.root, 'Words'), Q(evil), 'the phrase is shown as written, as text');
   assert.ok(rowOf(p.root, 'Folders').includes(evil.slice(0, 80)));
   assert.ok(rowOf(p.root, 'Folders').includes('a b c d e f x'));
-  assert.ok(!/[\u0000-\u001f\u007f-\u009f‪-‮⁦-⁩‎‏]/.test(rowOf(p.root, 'Folders')));
+  assert.ok(!/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069\u200e\u200f]/.test(rowOf(p.root, 'Folders')));
   assert.ok(rowOf(p.root, 'Folders').includes('z'.repeat(80)) && !rowOf(p.root, 'Folders').includes('z'.repeat(81)), 'a folder name is cut at 80');
   assert.equal(stepLine(p.root), 'Stopped: the Ryagram app reported a problem it has no plain words for.', 'an error code that is not plain is never shown');
   const long = load(); long.fire(RESULT({ looked_up: true, has_request: true, request: { phrase: 'w'.repeat(900), folders: [], rules: 0, texts: 0, cards: 0 } }));
