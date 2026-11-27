@@ -28,7 +28,7 @@ test('every ready-made start is offered by the real catalog action, and its film
     assert.ok(d, `${r.id}: ${r.dataset} is not in the function's catalog, so the start would never be shown`);
     assert.ok((d.film_types || []).includes(r.film_type), `${r.id}: the function does not offer ${r.film_type} for ${r.dataset} (it offers ${JSON.stringify(d.film_types)})`);
   }
-  assert.deepEqual(JSON.parse(JSON.stringify(B.readyMade(served).map(r => r.id))), JSON.parse(JSON.stringify(B.READY_MADE.map(r => r.id))), 'every start is shown on the live catalog');
+  assert.deepEqual(JSON.parse(JSON.stringify(B.readyMade(served).map(r => r.id))), JSON.parse(JSON.stringify(B.READY_MADE.map(r => r.id))), 'all six are shown on the live catalog');
 });
 
 test('one click compiles: each start, as the request the builder sends, is accepted by the real compile step and its story fits the story schema', () => {

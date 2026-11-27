@@ -48,7 +48,7 @@ test('the page: the section sits on the admin tester page beside tester mode, us
   assert.match(part, /data\.adminSetConnectAccess\(cEmail\.value, on, cReason\.value\)/);
   assert.match(part, /checkTesterForm\(cEmail\.value, cReason\.value\)/);
   assert.doesNotMatch(part, /innerHTML|insertAdjacentHTML/);
-  assert.match(src, /h\('h2', \{\}, 'History'\), history, connectSection, \.\.\.\(topupSection \? \[topupSection\] : \[\]\)\]/);   // BUILDER 11-27: the Test credits section (behind adminTestTopup) follows it
+  assert.match(src, /h\('h2', \{\}, 'History'\), history, connectSection\]/);
   assert.match(src, /hash === '#\/admin\/tester'|testerAdminView/);
 });
 

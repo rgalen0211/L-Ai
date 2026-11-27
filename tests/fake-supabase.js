@@ -378,10 +378,10 @@
       // Mock of CONNECT's Option B contract (connect-waiting-gate-1104, proposals\CONNECT-WAITING-GATE-BUILD-1104.md): my_access() -> {status, is_admin, gate_on}, 'waiting' for the signed-in
       // mock when the address has ?waiting (until approved or a code is used); admin_waiting_list() -> user_id, email, joined_at, confirmed (admin only); approving goes through the approve-waiting
       // function (below, with the join and claim-invite functions); ?accesserr makes my_access fail (the page must fall back to the waiting page).
-      // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list, ?topupon adds adminTestTopup (the Test credits section on #/admin/tester).
+      // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list.
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']).concat(typeof location !== 'undefined' && /[?&]topupon/.test(location.search || '') ? ['adminTestTopup'] : []), error: null };      // ?editoron: this account is on the live-editor list too
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
@@ -617,30 +617,6 @@
           { name: 'ryan-pc', state: 'ok', enabled: true, last_seen_at: iso(30000), last_engine_commit: { commit: 'a1b2c3d4e5f6', ended_at: iso(3600000) }, running: { job_type: 'preview', claimed_at: iso(60000) }, last_claim_at: iso(60000), free_gb: 120 },
           { name: 'spare', state: 'delayed', enabled: true, last_seen_at: iso(2 * 3600000), last_engine_commit: null, running: null, last_claim_at: iso(86400000), free_gb: 8 }] }, error: null };
       },
-      // Mock of the owner-only test credits (SQL 20261127000100): admin only; sam@example.com and lee@example.com are on the owner list, nobody else; 1 to 100, a note, 200 a day; the undo takes back what is unspent, once.
-      admin_test_topup({ p_email, p_credits, p_note }) {
-        if (!adminMock()) return fail('Only an admin can do this.');
-        if (!Number.isInteger(p_credits) || p_credits < 1 || p_credits > 100) return fail('A test top-up is 1 to 100 credits.');
-        if (!p_note || p_note.trim().length < 3 || p_note.trim().length > 200) return fail('Say what the credits are for, in a few words.');
-        const email = String(p_email || '').trim().toLowerCase();
-        if (!['sam@example.com', 'lee@example.com'].includes(email)) return fail('That address is not on the owner test-account list, so nothing was given. Only Ryan adds accounts to the list (live step 78c).');
-        db.topups = db.topups || [];
-        const day = db.topups.filter(t => t.user_email === email && Date.now() - Date.parse(t.created_at) < 86400000).reduce((s, t) => s + t.credits - (t.taken_back || 0), 0);
-        if (day + p_credits > 200) return fail(`This account has had ${day} test credits in the last 24 hours; at most 200 a day.`);
-        const id = db.topups.length + 1;
-        db.topups.unshift({ id, user_email: email, credits: p_credits, note: p_note.trim(), created_at: new Date().toISOString(), undone_at: null, taken_back: null });
-        return { data: id, error: null };
-      },
-      admin_test_topup_undo({ p_topup_id, p_note }) {
-        if (!adminMock()) return fail('Only an admin can do this.');
-        if (!p_note || p_note.trim().length < 3 || p_note.trim().length > 200) return fail('Say why it is being undone, in a few words.');
-        const t = (db.topups || []).find(x => x.id === p_topup_id);
-        if (!t) return fail('No test top-up with that number.');
-        if (t.undone_at) return fail('That top-up was already undone.');
-        t.undone_at = new Date().toISOString(); t.taken_back = t.credits;
-        return { data: t.credits, error: null };
-      },
-      admin_test_topup_list() { if (!adminMock()) return fail('Only an admin can do this.'); return { data: structuredClone(db.topups || []), error: null }; },
       admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
       // Mock of the Connect-an-AI switch (NEXT-WEB 157, SQL 20261027000900): admin only, a reason, refuses an administrator and a worker, every change in a history. maya@example.com and
       // sam@example.com start ON (as after tonight's by-hand SQL); ryan@example.com is an administrator.
