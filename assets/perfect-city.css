@@ -15,3 +15,5 @@
 .pc-table th, .pc-table td { padding: 4px 12px 4px 0; text-align: left; }
 .pc-table th[scope="row"] { white-space: nowrap; }
 .pc-typed label { display: inline-flex; gap: 6px; align-items: center; }
+.pc-compare th[scope="row"] { white-space: normal; max-width: 22em; }
+.pc-compare td { vertical-align: top; }
