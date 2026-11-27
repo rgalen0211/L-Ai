@@ -95,10 +95,15 @@
     // credits_ledger.sql: 'Not enough credits: this needs 10, and 8 are available.' (or 'Not enough credits for this job.'): what it costs, what you have, and the next step (Q679 B; FACES 11-23).
     if ((m = /^Not enough credits: this needs (\d+), and (\d+) (?:is|are) available\.?$/.exec(text))) return `This needs ${m[1]} credit${m[1] === '1' ? '' : 's'} and you have ${m[2]}. ${buyingOpen() ? 'Buy credits, then try again.' : 'Buying credits is not open yet.'}`;
     if (/^Not enough credits\b/.test(text)) return `You do not have enough credits for this. ${buyingOpen() ? 'Buy credits, then try again.' : 'Buying credits is not open yet.'}`;
+    // The daily credit cap on a paid preview (pipe1_orders submit_job, errcode PTCAP: 'daily_cap: you have reached today's credit limit. Try again tomorrow.'): the 'daily_cap' prefix read as code,
+    // so a stranger got 'Something went wrong' (BUILDER 11-27 limits walk, proposals/BUILDER-STRANGER-LIMITS-1127.md).
+    if (/^daily_cap\b/.test(text)) return DAILY_CAP_WORDS;
     if (LOOKS_LIKE_CODE.test(text) || DB_WORDS.test(text) || text.length > DETAIL_MAX) return REFUSAL_GENERIC;
     return text;
   }
   // The free-preview limit, said once with both limits because credit_quote says only that the preview is not free (credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15).
+  // FOR RYAN'S YES (BUILDER 11-27): the daily-cap refusal of a single job, in the order line's approved daily_cap words (the cap is any 24 hours, so not 'tomorrow').
+  const DAILY_CAP_WORDS = 'This did not start because you reached today\u2019s credit limit. Nothing was charged. You can try again after 24 hours.';
   const FREE_PREVIEW_USED = 'Your free previews are used up: each project gets 6, and 15 across all projects in any 24 hours. Start a new project if this one used its 6, or try again later.';
 
   // One sentence for a finished job that did not complete, by error class.
