@@ -94,6 +94,15 @@ export class ConnectDb {
           throw e;
         }
       },
+      // supabase/migrations/20261127000500_connect_perfect_city_summary.sql (NOT APPLIED): the token-checked twin of GEO's private helper. Same deploy-order rule as compilationGet: a database without the function (42883 / PGRST202) becomes the code "unavailable" and nothing else.
+      async perfectCitySummary(q) {
+        try { return await self.fn("connect_perfect_city_summary", ["text", "text", "text", "float8", "float8"], [h, q.county, q.kind, q.lat, q.lon]); }
+        catch (e) {
+          const code = (e as { code?: string })?.code;
+          if (code === "42883" || code === "PGRST202") throw Object.assign(new Error("Perfect City numbers are not available just now."), { code: "unavailable" });
+          throw e;
+        }
+      },
       askGeo: (q) => self.fn("connect_geo_ask", ["text", "float8", "float8", "int", "text[]"], [h, q.lat, q.lon, q.minutes, q.categories]),
       // the series goes in as the ARRAY it is: `fn` turns every jsonb parameter into JSON text itself, so a pre-stringified series was encoded twice and reached SQL as a JSON string, refused as "not 6 to 120 pairs"
       askForecast: (q) => self.fn("connect_forecast_ask", ["text", "jsonb", "int", "text", "int[]", "text"], [h, q.series, q.horizon, q.method ?? null, q.breaks ?? null, q.unit ?? null]),

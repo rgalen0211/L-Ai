@@ -41,6 +41,10 @@ export class FakeWorld {
 
   /** Tests: what the person's own computer reported for a compilation build (the database's compilation_runs row, as connect_compilation_get shows it); the AI cannot write this. */
   compilationRuns = new Map<string, unknown>();
+  /** Tests: what GEO's private helper (ryagram_private.perfect_city_summary_for) would answer for a question that passed the database's checks (default: a made-up county with 12 made-up places). Whatever it returns is untrusted: the tool checks it. */
+  perfectCityAnswer: ((q: { owner: string; county: string; kind: string; lat: number; lon: number }) => unknown) | null = null;
+  /** Tests: every question the database layer was asked, as it arrived (the spot already rounded to 4 decimals). */
+  perfectCityAsked: { owner: string; county: string; kind: string; lat: number; lon: number }[] = [];
   setCompilationRun(userId: string, projectId: string, run: unknown): void { this.compilationRuns.set(userId + "|" + projectId, run); }
   /** Tests: a stranger has no desktop app (the default is that the account has it, as the invited testers do). */
   setDesktopApp(userId: string, on: boolean): void { this.users.get(userId)!.desktopApp = on; }
@@ -259,6 +263,20 @@ export class FakeWorld {
         const run = this.compilationRuns.get(userId + "|" + pid) ?? null;
         return JSON.parse(JSON.stringify({ request: row ? row.request : null, sha256: row ? row.sha256 : null, updated_at: row ? "2026-11-27T08:00:00Z" : null, run: row ? run : null }));
       },
+      // mirrors connect_perfect_city_summary + GEO's helper: 42501 unless the person's own switch list names perfectCity, 22023 for an unknown county or kind (grocery is in montgomery_oh only) or a spot outside the county's box, the spot rounded to 4 decimals
+      perfectCitySummary: async (q) => {
+        const user = u();
+        if (!(user.switches ?? []).includes("perfectCity")) throw err("Perfect City is not switched on for this account.", "42501");
+        const box: Record<string, [number, number, number, number]> = { montgomery_oh: [-84.4857, 39.5782, -84.051, 39.923], greene_oh: [-84.1, 39.5, -83.7, 39.85] };
+        if (!box[q.county]) throw err("Choose a county: montgomery_oh or greene_oh.", "22023");
+        if (!["fast_food", "restaurant", "grocery"].includes(q.kind) || (q.kind === "grocery" && q.county !== "montgomery_oh")) throw err("Choose a kind: fast_food, restaurant or grocery (grocery for montgomery_oh only).", "22023");
+        const r4 = (x: number) => Math.round(x * 1e4) / 1e4, lat = r4(q.lat), lon = r4(q.lon), [w, s2, e, n2] = box[q.county];
+        if (lon < w || lon > e || lat < s2 || lat > n2) throw err("That spot is outside the county.", "22023");
+        const asked = { owner: userId, county: q.county, kind: q.kind, lat, lon };
+        this.perfectCityAsked.push(asked);
+        if (this.perfectCityAnswer) return JSON.parse(JSON.stringify(this.perfectCityAnswer(asked)));
+        return JSON.parse(JSON.stringify(madeUpPerfectCityAnswer(asked)));
+      },
       currentVersionId: async (pid) => {
         const vs = u().versions.filter((v) => v.project_id === pid);
         return vs.length ? vs.reduce((a, b) => (b.number > a.number ? b : a)).id : null;
@@ -386,3 +404,18 @@ export class FakeWorld {
   }
 }
 export { ALL as ALL_SCOPES };
+
+/** A made-up answer of the shape GEO's helper returns (schema ryagram.perfect-city-summary/0): invented places and numbers, for tests only. */
+export function madeUpPerfectCityAnswer(q: { county: string; kind: string; lat: number; lon: number }): Record<string, unknown> {
+  return {
+    schema: "ryagram.perfect-city-summary/0", place: q.county, business_type: q.kind, spot: { lat: q.lat, lon: q.lon }, places_loaded: 12,
+    nearest: [{ name: "Example Burgers", km: 0.41, basis: "calculated" }, { name: "Sample Subs", km: 0.93, basis: "calculated" }, { name: "Test Tacos", km: 1.7, basis: "calculated" }],
+    rings: [
+      { km: 1, places: { value: 2, basis: "calculated" }, people_about: { value: 4100, basis: "estimated", method: "A block group counts in full when its centre is inside the ring." } },
+      { km: 2, places: { value: 3, basis: "calculated" }, people_about: { value: 12850, basis: "estimated", method: "A block group counts in full when its centre is inside the ring." } },
+      { km: 5, places: { value: 9, basis: "calculated" }, people_about: { value: 61230, basis: "estimated", method: "A block group counts in full when its centre is inside the ring." } },
+    ],
+    not_known: ["Distances are straight lines, not drive or walk times.", "There is no success score and no prediction. This shows what is there, not whether a business would do well."],
+    credits: ["Population: U.S. Census Bureau (made-up example numbers in this test).", "Map data (c) OpenStreetMap contributors (ODbL) (made-up example places in this test)."],
+  };
+}
