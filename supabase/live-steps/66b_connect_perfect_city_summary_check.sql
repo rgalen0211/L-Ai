@@ -7,6 +7,10 @@ union all select 'it reads the token''s own person (connect_actor, scope read), 
                    and p.proargnames = array['p_token_hash', 'p_county', 'p_kind', 'p_lat', 'p_lon']::text[]
                    and p.prosrc !~* '\m(insert|update|delete)\M'
                  from pg_proc p where p.oid = to_regprocedure('public.connect_perfect_city_summary(text, text, text, double precision, double precision)')), false)
+union all select 'it checks the Perfect City switch itself (account_settings.switches_on or an app admin, 42501) before it calls GEO''s helper, so it is safe whatever the helper does',
+       coalesce((select p.prosrc like '%account_settings%' and p.prosrc like '%''perfectCity'' = any (s.switches_on)%' and p.prosrc like '%public.app_admins%' and p.prosrc like '%42501%'
+                   and position('42501' in p.prosrc) < position('perfect_city_summary_for' in p.prosrc)
+                 from pg_proc p where p.oid = to_regprocedure('public.connect_perfect_city_summary(text, text, text, double precision, double precision)')), false)
 union all select 'it is security definer with an empty search path, and belongs to no API role or connector login',
        coalesce((select p.prosecdef and exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) cfg where cfg in ('search_path=""', 'search_path='))
                    and pg_get_userbyid(p.proowner) not in ('anon', 'authenticated', 'service_role', 'connect_runner', 'node_runner')

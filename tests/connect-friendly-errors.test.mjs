@@ -60,3 +60,10 @@ test('a tool that hits PTQUE, PTCAP or PTVEW answers the AI with that distinct c
     assert.equal(r.text, msg, code);
   }
 });
+
+test('L6: a 42501 / 22023 message that reads like a Postgres internal becomes the generic sentence; the plain sentences still pass', () => {
+  const internals = ['permission denied for function connect_compilation_get', 'permission denied for table projects', 'new row violates row-level security policy for table "versions"',
+    'function public.connect_set_compilation_request(text, uuid) does not exist', 'relation "public.projects" does not exist', 'schema "ryagram_private" does not exist', 'column "owner_id" of relation "x" does not exist'];
+  for (const code of ['42501', '22023']) for (const m of internals) assert.equal(friendlyError(err(code, m)), GENERIC, code + ' ' + m);
+  for (const code of ['42501', '22023']) for (const m of ['Perfect City is not switched on for this account yet.', 'Compilations is not switched on for this account yet.', 'That is not a place Ryagram can look up.']) assert.equal(friendlyError(err(code, m)), m, m);
+});

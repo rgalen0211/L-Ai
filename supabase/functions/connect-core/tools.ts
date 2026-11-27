@@ -29,6 +29,7 @@ const IN_PROGRESS = new Set(["queued", "claimed", "running", "validating", "uplo
 const ok = (text: string, data?: Record<string, unknown>, extra: Partial<ToolResult> = {}): ToolResult => ({ text, data, ...extra });
 const refuse = (text: string, code: string, extra: Partial<ToolResult> = {}): ToolResult => ({ text, isError: true, code, ...extra });
 
+const DB_INTERNAL = /permission denied for|\bfunction |\brelation |violates row-level security|\bschema |\bcolumn |does not exist/i;
 /** Database messages raised by our own functions are plain sentences; anything else is replaced. Secrets are scrubbed. */
 export function friendlyError(e: unknown): string {
   const code = (e as { code?: string })?.code ?? "";
@@ -36,7 +37,8 @@ export function friendlyError(e: unknown): string {
   // PTCAP (the daily credit cap), PTQUE (films already waiting) and PTVEW (a film the machine cannot make) are named, not a pattern: they are plain refusals a retry cannot pass, so the AI must read their words (CONNECT 11-23, BUILDER's ask)
   const own = /^(PT\d{3}|PTCAP|PTQUE|PTVEW|P0002|42501|22023)$/.test(code);
   if (!own || msg.length > 300) return "Ryagram could not do that right now. Nothing was changed. Try again in a moment.";
-  if (Object.hasOwn(SQL_WORDS, msg)) return SQL_WORDS[msg];                // the database's own sentence, in plainer words (words.ts); any other sentence is shown as the database wrote it
+  if (Object.hasOwn(SQL_WORDS, msg)) return SQL_WORDS[msg];
+  if (DB_INTERNAL.test(msg)) return "Ryagram could not do that right now. Nothing was changed. Try again in a moment.";   // a message that reads like a Postgres internal (a function, table, column or policy name) is never shown (security review 11-27 L6)                // the database's own sentence, in plainer words (words.ts); any other sentence is shown as the database wrote it
   return msg.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]").replace(/\b(sk|ryg|rga|rgr|rgc)[-_][\w-]{8,}/g, "[removed]");
 }
 
@@ -432,7 +434,7 @@ export function runWords(run: { state: string; matches: number | null; clips: nu
     case "building": return `Building the film on the person's computer${run.clips === null ? "" : ": " + n(run.clips, "clip", "clips") + " so far"}.`;
     case "done": return `Done${run.clips === null && run.film_seconds === null ? "" : ": " + [n(run.clips, "clip", "clips"), run.film_seconds === null ? "" : `${run.film_seconds} seconds`].filter(Boolean).join(", ")}. The film is on the person's computer: they open the Ryagram app to see it. It is never sent to Ryagram.`;
     case "cancelled": return "Stopped: the person stopped it on their computer.";
-    default: return `Stopped: ${COMPILATION_STOPPED[run.error_code ?? ""] ?? "the Ryagram app reported a problem it has no plain words for"}.`;
+    default: return `Stopped: ${(run.error_code !== null && Object.hasOwn(COMPILATION_STOPPED, run.error_code) ? COMPILATION_STOPPED[run.error_code] : null) ?? "the Ryagram app reported a problem it has no plain words for"}.`;
   }
 }
 
@@ -459,11 +461,11 @@ const getCompilationStatus: ToolDef = {
     const rr = row.run && typeof row.run === "object" ? row.run : null;
     const state = rr && RUN_STATES.has(String(rr.state)) ? String(rr.state) : null;
     const run = rr && state ? { state, matches: cleanCount(rr.matches), clips: cleanCount(rr.clips), film_seconds: cleanCount(rr.film_seconds, 86_400), error_code: typeof rr.error_code === "string" && /^[a-z0-9_]{1,40}$/.test(rr.error_code) ? rr.error_code : null } : null;
-    const current = rr?.current !== false;
+    const current = rr?.current === true;                  // a run whose 'current' is null (no stored request hash) is NOT shown as current (security review 11-27 L2)
     const head = `Compilation request: ${untrusted("phrase", summary.phrase || "(no words)")}${summary.search ? `, ${summary.search === "every" ? "every time it is said" : "the words in this order"}` : ""}; ${summary.folders.length} folder${summary.folders.length === 1 ? "" : "s"}${summary.folders.length ? " (" + summary.folders.map((f) => untrusted("folder-name", f)).join(", ") + ")" : ""}; ${summary.rules} picture rule${summary.rules === 1 ? "" : "s"}, ${summary.texts} text${summary.texts === 1 ? "" : "s"}, ${summary.cards} card${summary.cards === 1 ? "" : "s"}.`;
     const note = summary.note ? ` Note on the request: ${untrusted("request-note", summary.note)}` : "";
     return ok(`${head}${note}\nWhere it stands: ${runWords(run, current)}\nNo credit is used for a compilation.`,
-      { project_id: String(a.project_id), has_request: true, request: summary, request_sha256: typeof row.sha256 === "string" && /^[0-9a-f]{64}$/.test(row.sha256) ? row.sha256 : null,
+      { project_id: String(a.project_id), has_request: true, request: (({ note: _note, ...rest }) => rest)(summary), request_text_is_untrusted: true, request_sha256: typeof row.sha256 === "string" && /^[0-9a-f]{64}$/.test(row.sha256) ? row.sha256 : null,
         run: run && current ? { state: run.state, matches: run.matches, clips: run.clips, film_seconds: run.film_seconds, error_code: run.error_code } : null,
         run_is_for_an_earlier_request: !!run && !current, film_stays_on_the_persons_computer: true, credits: 0, looked_up: true });
   },
