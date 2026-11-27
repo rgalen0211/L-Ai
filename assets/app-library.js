@@ -57,6 +57,8 @@
   // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
   const intakeOn = () => window.ryagramSwitches?.featureOn('intake') === true;
   const myFilmsOn = () => window.ryagramSwitches?.featureOn('myFilms') === true;
+  // The zoom map prototype (#/labs/map, assets/app-zoom-map.js; GEO 11-27): only for an account whose per-account switch zoomMap is on; no top-bar entry.
+  const zoomMapOn = () => window.ryagramSwitches?.featureOn('zoomMap') === true && !!window.ryagramZoomMap;
   const waitingOn = () => window.ryagramWaiting?.on() === true;
   const wizardOn = () => window.ryagramTesterWizard?.flagOn() === true;
   const builderOn = () => window.ryagramConfig?.guidedBuilder === true || !!window.ryagramMock;
@@ -188,6 +190,7 @@
         else if (builderOn() && /^#\/build(\?.*)?$/.test(hash)) view = await builderUi().builderView(onStop, window.ryagramIntake ? window.ryagramIntake.parseBuildQuery(hash) : null);
         else if (intakeOn() && window.ryagramIntake && hash === '#/new') view = intakeUi().intakeView(onStop);
         else if (wizardOn() && hash === '#/tester-start') view = await wizardUi().wizardView(onStop);
+        else if (zoomMapOn() && hash === '#/labs/map') view = await window.ryagramZoomMap.view({ h });
         else if (myFilmsOn() && window.ryagramFilms && hash === '#/films') view = await filmsUi().filmsView(onStop);
         else if (builderOn() && hash === '#/build/sample') view = await builderUi().builderView(onStop, { sample: true });   // the tutorial's sample: makes nothing (NEXT-BUILDER 38)
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();

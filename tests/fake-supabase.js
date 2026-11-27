@@ -381,7 +381,7 @@
       // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list.
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']).concat(typeof location !== 'undefined' && /[?&]zoommap/.test(location.search || '') ? ['zoomMap'] : []), error: null };      // ?editoron: this account is on the live-editor list too; ?zoommap: on the zoom map list (GEO 11-27)
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');

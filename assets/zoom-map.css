@@ -1,0 +1,18 @@
+/* Zoom map prototype (GEO 11-27): the map keeps its 8:5 frame, never wider than 960 px or the screen; strokes stay thin when zoomed. */
+.zm-controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 12px 0; }
+.zm-control select { margin-left: 6px; max-width: 100%; }
+.zm-county-wrap { max-width: 100%; }
+.zm-county-wrap select { max-width: calc(100vw - 120px); }
+.zm-map { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin: 12px 0; }
+.zm-svg { display: block; width: 100%; max-width: 960px; height: auto; aspect-ratio: 8 / 5; border-radius: 12px; }
+.zm-svg path { stroke: #14141a; stroke-width: 0.6; vector-effect: non-scaling-stroke; cursor: pointer; }
+.zm-svg path.zm-dim { opacity: 0.3; }
+.zm-svg.zm-zoomed .zm-state { stroke-width: 1.2; }
+.zm-svg path.zm-picked { stroke: #ffd166; stroke-width: 2.5; }
+.zm-svg path:hover { stroke: #ffd166; stroke-width: 1.5; }
+.zm-legend { min-width: 200px; flex: 1 1 200px; }
+.zm-keys { list-style: none; padding: 0; margin: 4px 0; }
+.zm-keys li { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+.zm-swatch svg { display: block; }
+.zm-facts { padding-left: 1.2em; }
+.zm-label { opacity: 0.75; font-size: 0.9em; }

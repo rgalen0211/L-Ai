@@ -91,6 +91,8 @@ window.ryagramConfig = Object.freeze({
   landingDrafts: false,
   // My films is ON FOR ACCOUNTS NAMED ON AN ADMIN'S LIST ONLY (Ryan's Q576/Q577 yes, 2026-11-11): the string 'account' is read by featureOn() in assets/app-switches.js; everyone else sees it OFF. Undo: set this back to false (or remove the account from its list).
   myFilms: 'account',
+  // The zoom map PROTOTYPE (#/labs/map; GEO 11-27, Ryan 11-07): states, click one to zoom into its counties. ON FOR ACCOUNTS NAMED ON AN ADMIN'S LIST ONLY (admin_account_switch_set(email, 'zoomMap', true, reason)); no top-bar entry. Undo: false.
+  zoomMap: 'account',
   // The tester first-run wizard (#/tester-start; NEXT-WEB 192): signed in, your computer, room on your drive, your first film, in plain words. Needs the tester flag on the account. OFF until Ryan has seen it and set its words.
   testerWizard: 'account',
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
