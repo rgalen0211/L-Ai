@@ -18,7 +18,7 @@
   const NO_DATA = '#4a4a52';
   const W = 640, H = 480;
   const WORDS = {
-    intro: 'Pick a county and a kind of business, then click the map, or type a latitude and longitude, to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
+    intro: 'Pick a county and a kind of business, then tap or click the map, or type a latitude and longitude, to put a spot on it. Ryagram shows how far the nearest similar places are, how many are within 1, 2 and 5 km, and about how many people live around the spot.',
     notKnown: ['Distances are straight lines, not drive or walk times.',
       'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
       "People within a ring are an estimate: each block group's people are shared by the part of its area inside the ring, as if they were spread evenly.",
@@ -83,7 +83,7 @@
     const typed = h('form', { class: 'pc-typed', onsubmit: (e) => {
       e.preventDefault();
       const lat = num(latIn.value), lon = num(lonIn.value);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) place([lon, lat], state.compare ? state.target : 'A');
+      if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) place([lon, lat], state.compare ? state.target : 'A');
       else { status.textContent = WORDS.badTyped; latIn.focus(); }
     } }, h('span', { class: 'meta' }, 'Or type a spot: '), targetWrap,
       h('label', { class: 'pc-control', for: 'pc-lat' }, 'Latitude ', latIn), ' ',
