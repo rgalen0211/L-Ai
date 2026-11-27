@@ -101,10 +101,16 @@ it is printed in Terms, Privacy, emails and the connector listings.
 ### J. The render PC (`worker.toml` / `worker.env`)
 From the code (`ryagram/worker/__main__.py:24`, `config.py`), not the live file: the worker needs
 `RYAGRAM_SUPABASE_URL`, `RYAGRAM_SUPABASE_KEY`, `RYAGRAM_WORKER_EMAIL` and `RYAGRAM_WORKER_PASSWORD`. The URL is
-supabase.co. The worker's login email is an `@uselai.com` address, but it is only a login name: **it need not
-change**, and changing it risks the worker's sign-in. worker.toml's sections (engine, cache, datasets, work
-limits) name no web domain. **WORKER: please confirm no key in the live worker.toml or worker.env holds a
-uselai.com value (key NAMES only).**
+supabase.co. **WORKER confirmed (00:18, from the setup's template and live engine 4e38bd99, without opening the live
+config):** worker.toml holds NO web address. Its key names: top level `root`, `worker_id`, `poll_s`, `heartbeat_s`,
+`heartbeat_detail`, `memory_bytes`, `work_bytes`; `[engine]` `engine_dir`, `chrome`, `sequence_argv`, `sheet_argv`,
+`ladder_evidence_flag`, `frames_argv`, `bundle_versions`, `path_dirs`; `[engine.env]` `RYAGRAM_CACHE_DIR`,
+`RYAGRAM_CACHE_DIGEST_MEMO`, `CENSUS_API_KEY`, `RYAGRAM_WORKERS_CAP`; `[datasets]` `allow`; `[limits.*]` `wall_s`,
+`output_bytes`. worker.env holds the four names above. The engine has no "uselai" string anywhere, so no film
+names the domain. The only possible touch is the worker's login address in `RYAGRAM_WORKER_EMAIL`: the repo's tests
+use one on uselai.com, but the live value is unread. Password sign-in sends no mail, so the worker keeps signing
+in after a move. Only a password reset for it would need the old mailbox, and the old mailbox stays anyway.
+**Render PC step in the move: none.**
 
 ## 3. The order (nothing ever breaks)
 
