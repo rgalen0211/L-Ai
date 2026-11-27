@@ -1,0 +1,13 @@
+/* GAMES 11-27: the host screen of a live round of Guess the next line on the Games department page (assets/app-games.js). Big type for a screen across the room; 44 px buttons; no motion. */
+.games-host .gh-code{font-size:2.6rem;letter-spacing:.3em;font-weight:800;display:inline-block;padding:4px 14px;border:2px solid var(--line-strong,#7d7d89);border-radius:12px}
+.games-host .gh-code-line{font-size:1.2rem;margin:12px 0}
+.games-host .gh-heard{font-size:1.8rem;line-height:1.3;font-weight:700;margin:10px 0;overflow-wrap:anywhere}
+.games-host .gh-results{list-style:none;padding:0;display:grid;gap:8px}
+.games-host .gh-results li{padding:8px 10px;border:1px solid var(--line,#3a3a44);border-radius:10px}
+.games-host .gh-marks{display:block;margin-top:4px}
+.games-host .gh-mark{display:inline-block;margin:0 6px 4px 0;padding:2px 6px;border-radius:6px;border:1px solid var(--line,#3a3a44)}
+.games-host .gh-exact{border-color:#6fcf8f;font-weight:700}
+.games-host .gh-near{border-style:dashed;border-color:#e6c35a}
+.games-host .gh-missed{opacity:.75;text-decoration:line-through}
+.games-host button{min-height:44px}
+.games-host h2[tabindex="-1"]:focus{outline:none}

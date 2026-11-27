@@ -381,7 +381,8 @@
       // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list.
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
+        const extra = typeof location !== 'undefined' && /[?&]gameson/.test(location.search || '') ? ['games'] : [];      // ?gameson (GAMES 11-27): this account is on the games list too
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor', ...extra] : ['myFilms', ...extra]), error: null };      // ?editoron: this account is on the live-editor list too
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
