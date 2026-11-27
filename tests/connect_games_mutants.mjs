@@ -30,7 +30,25 @@ const mutants = [
   // what the answers hold
   ['the players page is an outside address', G, 'export const PLAYERS_PAGE_PATH = "/game-phone/";', 'export const PLAYERS_PAGE_PATH = "https://evil.example/game-phone/";'],
   ['the Games page path carries a key', G, 'export const GAMES_PAGE_PATH = "/app/#/d/games";', 'export const GAMES_PAGE_PATH = "/app/#/d/games?key=abc123";'],
-  ['the answer names the account of the person', G, 'ok(["Games is open for this person. How a round goes', 'ok(["Games is open for " + String(ctx.principal.userId) + ". How a round goes'],
+  ['the answer names the account of the person', G, 'ok(["Games is open for this person. How a game goes', 'ok(["Games is open for " + String(ctx.principal.userId) + ". How a game goes'],
+  // aligned to GAMES' page (11-27 09:0x): the games, the numbers, the steps and the notes must say what the page says
+  ['the second game is left out of the list', G, '  Object.freeze({ id: "fill_the_gap", label: "Fill the gap", line: "The host reads out a line with one word missing; everyone types the missing word on their phone." }),\n', ''],
+  ['the second game has another name than the page gives it', G, 'label: "Fill the gap"', 'label: "Fill in the blank"'],
+  ['the player limit differs from the page', G, 'players_max: 8,', 'players_max: 12,'],
+  ['the round time differs from the page', G, 'seconds_per_round: 45,', 'seconds_per_round: 60,'],
+  ['the number of rounds differs from the page', G, 'rounds_per_game: 5,', 'rounds_per_game: 10,'],
+  ['the room code length differs from the page', G, 'room_code_letters: 4 }', 'room_code_letters: 6 }'],
+  ['the least players differs from the page (a game could start with nobody)', G, 'players_min: 1,', 'players_min: 0,'],
+  ['a step names a button the page does not have', G, 'The host presses "Start the game"', 'The host presses "Begin the game"'],
+  ['a step tells the host to pick the game under another heading', G, 'Under "Which game?" the host picks', 'Under "Choose" the host picks'],
+  ['the steps say a phone needs a sign-in', G, 'No sign-in is needed on a phone.', 'Players sign in on their phones.'],
+  ['the notes no longer say the code is the only lock', G, '  "The room code is the only lock on a room, so it is meant for friends: the host should share it only with the people who are playing.",\n', ''],
+  ['the notes say the guesses are kept', G, 'are not kept. Closing', 'are kept. Closing'],
+  ['the notes say there is a video', G, 'and there is no video, so the host reads the line aloud.', 'and there is a video of each line.'],
+  ['the notes say it is free', G, 'Points follow one rule in both games:', 'Points are free. Points follow one rule in both games:'],
+  ['the notes are not given in the answer data', G, 'notes: [...ABOUT_THE_GAMES], ', ''],
+  ['the numbers are not given in the answer data', G, 'facts: { ...GAMES_FACTS },', ''],
+  ['the closed answer carries the numbers of the page', G, '{ ok: false, reason: "games_not_open" }', '{ ok: false, reason: "games_not_open", facts: GAMES_FACTS }'],
   ['the AI is told it can press things', G, '"press anything on the page", "see a room, its players or their guesses"', '"see a room, its players or their guesses"'],
   ['list_games answers an extra field about the account', G, '{ ok: true, games });', '{ ok: true, games, account: ctx.principal.userId });'],
   ['a tool writes something (a project)', G, 'const games = GAMES_OFFERED.map((g) => ({ ...g }));', 'const games = GAMES_OFFERED.map((g) => ({ ...g })); await ctx.data.createProject("x");'],
@@ -45,6 +63,8 @@ fs.cpSync(path.join(root, 'supabase/functions'), path.join(scratch, 'supabase/fu
 fs.cpSync(path.join(root, 'supabase/migrations'), path.join(scratch, 'supabase/migrations'), { recursive: true });   // the suite reads the departments seed
 fs.cpSync(path.join(root, 'game-phone'), path.join(scratch, 'game-phone'), { recursive: true });                      // and checks the players' page exists
 fs.copyFileSync(path.join(root, 'tests', SUITE), path.join(scratch, 'tests', SUITE));
+fs.mkdirSync(path.join(scratch, 'tests/fixtures'), { recursive: true });
+fs.copyFileSync(path.join(root, 'tests/fixtures/games-page-facts-1127.json'), path.join(scratch, 'tests/fixtures/games-page-facts-1127.json'));   // the facts copied from GAMES' page
 if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 
 const base = hung(run());

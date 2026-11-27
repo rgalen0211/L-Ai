@@ -29,7 +29,7 @@ const DEPTS = {
   games: {
     sw: 'games', id: 'games',
     tools: [['list_games', () => ({})], ['open_games_page', () => ({})]],
-    secrets: ['Guess the next line', 'guess_the_next_line', '/app/#/d/games', '/game-phone', 'room code', 'four-letter'],
+    secrets: ['Guess the next line', 'guess_the_next_line', '/app/#/d/games', '/game-phone', 'room code', 'four-letter', 'Fill the gap', 'fill_the_gap', 'Which game', 'Start the game', 'four letters', 'sample rounds'],
   },
   perfectCity: {
     sw: 'perfectCity', id: 'geo_intelligence',
