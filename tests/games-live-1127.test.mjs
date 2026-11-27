@@ -8,9 +8,9 @@ import vm from 'node:vm';
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const load = (files, extra = {}) => { const ctx = { window: {}, console, URLSearchParams, location: { hostname: 'uselai.com', search: '', hash: '', origin: 'https://uselai.com' }, crypto: globalThis.crypto, ...extra }; ctx.window = Object.assign(ctx.window, ctx); vm.createContext(ctx); for (const f of files) vm.runInContext(read(f), ctx, { filename: f }); return ctx.window; };
 
-test('SWITCH: games is exactly \'account\' (on only for an account whose list names it), with its undo in words', () => {
+test('SWITCH: games is true (launch step 82b: on for everyone), with its undo in words', () => {
   const cfg = read('assets/ryagram-config.js');
-  assert.match(cfg, /\r?\n  games: 'account',\r?\n/);
+  assert.match(cfg, /\r?\n  games: true,\r?\n/);
   assert.match(cfg, /Undo: false/);
   assert.match(cfg, /gameTv: false,/); assert.match(cfg, /gamePhone: false,/);           // the old sample pages' switches are unchanged
 });
@@ -177,4 +177,16 @@ test('OPENING ROOM: a room that never opens shows no code, Start or Try again; a
   assert.ok(st.log.indexOf('attr:role') < st.log.lastIndexOf('text'), 'role=alert is set before the words so a screen reader announces them');
   assert.ok(!/reload/i.test(st.textContent), 'the words say Try again, not reload');
   assert.match(st.textContent, /try again/i, 'the failure words say Try again');
+});
+
+test('LAUNCH FLIP (step 82b): with the shipped config (games: true) the Games page is on for a signed-in person whose account list is empty, and off with the old account value', async () => {
+  const cfgWin = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: cfgWin });
+  const sw = { ryagramConfig: cfgWin.ryagramConfig }; vm.runInNewContext(read('assets/app-switches.js'), { window: sw });
+  assert.equal(cfgWin.ryagramConfig.games, true);
+  await sw.ryagramSwitches.load({ mySwitches: async () => [] }, cfgWin.ryagramConfig);
+  assert.equal(sw.ryagramSwitches.featureOn('games'), true, 'on with no list');
+  sw.ryagramSwitches._reset();
+  const old = { ...cfgWin.ryagramConfig, games: 'account' };
+  await sw.ryagramSwitches.load({ mySwitches: async () => [] }, old);
+  assert.equal(sw.ryagramSwitches.featureOn('games', old), false, "control: 'account' and an empty list is off");
 });
