@@ -144,7 +144,8 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'checklist') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'what') is distinct from 'string' or char_length(btrim(e ->> 'what')) < 1 or char_length(e ->> 'what') > 200
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['what', 'from', 'must_contain', 'folder', 'count']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['id', 'what', 'from', 'must_contain', 'folder', 'count']))
+         or (e ? 'id' and (jsonb_typeof(e -> 'id') <> 'string' or (e ->> 'id') !~ '^[a-z0-9_-]{1,20}$'))
          or (e ? 'from' and (jsonb_typeof(e -> 'from') <> 'string' or char_length(e ->> 'from') > 200))
          or (e ? 'must_contain' and (jsonb_typeof(e -> 'must_contain') <> 'string' or char_length(e ->> 'must_contain') > 200))
          or (e ? 'count' and (jsonb_typeof(e -> 'count') <> 'number' or (e ->> 'count') !~ '^[0-9]+$' or coalesce((case when (e ->> 'count') ~ '^[0-9]{1,6}$' then (e ->> 'count')::int end), 0) not between 1 and 20)) then

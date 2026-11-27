@@ -54,9 +54,10 @@ union all select 8, 'a failed build gives one reason from the closed list of ele
 union all select 9, 'the desktop app can be given to an account with compilations on (as to a tester or an administrator)',
        coalesce(to_regprocedure('public.request_app_download(uuid,text)') is not null
          and replace(pg_get_functiondef(to_regprocedure('public.request_app_download(uuid,text)')), chr(13), '') like '%or ryagram_private.compilations_on(p_owner)) then%', false)
-union all select 10, 'the AI is told a compilations account may have the desktop app (connect_whoami, as for a tester or an administrator)',
+union all select 10, 'the AI is told a compilations account may have the desktop app (connect_whoami, as for a tester or an administrator, and it passes when the AI is not told about the app at all, 20261123000500 not applied)',
        coalesce(to_regprocedure('public.connect_whoami(text)') is not null
-         and replace(pg_get_functiondef(to_regprocedure('public.connect_whoami(text)')), chr(13), '') like '%or ryagram_private.compilations_on(me));%', false)
+         and (pg_get_functiondef(to_regprocedure('public.connect_whoami(text)')) not like '%desktop_app%'
+              or replace(pg_get_functiondef(to_regprocedure('public.connect_whoami(text)')), chr(13), '') like '%or ryagram_private.compilations_on(me))%'), false)
 )
 select 1 as n, case when (select bool_and(ok) from c) then 'PASS: compilations can be switched on per account' else 'STOP: a row below is false (before the change this is expected)' end as check_name,
        (select bool_and(ok) from c) as ok

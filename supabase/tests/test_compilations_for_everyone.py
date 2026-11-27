@@ -363,7 +363,7 @@ class Compilations(unittest.TestCase):
         self.switch_on(OTHER)
         pid = self.project()
         self.assertRegex(self.put(pid), r"^[0-9a-f]{64}$")
-        self.d().execute("insert into public.account_status (user_id, status, source) values (%s, 'waiting', 'signup')", (OTHER,))
+        self.d().execute("insert into public.account_status (user_id, status, source) values (%s, 'waiting', 'signup') on conflict (user_id) do update set status = 'waiting'", (OTHER,))
         self.assertFalse(self.admin("select ryagram_private.compilations_on(%s)", OTHER), "a waiting account is never on")
         self.d().execute("update public.account_status set status = 'active' where user_id = %s", (OTHER,))
         self.assertTrue(self.admin("select ryagram_private.compilations_on(%s)", OTHER), "and on again once it is active")
@@ -453,11 +453,14 @@ class Compilations(unittest.TestCase):
                  dict(REQ, texts=[{"text": "hi", "start_s": 0, "length_s": 2, "position": "top", "colour": "red"}]),
                  dict(REQ, cards=[{"text": "hi", "where": "start", "seconds": 2, "extra": 1}]),
                  dict(REQ, folders=["Holiday 2025"], checklist=[{"what": "the launch", "folder": "Holiday 2025", "count": 1234567}]),
-                 dict(REQ, folders=["Holiday 2025"], checklist=[{"what": "the launch", "folder": "Holiday 2025", "count": 1, "link": "x"}])]
+                 dict(REQ, folders=["Holiday 2025"], checklist=[{"what": "the launch", "folder": "Holiday 2025", "count": 1, "link": "x"}]),
+                 dict(REQ, folders=["Holiday 2025"], checklist=[{"id": "../c1", "what": "the launch", "folder": "Holiday 2025", "count": 1}]),
+                 dict(REQ, folders=["Holiday 2025"], checklist=[{"id": 1, "what": "the launch", "folder": "Holiday 2025", "count": 1}])]
         for c in cases:
             with self.subTest(c=str(c)[-90:]):
                 self.refused(self.put, pid, c, code="22023")
         self.assertRegex(self.put(pid, dict(REQ, folders=["Holiday 2025"], checklist=[{"what": "the launch", "folder": "Holiday 2025", "count": 20}])), r"^[0-9a-f]{64}$")
+        self.assertRegex(self.put(pid, dict(REQ, folders=["Holiday 2025"], checklist=[{"id": "c1", "what": "the launch", "folder": "Holiday 2025", "count": 2}])), r"^[0-9a-f]{64}$", "the AI's checklist items carry an id (CONNECT tools.ts): allowed, short and plain")
 
     # ------------------------------------------------------------------ CONNECT 09:46: the desktop app for a compilations account
     def test_a_compilations_account_can_be_given_the_desktop_app_and_a_plain_account_still_cannot(self):
