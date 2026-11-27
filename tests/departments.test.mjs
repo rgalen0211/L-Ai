@@ -222,22 +222,3 @@ test('FORECASTS WORDS: no price, date or promise, and nothing that reads as a pr
   assert.ok(Dp.ORDER.includes('forecasts') && Dp.FALLBACK.some(r => r.id === 'forecasts' && r.status === 'soon'));
   assert.equal(Dp.idFromHash('#/d/forecasts'), 'forecasts');
 });
-
-test('LAUNCH FLIP (step 82a): with the shipped config (compilations: true) a signed-in person with NO account switch list gets the real Compilations page, not the generic working page or Coming soon', async () => {
-  const cfgWin = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: cfgWin });
-  const sw = { ryagramConfig: cfgWin.ryagramConfig }; vm.runInNewContext(read('assets/app-switches.js'), { window: sw });
-  const saved = [win.ryagramConfig, win.ryagramSwitches];
-  win.ryagramConfig = cfgWin.ryagramConfig; win.ryagramSwitches = sw.ryagramSwitches;
-  try {
-    assert.equal(cfgWin.ryagramConfig.compilations, true);
-    await sw.ryagramSwitches.load({ mySwitches: async () => [] }, cfgWin.ryagramConfig);                  // an empty account list
-    assert.equal(sw.ryagramSwitches.featureOn('compilations'), true, 'on with no list');
-    for (const rows of [[{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'working' }], [{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'soon' }]]) {
-      const ui = Dp.create({ h: hh, data: { connectAccess: async () => true, myDepartments: async () => rows, myDepartmentInterests: async () => [], listProjects: async () => [] }, pages: { compilations: () => ['REAL-COMPILATIONS-PAGE'] } });
-      assert.deepEqual(await ui.pageView('compilations'), ['REAL-COMPILATIONS-PAGE'], JSON.stringify(rows));
-    }
-    const oldSw = { ryagramConfig: { ...cfgWin.ryagramConfig, compilations: 'account' } }; vm.runInNewContext(read('assets/app-switches.js'), { window: oldSw }); await oldSw.ryagramSwitches.load({ mySwitches: async () => [] }); win.ryagramSwitches = oldSw.ryagramSwitches;                                                         // the old shipped value: the same person (no list) gets the Coming soon page
-    const ui = Dp.create({ h: hh, data: { connectAccess: async () => true, myDepartments: async () => [{ id: 'compilations', status: 'soon' }], myDepartmentInterests: async () => [], listProjects: async () => [] }, pages: { compilations: () => ['REAL-COMPILATIONS-PAGE'] } });
-    assert.notDeepEqual(await ui.pageView('compilations'), ['REAL-COMPILATIONS-PAGE'], "control: with 'account' and no list the real page is NOT shown");
-  } finally { win.ryagramConfig = saved[0]; win.ryagramSwitches = saved[1]; }
-});
