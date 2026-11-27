@@ -30,7 +30,7 @@ THIRD = "55555555-5555-5555-5555-555555555555"
 MIG = core.ROOT / "migrations" / "20261127000300_compilations_for_everyone.sql"
 RB = core.ROOT / "rollbacks" / "20261127000300_compilations_for_everyone_rollback.sql"
 STEP = core.ROOT / "live-steps" / "81_compilations_check.sql"
-REQ = {"schema": "ryagram.compilation-request/0", "phrase": "great news", "search": "every", "mode": "phrase", "folders": ["Holiday 2025"], "note": "short ones first"}
+REQ = {"schema": "ryagram.compilation-request/0", "phrase": "great news", "search": "every", "folders": ["Holiday 2025"], "note": "short ones first"}
 setUpModule = credits.setUpModule
 
 
@@ -82,9 +82,9 @@ class Compilations(unittest.TestCase):
         return self.runner().one("select node_compilation_report(%s::text, %s::uuid, %s::text, %s::text, %s::int, %s::int, %s::numeric, %s::text)", h(token), pid, sha, state,
                                  kw.get("matches"), kw.get("clips"), kw.get("film_seconds"), kw.get("error"))
 
-    def refused(self, call, *args, code=None):
+    def refused(self, call, *args, code=None, **kw):
         with self.assertRaises(psycopg.Error) as cm:
-            call(*args)
+            call(*args, **kw)
         if code:
             self.assertEqual(cm.exception.sqlstate, code, cm.exception.diag.message_primary)
         return cm.exception.diag.message_primary
@@ -223,8 +223,8 @@ class Compilations(unittest.TestCase):
         self.assertIn("Another compilation is still being made", self.refused(self.report, tok, b, sb, "planning", code="55000"))
         self.report(tok, a, sa, "cancelled")
         self.report(tok, b, sb, "planning")
-        self.report(tok, b, sb, "failed", error="no_speech_model")
-        self.assertEqual(self.admin("select error_code from compilation_runs where project_id = %s", b), "no_speech_model")
+        self.report(tok, b, sb, "failed", error="no_speech")
+        self.assertEqual(self.admin("select error_code from compilation_runs where project_id = %s", b), "no_speech")
         self.d().execute("insert into compilation_runs (owner_id, project_id, request_sha256, state, ended_at) select %s, %s, %s, 'done', now() from generate_series(1, 28)", (OTHER, a, sa))
         self.assertIn("30 compilations", self.refused(self.report, tok, a, sa, "planning", code="PT429"))
         self.d().execute("update compilation_runs set started_at = now() - interval '25 hours'")
@@ -280,6 +280,7 @@ class Compilations(unittest.TestCase):
         self.switch_on(OTHER)
         pid, tok = self.project(), self.sign_in(OTHER)
         sha = self.put(pid)
+        self.report(tok, pid, sha, "planning")
         self.report(tok, pid, sha, "building")
         self.assertIn("already moved past", self.refused(self.report, tok, pid, sha, "planning", code="22023"))
         self.report(tok, pid, sha, "done")
@@ -296,9 +297,9 @@ class Compilations(unittest.TestCase):
         for k in ("filePath", "folder_path", "uri", "href", "src", "dir", "location"):
             with self.subTest(k=k):
                 self.refused(self.put, pid, dict(REQ, **{k: "x"}), code="22023")
-        for ok in (["Rock & Roll"], ["Q3/Q4 talks"], ["A:B"], ["Sam's videos", "Holiday 2025"]):
+        for ok in (["Rock & Roll"], ["Sam's videos", "Holiday 2025"]):
             with self.subTest(ok=ok):
-                self.assertRegex(self.put(pid, dict(REQ, folders=ok, note="a phrase about http and files")), r"^[0-9a-f]{64}$")
+                self.assertRegex(self.put(pid, dict(REQ, folders=ok, note="a phrase about http and files, Q3/Q4 talks, an A:B ratio")), r"^[0-9a-f]{64}$")
 
     def test_a_compilations_only_computer_reaches_only_its_own_rows(self):
         self.switch_on(OTHER); self.switch_on(THIRD)
@@ -306,6 +307,86 @@ class Compilations(unittest.TestCase):
         self.assertEqual(self.runner().one("select node_download_plans(%s)", h(tok)), [])
         self.assertEqual(self.runner().one("select node_footage_plans(%s)", h(tok)), [])
         self.assertIn("redeploy the node function", STEP.read_text(encoding="utf-8"))
+
+    # ------------------------------------------------------------------ the reviews' rules (CC1 09:10, RENDERER 09:13, FACES 09:18)
+    def test_a_request_keeps_the_connectors_own_rules(self):
+        self.switch_on(OTHER)
+        pid = self.project()
+        bad = {
+            "a part Ryagram does not know": dict(REQ, mode="phrase"),
+            "Give the words to look for": dict(REQ, phrase=""),
+            "Give the words to look for ": dict(REQ, phrase="x" * 201),
+            "How to look": dict(REQ, search="sometimes"),
+            "Name 1 to 10 folders.": dict(REQ, folders=[]),
+            "Name 1 to 10 folders. ": dict(REQ, folders=[f"f{i}" for i in range(11)]),
+            "A folder is a NAME": dict(REQ, folders=["."]),
+            "A folder is a NAME ": dict(REQ, folders=["Q3/Q4 talks"]),
+            "A folder is a NAME  ": dict(REQ, folders=["A:B"]),
+            "A folder is a NAME   ": dict(REQ, folders=["x" * 81]),
+            "A folder is a NAME    ": dict(REQ, folders=[7]),
+            "Songs are not open": dict(REQ, song=True),
+            "That compilation request is not valid.": dict(REQ, clean_cuts="yes"),
+            "The note can be at most 500": dict(REQ, note="n" * 501),
+            "Clip labels": dict(REQ, clip_labels="everything"),
+            "Each picture rule": dict(REQ, rules=[{"phrase": "a", "picture": "p.gif", "seconds": 2, "mode": "full"}]),
+            "Each picture rule ": dict(REQ, rules=[{"phrase": "a", "picture": "p.png", "seconds": 11, "mode": "full"}]),
+            "Each picture rule  ": dict(REQ, rules=[{"phrase": "a", "picture": "p.png", "seconds": "2", "mode": "full"}]),
+            "At most 20 picture rules.": dict(REQ, rules=[{"phrase": "a", "picture": "p.png", "seconds": 2, "mode": "full"}] * 21),
+            "Each text": dict(REQ, texts=[{"text": "t", "start_s": 0, "length_s": 31, "position": "top"}]),
+            "At most 4 cards.": dict(REQ, cards=[{"text": "c", "where": "start", "seconds": 2}] * 5),
+            "Each card": dict(REQ, cards=[{"text": "c", "where": "middle", "seconds": 2}]),
+            "At most 12 checklist items.": dict(REQ, checklist=[{"what": "w", "folder": "Holiday 2025"}] * 13),
+            "Each checklist item": dict(REQ, checklist=[{"what": "w", "folder": "Holiday 2025", "count": 21}]),
+            "A checklist item names a folder that is not": dict(REQ, checklist=[{"what": "w", "folder": "Elsewhere"}]),
+            "names a site in words": dict(REQ, checklist=[{"what": "the launch", "from": "www.archives.gov", "folder": "Holiday 2025"}]),
+        }
+        for words, req in bad.items():
+            with self.subTest(words=words.strip()):
+                self.assertIn(words.strip(), self.refused(self.put, pid, req, code="22023"))
+        self.assertIsNone(self.admin("select request from compilation_requests where project_id = %s", pid), "nothing was written")
+        good = dict(REQ, song=False, clean_cuts=True, clip_labels="file_and_time", search="words",
+                    rules=[{"phrase": "a", "picture": "logo.PNG", "seconds": 0.5, "mode": "lower_third"}],
+                    texts=[{"text": "Hello", "start_s": 0, "length_s": 3, "position": "bottom", "size": "large"}],
+                    cards=[{"text": "The end", "where": "end", "seconds": 2}],
+                    checklist=[{"what": "the 1969 launch, wide", "from": "the National Archives", "must_contain": "the rocket", "folder": "Holiday 2025", "count": 2}])
+        self.assertRegex(self.put(pid, good), r"^[0-9a-f]{64}$", "a request that uses every part within its limits is saved")
+
+    def test_a_waiting_account_is_off(self):
+        self.switch_on(OTHER)
+        pid = self.project()
+        self.assertRegex(self.put(pid), r"^[0-9a-f]{64}$")
+        self.d().execute("insert into public.account_status (user_id, status, source) values (%s, 'waiting', 'signup')", (OTHER,))
+        self.assertFalse(self.admin("select ryagram_private.compilations_on(%s)", OTHER), "a waiting account is never on")
+        self.d().execute("update public.account_status set status = 'active' where user_id = %s", (OTHER,))
+        self.assertTrue(self.admin("select ryagram_private.compilations_on(%s)", OTHER), "and on again once it is active")
+
+    def test_the_report_gives_a_reason_only_for_a_failed_build_and_only_from_the_closed_list(self):
+        self.switch_on(OTHER)
+        pid, tok = self.project(), self.sign_in(OTHER)
+        sha = self.put(pid)
+        self.report(tok, pid, sha, "planning")
+        self.assertIn("Only a failed build has a reason", self.refused(self.report, tok, pid, sha, "matching", error="crash", code="22023"))
+        self.assertIn("A failed build needs its reason", self.refused(self.report, tok, pid, sha, "failed", code="22023"))
+        self.assertIn("not a reason Ryagram knows", self.refused(self.report, tok, pid, sha, "failed", error="no_speech_model", code="22023"))
+        self.assertIn("set by Ryagram itself", self.refused(self.report, tok, pid, sha, "failed", error="stale", code="22023"))
+        self.assertIn("matches and clips are whole numbers", self.refused(self.report, tok, pid, sha, "matching", matches=100001, code="22023"))
+        self.assertIn("film length is 0 to 86400", self.refused(self.report, tok, pid, sha, "done", film_seconds=-1, code="22023"))
+        for c in ("request_invalid", "song_request", "folder_not_chosen", "folder_missing", "folder_empty", "folders_overlap", "no_speech", "not_said", "edit_failed", "build_failed", "crash"):
+            with self.subTest(code=c):
+                self.report(tok, pid, sha, "planning")
+                self.report(tok, pid, sha, "failed", error=c)
+                self.assertEqual(self.admin("select error_code from compilation_runs where owner_id = %s order by id desc limit 1", OTHER), c)
+
+    def test_a_new_build_starts_at_planning(self):
+        self.switch_on(OTHER)
+        pid, tok = self.project(), self.sign_in(OTHER)
+        sha = self.put(pid)
+        self.report(tok, pid, sha, "planning")
+        self.report(tok, pid, sha, "done")
+        for late in ("matching", "building"):
+            with self.subTest(late=late):
+                self.assertIn("That build already ended. Start a new one.", self.refused(self.report, tok, pid, sha, late, code="22023"))
+        self.assertEqual(self.admin("select count(*) from compilation_runs where owner_id = %s", OTHER), 1, "a late report never starts a second run")
 
     # ------------------------------------------------------------------ the top bar
     def test_the_top_bar_shows_a_department_working_only_to_an_account_with_its_switch(self):

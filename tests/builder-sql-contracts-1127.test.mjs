@@ -18,6 +18,13 @@ const WORDS = [
   ['Compilations are not open for this account yet.', '42501'],
   ['Project not found.', 'PT404'],
   ['That is not a compilation state.', '22023'],
+  ['That reason is set by Ryagram itself, never by the computer.', '22023'],
+  ['That is not a reason Ryagram knows for a build to stop.', '22023'],
+  ['A failed build needs its reason.', '22023'],
+  ['Only a failed build has a reason.', '22023'],
+  ['The matches and clips are whole numbers from 0 to 100000.', '22023'],
+  ['The film length is 0 to 86400 seconds.', '22023'],
+  ['That build already ended. Start a new one.', '22023'],
   ['Another compilation is still being made on your computer. Let it finish or cancel it first.', '55000'],
   ['That compilation was not started.', '22023'],
   ["That request is not the project''s current one. Load it again.", 'PT404'],
@@ -29,7 +36,26 @@ const REQUEST_WORDS = [                                   // returned by compila
   'That compilation request is not valid.',
   'That compilation request is too long.',
   'A compilation request holds folder names and a phrase only, never a file, a path or a link.',
+  // the request's own rules (the connector's schema and the page's buildRequest; CC1 09:10, FACES 09:18)
+  'Give the words to look for, at most 200 characters.',
+  'How to look must be every time it is said, or these words in this order.',
+  'Name 1 to 10 folders.',
+  'A folder is a NAME of 1 to 80 characters, never . or .., and without \\ / : * ? " < > |.',
+  'Songs are not open in compilations yet: they are made in the song tools.',
+  'The note can be at most 500 characters.',
+  'Clip labels are file, or file and time.',
+  'At most 20 picture rules.',
+  'Each picture rule needs its words (at most 200 characters), a picture name, 0.5 to 10 seconds and a place on screen.',
+  'At most 20 texts.',
+  'Each text needs its words (at most 120 characters), a start, a length of 0.5 to 30 seconds and a place on screen.',
+  'At most 4 cards.',
+  'Each card needs its words (at most 120 characters), start or end, and 0.5 to 10 seconds.',
+  'At most 12 checklist items.',
+  'Each checklist item needs what footage to get (at most 200 characters), and at most 20 files.',
+  "A checklist item names a folder that is not in the request''s folders.",
+  'The checklist names a site in words (like the National Archives), never a web address.',
 ];
+const REPORT_CODES = ['request_invalid', 'song_request', 'folder_not_chosen', 'folder_missing', 'folder_empty', 'folders_overlap', 'no_speech', 'not_said', 'edit_failed', 'build_failed', 'crash'];
 
 test('the three signatures are exactly as posted to WEB, CONNECT and FACES', () => {
   const c = code(SQL).replace(/\s+/g, ' ');
@@ -55,6 +81,11 @@ test('the node route calls node_compilation_report with the SQL argument types a
   const fnStates = /p_state not in \(([^)]+)\)/.exec(SQL)[1].split(',').map(s => s.trim().replace(/^'|'$/g, ''));
   assert.deepEqual(set(fnStates), set(sqlStates), 'the function and the table agree too');
   assert.match(ROUTER, /const REPORT_ROUTE = "\/node\/compilation-report";/);
+  const routeCodes = JSON.parse(/const REPORT_CODES = (\[[^\]]+\]);/.exec(ROUTER)[1]);
+  const sqlCodes = /codes constant text\[\] := array\[([^\]]+)\]/.exec(SQL)[1].split(',').map(s => s.trim().replace(/^'|'$/g, ''));
+  assert.deepEqual(set(routeCodes), set(REPORT_CODES), 'the route closes the same list');
+  assert.deepEqual(set(sqlCodes), set(REPORT_CODES), 'the SQL closes the same list');
+  assert.ok(!sqlCodes.includes('stale') && /p_error_code = 'stale' then/.test(SQL), "'stale' is set by the server only");
 });
 
 test('every refusal sentence of the 0300 SQL is in WORDS with its errcode, and nothing else is', () => {

@@ -10,10 +10,14 @@
 --       computer. Read from the LIVE text, one clause replaced; refused in words if that clause is not there exactly once. Such a computer claims NO job (node_claim refuses a non-tester),
 --       but like a tester's computer it can read and write that person's OWN editor summaries, download plans and footage plans through the existing node_* calls (their own rows only).
 --   (3) THE SITE'S OWN WRITE: public.my_compilation_set(project, request) (the person in the app, their own project, the connector's schema ryagram.compilation-request/0, at most 32 KB, NO path,
---       URL or file anywhere in it, at most 60 saves an hour) and public.my_compilation_get(project) (the request and the newest run report, or null).
+--       URL or file anywhere in it, at most 60 saves an hour) and public.my_compilation_get(project) (the request and the newest run report, or null). A request also keeps the
+--       connector's own rules (CC1 09:10, FACES 09:18): the twelve known parts only, a phrase of 1 to 200 characters, 1 to 10 folder NAMES (no / \ : * ? " < > |, never . or ..), songs not
+--       open, a note of at most 500, at most 20 picture rules, 20 texts, 4 cards and 12 checklist items (each within the connector's limits, a checklist folder from the folders).
 --   (4) WHAT THE PC REPORTS BACK, DATA ONLY: public.compilation_runs (state, counts, seconds, an error code; no path, no transcript, no video), written ONLY by public.node_compilation_report through
 --       the computer's own token (node_runner): a new build only for the project's CURRENT request, the running one always closable with its own; one active build per account, a build
---       silent for 2 hours closed as 'stale'; states only move forward; at most 30 builds started a day; 60 saves in any clock hour.
+--       silent for 2 hours closed as 'stale'; states only move forward; a new build starts at planning; a failed build gives one reason from the closed list of eleven (only the server
+--       sets 'stale'), any other state none; counts and seconds within range in plain words; at most 30 builds started a day; 600 reports and 60 saves in any clock hour.
+--       A WAITING account is off (account_active).
 --   (5) CREDITS: none. A compilation runs on the person's own computer: nothing here reads or writes the credit ledger.
 -- Apply AFTER: 20261127000250_department_switches.sql (department_switch_on), 20261026000300/400 (compilation requests), 20261021000100_r9_render_node.sql (device codes, node_actor, node_user_hit), 20261110000400_account_switches.sql (switches_on),
 --   20261104000100_waiting_accounts.sql (the gate; this file ends with gate_apply()).
@@ -25,6 +29,7 @@ create function ryagram_private.compilations_on(p_person uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
   select p_person is not null
      and not exists (select 1 from public.workers w where w.user_id = p_person)
+     and ryagram_private.account_active(p_person)                       -- a WAITING account is off (20261104000100; CC1 09:10)
      and (ryagram_private.department_switch_on(p_person, 'compilations')
           or exists (select 1 from public.departments d where d.id = 'compilations' and d.status = 'working' and not d.needs_local_compute))
 $$;
@@ -33,7 +38,7 @@ revoke execute on function ryagram_private.compilations_on(uuid) from public, an
 -- a request is DATA: refuse anything that names a file, a path or a link, at any depth
 create function ryagram_private.compilation_request_problem(p jsonb) returns text
 language plpgsql immutable set search_path = '' as $$
-declare t text; v text;
+declare t text; v text; k text; e jsonb; f text; names text[] := '{}';
 begin
   if p is null or jsonb_typeof(p) <> 'object' or p ->> 'schema' is distinct from 'ryagram.compilation-request/0' then
     return 'That compilation request is not valid.';
@@ -51,6 +56,99 @@ begin
   v := regexp_replace(v, '[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]', '', 'g');
   if v ~* '([a-z]:[\\/]|\\\\[a-z0-9]|(^|[^a-z0-9._-])/(users|home|mnt|volumes|private|tmp|var|media|etc|srv|opt|root)/|[a-z][a-z0-9+.-]*://|%2f|%5c|%3a|(^|\s)~[a-z0-9_]*[/\\]|%[a-z_]+%|\$home\y|[\uff0f\uff3c\u2215\uff1a])' then
     return 'A compilation request holds folder names and a phrase only, never a file, a path or a link.';
+  end if;
+  -- THE REQUEST'S OWN RULES, the same as the connector's set_compilation_request schema (supabase/functions/connect-core/tools.ts, NAME_PATTERN and its limits) and the page's buildRequest
+  -- (assets/app-compilations.js): CC1 09:10 and FACES 09:18. Only the twelve known parts; a phrase; 1 to 10 folder NAMES; songs are not open; every list within its limits.
+  for k in select jsonb_object_keys(p) loop
+    if k <> all (array['schema', 'phrase', 'search', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist']) then
+      return 'That compilation request has a part Ryagram does not know: ' || left(k, 40) || '.';
+    end if;
+  end loop;
+  if jsonb_typeof(p -> 'phrase') is distinct from 'string' or char_length(btrim(p ->> 'phrase')) not between 1 and 200 then
+    return 'Give the words to look for, at most 200 characters.';
+  end if;
+  if p ? 'search' and (jsonb_typeof(p -> 'search') <> 'string' or (p ->> 'search') not in ('every', 'words')) then
+    return 'How to look must be every time it is said, or these words in this order.';
+  end if;
+  if jsonb_typeof(p -> 'folders') is distinct from 'array' or jsonb_array_length(p -> 'folders') not between 1 and 10 then
+    return 'Name 1 to 10 folders.';
+  end if;
+  for e in select x from jsonb_array_elements(p -> 'folders') x loop
+    f := case when jsonb_typeof(e) = 'string' then btrim(e #>> '{}') end;
+    if f is null or char_length(f) not between 1 and 80 or f in ('.', '..') or f ~ '[\\/:*?"<>|[:cntrl:]]' then
+      return 'A folder is a NAME of 1 to 80 characters, never . or .., and without \ / : * ? " < > |.';
+    end if;
+    names := names || f;
+  end loop;
+  if (p ? 'song' and jsonb_typeof(p -> 'song') <> 'boolean') or (p ? 'clean_cuts' and jsonb_typeof(p -> 'clean_cuts') <> 'boolean') then
+    return 'That compilation request is not valid.';
+  end if;
+  if coalesce((p ->> 'song')::boolean, false) then
+    return 'Songs are not open in compilations yet: they are made in the song tools.';
+  end if;
+  if p ? 'note' and (jsonb_typeof(p -> 'note') <> 'string' or char_length(p ->> 'note') > 500) then
+    return 'The note can be at most 500 characters.';
+  end if;
+  if p ? 'clip_labels' and (jsonb_typeof(p -> 'clip_labels') <> 'string' or (p ->> 'clip_labels') not in ('file', 'file_and_time')) then
+    return 'Clip labels are file, or file and time.';
+  end if;
+  if p ? 'rules' then
+    if jsonb_typeof(p -> 'rules') <> 'array' or jsonb_array_length(p -> 'rules') > 20 then
+      return 'At most 20 picture rules.';
+    end if;
+    for e in select x from jsonb_array_elements(p -> 'rules') x loop
+      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'phrase') is distinct from 'string' or char_length(btrim(e ->> 'phrase')) not between 1 and 200
+         or jsonb_typeof(e -> 'picture') is distinct from 'string' or (e ->> 'picture') !~* '^[^\\/:*?"<>|[:cntrl:]]{1,100}\.(png|jpg|jpeg|webp)$'
+         or jsonb_typeof(e -> 'seconds') is distinct from 'number' or (case when jsonb_typeof(e -> 'seconds') = 'number' then (e ->> 'seconds')::numeric end) not between 0.5 and 10
+         or jsonb_typeof(e -> 'mode') is distinct from 'string' or (e ->> 'mode') not in ('full', 'centre', 'corner', 'lower_third') then
+        return 'Each picture rule needs its words (at most 200 characters), a picture name, 0.5 to 10 seconds and a place on screen.';
+      end if;
+    end loop;
+  end if;
+  if p ? 'texts' then
+    if jsonb_typeof(p -> 'texts') <> 'array' or jsonb_array_length(p -> 'texts') > 20 then
+      return 'At most 20 texts.';
+    end if;
+    for e in select x from jsonb_array_elements(p -> 'texts') x loop
+      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) not between 1 and 120
+         or jsonb_typeof(e -> 'start_s') is distinct from 'number' or (case when jsonb_typeof(e -> 'start_s') = 'number' then (e ->> 'start_s')::numeric end) not between 0 and 3600
+         or jsonb_typeof(e -> 'length_s') is distinct from 'number' or (case when jsonb_typeof(e -> 'length_s') = 'number' then (e ->> 'length_s')::numeric end) not between 0.5 and 30
+         or jsonb_typeof(e -> 'position') is distinct from 'string' or (e ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')
+         or (e ? 'size' and (jsonb_typeof(e -> 'size') <> 'string' or (e ->> 'size') not in ('small', 'medium', 'large'))) then
+        return 'Each text needs its words (at most 120 characters), a start, a length of 0.5 to 30 seconds and a place on screen.';
+      end if;
+    end loop;
+  end if;
+  if p ? 'cards' then
+    if jsonb_typeof(p -> 'cards') <> 'array' or jsonb_array_length(p -> 'cards') > 4 then
+      return 'At most 4 cards.';
+    end if;
+    for e in select x from jsonb_array_elements(p -> 'cards') x loop
+      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) not between 1 and 120
+         or jsonb_typeof(e -> 'where') is distinct from 'string' or (e ->> 'where') not in ('start', 'end')
+         or jsonb_typeof(e -> 'seconds') is distinct from 'number' or (case when jsonb_typeof(e -> 'seconds') = 'number' then (e ->> 'seconds')::numeric end) not between 0.5 and 10 then
+        return 'Each card needs its words (at most 120 characters), start or end, and 0.5 to 10 seconds.';
+      end if;
+    end loop;
+  end if;
+  if p ? 'checklist' then
+    if jsonb_typeof(p -> 'checklist') <> 'array' or jsonb_array_length(p -> 'checklist') > 12 then
+      return 'At most 12 checklist items.';
+    end if;
+    for e in select x from jsonb_array_elements(p -> 'checklist') x loop
+      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'what') is distinct from 'string' or char_length(btrim(e ->> 'what')) not between 1 and 200
+         or (e ? 'from' and (jsonb_typeof(e -> 'from') <> 'string' or char_length(e ->> 'from') > 200))
+         or (e ? 'must_contain' and (jsonb_typeof(e -> 'must_contain') <> 'string' or char_length(e ->> 'must_contain') > 200))
+         or (e ? 'count' and (jsonb_typeof(e -> 'count') <> 'number' or (e ->> 'count') !~ '^[0-9]+$' or (case when (e ->> 'count') ~ '^[0-9]{1,6}$' then (e ->> 'count')::int end) not between 1 and 20)) then
+        return 'Each checklist item needs what footage to get (at most 200 characters), and at most 20 files.';
+      end if;
+      if jsonb_typeof(e -> 'folder') is distinct from 'string' or btrim(e ->> 'folder') <> all (names) then
+        return 'A checklist item names a folder that is not in the request''s folders.';
+      end if;
+      if concat_ws(' ', e ->> 'what', e ->> 'from', e ->> 'must_contain') ~* '(\mwww\.|\m[a-z0-9-]+\.(com|org|net|gov|edu|io|co|us|uk)\M)' then
+        return 'The checklist names a site in words (like the National Archives), never a web address.';
+      end if;
+    end loop;
   end if;
   return null;
 end $$;
@@ -120,12 +218,32 @@ create function public.node_compilation_report(p_access_hash text, p_project uui
 returns bigint
 language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.node_actor(p_access_hash); run public.compilation_runs; started int;
+        codes constant text[] := array['request_invalid', 'song_request', 'folder_not_chosen', 'folder_missing', 'folder_empty', 'folders_overlap', 'no_speech', 'not_said', 'edit_failed', 'build_failed', 'crash'];   -- the closed list the app reports (FACES docs/COMPILATION-REPORT-1127.md; WEB and CONNECT word the same eleven)
 begin
   if not ryagram_private.compilations_on(me) then
     raise exception 'Compilations are not open for this account yet.' using errcode = '42501';
   end if;
+  perform ryagram_private.node_user_hit(me, 'compilation_report', 600, 3600);
   if p_state is null or p_state not in ('planning', 'matching', 'building', 'done', 'failed', 'cancelled') then
     raise exception 'That is not a compilation state.' using errcode = '22023';
+  end if;
+  if p_error_code = 'stale' then
+    raise exception 'That reason is set by Ryagram itself, never by the computer.' using errcode = '22023';
+  end if;
+  if p_error_code is not null and p_error_code <> all (codes) then
+    raise exception 'That is not a reason Ryagram knows for a build to stop.' using errcode = '22023';
+  end if;
+  if p_state = 'failed' and p_error_code is null then
+    raise exception 'A failed build needs its reason.' using errcode = '22023';
+  end if;
+  if p_state <> 'failed' and p_error_code is not null then
+    raise exception 'Only a failed build has a reason.' using errcode = '22023';
+  end if;
+  if p_matches not between 0 and 100000 or p_clips not between 0 and 100000 then
+    raise exception 'The matches and clips are whole numbers from 0 to 100000.' using errcode = '22023';
+  end if;
+  if p_film_seconds not between 0 and 86400 then
+    raise exception 'The film length is 0 to 86400 seconds.' using errcode = '22023';
   end if;
   perform pg_advisory_xact_lock(hashtextextended('compilation:' || me::text, 0));
   -- a build silent for 2 hours (a computer switched off mid-build) never blocks the next one
@@ -138,6 +256,9 @@ begin
   if run.id is null then
     if p_state in ('done', 'failed', 'cancelled') then
       raise exception 'That compilation was not started.' using errcode = '22023';
+    end if;
+    if p_state <> 'planning' then
+      raise exception 'That build already ended. Start a new one.' using errcode = '22023';
     end if;
     -- only a NEW build must be for the project's current request; a build already running keeps its own (the person may edit the request meanwhile)
     if not exists (select 1 from public.compilation_requests r join public.projects p on p.id = r.project_id

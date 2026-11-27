@@ -27,6 +27,9 @@ W.MUTANTS[:] = [
     ('3000 builds a day', '    if started >= 30 then', '    if started >= 3000 then'),
     ('invisible characters are not removed first', "  v := regexp_replace(v, '[\\u00ad\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f\\ufeff]', '', 'g');", '  v := v;'),
     ('a silent build is never closed as stale', "and updated_at < now() - interval '2 hours';", "and updated_at < now() - interval '2000 hours';"),
+    ('a song request accepted', "  if coalesce((p ->> 'song')::boolean, false) then", '  if false then'),
+    ('the closed list of reasons removed', '  if p_error_code is not null and p_error_code <> all (codes) then', '  if false then'),
+    ('a new build may start at matching', "    if p_state <> 'planning' then", '    if false then'),
     ('a run may move backwards', "  if array_position(array['planning', 'matching', 'building'], p_state) < array_position(array['planning', 'matching', 'building'], run.state) then", '  if false then'),
 ]
 

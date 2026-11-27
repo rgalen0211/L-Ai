@@ -13,6 +13,9 @@ begin
   if position(nw in def) > 0 then
     execute replace(def, nw, o);
   end if;
+  if position('compilations_on' in replace(pg_get_functiondef('public.device_decide(text, boolean)'::regprocedure), chr(13), '')) > 0 then
+    raise exception 'device_decide still names compilations_on: nothing was changed. Send this sentence to BUILDER.';
+  end if;
 end $do$;
 
 drop function public.node_compilation_report(text, uuid, text, text, int, int, numeric, text);

@@ -42,6 +42,8 @@ const COMPILATION_ROUTES = ["/node/compilation/status", "/node/compilation/start
 const REPORT_ROUTE = "/node/compilation-report";
 const RUN_STATES = ["planning", "matching", "building", "done", "failed", "cancelled"];
 const REPORT_KEYS = ["project_id", "request_sha256", "state", "matches", "clips", "film_seconds", "error_code"];
+/** The closed list of reasons the app may report for a failed build (the same eleven as the SQL, the page and the connector; 'stale' is set by the server only). */
+const REPORT_CODES = ["request_invalid", "song_request", "folder_not_chosen", "folder_missing", "folder_empty", "folders_overlap", "no_speech", "not_said", "edit_failed", "build_failed", "crash"];
 const FILE_KEYS = /^(path|paths|url|urls|file|files|filename|video|audio)$/i;
 /** The database's refusals for a report, by code, as FIXED sentences (the same words the SQL uses; the database's text itself is never sent). */
 function reportRefusal(e: unknown): Response | null {
@@ -242,6 +244,10 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
       if (!intIn(b.matches, 100000) || !intIn(b.clips, 100000)) return bad();
       if (!(b.film_seconds === undefined || b.film_seconds === null || (typeof b.film_seconds === "number" && Number.isFinite(b.film_seconds) && b.film_seconds >= 0 && b.film_seconds <= 86400))) return bad();
       if (!(b.error_code === undefined || b.error_code === null || (typeof b.error_code === "string" && /^[a-z_]{1,40}$/.test(b.error_code)))) return bad();
+      const reason = typeof b.error_code === "string" ? b.error_code : null;
+      if (reason !== null && !REPORT_CODES.includes(reason)) return fail(400, "invalid_request", "That is not a reason Ryagram knows for a build to stop.");
+      if (b.state === "failed" && reason === null) return fail(400, "invalid_request", "A failed build needs its reason.");
+      if (b.state !== "failed" && reason !== null) return fail(400, "invalid_request", "Only a failed build has a reason.");
       const who = await caller(req, d.salt);
       if (!(await d.db.hit(who, "compilation_report_ip", 120, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
       const n = (v: unknown) => (typeof v === "number" ? v : null);

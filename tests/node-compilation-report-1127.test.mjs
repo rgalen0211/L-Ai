@@ -96,12 +96,16 @@ test('bad shapes are refused BEFORE any database call', async () => {
     R('planning', { matches: -1 }), R('planning', { matches: 100001 }), R('planning', { matches: 1.5 }), R('planning', { clips: '3' }),
     R('done', { film_seconds: -1 }), R('done', { film_seconds: 86401 }), R('done', { film_seconds: 'long' }),
     R('failed', { error_code: 'Bad Code' }), R('failed', { error_code: 'x'.repeat(41) }), R('failed', { error_code: 7 }),
+    R('failed'), R('failed', { error_code: 'stale' }), R('failed', { error_code: 'no_speech_model' }), R('done', { error_code: 'crash' }), R('planning', { error_code: 'no_speech' }),
     R('planning', { note: 'hello' }), R('planning', { owner_id: ALICE }),
   ];
   world.calls.length = 0;
   for (const body of bad) assert.equal((await report(a, body)).status, 400, JSON.stringify(body));
   assert.deepEqual(world.calls, [], 'not one database call (not even the rate limit) for a malformed report');
   assert.equal((await report(a, R('planning', { matches: 0, clips: 100000, error_code: null }))).status, 200, 'control: the edges are accepted');
+  assert.equal((await report(a, R('failed', { error_code: 'no_speech' }))).status, 200, 'control: a failed build with a reason from the closed list is accepted');
+  const words = (await report(a, R('failed', { error_code: 'stale' }))).json;
+  assert.match(JSON.stringify(words), /That is not a reason Ryagram knows for a build to stop\./, "'stale' is the server's own reason, never the computer's");
 });
 
 test('a body naming a file, a path, a link, a video or a sound is refused in words, before the database', async () => {
