@@ -7,7 +7,7 @@
 (() => {
   const Q1 = [
     { id: 'data', label: 'A data film', blurb: 'A question answered with public data, drawn as a short animated film, with every source shown.' },
-    { id: 'compilation', label: 'A compilation of my own footage', blurb: 'Say a phrase and Ryagram saves your request. The app that makes the film is not open to everyone yet.' },   // FOR RYAN'S YES (web-intake-words-1127; FACES-COMPILATIONS-HONEST-LAUNCH-WORDS-1127): no film is promised, the Ryagram app is not open to everyone yet
+    { id: 'compilation', label: 'A compilation of my own footage', blurb: 'Save a request for a phrase. The app that makes the film is not open to everyone yet.' },   // FOR RYAN'S YES (web-intake-words-1127; FACES-COMPILATIONS-HONEST-LAUNCH-WORDS-1127): no film is promised, the Ryagram app is not open to everyone yet
     { id: 'song', label: 'A song film with real voices', blurb: 'Write the words of a song and pick the music; each word is built from a real take in your own videos.', flag: 'songIntake' },
     { id: 'soon', label: 'Something else', blurb: 'Maps you can question, games, cartoons. Not built yet: see what is coming.' }
   ];

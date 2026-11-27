@@ -10,7 +10,7 @@ test('INTAKE WORDS: the compilation choice says a request is saved and that the 
   const m = src.match(/id: 'compilation'.*?blurb: '([^']*)'/);
   assert.ok(m, 'the compilation blurb is there');
   assert.ok(m[1].split(/\s+/).length < 20, 'under 20 words');
-  assert.match(m[1], /saves your request/);
+  assert.match(m[1], /Save a request for a phrase/);
   assert.match(m[1], /not open to everyone yet/);
   assert.doesNotMatch(m[1], /strings together/);
   assert.match(fs.readFileSync(path.join(root, 'app/index.html'), 'utf8'), /app-intake\.js\?v=20261127x2/);
