@@ -48,10 +48,10 @@
   // exists, so with no files nothing shows. Alt text is the draft in proposals/DEPT-PAGES-STILLS-1105.md (made-up lines, a made-up county, SAMPLE numbers).
   const STILLS = {
     games: { name: 'games', label: 'Pictures of the Games page on a made-up night', alts: [
-      'A game on the TV: a trivia question with its answers, a timer, and who has answered so far.',
+      'The host screen during a round of Guess the next line: the start of a line, a timer, and how many guesses are in.',
       'The answers revealed: each player’s result marked with a word and a shape as well as a colour.',
       'The end of the night: the final scores.',
-      'A phone joining the game with a four-letter code and a name.'] },
+      'A phone joining the game with a six-letter code and a name.'] },
     geo_intelligence: { name: 'geo', label: 'Pictures of a site check on a made-up county', alts: [
       'A map of a made-up county, each neighbourhood shaded by how far it is from the nearest chicken restaurant, with the restaurants marked.',
       'Two made-up candidate sites on the same map, each with two rings and a panel of numbers, every number labelled.',
