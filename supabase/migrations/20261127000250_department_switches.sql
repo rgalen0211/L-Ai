@@ -9,7 +9,7 @@
 -- Apply AFTER: 20261027000100_departments.sql, 20261110000400_account_switches.sql, 20261104000100_waiting_accounts.sql (this file ends with gate_apply()).
 begin;
 
-create function ryagram_private.department_switch_on(p_owner uuid, p_department text) returns boolean
+create or replace function ryagram_private.department_switch_on(p_owner uuid, p_department text) returns boolean
 language sql stable security definer set search_path = '' as $$
   select p_owner is not null
      and not exists (select 1 from public.workers w where w.user_id = p_owner)

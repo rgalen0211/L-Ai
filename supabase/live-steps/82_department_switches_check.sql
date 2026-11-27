@@ -6,13 +6,19 @@
 --   Run. If it says 'is not the one this change expects', STOP: nothing was changed (one transaction), tell CC1 and BUILDER. (3) THIS file again: the FIRST row must say PASS.
 -- THEN, PER DEPARTMENT, OWNER FIRST: switch it on for your own TEST account (an administrator account sees no departments at all) with admin_account_switch_set in the app, walk it, and
 --   later open it for everyone with 82a (compilations), 82b (games) or 82c (Perfect City). Each undo: 82d, 82e, 82f.
+-- NOTE (CC1 08:46): until 20261127000300 (compilations for everyone) is applied, the compilations switch shows the department but signing in a computer still needs the tester flag;
+--   82a refuses until then.
 -- UNDO OF THE WHOLE CHANGE (only if CC1 asks): paste supabase/rollbacks/20261127000250_department_switches_rollback.sql.
 with c as (
-select 2 as n, 'the switch map exists (compilations, games, perfectCity) and no API role can call it' as check_name,
+select 2 as n, 'the switch map exists (compilations, games, perfectCity), runs as its owner with a fixed search path, and no API role can call it' as check_name,
        coalesce(to_regprocedure('ryagram_private.department_switch_on(uuid,text)') is not null
          and pg_get_functiondef(to_regprocedure('ryagram_private.department_switch_on(uuid,text)')) like '%when ''compilations'' then ''compilations'' when ''games'' then ''games'' when ''geo_intelligence'' then ''perfectCity''%'
          and not has_function_privilege('authenticated', to_regprocedure('ryagram_private.department_switch_on(uuid,text)'), 'execute')
-         and not has_function_privilege('anon', to_regprocedure('ryagram_private.department_switch_on(uuid,text)'), 'execute'), false) as ok
+         and not has_function_privilege('anon', to_regprocedure('ryagram_private.department_switch_on(uuid,text)'), 'execute')
+         and not has_function_privilege('service_role', to_regprocedure('ryagram_private.department_switch_on(uuid,text)'), 'execute')
+         and (select p.prosecdef and coalesce(array_to_string(p.proconfig, ' '), '') like '%search_path=%'
+                     and not coalesce(array_to_string(p.proacl::text[], ' ') ~ '(^| )=X', true)
+                from pg_proc p where p.oid = to_regprocedure('ryagram_private.department_switch_on(uuid,text)')), false) as ok
 union all select 3, 'the top bar and the chat panel read it: working for an account whose switch is on, as before for everyone else',
        coalesce(replace(pg_get_functiondef('ryagram_private.departments_for(uuid)'::regprocedure), chr(13), '')
                 like '%case when ryagram_private.department_switch_on(p_owner, d.id) then ''working'' when d.status = ''working'' and d.needs_local_compute%', false)

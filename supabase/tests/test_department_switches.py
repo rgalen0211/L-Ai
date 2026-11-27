@@ -83,14 +83,35 @@ class DepartmentSwitches(unittest.TestCase):
         self.assertEqual((self.bar(THIRD)["games"], self.bar(OTHER)["games"]), ("soon", "working"), "the switch-on account keeps it")
         self.assertEqual(self.step("82c_open_geo_intelligence_for_everyone.sql")[0][0], "opened for everyone: geo_intelligence is working")
         self.assertEqual(self.step("82f_close_geo_intelligence_for_everyone.sql")[0][0], "closed for everyone: geo_intelligence is soon")
+        self.assertEqual(self.step("82a_open_compilations_for_everyone.sql"), [("STOP: apply 20261127000300 (compilations for everyone) first, nothing was changed",)])
+        self.assertEqual((self.bar(THIRD)["compilations"], self.admin("select status from public.departments where id = 'compilations'")), ("soon", "soon"), "82a changed nothing")
+        self.d().execute("create function ryagram_private.compilations_on(p_person uuid) returns boolean language sql as 'select false'")      # a stand-in for 20261127000300
         self.assertEqual(self.step("82a_open_compilations_for_everyone.sql")[0][0], "opened for everyone: compilations is working")
         self.assertEqual(self.bar(THIRD)["compilations"], "working", "82a also drops the tester-only rule")
+        self.d().execute("drop function ryagram_private.compilations_on(uuid)")
         self.assertEqual(self.step("82d_close_compilations_for_everyone.sql")[0][0], "closed for everyone: compilations is soon")
         self.assertEqual(self.admin("select needs_local_compute from public.departments where id = 'compilations'"), True, "the undo restores the tester rule too")
         self.d().execute("update public.departments set status = 'working' where id = 'compilations'")
         self.assertEqual(self.bar(THIRD)["compilations"], "soon", "working without 82a's change is still testers-only, as before")
         self.d().execute("delete from public.departments where id = 'games'")
         self.assertEqual(self.step("82b_open_games_for_everyone.sql"), [("STOP: there is no department named games, nothing was changed",)])
+
+    def test_the_bar_is_exactly_as_before_for_an_ordinary_account_an_admin_and_a_worker(self):
+        self.d().execute("insert into public.app_admins (user_id, note) values (%s, 'test')", (RYAN,))
+        self.d().execute(RB.read_text(encoding="utf-8"))
+        before = [self.db.as_(w).one("select my_departments()") for w in (OTHER, RYAN, WORKER)]
+        self.d().execute(MIG.read_text(encoding="utf-8"))
+        after = [self.db.as_(w).one("select my_departments()") for w in (OTHER, RYAN, WORKER)]
+        self.assertEqual(after, before, "no switch: exactly today's list")
+        self.assertEqual((after[1], after[2]), ([], []), "an admin and a worker get nothing, as before")
+
+    def test_compilations_switch_without_the_tester_flag_is_working_only_because_of_the_switch(self):
+        self.assertFalse(self.admin("select coalesce((select local_compute from public.account_settings where owner_id = %s), false)", OTHER))
+        self.assertEqual(self.bar(OTHER)["compilations"], "soon")
+        self.switches(OTHER, "compilations")
+        self.assertEqual(self.bar(OTHER)["compilations"], "working")
+        self.switches(OTHER)
+        self.assertEqual(self.bar(OTHER)["compilations"], "soon", "switch off again: Coming soon again")
 
     def test_step_82_pass_after_stop_before_and_the_rollback(self):
         rows = self.step("82_department_switches_check.sql")

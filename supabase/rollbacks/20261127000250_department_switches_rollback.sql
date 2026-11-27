@@ -14,6 +14,9 @@ begin
   if position(nw in def) > 0 then
     execute replace(def, nw, o);
   end if;
+  if position('department_switch_on' in replace(pg_get_functiondef('ryagram_private.departments_for(uuid)'::regprocedure), chr(13), '')) > 0 then
+    raise exception 'departments_for still names department_switch_on: nothing was changed. Send this sentence to BUILDER.';
+  end if;
 end $do$;
 drop function ryagram_private.department_switch_on(uuid, text);
 
