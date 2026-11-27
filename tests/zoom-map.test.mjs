@@ -78,7 +78,8 @@ test('the page is gated by the per-account switch zoomMap and nothing links to i
   const lib = read('assets/app-library.js');
   assert.match(lib, /const zoomMapOn = \(\) => window\.ryagramSwitches\?\.featureOn\('zoomMap'\) === true && !!window\.ryagramZoomMap;/);
   assert.match(lib, /else if \(zoomMapOn\(\) && hash === '#\/labs\/map'\) view = await window\.ryagramZoomMap\.view\(\{ h \}\);/);
-  assert.equal((lib.match(/#\/labs\/map/g) || []).length, 2);         // the comment and the route, never a link
+  assert.match(lib, /else if \(!zoomMapOn\(\) && hash === '#\/labs\/map'\) view = zoomMapOffView\(\);/);     // without the switch: one plain line, never the library
+  assert.equal((lib.match(/#\/labs\/map/g) || []).length, 3);         // the comment, the route and the off route, never a link
   for (const f of fs.readdirSync(path.join(root, 'assets')).filter((x) => x.endsWith('.js') && !['app-library.js', 'app-zoom-map.js', 'ryagram-config.js'].includes(x))) {     // the config names it in a comment only
     assert.ok(!read(`assets/${f}`).includes('#/labs/map'), `${f} links to the zoom map`);
   }

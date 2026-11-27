@@ -18,7 +18,9 @@
       'Contiguous states and the District of Columbia only. Alaska and Hawaii (insets) and Puerto Rico are not drawn yet.',
       'Shapes are simplified for speed, so small islands are left out and borders are approximate.',
       'Colours compare places at the same level only: states with states, and a state\'s counties with each other.'],
-    loadError: 'The map data could not be loaded. Try again later.'
+    loadError: 'The map data could not be loaded. Try again later.',
+    countyError: (name) => `The counties of ${name} could not be loaded. You are back on the whole map.`,
+    smallStates: 'Small states: pick them from the State list.'
   };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
 
@@ -54,7 +56,7 @@
       const s = document.createElement('script');
       s.src = src;
       s.onload = () => (have() ? resolve(have()) : reject(new Error('no data')));
-      s.onerror = () => reject(new Error('no data'));
+      s.onerror = () => { s.remove(); reject(new Error('no data')); };      // a retry adds a fresh tag
       document.head.append(s);
     });
   }
@@ -86,29 +88,35 @@
     const gStates = svg('g', { class: 'zm-states' });
     const gCounties = svg('g', { class: 'zm-counties' });
     root.append(gStates, gCounties);
-    for (const s of us.states) {
+    const area = (s) => (s.bbox[2] - s.bbox[0]) * (s.bbox[3] - s.bbox[1]);
+    for (const s of [...us.states].sort((a, b) => area(b) - area(a))) {      // biggest first, so a small state (DC, RI, DE) is drawn on top and wins the tap
       const p = svg('path', { d: s.d, fill: FILL[band(s.pop, usBreaks)] || NO_DATA, class: 'zm-state', 'data-id': s.id, 'fill-rule': 'evenodd' });
       titled(p, `${s.name}: ${s.pop == null ? 'no figure' : fmt(s.pop) + ' people (estimated)'}`);
       p.addEventListener('click', () => { if (state.fp !== s.id) zoomTo(s.id); });
       gStates.append(p);
     }
 
-    const stateSel = h('select', { id: 'zm-state', onchange: (e) => (e.target.value ? zoomTo(e.target.value) : backOut()) },
+    const stateSel = h('select', { id: 'zm-state', onchange: (e) => (e.target.value ? zoomTo(e.target.value, { fromList: true }) : backOut()) },
       h('option', { value: '' }, 'All states (whole map)'), us.states.map((s) => h('option', { value: s.id }, s.name)));
     const countyWrap = h('span', { class: 'zm-county-wrap', id: 'zm-county-wrap' });
-    const back = h('button', { class: 'button secondary', type: 'button', id: 'zm-back', hidden: true, onclick: () => backOut() }, '← Back to all states');
+    const back = h('button', { class: 'button secondary', type: 'button', id: 'zm-back', hidden: true, onclick: () => { backOut(); stateSel.focus(); } }, '← Back to all states');      // the button hides itself, so focus goes to the list
     const controls = h('div', { class: 'zm-controls' }, h('label', { class: 'zm-control', for: 'zm-state' }, 'State ', stateSel), countyWrap, back);
     const legend = h('div', { class: 'zm-legend', id: 'zm-legend' });
     const detail = h('div', { class: 'zm-detail', id: 'zm-detail', 'aria-live': 'polite' });
+    const retry = h('button', { class: 'button secondary', type: 'button', id: 'zm-retry', hidden: true }, 'Try again');
     const mapBox = h('div', { class: 'zm-map', id: 'zm-map' }, root, legend);
 
-    function drawLegend(values, scope) {
+    function drawLegend(values, scope, unit) {
       const br = breaks(values);
       const n = br.length + 1;
-      const label = (i) => (n === 1 ? 'all' : i === 0 ? `under ${fmt(br[0])}` : i === n - 1 ? `${fmt(br[i - 1])} or more` : `${fmt(br[i - 1])} to ${fmt(br[i])}`);
+      const distinct = [...new Set(values.filter((x) => Number.isFinite(x)))].sort((a, b) => a - b);
+      const each = n > 1 && n === distinct.length;    // a few places: one band per place, so the key shows each value itself
+      const label = (i) => (each ? fmt(distinct[i]) : n === 1 ? 'all' : i === 0 ? `under ${fmt(br[0])}` : i === n - 1 ? `${fmt(br[i - 1])} or more` : `${fmt(br[i - 1])} to under ${fmt(br[i])}`);
       const keys = Array.from({ length: n }, (_, i) => h('li', {}, h('span', { class: 'zm-swatch', 'data-fill': FILL[i] }), ' ', label(i)));
+      const finite = values.filter((x) => Number.isFinite(x)).length;
+      const how = each ? `one band per ${distinct.length === finite ? unit : 'value'}` : n === 1 ? 'one band' : 'about one fifth in each';
       legend.replaceChildren(h('p', { class: 'meta' }, `${us.value.name} (estimated, ${us.value.date})`), h('ul', { class: 'zm-keys' }, keys),
-        h('p', { class: 'meta' }, `Bands (calculated): ${scope}, about one fifth in each.`), h('p', { class: 'meta' }, 'Grey: no published figure.'));
+        h('p', { class: 'meta', id: 'zm-bands' }, `Bands (calculated): ${scope}, ${how}.`), h('p', { class: 'meta' }, 'Grey: no published figure.'));
       legend.querySelectorAll('.zm-swatch').forEach((s) => s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: s.getAttribute('data-fill') })])));
     }
 
@@ -138,14 +146,25 @@
       drawDetail();
     }
 
-    async function zoomTo(fp) {
+    async function zoomTo(fp, { fromList = false } = {}) {
       const s = byId.get(fp);
       if (!s) return;
       state.fp = fp; state.county = null; state.counties = null;
       stateSel.value = fp;
+      retry.hidden = true;
+      gCounties.replaceChildren();                    // the last state's counties go at once: never two states on screen
+      countyWrap.replaceChildren();
+      drawDetail();
       status.textContent = 'Loading the counties...';
       let data;
-      try { data = await loadCounties(fp); } catch { if (state.fp === fp) { status.textContent = WORDS.loadError; } return; }
+      try { data = await loadCounties(fp); } catch {
+        if (state.fp !== fp) return;
+        backOut();                                    // a clean whole map, and this state is no longer current, so a click or the list retries
+        status.textContent = WORDS.countyError(s.name);
+        retry.onclick = () => { stateSel.focus(); zoomTo(fp); };      // the button hides itself, so focus goes to the list
+        retry.hidden = false;
+        return;
+      }
       if (state.fp !== fp) return;                    // another state was chosen while this one loaded
       state.counties = data;
       status.textContent = '';
@@ -163,14 +182,17 @@
         h('option', { value: '' }, `All of ${s.name}`), [...data.counties].sort((a, b) => a.name.localeCompare(b.name)).map((c) => h('option', { value: c.id }, c.name)));
       countyWrap.replaceChildren(h('label', { class: 'zm-control', for: 'zm-county' }, 'County ', csel));
       back.hidden = false;
-      drawLegend(data.counties.map((c) => c.pop), `the counties of ${s.name} only`);
+      drawLegend(data.counties.map((c) => c.pop), `the counties of ${s.name} only`, 'county');
       drawDetail();
+      // On a phone the map can sit below the fold after a pick from the list: bring it into view.
+      if (fromList && window.matchMedia && window.matchMedia('(max-width: 700px)').matches) root.scrollIntoView({ block: 'nearest' });
     }
 
     function backOut() {
       state.fp = null; state.county = null; state.counties = null;
       stateSel.value = '';
       status.textContent = '';
+      retry.hidden = true;
       gCounties.replaceChildren();
       gStates.querySelectorAll('path').forEach((p) => p.classList.remove('zm-dim'));
       root.setAttribute('viewBox', usBox.join(' '));
@@ -178,13 +200,14 @@
       root.classList.remove('zm-zoomed');
       countyWrap.replaceChildren();
       back.hidden = true;
-      drawLegend(us.states.map((s) => s.pop), 'the states on this map');
+      drawLegend(us.states.map((s) => s.pop), 'the states on this map', 'state');
       drawDetail();
     }
     backOut();
 
     const src = us.sources;
-    return [h('h1', { tabindex: '-1' }, 'Zoom map (prototype)'), h('p', { class: 'form-intro' }, WORDS.intro), controls, status, mapBox, detail,
+    return [h('h1', { tabindex: '-1' }, 'Zoom map (prototype)'), h('p', { class: 'form-intro' }, WORDS.intro), controls, status, retry, mapBox,
+      h('p', { class: 'meta', id: 'zm-small' }, WORDS.smallStates), detail,
       h('h2', {}, 'What this prototype does not do'), h('ul', { class: 'soon-more', id: 'zm-not-done' }, WORDS.notDone.map((t) => h('li', {}, t))),
       h('p', { class: 'meta', id: 'zm-sources' }, `Sources: ${src.boundaries}; ${src.values}. ${src.calculated} Map projection: ${us.projection}.`),
       h('p', { class: 'form-note', role: 'note' }, 'Prototype. Draft wording, not yet approved.')];

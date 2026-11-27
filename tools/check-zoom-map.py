@@ -1,6 +1,8 @@
 """Zoom map prototype page check (GEO 11-27): the path a signed-in account with the switch zoomMap walks on #/labs/map, in real
 headless Chrome against the mock (?mock&zoommap), at desktop (1280) and phone (390) widths: the states, click a state and see its
-counties (loaded only then), click a county, back out, the same by keyboard (the selects), and the page staying shut without the switch.
+counties (loaded only then), click a county, back out (focus to the state list), the same by keyboard (the selects), a county file that
+fails to load (a clean whole map, then a click, the list and Try again each reload it), DC winning its own tap, and the page staying shut
+without the switch (one plain line).
 Local only: a server on 127.0.0.1 with its own port, nothing sent anywhere. Screenshots go to --out (outside the repo).
   py -I -B tools/check-zoom-map.py --out D:/Ryagram-scratch/GEO/zoom-shots
 """
@@ -94,6 +96,8 @@ def main():
                 t = p.inner_text('#zm-detail')
                 check('Ohio' in t and 'estimated' in t and 'observed' in t, 'the state panel: people (estimated), counties (observed)')
                 check('counties of Ohio' in p.inner_text('#zm-legend'), 'the legend bands are this state\'s counties')
+                lg = p.inner_text('#zm-legend')
+                check(' to under ' in lg and 'or more' in lg and 'one fifth' in lg, 'the legend band edges: under X, X to under Y, Y or more')
                 check(no_scroll(), 'no sideways scroll (Ohio)')
                 p.screenshot(path=str(out / f'2-ohio-{name}.png'), full_page=True)
 
@@ -106,6 +110,7 @@ def main():
 
                 # 4. back out
                 p.click('#zm-back')
+                check(p.evaluate('document.activeElement && document.activeElement.id') == 'zm-state', 'Back: focus moves to the state list, not the page body')
                 check(p.locator('#zm-svg path.zm-county').count() == 0 and view_box() == US_BOX and p.input_value('#zm-state') == '', 'Back: the whole map again, no counties')
                 check(p.locator('#zm-back').is_hidden() and p.locator('path.zm-dim').count() == 0, 'Back: the button hides, no state dimmed')
 
@@ -113,6 +118,8 @@ def main():
                 p.focus('#zm-state')
                 p.select_option('#zm-state', '48')
                 check(counties(254), 'keyboard: Texas from the list, its 254 counties drawn')
+                if name == 'phone':
+                    check(p.evaluate("(() => { const r = document.getElementById('zm-svg').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight + 1; })()"), 'after a pick from the list the map is in view')
                 p.focus('#zm-county')
                 p.keyboard.press('ArrowDown')
                 check(p.locator('#zm-county-facts').count() == 1 and p.locator('path.zm-county.zm-picked').count() == 1, 'keyboard: a county from the county list')
@@ -123,19 +130,65 @@ def main():
                 check(view_box() == US_BOX and p.locator('#zm-svg path.zm-county').count() == 0, 'keyboard: Enter on Back zooms out')
                 p.select_option('#zm-state', '44')
                 check(counties(5), 'Rhode Island: 5 counties (a small state zooms in too)')
+                check('one band per county' in p.inner_text('#zm-bands') and 'one fifth' not in p.inner_text('#zm-bands'), 'Rhode Island legend: one band per county, not one fifth in each')
                 p.screenshot(path=str(out / f'5-rhode-island-{name}.png'), full_page=True)
                 nd = p.inner_text('#zm-not-done')
                 check('No animation over time' in nd and 'One value only' in nd and 'Alaska and Hawaii' in nd, 'what the prototype does not do is said')
                 check('Census Bureau' in p.inner_text('#zm-sources') and 'public domain' in p.inner_text('#zm-sources'), 'the source line')
+                p.click('#zm-back')
+                check('Small states: pick them from the State list.' in p.inner_text('#zm-small'), 'the small-states line under the map')
+                p.locator('#zm-svg path.zm-state[data-id="11"]').click(timeout=5000)     # times out if Virginia or Maryland lies on top of DC
+                check(counties(1) and p.input_value('#zm-state') == '11', 'a tap on DC opens DC, not Virginia')
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()
 
-                # 6. without the switch: the address does not open the map
+                # 6. a county file that fails to load: a clean whole map, and each way back in reloads it
+                ctx, p, errors, asked = page('&zoommap')
+                p.wait_for_selector('#zm-svg path.zm-state', timeout=20000)
+                p.select_option('#zm-state', '48')
+                check(counties(254), 'failure: Texas first, its counties drawn')
+                pattern = '**/assets/zoom-map/st-39.js*'
+                block = lambda r: r.abort()
+                p.route(pattern, block)
+                ohio_asks = lambda: len([u for u in asked if '/st-39.js' in u])
+
+                def clean(n, how):
+                    for _ in range(100):
+                        if 'could not be loaded' in p.inner_text('#zm-status') and ohio_asks() == n:
+                            break
+                        p.wait_for_timeout(100)
+                    check('Ohio could not be loaded' in p.inner_text('#zm-status') and ohio_asks() == n, f'failure ({how}): the could-not-load line, Ohio asked for {n} time(s)')
+                    check(p.locator('#zm-svg path.zm-county').count() == 0 and view_box() == US_BOX and p.input_value('#zm-state') == '',
+                          f'failure ({how}): the whole map, no counties, the list on All states')
+                    check(p.locator('#zm-county').count() == 0 and p.locator('#zm-place').count() == 0 and 'states on this map' in p.inner_text('#zm-legend'),
+                          f'failure ({how}): no county list, no state panel, the states legend (nothing of Texas left)')
+                    check(p.locator('#zm-back').is_hidden() and p.locator('path.zm-dim').count() == 0 and p.locator('#zm-retry').is_visible(),
+                          f'failure ({how}): no Back, nothing dimmed, Try again shown')
+                p.select_option('#zm-state', '39')                                      # Texas is on screen, so Ohio comes from the list
+                clean(1, 'Ohio from the list while Texas is shown')
+                p.screenshot(path=str(out / f'6-load-failure-{name}.png'), full_page=True)
+                p.locator('#zm-svg path.zm-state[data-id="39"]').click(timeout=5000)
+                clean(2, 'the same state clicked on the map')
+                p.select_option('#zm-state', '39')
+                clean(3, 'the same state picked from the list again')
+                p.unroute(pattern, block)
+                p.click('#zm-retry')
+                check(counties(88) and ohio_asks() == 4, 'Try again: Ohio loads, its 88 counties drawn')
+                check(p.locator('#zm-retry').is_hidden() and p.inner_text('#zm-status').strip() == '' and p.input_value('#zm-state') == '39',
+                      'Try again: the error line and the button go; the list says Ohio')
+                check(p.evaluate('document.activeElement && document.activeElement.id') == 'zm-state', 'Try again: focus moves to the state list')
+                errors[:] = [e for e in errors if 'st-39.js' not in e]
+                check(not errors, f'no page errors ({errors[:2]})')
+                ctx.close()
+
+                # 7. without the switch: the address does not open the map, and says so in one line
                 ctx, p, errors, asked = page('')
-                p.wait_for_selector('#library h1', timeout=20000)
+                p.wait_for_selector('#zoom-map-off', timeout=20000)
                 p.wait_for_timeout(500)
                 check(p.locator('#zm-svg').count() == 0 and not asked, 'no switch: no map and no map data asked for')
-                p.screenshot(path=str(out / f'6-no-switch-{name}.png'), full_page=True)
+                check(p.inner_text('#zoom-map-off').strip() == 'This page is not switched on for this account.' and p.locator('#zoom-map-off-home').count() == 1,
+                      'no switch: the one plain line and a way back')
+                p.screenshot(path=str(out / f'7-no-switch-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()
             b.close()

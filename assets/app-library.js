@@ -80,6 +80,10 @@
   const editorOffView = () => [h('h1', { tabindex: '-1' }, 'The live editor isn’t on for this account'),
     h('p', { class: 'form-intro', role: 'status' }, 'Your films and projects are all still here. The live editor is being switched on one account at a time, and this one is not on the list yet.'),
     h('a', { class: 'button primary', id: 'editor-off-home', href: '#/' }, 'Back to your projects')];
+  // The zoom map address for an account without the switch zoomMap: one plain line, like the live editor's, never the library with no word (GEO 11-27).
+  const zoomMapOffView = () => [h('h1', { tabindex: '-1' }, 'Not switched on'),
+    h('p', { class: 'form-intro', role: 'status', id: 'zoom-map-off' }, 'This page is not switched on for this account.'),
+    h('a', { class: 'button primary', id: 'zoom-map-off-home', href: '#/' }, 'Back to your projects')];
   // Departments in the top bar and their pages (#/d/<id>): behind `departments`, which needs the door (app-departments.js). Off by default.
   const departmentsOn = () => window.ryagramDepartments?.flagOn() === true;
   // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
@@ -191,6 +195,7 @@
         else if (intakeOn() && window.ryagramIntake && hash === '#/new') view = intakeUi().intakeView(onStop);
         else if (wizardOn() && hash === '#/tester-start') view = await wizardUi().wizardView(onStop);
         else if (zoomMapOn() && hash === '#/labs/map') view = await window.ryagramZoomMap.view({ h });
+        else if (!zoomMapOn() && hash === '#/labs/map') view = zoomMapOffView();
         else if (myFilmsOn() && window.ryagramFilms && hash === '#/films') view = await filmsUi().filmsView(onStop);
         else if (builderOn() && hash === '#/build/sample') view = await builderUi().builderView(onStop, { sample: true });   // the tutorial's sample: makes nothing (NEXT-BUILDER 38)
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
