@@ -11,10 +11,10 @@ const scratch = path.join(root, '.mut-compdept');
 const SUITE = 'connect-compilations-dept.test.mjs';
 const TL = 'supabase/functions/connect-core/tools.ts', DB = 'supabase/functions/connect/db.ts';
 const HIT = 'if (!(await ctx.policy.hit(ctx.principal, "compilation_reads", LIMITS.compilationReadsPerHourPerUser, 3600))) {';
-const GATE_STATUS = 'if (!(await compilationsOpen(ctx))) return closedResult();\n    if (!ctx.data.compilationGet)';
+const GATE_STATUS = 'if (!(await compilationsOpen(ctx))) return closedResult();\n    const unavailable';
 const GATE_PAGE = 'if (!(await compilationsOpen(ctx))) return closedResult();\n    ' + HIT + '\n      return refuse(`The limit of ${LIMITS.compilationReadsPerHourPerUser} compilation checks';
 const mutants = [
-  ['the status tool no longer asks whether Compilations is open', TL, GATE_STATUS, 'if (!ctx.data.compilationGet)'],
+  ['the status tool no longer asks whether Compilations is open', TL, GATE_STATUS, 'const unavailable'],
   ['the page tool no longer asks whether Compilations is open', TL, GATE_PAGE, GATE_PAGE.replace('if (!(await compilationsOpen(ctx))) return closedResult();\n    ', '')],
   ['an account with the desktop app is no longer open (the invited testers lose it)', TL, 'return !!w && w.desktop_app === true;', 'return false;'],
   ['every account counts as open', TL, 'return !!w && w.desktop_app === true;', 'return true;'],
@@ -41,6 +41,12 @@ const mutants = [
   ['the status tool is no longer in the registry', TL, 'setCompilationRequest, getCompilationStatus, openCompilationsPage,', 'setCompilationRequest, openCompilationsPage,'],
   ['the page tool is no longer read-only', TL, 'name: "open_compilations_page", title: "Where to make a compilation", scope: "read", readOnly: true', 'name: "open_compilations_page", title: "Where to make a compilation", scope: "read", readOnly: false'],
   ['the status tool needs the write permission', TL, 'name: "get_compilation_status", title: "Where a compilation stands", scope: "read"', 'name: "get_compilation_status", title: "Where a compilation stands", scope: "write"'],
+  ['a missing function is no longer recognised (42883)', DB, 'code === "42883" || code === "PGRST202"', 'code === "PGRST202"'],
+  ['a missing function through PostgREST is no longer recognised', DB, 'code === "42883" || code === "PGRST202"', 'code === "42883"'],
+  ['every database fault is called a missing function', DB, 'code === "42883" || code === "PGRST202"', 'true'],
+  ['the tool does not catch the unavailable code', TL, 'if ((e as { code?: string })?.code === "unavailable") return unavailable(); throw e;', 'throw e;'],
+  ['a reason of the closed list has no plain words any more', TL, `  not_said: "the person's videos do not say it",
+`, ''],
   ['the database layer sends the read to another function', DB, '"connect_compilation_get", ["text", "uuid"], [h, projectId]', '"connect_compilation_get", ["text", "uuid"], [projectId, h]'],
 ];
 

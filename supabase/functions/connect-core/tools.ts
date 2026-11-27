@@ -384,12 +384,18 @@ const closedResult = () => refuse(COMPILATIONS_CLOSED, "not_available", { data: 
 
 /** What the person's computer reported as the reason a build stopped, in plain words. An unknown code gets the general sentence: the code itself is never shown as words. */
 const COMPILATION_STOPPED: Record<string, string> = {
-  no_clips: "no video in the folders the request names could be used",
-  no_match: "the phrase was not found in the person's clips",
-  folder_missing: "a folder the request names was not found on the person's computer",
-  app_closed: "the Ryagram app was closed before it finished",
-  out_of_space: "the person's computer ran out of room",
-  engine_error: "the program on the person's computer had a problem",
+  // the closed list of reasons the Ryagram app can report (FACES, docs/COMPILATION-REPORT-1127.md, the same list WEB's Compilations page words)
+  request_invalid: "the request could not be read",
+  song_request: "songs are made in the song tools, not in a compilation",
+  folder_not_chosen: "the person has not yet chosen where these videos are on their computer",
+  folder_missing: "a folder the person chose is not there any more",
+  folder_empty: "a folder the person chose has no videos",
+  folders_overlap: "two of the folders hold the same videos",
+  no_speech: "no speech was found in the person's videos",
+  not_said: "the person's videos do not say it",
+  edit_failed: "the draft could not be made into a film list",
+  build_failed: "the film could not be built; nothing left the person's computer",
+  crash: "something went wrong on the person's computer",
 };
 const RUN_STATES = new Set(["planning", "matching", "building", "done", "failed", "cancelled"]);
 const cleanCount = (v: unknown, max = 1_000_000): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.min(Math.round(v), max) : null);
@@ -430,11 +436,14 @@ const getCompilationStatus: ToolDef = {
   inputSchema: obj({ project_id: uuid }, ["project_id"]),
   async run(a, ctx) {
     if (!(await compilationsOpen(ctx))) return closedResult();
-    if (!ctx.data.compilationGet) return refuse("Compilation status is not available just now. Nothing was looked up.", "not_available", { data: { ok: false, looked_up: false } });
+    const unavailable = () => refuse("Compilation status is not available just now. Nothing was looked up.", "not_available", { data: { ok: false, looked_up: false } });
+    if (!ctx.data.compilationGet) return unavailable();
     if (!(await ctx.policy.hit(ctx.principal, "compilation_reads", LIMITS.compilationReadsPerHourPerUser, 3600))) {
       return refuse(`The limit of ${LIMITS.compilationReadsPerHourPerUser} compilation status checks an hour is reached. Do not check again; tell the person.`, "rate", { data: { ok: false, retry_after_seconds: 3600 } });
     }
-    const row = await ctx.data.compilationGet(String(a.project_id));
+    let row;
+    try { row = await ctx.data.compilationGet(String(a.project_id)); }
+    catch (e) { if ((e as { code?: string })?.code === "unavailable") return unavailable(); throw e; }        // the database has no such function yet (migration not applied): said plainly, none of the database's text is passed on
     if (!row) return NOT_YOURS("project");
     const summary = summariseRequest(row.request);
     if (!summary) return ok("This project has no compilation request yet. Use set_compilation_request to write one; the person then builds the film in the Ryagram app on their own computer.", { project_id: String(a.project_id), has_request: false, credits: 0, looked_up: true });

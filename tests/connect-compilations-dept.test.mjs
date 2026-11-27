@@ -82,7 +82,7 @@ test('each state the person\'s computer reports is said in plain words with its 
   const d = await say({ state: 'done', matches: 12, clips: 12, film_seconds: 84, current: true });
   assert.match(d.text, /Done: 12 clips, 84 seconds\. The film is on the person's computer: they open the Ryagram app to see it\. It is never sent to Ryagram\./);
   assert.equal(d.data.run.film_seconds, 84);
-  assert.match((await say({ state: 'failed', error_code: 'no_match', current: true })).text, /Stopped: the phrase was not found in the person's clips\./);
+  assert.match((await say({ state: 'failed', error_code: 'not_said', current: true })).text, /Stopped: the person's videos do not say it\./);
   assert.match((await say({ state: 'failed', error_code: 'weird_new_code', current: true })).text, /Stopped: the Ryagram app reported a problem it has no plain words for\./);
   assert.doesNotMatch((await say({ state: 'failed', error_code: 'weird_new_code', current: true })).text, /weird_new_code/, 'an unknown code is not shown as words');
   assert.match((await say({ state: 'cancelled', current: true })).text, /Stopped: the person stopped it/);
@@ -282,9 +282,16 @@ test('over MCP both tools are listed with the read-only hint, and a call goes th
 
 test('runWords: every state has words and none holds a path or a code', () => {
   for (const state of ['planning', 'matching', 'building', 'done', 'failed', 'cancelled']) {
-    const t = runWords({ state, matches: 2, clips: 2, film_seconds: 3, error_code: 'engine_error' }, true);
+    const t = runWords({ state, matches: 2, clips: 2, film_seconds: 3, error_code: 'crash' }, true);
     assert.ok(t.length > 10 && t.length < 300, state);
-    assert.doesNotMatch(t, /engine_error|[A-Za-z]:\\/);
+    assert.doesNotMatch(t, /crash|_|[A-Za-z]:\\/);
+  }
+  // every reason of the closed list has its own plain words, none of them the code itself
+  for (const code of ['request_invalid', 'song_request', 'folder_not_chosen', 'folder_missing', 'folder_empty', 'folders_overlap', 'no_speech', 'not_said', 'edit_failed', 'build_failed', 'crash']) {
+    const t = runWords({ state: 'failed', matches: null, clips: null, film_seconds: null, error_code: code }, true);
+    assert.match(t, /^Stopped: /, code);
+    assert.doesNotMatch(t, /no plain words/, code + ' is a known reason');
+    assert.doesNotMatch(t, new RegExp(code.replace('_', '[_]')), code + ' is not shown as a code');
   }
   assert.match(runWords(null, true), /Waiting/);
 });
@@ -298,4 +305,41 @@ test('the database layer sends the status read to its own function, the token\'s
   assert.equal(await data.compilationGet(P), null);
   assert.deepEqual(seen.map((s) => s.sql), ['select public.connect_compilation_get($1::text, $2::uuid) as r']);
   assert.deepEqual(seen[0].params, ['h'.repeat(64), P]);
+});
+
+// ------------------------------------------------------------------------------------------------ deploy order: a database without the migration
+async function throughRealLayer(failure) {
+  const { ConnectDb } = await import('../supabase/functions/connect/db.ts');
+  const { w } = world();
+  const P = '00000000-0000-4000-8000-0000000000a1';
+  const query = async (sql) => {
+    if (/connect_my_switches/.test(sql)) return [{ r: ['compilations'] }];
+    if (/connect_compilation_get/.test(sql)) throw failure;
+    throw new Error('unexpected ' + sql);
+  };
+  const data = new ConnectDb(query, 'https://x.example/app/').data({ tokenHash: A.tokenHash });
+  return callTool('get_compilation_status', { project_id: P }, A, { data, policy: w.policy(), deps: { compile } });
+}
+
+test('DEPLOY ORDER: a database that has no connect_compilation_get (SQLSTATE 42883 or PGRST202) gives exactly the plain "not available just now, nothing was looked up" answer, with no crash and none of the database\'s text', async () => {
+  for (const failure of [
+    Object.assign(new Error('function public.connect_compilation_get(text, uuid) does not exist'), { code: '42883' }),
+    Object.assign(new Error('Could not find the function public.connect_compilation_get(p_project, p_token_hash) in the schema cache'), { code: 'PGRST202' }),
+  ]) {
+    const r = await throughRealLayer(failure);
+    assert.equal(r.code, 'not_available');
+    assert.equal(r.isError, true);
+    assert.equal(r.text, 'Compilation status is not available just now. Nothing was looked up.');
+    assert.deepEqual(r.data, { ok: false, looked_up: false });
+    assert.doesNotMatch(everything(r), /connect_compilation_get|does not exist|schema cache|42883|PGRST202/);
+  }
+});
+
+test('any OTHER database fault is not mistaken for a missing function: the person gets the general sentence, never the database\'s text; the database\'s own plain refusal (22023) is passed on', async () => {
+  const down = await throughRealLayer(Object.assign(new Error('connection to 10.1.2.3 refused, password=hunter2'), { code: '08006' }));
+  assert.equal(down.code, 'error');
+  assert.equal(down.text, 'Ryagram could not do that right now. Nothing was changed. Try again in a moment.');
+  assert.doesNotMatch(everything(down), /10\.1\.2\.3|hunter2/);
+  const closed = await throughRealLayer(Object.assign(new Error('Compilations are not open for this account yet.'), { code: '22023' }));
+  assert.equal(closed.text, 'Compilations are not open for this account yet.');
 });
