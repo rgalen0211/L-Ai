@@ -110,6 +110,8 @@
       const announced = new Set(Array.isArray(rows) ? rows.filter(r => r && typeof r.id === 'string').map(r => r.id) : []);       // what the server itself named (the sign-up button needs it)
       if (!hasAny(model)) { model = normalize(FALLBACK); }       // the server did not answer or listed nothing this page knows: the page's own default, never an empty bar
       for (const id of PAGE_ONLY) if (!model.working.includes(id) && !model.soon.includes(id)) model.soon = ORDER.filter(x => model.soon.includes(x) || x === id);
+      if (gamesHostOn()) { model.soon = model.soon.filter(x => x !== 'games'); if (!model.working.includes('games')) model.working = ORDER.filter(x => model.working.includes(x) || x === 'games'); }
+      else if (announced.has('games') && !model.working.includes('games') && !model.soon.includes('games')) model.soon = ORDER.filter(x => model.soon.includes(x) || x === 'games');        // the server says Games works (CC1 08:10: departments_for reads switches_on) but the host screen is not here: Coming soon, never gone from the bar
       model.announced = announced;
       return model;
     }
@@ -182,6 +184,17 @@
 
     const homeLink = () => h('a', { class: 'button primary', id: 'department-home', href: '#/' }, 'Back to your projects');
     const unavailable = () => [h('h1', { tabindex: '-1' }, WORDS.unavailable), h('p', { class: 'form-intro', role: 'status' }, 'It may belong to a different account, or it may have been removed.'), homeLink()];
+
+    // GAMES 11-27: the Games department WORKS for an account whose switch list names `games` (featureOn('games')): its page hosts a live round of Guess the next line
+    // (assets/app-games.js). Everyone else keeps the Coming soon page. The four game scripts must all be loaded, or the page stays Coming soon (never a broken host screen).
+    const gamesHostOn = () => !!(window.ryagramGamesHost && window.ryagramGamesHost.on() && window.ryagramGameRoom && window.ryagramGameScore && window.ryagramGameRounds);
+    let gamesHost = null;
+    function gamesPage() {
+      if (gamesHost) { gamesHost.close(); gamesHost = null; }
+      const slot = h('div', { class: 'games-host', id: 'games-host' });
+      gamesHost = window.ryagramGamesHost.mount(slot, { h, Room: window.ryagramGameRoom, Score: window.ryagramGameScore, Rounds: window.ryagramGameRounds, cfg: window.ryagramConfig });
+      return [h('h1', { tabindex: '-1' }, KNOWN.games.label), h('p', { class: 'form-intro' }, 'Two word games for a room: Guess the next line, where a line stops and everyone types what comes next, and Fill the gap, where one word is missing.'), slot];
+    }
 
     // The picture slots: every frame is hidden until its file loads; the group stays hidden until a frame has, so no file means no empty frame. Text alt only, never a caption of my own.
     function stillsBlock(id) {
@@ -272,6 +285,7 @@
     async function pageView(id) {
       const m = model || await load();
       if (!m || !known(id)) return unavailable();
+      if (id === 'games' && m.working.includes(id) && gamesHostOn()) return gamesPage();
       if (m.working.includes(id)) return workingPage(id);
       if (m.soon.includes(id)) return soonPage(id);
       return unavailable();
