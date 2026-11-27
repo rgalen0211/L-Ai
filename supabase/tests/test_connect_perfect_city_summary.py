@@ -10,6 +10,7 @@ Rules proved (each with a control that passes and a fault that must be refused)
   * before GEO's helper exists the call says 'Perfect City is not available yet.' (PT503) and nothing else; once it exists it answers
   * the helper is given the TOKEN'S OWN person (never an argument), so each person gets their own answer; a helper's 42501 (switch off) and 22023 (unknown county) reach the caller as the helper's sentence
   * arguments are checked in plain words BEFORE the helper runs: a missing or oddly written place or kind, a latitude or longitude that is missing or out of range (22023)
+  * (M2, 11-27) the twin itself refuses 42501 unless the person has the perfectCity switch or is an app admin, before the helper is looked for: a trap helper proves it is never called without the switch
   * a token that is not valid is refused (PT401) and the function takes no owner argument; nothing is written by any call
   * only the connector login can run it, and (a control on the stand-in, as on GEO's real helper) the connector login cannot run the helper directly
   * the migration adds one function and ends with the gate; the after-check is all true; the rollback removes exactly this function and not the helper
@@ -94,7 +95,7 @@ class ConnectPerfectCitySummary(core.Base):
         self.assertEqual(self.ask(b)["owner"], BOB)
         self.assertEqual(self.admin("select pronargs from pg_proc where oid = to_regprocedure('" + SIG + "')"), 5, "token, county, kind, latitude, longitude: no owner argument")
 
-    def test_a_switch_that_is_off_and_an_unknown_county_reach_the_caller_as_the_helpers_own_sentence(self):
+    def test_a_switch_that_is_off_is_refused_by_the_twin_and_an_unknown_county_reaches_the_caller_as_the_helpers_own_sentence(self):
         self.make_helper()
         _, a, _ = self.connect(ALICE)
         self.runner()
@@ -107,7 +108,7 @@ class ConnectPerfectCitySummary(core.Base):
 
     def test_arguments_are_checked_in_plain_words_before_the_helper_runs(self):
         self.make_helper()
-        _, a, _ = self.connect(ALICE)                                  # the switch is OFF: if the helper ran we would see 42501, so 22023 proves the twin refused first
+        _, a, _ = self.connect(ALICE)                                  # the switch is OFF: the arguments are checked before the switch, so 22023 (not 42501) proves the twin refused the arguments first
         self.runner()
         for county, kind, lat, lon in [(None, "fast_food", 39.7, -84.2), ("montgomery_oh", None, 39.7, -84.2), ("Montgomery OH", "fast_food", 39.7, -84.2),
                                        ("montgomery_oh", "fast food; drop", 39.7, -84.2), ("montgomery_oh", "fast_food", None, -84.2), ("montgomery_oh", "fast_food", 39.7, None),
@@ -138,6 +139,32 @@ class ConnectPerfectCitySummary(core.Base):
         self.assertFalse(self.admin("select has_function_privilege('connect_runner', '" + HELPER_SIG + "', 'execute')"))
         self.assertFalse(self.admin("select has_function_privilege('authenticated', '" + HELPER_SIG + "', 'execute')"))
 
+    def test_the_switch_is_checked_inside_the_twin_and_the_helper_is_never_called_without_it(self):
+        """Security review 11-27, M2. The helper here is a TRAP: it always raises XX001 'HELPER WAS CALLED'. No switch, an empty settings row and a switch list without perfectCity must all be refused 42501 by the twin
+        itself (so the trap never fires); with the switch, or as an app admin, the twin reaches the trap (XX001), which proves the gate lets them through. Bob has no settings row at all (fails closed)."""
+        self.run_sql("create function ryagram_private.perfect_city_summary_for(p_owner uuid, p_county text, p_kind text, p_lat double precision, p_lon double precision) returns jsonb language plpgsql as $f$ begin raise exception 'HELPER WAS CALLED' using errcode = 'XX001'; end $f$")
+        self.run_sql(HELPER_REVOKE)
+        _, a, _ = self.connect(ALICE)
+        _, b, _ = self.connect(BOB)
+        self.runner()
+        for label, setup in (("no settings row", None), ("empty switches", "insert into public.account_settings (owner_id, switches_on) values (%s, '{}') on conflict (owner_id) do update set switches_on = '{}'"),
+                             ("other switch only", "insert into public.account_settings (owner_id, switches_on) values (%s, '{compilations}') on conflict (owner_id) do update set switches_on = '{compilations}'")):
+            if setup:
+                self.run_sql(setup, ALICE)
+                self.runner()
+            err = self.fails("select connect_perfect_city_summary(%s, %s, %s, %s, %s)", h(a), *GOOD, code="42501")
+            self.assertIn("Perfect City is not switched on for this account.", str(err), label)
+        self.switch_on(ALICE)
+        self.runner()
+        self.fails("select connect_perfect_city_summary(%s, %s, %s, %s, %s)", h(a), *GOOD, code="XX001")        # allowed: the twin reached the helper
+        self.run_sql("delete from public.account_settings where owner_id = %s", ALICE)
+        self.run_sql("insert into public.app_admins (user_id) values (%s) on conflict do nothing", BOB)
+        self.runner()
+        self.fails("select connect_perfect_city_summary(%s, %s, %s, %s, %s)", h(b), *GOOD, code="XX001")        # an app admin without the switch: allowed
+        self.run_sql("delete from public.app_admins where user_id = %s", BOB)
+        self.runner()
+        self.fails("select connect_perfect_city_summary(%s, %s, %s, %s, %s)", h(b), *GOOD, code="42501")        # no longer an admin: refused again
+
     def test_the_migration_adds_one_function_and_ends_with_the_gate(self):
         sql = MIG.read_text(encoding="utf-8")
         lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
@@ -147,7 +174,7 @@ class ConnectPerfectCitySummary(core.Base):
 
     def test_the_after_check_is_all_true_and_the_rollback_removes_exactly_this_function(self):
         rows = self.db.as_(None).c.execute(CHECK.read_text(encoding="utf-8")).fetchall()
-        self.assertEqual(len(rows), 6)
+        self.assertEqual(len(rows), 7)
         self.assertTrue(all(ok for _, ok in rows), rows)
         self.make_helper()
         self.assertTrue(all(ok for _, ok in self.db.as_(None).c.execute(CHECK.read_text(encoding="utf-8")).fetchall()), "with the helper present and revoked from public the check is still all true")

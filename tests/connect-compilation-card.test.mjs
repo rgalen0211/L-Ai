@@ -63,11 +63,11 @@ test('ON: get_compilation_status gets its page link exactly where the card tools
   const off = server(undefined), on = server(ON);
   const a = (await off.rpc('tools/list', {})).result.tools, b = (await on.rpc('tools/list', {})).result.tools;
   assert.deepEqual(strip(b), strip(a), 'everything but _meta is identical (the tool list text is unchanged)');
-  assert.deepEqual(b.filter((t) => '_meta' in t).map((t) => t.name).sort(), ['get_compilation_status', 'list_projects', 'whoami_and_credits']);
+  assert.deepEqual(b.filter((t) => '_meta' in t).map((t) => t.name).sort(), ['get_compilation_status', 'list_projects', 'perfect_city_summary', 'whoami_and_credits']);
   const t = b.find((x) => x.name === 'get_compilation_status');
   assert.deepEqual(t._meta, { ui: { resourceUri: COMPILATION_URI }, 'openai/outputTemplate': COMPILATION_URI });
   assert.equal(UI_TOOL_URIS.get_compilation_status, COMPILATION_URI);
-  assert.equal(Object.keys(UI_TOOL_URIS).length, 3, 'no other tool was given a page');
+  assert.equal(Object.keys(UI_TOOL_URIS).length, 4, 'no other tool was given a page (the fourth is the Perfect City numbers tool, with its own page)');
   assert.equal(t.annotations.readOnlyHint, true);
   // the panel never changes with the other switches: a tool with the card has the card, this one has its own
   const withAll = (await server({ ...ON, chatEditor: true, homePanel: true }).rpc('tools/list', {})).result.tools.find((x) => x.name === 'get_compilation_status');

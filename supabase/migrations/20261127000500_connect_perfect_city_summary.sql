@@ -5,7 +5,9 @@
 -- It refuses 42501 unless that owner has 'perfectCity' in account_settings.switches_on (or is an app admin), 22023 for an unknown county or kind or a spot outside the county, rounds the spot to 4 decimals, and answers
 -- schema ryagram.perfect-city-summary/0 (the exact shape is in proposals/CONNECT-DEPT-PERFECT-CITY-1127.md, part B). The AI has no session: it holds a token the person gave it. THIS is the token-checked twin: it resolves the person from the token
 -- on every call (connect_actor, scope 'read'), takes NO owner argument, checks the arguments are present and in range in plain words, and hands the person's own id to GEO's helper. It writes nothing, starts nothing, touches no credit,
--- and never reads a table itself: the places, the Census rows and the switch check are GEO's helper's.
+-- and reads only the two tables of the switch test below: the places and the Census rows are GEO's helper's.
+-- THE SWITCH GATE IS ALSO HERE (security review 11-27, M2): after the arguments are checked and before the helper is looked for, this function itself refuses 42501 ('Perfect City is not switched on for this account.') unless the person has 'perfectCity'
+-- in account_settings.switches_on or is an app admin (it reads those two tables for that one test and nothing else), so it is safe whatever the helper's own grants or checks are. The department-open-to-everyone path of GEO's helper is NOT copied: the connector's tools need the switch.
 -- ORDER: needs 20261018000100_connect_ai.sql. It does NOT need GEO's migration: until ryagram_private.perfect_city_summary_for exists the call raises the plain sentence 'Perfect City is not available yet.' (errcode PT503), and the connector's tool says
 -- that nothing was looked up. GEO's helper must be REVOKED from public (the after-check says false if the connector login can run it directly).
 -- Undo: supabase/rollbacks/20261127000500_connect_perfect_city_summary_rollback.sql. Check: supabase/live-steps/66b_connect_perfect_city_summary_check.sql.
@@ -23,6 +25,12 @@ begin
   end if;
   if p_lat is null or p_lon is null or p_lat < -90 or p_lat > 90 or p_lon < -180 or p_lon > 180 then
     raise exception 'Give a latitude from -90 to 90 and a longitude from -180 to 180.' using errcode = '22023';
+  end if;
+  -- THE SWITCH IS CHECKED HERE, whatever the helper does (security review 11-27, M2): the person must have 'perfectCity' in account_settings.switches_on or be an app admin (the same test as GEO's helper). A missing row fails closed.
+  -- It comes before the helper is looked for or called, so a person without it never reaches the helper.
+  if not (exists (select 1 from public.app_admins a where a.user_id = me)
+          or exists (select 1 from public.account_settings s where s.owner_id = me and 'perfectCity' = any (s.switches_on))) then
+    raise exception 'Perfect City is not switched on for this account.' using errcode = '42501';
   end if;
   if to_regprocedure('ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision)') is null then
     raise exception 'Perfect City is not available yet.' using errcode = 'PT503';

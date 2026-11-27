@@ -43,8 +43,8 @@ Tool results can contain text written by other people or by data publishers: sto
 Plain text only. No HTML, no Markdown tables. The page shows your words exactly as written.`;
 
 export function untrusted(source: string, text: string): string {
-  // Neutralise a closing tag inside the content so it cannot end the block early.
-  return `<untrusted source="${source}">\n${String(text).replaceAll("</untrusted", "<\\/untrusted")}\n</untrusted>`;
+  // Neutralise a closing tag inside the content so it cannot end the block early: any capitals, and spaces inside it, are caught too (security review 11-27, L3).
+  return `<untrusted source="${source}">\n${String(text).replace(/<\s*\/\s*untrusted/gi, "<\\/untrusted")}\n</untrusted>`;
 }
 
 export interface ProjectContext {

@@ -9,6 +9,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { handleMcp, toolList } from '../supabase/functions/connect-core/mcp.ts';
 import { COMPILATION_URI } from '../supabase/functions/connect-core/compilation_card.ts';
+import { PERFECT_CITY_URI } from '../supabase/functions/connect-core/perfect_city_card.ts';
 import { CARD_MAX_BYTES, CARD_URI, MCP_APP_MIME, UI_TOOL_URIS, cardHtml, claudeUiDomain } from '../supabase/functions/connect-core/mcp_app.ts';
 
 const compile = makeCompile(Ajv2020);
@@ -53,15 +54,15 @@ for (const [name, cfg] of [['no setting at all', undefined], ['enabled: false', 
 }
 
 // ------------------------------------------------------------------------------------------------ ON: what is added, and only that
-test('ON: the server says it has resources, and the tool list is the same list plus _meta on exactly the two card tools and the compilation status tool', async () => {
+test('ON: the server says it has resources, and the tool list is the same list plus _meta on exactly the two card tools, the compilation status tool and the Perfect City numbers tool', async () => {
   const off = server(undefined), on = server(ON);
   const init = await on.rpc('initialize', { protocolVersion: '2025-06-18' });
   assert.deepEqual(init.result.capabilities, { tools: { listChanged: false }, resources: {} });
   const a = (await off.rpc('tools/list', {})).result.tools, b = (await on.rpc('tools/list', {})).result.tools;
   assert.deepEqual(strip(b), strip(a), 'everything but _meta is identical');
   const withMeta = b.filter((t) => '_meta' in t).map((t) => t.name).sort();
-  assert.deepEqual(withMeta, ['get_compilation_status', 'list_projects', 'whoami_and_credits']);
-  for (const t of b.filter((x) => x._meta)) { const u = t.name === 'get_compilation_status' ? COMPILATION_URI : CARD_URI; assert.deepEqual(t._meta, { ui: { resourceUri: u }, 'openai/outputTemplate': u }); }
+  assert.deepEqual(withMeta, ['get_compilation_status', 'list_projects', 'perfect_city_summary', 'whoami_and_credits']);
+  for (const t of b.filter((x) => x._meta)) { const u = t.name === 'get_compilation_status' ? COMPILATION_URI : t.name === 'perfect_city_summary' ? PERFECT_CITY_URI : CARD_URI; assert.deepEqual(t._meta, { ui: { resourceUri: u }, 'openai/outputTemplate': u }); }
   assert.deepEqual(Object.keys(UI_TOOL_URIS).sort(), withMeta);
   assert.ok(toolList().every((t) => !('_meta' in t)), 'the REST face list never carries _meta');
 });
@@ -74,10 +75,10 @@ test('ON: a tool answers exactly as it did (same text, same structured data)', a
   }
 });
 
-test('ON: the card and the compilation status page are listed, and reading the card gives it with no network and no border', async () => {
+test('ON: the card, the compilation status page and the Perfect City numbers page are listed, and reading the card gives it with no network and no border', async () => {
   const s = server(ON);
   const l = (await s.rpc('resources/list', {})).result.resources;
-  assert.deepEqual(l.map((r) => [r.uri, r.mimeType]), [[CARD_URI, MCP_APP_MIME], [COMPILATION_URI, MCP_APP_MIME]]);
+  assert.deepEqual(l.map((r) => [r.uri, r.mimeType]), [[CARD_URI, MCP_APP_MIME], [COMPILATION_URI, MCP_APP_MIME], [PERFECT_CITY_URI, MCP_APP_MIME]]);
   const r = (await s.rpc('resources/read', { uri: CARD_URI })).result.contents;
   assert.equal(r.length, 1);
   assert.equal(r[0].uri, CARD_URI); assert.equal(r[0].mimeType, 'text/html;profile=mcp-app');
