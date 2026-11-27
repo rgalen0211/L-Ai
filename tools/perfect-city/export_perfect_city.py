@@ -127,6 +127,41 @@ def census(args):
 
 KINDS = {'fast_food': ('amenity', 'fast_food'), 'restaurant': ('amenity', 'restaurant'), 'grocery': ('shop', 'supermarket')}
 
+# Food sub-kinds: a place in one of these is ALSO in fast_food or restaurant. The rules are COPIED from the Ryagram engine,
+# ryagram/geo/categories.py DEFAULT (rows chicken, burger, pizza: requires, cuisine and brands, unchanged), and applied the same way as its
+# classify(): the FIRST row that matches wins, so a place is in at most one of the three. Keep them in step with that file; do not add rules here.
+SUBKINDS = (
+    {"id": "chicken", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "cuisine": ["chicken"],
+     "brands": ["kfc", "kentucky fried", "popeyes", "chick-fil-a", "raising cane", "wingstop", "bojangles", "zaxby", "church's chicken", "churchs chicken", "el pollo loco", "golden chick", "slim chickens", "bonchon", "lee's famous recipe"]},
+    {"id": "burger", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "cuisine": ["burger"],
+     "brands": ["mcdonald", "burger king", "wendy's", "wendys", "white castle", "five guys", "culver", "whataburger", "sonic drive", "jack in the box", "carl's jr", "hardee", "smashburger", "steak n shake", "in-n-out", "habit burger"]},
+    {"id": "pizza", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "cuisine": ["pizza"],
+     "brands": ["domino", "pizza hut", "papa john", "little caesars", "marco's pizza", "papa murphy", "jet's pizza", "cici's"]},
+)
+
+
+def subkind(tags):
+    """The Ryagram engine's classify() (ryagram/geo/categories.py) over SUBKINDS: the id of the first row that matches, else None."""
+    name = ' '.join(str(tags.get(k, '')) for k in ('name', 'brand', 'operator')).lower()
+    cuisine = (tags.get('cuisine') or '').lower()
+    for c in SUBKINDS:
+        if any(tags.get(k) not in vals for k, vals in c.get('requires', [])):
+            continue
+        if any(tags.get(k) in vals for k, vals in c.get('tags', [])):
+            return c['id']
+        if any(w in cuisine for w in c.get('cuisine', [])) or any(b in name for b in c.get('brands', [])):
+            return c['id']
+    return None
+
+
+def kinds_of(tags):
+    """Every kind a place is in: its base kind (fast_food, restaurant or grocery) plus at most one food sub-kind."""
+    out = [kind for kind, (k, v) in KINDS.items() if tags.get(k) == v]
+    sub = subkind(tags)
+    if sub:
+        out.append(sub)
+    return out
+
 
 def places(args):
     out = pathlib.Path(args.out).resolve()
@@ -145,10 +180,9 @@ def places(args):
                 lon = e.get('lon', e.get('center', {}).get('lon'))
                 if lat is None or lon is None:
                     continue
-                for kind, (k, v) in KINDS.items():
-                    if tags.get(k) == v:
-                        name = (tags.get('name') or '')[:120]
-                        rows.append((key, kind, f"{e['type'][0]}{e['id']}", name, round(lat, 6), round(lon, 6)))
+                for kind in kinds_of(tags):
+                    name = (tags.get('name') or '')[:120]
+                    rows.append((key, kind, f"{e['type'][0]}{e['id']}", name, round(lat, 6), round(lon, 6)))
     rows = sorted(set(rows))
     q = lambda s: "'" + s.replace("'", "''") + "'"
     lines = ['-- Perfect City places (OpenStreetMap contributors, ODbL 1.0). PRIVATE until attorney row G11: never commit this file.',

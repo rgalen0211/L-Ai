@@ -83,3 +83,30 @@ test('NO OpenStreetMap data in the repo: no file under assets/perfect-city carri
     assert.doesNotMatch(t, /openstreetmap|ODbL|"osm_ref"|amenity/i, f);
   }
 });
+
+test('the page offers exactly the kinds the server allows, county by county (read from both files)', () => {
+  const win = {};
+  require('node:vm').runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'assets', 'app-perfect-city.js'), 'utf8'), { window: win });
+  const page = JSON.parse(JSON.stringify(win.ryagramPerfectCityPage));      // out of the vm's realm, so deepEqual compares plain arrays
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261127000900_perfect_city_places.sql'), 'utf8');
+  const list = (re) => { const m = sql.match(re); assert.ok(m, String(re)); return m[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).sort(); };
+  const table = list(/kind text not null check \(kind in \(([^)]*)\)\)/);
+  const check = list(/p_kind not in \(([^)]*)\)/);
+  assert.deepEqual(check, table, 'the table check and perfect_city_check name the same kinds');
+  const onlyMontgomery = [...sql.matchAll(/p_county = 'greene_oh' and p_kind = '([a-z_]+)'/g)].map((m) => m[1]);
+  assert.deepEqual(onlyMontgomery, ['grocery']);
+  const allowed = { montgomery_oh: table, greene_oh: table.filter((k) => !onlyMontgomery.includes(k)) };
+  assert.deepEqual(page.COUNTIES.map((c) => c.id).sort(), Object.keys(allowed).sort());
+  for (const c of page.COUNTIES) {
+    assert.deepEqual([...c.kinds].sort(), allowed[c.id], c.id);
+    for (const k of c.kinds) assert.ok(page.KINDS[k], `${k} has a label`);
+  }
+  assert.deepEqual(Object.keys(page.KINDS).sort(), table, 'a label for every server kind and no other');
+  assert.equal(page.KINDS.chicken, 'Chicken places'); assert.equal(page.KINDS.burger, 'Burger places'); assert.equal(page.KINDS.pizza, 'Pizza places');
+  // the export tool writes the same kinds: its base KINDS plus the sub-kinds copied from the Ryagram engine
+  const py = fs.readFileSync(path.join(__dirname, '..', 'tools', 'perfect-city', 'export_perfect_city.py'), 'utf8');
+  const base = [...py.match(/^KINDS = \{(.*)\}$/m)[1].matchAll(/'([a-z_]+)': \(/g)].map((m) => m[1]);
+  const subs = [...py.matchAll(/^ {4}\{"id": "([a-z_]+)"/gm)].map((m) => m[1]);
+  assert.deepEqual(subs, ['chicken', 'burger', 'pizza']);
+  assert.deepEqual([...base, ...subs].sort(), table, 'the export tool writes only kinds the table accepts');
+});

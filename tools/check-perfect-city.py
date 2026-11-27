@@ -115,6 +115,17 @@ def main():
                 p.wait_for_selector('#pc-rings', timeout=5000)
                 check('Census block group 39057' in p.inner_text('#pc-results'), 'a typed spot lands in a Greene County block group')
                 p.screenshot(path=str(out / f'4-greene-typed-{name}.png'), full_page=True)
+                # a food sub-kind (the Ryagram engine's chicken rule): offered in both counties, and picking it shows results for the same spot
+                labels = [o.inner_text() for o in p.locator('#pc-kind option').all()]
+                check(all(x in labels for x in ('Chicken places', 'Burger places', 'Pizza places')), 'chicken, burger and pizza places are offered')
+                p.select_option('#pc-kind', label='Chicken places')
+                for _ in range(100):
+                    if 'Nearest chicken places' in p.inner_text('#pc-results'): break
+                    p.wait_for_timeout(100)
+                check('Nearest chicken places' in p.inner_text('#pc-results') and p.locator('#pc-nearest li').count() == 5,
+                      'Chicken places: the five nearest are listed for the spot')
+                check('Chicken places (calculated)' in p.inner_text('#pc-rings'), 'Chicken places: the rings count them, labelled calculated')
+                p.screenshot(path=str(out / f'4b-greene-chicken-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()
                 # 2. places not loaded: the page still works and says why

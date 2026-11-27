@@ -21,7 +21,7 @@ begin;
 
 create table ryagram_private.perfect_city_places (
   county text not null check (county in ('montgomery_oh', 'greene_oh')),
-  kind text not null check (kind in ('fast_food', 'restaurant', 'grocery')),
+  kind text not null check (kind in ('fast_food', 'restaurant', 'grocery', 'chicken', 'burger', 'pizza')),
   osm_ref text not null,
   name text not null default '',
   lat double precision not null check (lat between -90 and 90),
@@ -79,8 +79,8 @@ begin
   if p_county is null or p_county not in ('montgomery_oh', 'greene_oh') then
     raise exception 'Choose a county: montgomery_oh or greene_oh.' using errcode = '22023';
   end if;
-  if p_kind is null or p_kind not in ('fast_food', 'restaurant', 'grocery') or (p_county = 'greene_oh' and p_kind = 'grocery') then
-    raise exception 'Choose a kind this county has: fast_food or restaurant (grocery in montgomery_oh only).' using errcode = '22023';
+  if p_kind is null or p_kind not in ('fast_food', 'restaurant', 'grocery', 'chicken', 'burger', 'pizza') or (p_county = 'greene_oh' and p_kind = 'grocery') then
+    raise exception 'Choose a kind this county has: fast_food, restaurant, chicken, burger or pizza (grocery in montgomery_oh only).' using errcode = '22023';
   end if;
   select min(u.lat) - 0.05 as lat0, max(u.lat) + 0.05 as lat1, min(u.lon) - 0.05 as lon0, max(u.lon) + 0.05 as lon1 into box
     from ryagram_private.perfect_city_units u where u.county = p_county;
