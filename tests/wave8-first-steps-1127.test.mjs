@@ -20,3 +20,8 @@ test('FACES PHONE WALK (11-27): Files has no inner scroll box; the delivery not-
   assert.match(css, /@media\(max-width:700px\)\{\.page-hero \.hero-frame\{display:none\}\}/);
   assert.match(css, /\.help-answers p a,\.home-more p a,\.credit-balance a\{display:inline-block;padding:11px 0;margin:-11px 0\}/);
 });
+test('FACES DESKTOP WALK (11-27): the ghost header picture is faint (opacity .14); My films and the film page Jobs list have no inner scroll box (Departments, Help and the Tutorial list keep theirs: they are long lists and the page-height budgets pin them)', () => {
+  const css = fs.readFileSync(new URL('../assets/app-pages-ds.css', import.meta.url), 'utf8');
+  assert.match(css, /\.page-hero \.hero-frame\{opacity:\.14\}/);
+  assert.match(css, /\.app-main \.films-scroll,[^{]*\.app-main \.jobs-scroll\{max-height:none;overflow:visible;padding-right:0\}/);
+});

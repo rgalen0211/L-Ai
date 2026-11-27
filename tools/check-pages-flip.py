@@ -101,7 +101,7 @@ with sync_playwright() as pw:
         want = cur(p); p.reload(wait_until='load'); p.wait_for_selector('.flip', timeout=20000); p.wait_for_timeout(1200)
         check(cur(p) == want, f'{name}: a reload opens the same section ({want})')
         # a long list scrolls inside its own panel
-        check(p.locator('.flip-panel .scroll-panel').count() >= 1 and p.evaluate("getComputedStyle(document.querySelector('.flip-panel .scroll-panel')).overflowY") in ('auto', 'scroll'), f'{name}: a long list sits in a scroll panel')
+        check(p.locator('.flip-panel .scroll-panel').count() >= 1 and p.evaluate("(() => { const e = document.querySelector('.flip-panel .jobs-scroll'); return !e || (getComputedStyle(e).overflowY === 'visible' && e.scrollHeight <= e.clientHeight + 1) })()"), f'{name}: the lists sit in a panel with no inner scroll box (FACES 11-27)')
         p.screenshot(path=str(OUT / f'flip-{name.lower()}-desktop.png'))
         check(not errs, f'{name}: no page errors' + (f': {errs[:2]}' if errs else ''))
         ctx.close()
@@ -144,7 +144,7 @@ with sync_playwright() as pw:
         for (w, h_, kind, lim) in ((1280, 800, 'desktop', lim_d), (390, 844, 'phone', lim_p)):
             ctx, p, errs2 = open2(b, w, h_, ROUTE[name])
             if name == 'My films':
-                check(p.locator('.films-scroll').count() == 1 and p.evaluate("getComputedStyle(document.querySelector('.films-scroll')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: the film list scrolls in its own panel')
+                check(p.locator('.films-scroll').count() == 1 and p.evaluate("(() => { const e = document.querySelector('.films-scroll'); return getComputedStyle(e).overflowY === 'visible' && e.scrollHeight <= e.clientHeight + 1 })()"), f'{name} {kind}: the film list shows whole, with no inner scroll box (FACES 11-27)')
             if name == 'Credits':
                 check(p.locator('.flip-tab').count() in (0, 2), f'{name} {kind}: packs and plans are two tabs when both are on sale ({p.locator(".flip-tab").count()})')
                 for i in range(p.locator('.flip-tab').count()):
