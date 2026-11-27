@@ -12,6 +12,7 @@
 //   POST /node/retry       Bearer {job_id, error_code, error_detail?}                         -> {result}
 //   POST /node/artifact    Bearer {job_id, kind, bytes, sha256, duration_s?, width?, height?}  -> {path, upload_url}
 //   POST /node/compilation-requests  Bearer      -> {requests: [{project_id, title, request, sha256, updated_at}]}   READ ONLY: what the person's AI asked for (data only; starts nothing); always on
+//   POST /node/compilation-report    Bearer {project_id, request_sha256, state, matches?, clips?, film_seconds?, error_code?} -> {run_id}   how a build on this computer goes, counts only; always on
 //   POST /node/download-plans Bearer {}                                -> {plans: [{id, request, state}]}   READ ONLY: the download plans the person's AI wrote (NEXT-CONNECT 152); the app shows them for the person to approve
 //   POST /node/download-update Bearer {id, state, receipt?}            -> {state}   the app tells the state of one plan (a receipt of host, size and SHA-256 only with 'done')
 //   POST /node/edit-pending  Bearer {}                                  -> {changes: [{id, project_id, revision, client, op}]}   READ ONLY: the live editor's waiting changes for this person's open compilation (NEXT-CONNECT 142); always on
@@ -37,6 +38,22 @@ const EDIT_ROUTES = ["/node/edit-pending", "/node/edit-summary"];
 const DOWNLOAD_ROUTES = ["/node/download-plans", "/node/download-update"];
 const DL_STATES = ["declined", "downloading", "unpacking", "done", "refused", "cancelled"];
 const COMPILATION_ROUTES = ["/node/compilation/status", "/node/compilation/start", "/node/compilation/finish", "/node/compilation/cancel"];
+// POST /node/compilation-report (BUILDER 11-27, migrations/20261127000300): how a build on the person's own computer goes. ALWAYS ON (it carries no file). Counts only.
+const REPORT_ROUTE = "/node/compilation-report";
+const RUN_STATES = ["planning", "matching", "building", "done", "failed", "cancelled"];
+const REPORT_KEYS = ["project_id", "request_sha256", "state", "matches", "clips", "film_seconds", "error_code"];
+const FILE_KEYS = /^(path|paths|url|urls|file|files|filename|video|audio)$/i;
+/** The database's refusals for a report, by code, as FIXED sentences (the same words the SQL uses; the database's text itself is never sent). */
+function reportRefusal(e: unknown): Response | null {
+  const code = (e as { code?: string })?.code, m = String((e as Error)?.message ?? "");
+  if (code === "42501" && /not open/i.test(m)) return fail(403, "not_open", "Compilations are not open for this account yet.");
+  if (code === "PT404") return fail(404, "not_current", "That request is not the project's current one. Load it again.");
+  if (code === "55000") return fail(409, "busy", "Another compilation is still being made on your computer. Let it finish or cancel it first.");
+  if (code === "PT429") return fail(429, "too_many", "You have started 30 compilations in the last 24 hours. Try again later.");
+  if (code === "22023") return fail(400, "invalid_request", "That compilation report was not valid.");
+  return null;
+}
+const intIn = (v: unknown, max: number) => v === undefined || v === null || (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max);
 /** The database's own plain sentences, matched to FIXED sentences (the database's text is still never sent). The first match wins. */
 const COMPILATION_REFUSALS: [RegExp, number, string, string][] = [
   [/not switched on/i, 403, "not_available", "Private links for films made on your computer are not switched on yet."],
@@ -175,7 +192,7 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     // ---------------------------------------------------------------- signed in: a rgn_ bearer in the Authorization header, nowhere else
     const isCompilation = COMPILATION_ROUTES.includes(route);
     if (isCompilation && !d.compilationLinksOn) return fail(404, "not_found", "Not found.");              // the routes do not exist unless the function is switched on
-    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact", "/node/compilation-requests", ...EDIT_ROUTES, ...DOWNLOAD_ROUTES].includes(route);
+    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact", "/node/compilation-requests", REPORT_ROUTE, ...EDIT_ROUTES, ...DOWNLOAD_ROUTES].includes(route);
     if (!isCall) return fail(404, "not_found", "Not found.");
     const wantGet = route === "/account";
     if ((wantGet && method !== "GET") || (!wantGet && method !== "POST")) return fail(405, "method_not_allowed", "That is not allowed here.");
@@ -216,6 +233,21 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     }
 
     const b = await body(req); if (b instanceof Response) return b;
+    if (route === REPORT_ROUTE) {                                                          // counts only; refused here, before the database, if it names a file or has any other key
+      const bad = () => fail(400, "invalid_request", "That compilation report was not valid.");
+      if (Object.keys(b).some((k) => FILE_KEYS.test(k))) return fail(400, "invalid_request", "A compilation report holds counts only, never a file, a path or a link.");
+      if (Object.keys(b).some((k) => !REPORT_KEYS.includes(k))) return bad();
+      if (typeof b.project_id !== "string" || !UUID.test(b.project_id) || typeof b.request_sha256 !== "string" || !SHA256.test(b.request_sha256)) return bad();
+      if (typeof b.state !== "string" || !RUN_STATES.includes(b.state)) return bad();
+      if (!intIn(b.matches, 100000) || !intIn(b.clips, 100000)) return bad();
+      if (!(b.film_seconds === undefined || b.film_seconds === null || (typeof b.film_seconds === "number" && Number.isFinite(b.film_seconds) && b.film_seconds >= 0 && b.film_seconds <= 86400))) return bad();
+      if (!(b.error_code === undefined || b.error_code === null || (typeof b.error_code === "string" && /^[a-z_]{1,40}$/.test(b.error_code)))) return bad();
+      const who = await caller(req, d.salt);
+      if (!(await d.db.hit(who, "compilation_report_ip", 120, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
+      const n = (v: unknown) => (typeof v === "number" ? v : null);
+      const id = await d.db.compilationReport(h, b.project_id, b.request_sha256, b.state, n(b.matches), n(b.clips), n(b.film_seconds), typeof b.error_code === "string" ? b.error_code : null);
+      return reply(200, { run_id: Number(id) });
+    }
     if (route === "/node/download-update") {                                               // the app tells the STATE of one plan; a receipt only with 'done'
       const who = await caller(req, d.salt);
       if (!(await d.db.hit(who, "download_update_ip", 120, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
@@ -290,6 +322,7 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     return reply(200, { path, upload_url: await d.storage.signUpload(path) });
   } catch (e) {
     if (COMPILATION_ROUTES.includes(route)) { const r = compilationRefusal(e); if (r) return r; }
+    if (route === REPORT_ROUTE) { const r = reportRefusal(e); if (r) return r; }
     if (DOWNLOAD_ROUTES.includes(route)) {
       if ((e as { code?: string })?.code === "22023") return fail(400, "invalid_request", "That download update was not accepted.");
     }
