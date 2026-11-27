@@ -352,6 +352,7 @@
     const intakeUi = () => intakeCache || (intakeCache = window.ryagramIntake.create({ h }));
     let waitingCache = null;
     const waitingUi = () => waitingCache || (waitingCache = window.ryagramWaiting.create({ h, data, busy, showError, errorLine }));
+    let focusOrderUntil = 0;                       // after 'Yes, render it' the page rebuilds and the Render button is gone: for 8 seconds, if focus fell to the page, it goes to the new 'Waiting for approval' line (GAMES 21:16, keyboard and screen-reader users keep their place)
     let activeSeen = false;                                                      // 'active' is remembered for this sign-in; anything else is asked again on the next page
     async function waitingGate(gate) {                                           // gate.unknown: my_access failed twice, so the page says it could not check (no list claim), still closed; one object per route() call, never shared
       if (!waitingOn() || !window.ryagramWaiting) return false;
@@ -1876,6 +1877,7 @@
           try {
             await data.requestFinalRender(previewJobId, `app-${previewJobId.slice(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
             requested = true;
+            focusOrderUntil = Date.now() + 8000;
             await loadOrders();
             await refresh();
           } catch (err) {
@@ -1903,6 +1905,9 @@
         }
         openOrders = rows.some(o => J.orderOpen(o.state));
         orderBox.replaceChildren(...(shown.length ? [h('ul', { class: 'order-list' }, shown)] : []));      // (replaceChildren(null) would print the word "null")
+        const firstOrder = orderBox.querySelector('li');
+        const here = document.activeElement;
+        if (Date.now() < focusOrderUntil && firstOrder && (!here || here === document.body || here.tagName === 'H1' || !here.isConnected)) { firstOrder.setAttribute('tabindex', '-1'); firstOrder.focus(); }
       }
 
       function syncControls() {

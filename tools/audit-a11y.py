@@ -145,6 +145,7 @@ def main():
                 p.click('a:has-text("Make a film step by step")')
                 p.wait_for_selector('h2:has-text("Which data?")', timeout=15000)
                 scan(p, f'{name} builder 1 data')
+                p.click('button.flip-tab:has-text("Choose a dataset")'); p.wait_for_timeout(400)      # the builder opens on 'Ready-made films': a closed step is inert, so open the data step first (GAMES 21:16)
                 p.locator('.builder-card').filter(has=p.locator('strong:text-is("Obesity and fast food by state")')).click()
                 for i, heading in enumerate(('What do you want to show?', 'Which years?', 'What kind of film?', 'Which look?', 'What is it called?'), 2):
                     p.click('button:has-text("Next")')
