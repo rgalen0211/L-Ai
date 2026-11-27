@@ -78,6 +78,8 @@ window.ryagramConfig = Object.freeze({
   whyClip: false,
   // On #/admin/tester, each tester's computers (signed in, last seen, films waiting and held), read with admin_tester_devices() (NEXT-WEB 187). Needs SQL 20261031000100 applied. OFF until then.
   adminTesterDevices: 'account',
+  // On #/admin/tester, Test credits: give test credits to an account on the owner list, see the last top-ups, undo one (BUILDER 11-27, admin_test_topup*). Needs SQL 20261127000100 (live step 78). OFF until then.
+  adminTestTopup: 'account',
   // On My films, a tester account's films say where they are on THEIR computer: waiting for it, picked up by it, being made on it, done, or failed and why (NEXT-WEB 186). Needs myFilms. OFF until Ryan has seen it.
   testerFilmProgress: 'account',
   // 'A song film with real voices' in the intake (#/new; NEXT-WEB 188): a real choice when true, shown as Coming soon when false. Needs the intake. OFF until Ryan has seen it.
