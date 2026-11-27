@@ -94,9 +94,37 @@ test('a report about an EARLIER version of the request is not shown as the answe
   w.setCompilationRun(A.userId, id, { state: 'done', matches: 9, clips: 9, film_seconds: 60, current: false });
   const r = await call(A, 'get_compilation_status', { project_id: id });
   assert.match(r.text, /Waiting for the Ryagram app/);
+  assert.match(r.text, /earlier version of this request/, 'it says WHY the report is not shown (FACES 11-27)');
   assert.doesNotMatch(r.text, /Done:/);
   assert.equal(r.data.run, null);
   assert.equal(r.data.run_is_for_an_earlier_request, true);
+  // a request with no report at all, and a report for THIS version, must not claim an earlier version
+  const fresh = (await call(A, 'create_project', { title: 'Another compilation' })).data.project_id;
+  assert.notEqual(fresh, id);
+  assert.equal((await call(A, 'set_compilation_request', { project_id: fresh, phrase: 'good news', folders: ['Clips'] })).isError, undefined);
+  assert.doesNotMatch((await call(A, 'get_compilation_status', { project_id: fresh })).text, /earlier version/);
+  w.setCompilationRun(A.userId, fresh, { state: 'building', matches: 3, clips: 2, film_seconds: null, current: true });
+  assert.doesNotMatch((await call(A, 'get_compilation_status', { project_id: fresh })).text, /earlier version/);
+});
+
+test('runWords: the earlier-version line appears only for a real report that is not current; no report and an invented state keep the plain waiting line', () => {
+  const rep = { state: 'done', matches: 2, clips: 2, film_seconds: 3, error_code: null };
+  assert.match(runWords(rep, false), /earlier version of this request/);
+  assert.match(runWords(rep, false), /Waiting for the Ryagram app/);
+  assert.doesNotMatch(runWords(null, false), /earlier version/);
+  assert.doesNotMatch(runWords({ ...rep, state: 'invented' }, false), /earlier version/);
+  assert.doesNotMatch(runWords(rep, true), /earlier version/);
+});
+
+test('FACES 11-27: a request names at most 8 folders (the app\'s own limit), so a request the connector saves is never one the app refuses', async () => {
+  const { call } = world();
+  const id = (await call(A, 'create_project', { title: 'Folders' })).data.project_id;
+  const names = (n) => Array.from({ length: n }, (_, i) => 'Folder ' + (i + 1));
+  const ok8 = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: names(8) });
+  assert.equal(ok8.isError, undefined, ok8.text);
+  const bad = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: names(9) });
+  assert.equal(bad.isError, true);
+  assert.equal(TOOLS.find((t) => t.name === 'set_compilation_request').inputSchema.properties.folders.maxItems, 8);
 });
 
 test('a report with an invented state is treated as no report; negative or silly numbers are not shown', async () => {
