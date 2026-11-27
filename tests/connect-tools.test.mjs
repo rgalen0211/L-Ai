@@ -419,15 +419,8 @@ test('the app opens no private realtime channel (a private channel is authorised
     assert.doesNotMatch(src, /private\s*:\s*true/, `${f} must not open a private channel`);
     assert.doesNotMatch(src, /\.(setAuth|send)\(\s*['"]?broadcast/, `${f} must not use realtime broadcast`);
   }
-  const channels = files.flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(/\.channel\(([^)]*)\)/g)].map((m) => ({ f: f.replace(/\\/g, '/'), c: m[1].trim() })));
-  // GAMES 11-27: ONE more channel is allowed, the game room (assets/game-room.js), a PUBLIC broadcast channel named by channelName(code), self false, never private:
-  // it needs no policy on realtime.messages, so the live check above stays exactly as it is. Every other channel is still the per-film jobs channel.
-  const room = channels.filter(({ f }) => f === 'assets/game-room.js');
-  assert.ok(room.length <= 1 && room.every(({ c }) => c === 'channelName(code'), `the game room opens one channel, by channelName(code) (found ${room.map(x => x.c).join(' | ')})`);
-  const roomSrc = fs.readFileSync('assets/game-room.js', 'utf8');
-  assert.match(roomSrc, /client\.channel\(channelName\(code\), \{ config: \{ broadcast: \{ self: false, ack: false \} \} \}\)/, 'the game room channel is public broadcast, self false');
-  const others = channels.filter(({ f }) => f !== 'assets/game-room.js');
-  assert.ok(others.length >= 1 && others.every(({ c }) => /^`jobs:/.test(c)), `the only other channel is the per-film jobs channel (found ${others.map(x => `${x.f}: ${x.c}`).join(' | ')})`);
+  const channels = files.flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(/\.channel\(([^)]*)\)/g)].map((m) => m[1]));
+  assert.ok(channels.length >= 1 && channels.every((c) => /^`jobs:/.test(c.trim())), `the only channel is the per-film jobs channel (found ${channels.join(' | ')})`);
 });
 
 // PUNCH P3 (BUILDER 32): a preview waits for a FINISHED contact sheet of this exact saved story. The sheet runs the same
