@@ -5,7 +5,8 @@
 -- WHAT THIS ADDS
 --   (1) THE SWITCH: ryagram_private.compilations_on(person) is true when 'compilations' is in that account's per-account switch list (department_switch_on, 20261127000250; set only by
 --       admin_account_switch_set), or when Ryan has opened the compilations department for everyone (live step 82a). A worker account is never on. Every new call below refuses in words when off.
---       The top bar follows the same rule (20261127000250 and 82a), so a person sees the department exactly when these calls work.
+--       compilations_on READS THE TOP BAR's own function (departments_for), so a person sees the department working exactly when these calls work (invited accounts only;
+--       an administrator sees no departments and so is OFF here too; walk it on a TEST account).
 --   (2) ANY ACCOUNT WITH THE SWITCH CAN SIGN IN ITS OWN COMPUTER: public.device_decide refused everyone but a tester (local_compute); it now also lets an account with compilations on approve its
 --       computer. Read from the LIVE text, one clause replaced; refused in words if that clause is not there exactly once. Such a computer claims NO job (node_claim refuses a non-tester),
 --       but like a tester's computer it can read and write that person's OWN editor summaries, download plans and footage plans through the existing node_* calls (their own rows only).
@@ -23,15 +24,15 @@
 --   20261104000100_waiting_accounts.sql (the gate; this file ends with gate_apply()).
 begin;
 
--- ONE LEVER PER DEPARTMENT (CC1 08:10): on for an account whose 'compilations' switch is on (department_switch_on, 20261127000250), or for everyone once the compilations department is opened
--- for everyone (live step 82a: departments.status 'working' and needs_local_compute false). No second setting.
+-- ONE LEVER PER DEPARTMENT (CC1 08:10), and THE CALLS FOLLOW THE TOP BAR EXACTLY (CC1 09:35): on exactly when the person's own top bar shows Compilations as working, i.e. when
+-- ryagram_private.departments_for (the function behind my_departments and connect_my_departments) says so: an INVITED account (department_person_ok: not an administrator, not a worker),
+-- with its 'compilations' switch on (20261127000250) or the department opened for everyone (live step 82a), the tester rule as before. Plus: never a worker, never a WAITING account.
 create function ryagram_private.compilations_on(p_person uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
   select p_person is not null
      and not exists (select 1 from public.workers w where w.user_id = p_person)
      and ryagram_private.account_active(p_person)                       -- a WAITING account is off (20261104000100; CC1 09:10)
-     and (ryagram_private.department_switch_on(p_person, 'compilations')
-          or exists (select 1 from public.departments d where d.id = 'compilations' and d.status = 'working' and not d.needs_local_compute))
+     and exists (select 1 from ryagram_private.departments_for(p_person) x where x.id = 'compilations' and x.status = 'working')
 $$;
 revoke execute on function ryagram_private.compilations_on(uuid) from public, anon, authenticated, service_role;
 
@@ -64,7 +65,7 @@ begin
       return 'That compilation request has a part Ryagram does not know: ' || left(k, 40) || '.';
     end if;
   end loop;
-  if jsonb_typeof(p -> 'phrase') is distinct from 'string' or char_length(btrim(p ->> 'phrase')) not between 1 and 200 then
+  if jsonb_typeof(p -> 'phrase') is distinct from 'string' or (char_length(btrim(p ->> 'phrase')) < 1 or char_length(p ->> 'phrase') > 200) then
     return 'Give the words to look for, at most 200 characters.';
   end if;
   if p ? 'search' and (jsonb_typeof(p -> 'search') <> 'string' or (p ->> 'search') not in ('every', 'words')) then
@@ -75,7 +76,7 @@ begin
   end if;
   for e in select x from jsonb_array_elements(p -> 'folders') x loop
     f := case when jsonb_typeof(e) = 'string' then btrim(e #>> '{}') end;
-    if f is null or char_length(f) not between 1 and 80 or f in ('.', '..') or f ~ '[\\/:*?"<>|[:cntrl:]]' then
+    if f is null or char_length(f) < 1 or char_length(e #>> '{}') > 80 or f in ('.', '..') or f ~ '[\\/:*?"<>|[:cntrl:]]' then
       return 'A folder is a NAME of 1 to 80 characters, never . or .., and without \ / : * ? " < > |.';
     end if;
     names := names || f;
@@ -100,7 +101,8 @@ begin
       return 'At most 20 picture rules.';
     end if;
     for e in select x from jsonb_array_elements(p -> 'rules') x loop
-      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'phrase') is distinct from 'string' or char_length(btrim(e ->> 'phrase')) not between 1 and 200
+      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'phrase') is distinct from 'string' or (char_length(btrim(e ->> 'phrase')) < 1 or char_length(e ->> 'phrase') > 200)
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['phrase', 'picture', 'seconds', 'mode']))
          or jsonb_typeof(e -> 'picture') is distinct from 'string' or (e ->> 'picture') !~* '^[^\\/:*?"<>|[:cntrl:]]{1,100}\.(png|jpg|jpeg|webp)$'
          or jsonb_typeof(e -> 'seconds') is distinct from 'number' or (case when jsonb_typeof(e -> 'seconds') = 'number' then (e ->> 'seconds')::numeric end) not between 0.5 and 10
          or jsonb_typeof(e -> 'mode') is distinct from 'string' or (e ->> 'mode') not in ('full', 'centre', 'corner', 'lower_third') then
@@ -113,7 +115,8 @@ begin
       return 'At most 20 texts.';
     end if;
     for e in select x from jsonb_array_elements(p -> 'texts') x loop
-      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) not between 1 and 120
+      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) < 1 or char_length(e ->> 'text') > 120
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['text', 'start_s', 'length_s', 'position', 'size']))
          or jsonb_typeof(e -> 'start_s') is distinct from 'number' or (case when jsonb_typeof(e -> 'start_s') = 'number' then (e ->> 'start_s')::numeric end) not between 0 and 3600
          or jsonb_typeof(e -> 'length_s') is distinct from 'number' or (case when jsonb_typeof(e -> 'length_s') = 'number' then (e ->> 'length_s')::numeric end) not between 0.5 and 30
          or jsonb_typeof(e -> 'position') is distinct from 'string' or (e ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')
@@ -127,7 +130,8 @@ begin
       return 'At most 4 cards.';
     end if;
     for e in select x from jsonb_array_elements(p -> 'cards') x loop
-      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) not between 1 and 120
+      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) < 1 or char_length(e ->> 'text') > 120
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['text', 'where', 'seconds']))
          or jsonb_typeof(e -> 'where') is distinct from 'string' or (e ->> 'where') not in ('start', 'end')
          or jsonb_typeof(e -> 'seconds') is distinct from 'number' or (case when jsonb_typeof(e -> 'seconds') = 'number' then (e ->> 'seconds')::numeric end) not between 0.5 and 10 then
         return 'Each card needs its words (at most 120 characters), start or end, and 0.5 to 10 seconds.';
@@ -139,10 +143,11 @@ begin
       return 'At most 12 checklist items.';
     end if;
     for e in select x from jsonb_array_elements(p -> 'checklist') x loop
-      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'what') is distinct from 'string' or char_length(btrim(e ->> 'what')) not between 1 and 200
+      if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'what') is distinct from 'string' or char_length(btrim(e ->> 'what')) < 1 or char_length(e ->> 'what') > 200
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['what', 'from', 'must_contain', 'folder', 'count']))
          or (e ? 'from' and (jsonb_typeof(e -> 'from') <> 'string' or char_length(e ->> 'from') > 200))
          or (e ? 'must_contain' and (jsonb_typeof(e -> 'must_contain') <> 'string' or char_length(e ->> 'must_contain') > 200))
-         or (e ? 'count' and (jsonb_typeof(e -> 'count') <> 'number' or (e ->> 'count') !~ '^[0-9]+$' or (case when (e ->> 'count') ~ '^[0-9]{1,6}$' then (e ->> 'count')::int end) not between 1 and 20)) then
+         or (e ? 'count' and (jsonb_typeof(e -> 'count') <> 'number' or (e ->> 'count') !~ '^[0-9]+$' or coalesce((case when (e ->> 'count') ~ '^[0-9]{1,6}$' then (e ->> 'count')::int end), 0) not between 1 and 20)) then
         return 'Each checklist item needs what footage to get (at most 200 characters), and at most 20 files.';
       end if;
       if jsonb_typeof(e -> 'folder') is distinct from 'string' or btrim(e ->> 'folder') <> all (names) then
@@ -303,6 +308,23 @@ begin
     raise notice 'device_decide already lets a compilations account approve its computer, left alone.';
   elsif (length(def) - length(replace(def, o, ''))) / length(o) <> 1 then
     raise exception 'device_decide is not the one this change expects (its tester check differs from the repository); nothing was changed. Send this sentence to BUILDER.';
+  else
+    execute replace(def, o, nw);
+  end if;
+end $do$;
+
+-- (2b) THE DESKTOP APP FOR A COMPILATIONS ACCOUNT (CONNECT 09:46): public.request_app_download (20261026000500, service role only, behind the download edge function) gave the app only to a
+--      tester or an administrator, so a compilations account could sign in a computer but not be given the app. It now also gives it to an account with compilations on.
+--      Live text, one clause; refused in words if that clause is not there exactly once; left alone if already done.
+do $do$
+declare def text; o constant text := '          or exists (select 1 from public.app_admins a where a.user_id = p_owner)) then';
+        nw constant text := '          or exists (select 1 from public.app_admins a where a.user_id = p_owner)' || chr(10) || '          or ryagram_private.compilations_on(p_owner)) then';
+begin
+  def := replace(pg_get_functiondef('public.request_app_download(uuid, text)'::regprocedure), chr(13), '');
+  if position('compilations_on(p_owner)' in def) > 0 then
+    raise notice 'request_app_download already gives the app to a compilations account, left alone.';
+  elsif (length(def) - length(replace(def, o, ''))) / length(o) <> 1 then
+    raise exception 'request_app_download is not the one this change expects (its tester-or-admin check differs from the repository); nothing was changed. Send this sentence to BUILDER.';
   else
     execute replace(def, o, nw);
   end if;

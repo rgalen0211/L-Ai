@@ -16,14 +16,17 @@ W.SCRATCH = W.ROOT / ".mut_compilations"
 W.RUN_TMP = W.base.BASE_TEMP / f"compilations-mut-{os.getpid()}"
 
 W.MUTANTS[:] = [
-    ('the switch always on', "     and (ryagram_private.department_switch_on(p_person, 'compilations')", '     and (true'),
+    ('the switch always on', "     and exists (select 1 from ryagram_private.departments_for(p_person) x where x.id = 'compilations' and x.status = 'working')", '     and true'),
     ('a worker counts as a person', '     and not exists (select 1 from public.workers w where w.user_id = p_person)', '     and true'),
-    ('opened for everyone without dropping the tester rule', "d.status = 'working' and not d.needs_local_compute))", "d.status = 'working'))"),
+    ('an uninvited account or an admin is on (the bar ignored)', "     and exists (select 1 from ryagram_private.departments_for(p_person) x where x.id = 'compilations' and x.status = 'working')", "     and (ryagram_private.department_switch_on(p_person, 'compilations') or exists (select 1 from public.departments d where d.id = 'compilations' and d.status = 'working'))"),
+    ('a padded phrase past 200 accepted', "(char_length(btrim(p ->> 'phrase')) < 1 or char_length(p ->> 'phrase') > 200) then", "char_length(btrim(p ->> 'phrase')) not between 1 and 200 then"),
+    ('a 7-digit checklist count slips through', "coalesce((case when (e ->> 'count') ~ '^[0-9]{1,6}$' then (e ->> 'count')::int end), 0) not between 1 and 20)", "(case when (e ->> 'count') ~ '^[0-9]{1,6}$' then (e ->> 'count')::int end) not between 1 and 20)"),
     ('a file key in the request let through', '  if t ~* \'"([a-z_]*path[a-z_]*|urls?', '  if false and t ~* \'"([a-z_]*path[a-z_]*|urls?'),
     ('a path or link value let through', "  if v ~* '(", "  if false and v ~* '("),
     ('two builds at once', "    raise exception 'Another compilation is still being made on your computer. Let it finish or cancel it first.' using errcode = '55000';", '    null;'),
     ('an old request may report', 'where r.project_id = p_project and r.owner_id = me and p.owner_id = me and r.request_sha256 = p_request_sha256) then', 'where r.project_id = p_project and r.owner_id = me and p.owner_id = me) then'),
     ('device_decide not widened', "or ryagram_private.compilations_on(me)) then';", "or false) then';"),
+    ('the desktop app not given to a compilations account', "or ryagram_private.compilations_on(p_owner)) then';", "or false) then';"),
     ('3000 builds a day', '    if started >= 30 then', '    if started >= 3000 then'),
     ('invisible characters are not removed first', "  v := regexp_replace(v, '[\\u00ad\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f\\ufeff]', '', 'g');", '  v := v;'),
     ('a silent build is never closed as stale', "and updated_at < now() - interval '2 hours';", "and updated_at < now() - interval '2000 hours';"),

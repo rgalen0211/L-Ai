@@ -18,6 +18,19 @@ begin
   end if;
 end $do$;
 
+do $do$
+declare def text; nw constant text := '          or exists (select 1 from public.app_admins a where a.user_id = p_owner)' || chr(10) || '          or ryagram_private.compilations_on(p_owner)) then';
+        o constant text := '          or exists (select 1 from public.app_admins a where a.user_id = p_owner)) then';
+begin
+  def := replace(pg_get_functiondef('public.request_app_download(uuid, text)'::regprocedure), chr(13), '');
+  if position(nw in def) > 0 then
+    execute replace(def, nw, o);
+  end if;
+  if position('compilations_on' in replace(pg_get_functiondef('public.request_app_download(uuid, text)'::regprocedure), chr(13), '')) > 0 then
+    raise exception 'request_app_download still names compilations_on: nothing was changed. Send this sentence to BUILDER.';
+  end if;
+end $do$;
+
 drop function public.node_compilation_report(text, uuid, text, text, int, int, numeric, text);
 drop function public.my_compilation_get(uuid);
 drop function public.my_compilation_set(uuid, jsonb);

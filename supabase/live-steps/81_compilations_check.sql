@@ -2,17 +2,17 @@
 -- WHAT IT GIVES: an account with the compilations switch can save a "find every time X says Y" request from the site, sign in its own computer, and see its computer's progress (counts only).
 --   The film is made on the person's own computer and stays there: the site never receives a video, a sound, a path or a transcript, and no credits are used.
 -- ONE read-only SELECT (this file): changes nothing, never errors, prints no address. Its FIRST row says PASS or STOP.
--- ORDER: (1) THIS file: before the change it says STOP (rows 2 to 8 false), as expected. (2) ONCE: paste ALL of supabase/migrations/20261127000300_compilations_for_everyone.sql into the SQL Editor
+-- ORDER: (1) THIS file: before the change it says STOP (rows 2 to 9 false), as expected. (2) ONCE: paste ALL of supabase/migrations/20261127000300_compilations_for_everyone.sql into the SQL Editor
 --   and Run. If it says 'is not the one this change expects', STOP: nothing was changed (one transaction); send the sentence to CC1 and BUILDER. (3) THIS file again: the FIRST row must say PASS.
 --   (4) redeploy the node function from the merged head: until then the computer cannot report progress (its requests still load). PASS here proves the database half only.
 --   A computer signed in for compilations claims no job; like a tester's it can read and write that person's OWN editor summaries, download and footage plans.
--- TURNING IT ON, after PASS: for your own account first, in the app as admin (Admin > per-account switches): admin_account_switch_set('<your address>', 'compilations', true, 'trying compilations'),
+-- TURNING IT ON, after PASS: for a TEST account first (an administrator account sees no departments and is off here too), in the app as admin: admin_account_switch_set('<the test account address>', 'compilations', true, 'trying compilations'),
 --   and the page half's switch rides its own page push. For everyone later: live step 82a (opens the compilations department for everyone), undo 82d. Needs 82 (20261127000250) first.
 -- UNDO OF THE WHOLE CHANGE (only if CC1 asks): paste supabase/rollbacks/20261127000300_compilations_for_everyone_rollback.sql. Its header says how to sign out computers that only compilations signed in.
 with c as (
-select 2 as n, 'the switch exists: the compilations switch per account or the department opened for everyone (step 82a), never a worker, never a waiting account' as check_name,
+select 2 as n, 'compilations follows the top bar (departments_for: the switch or step 82a, invited accounts only), never a worker, never a waiting account' as check_name,
        coalesce(to_regprocedure('ryagram_private.department_switch_on(uuid,text)') is not null
-         and pg_get_functiondef(to_regprocedure('ryagram_private.compilations_on(uuid)')) like '%department_switch_on(p_person, ''compilations'')%'
+         and pg_get_functiondef(to_regprocedure('ryagram_private.compilations_on(uuid)')) like '%ryagram_private.departments_for(p_person)%'
          and to_regprocedure('ryagram_private.compilations_on(uuid)') is not null
          and pg_get_functiondef(to_regprocedure('ryagram_private.compilations_on(uuid)')) like '%public.workers w where w.user_id = p_person%'
          and pg_get_functiondef(to_regprocedure('ryagram_private.compilations_on(uuid)')) like '%ryagram_private.account_active(p_person)%'
@@ -49,6 +49,9 @@ union all select 8, 'a failed build gives one reason from the closed list of ele
        coalesce(pg_get_functiondef(to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text)'))
                 like '%codes constant text[] := array[''request_invalid'', ''song_request'', ''folder_not_chosen'', ''folder_missing'', ''folder_empty'', ''folders_overlap'', ''no_speech'', ''not_said'', ''edit_failed'', ''build_failed'', ''crash'']%'
          and pg_get_functiondef(to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text)')) like '%p_error_code = ''stale'' then%', false)
+union all select 9, 'the desktop app can be given to an account with compilations on (as to a tester or an administrator)',
+       coalesce(to_regprocedure('public.request_app_download(uuid,text)') is not null
+         and replace(pg_get_functiondef(to_regprocedure('public.request_app_download(uuid,text)')), chr(13), '') like '%or ryagram_private.compilations_on(p_owner)) then%', false)
 )
 select 1 as n, case when (select bool_and(ok) from c) then 'PASS: compilations can be switched on per account' else 'STOP: a row below is false (before the change this is expected)' end as check_name,
        (select bool_and(ok) from c) as ok

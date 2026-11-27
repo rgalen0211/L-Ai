@@ -31,6 +31,7 @@ const WORDS = [
   ['You have started 30 compilations in the last 24 hours. Try again later.', 'PT429'],
   ['That compilation has already moved past %.', '22023'],
   ['device_decide is not the one this change expects (its tester check differs from the repository); nothing was changed. Send this sentence to BUILDER.', null],
+  ['request_app_download is not the one this change expects (its tester-or-admin check differs from the repository); nothing was changed. Send this sentence to BUILDER.', null],
 ];
 const REQUEST_WORDS = [                                   // returned by compilation_request_problem, raised by my_compilation_set with errcode 22023
   'That compilation request is not valid.',
@@ -102,8 +103,7 @@ test('the department switch names are exactly compilations, games, perfectCity, 
   assert.ok(m, 'the map is there');
   const pairs = [...m[1].matchAll(/when '([a-z_]+)' then '([A-Za-z]+)'/g)].map(x => [x[1], x[2]]);
   assert.deepEqual(pairs, [['compilations', 'compilations'], ['games', 'games'], ['geo_intelligence', 'perfectCity']]);
-  assert.match(code(SQL), /ryagram_private\.department_switch_on\(p_person, 'compilations'\)/, 'compilations_on reads the same switch');
-  assert.match(code(SQL), /d\.id = 'compilations' and d\.status = 'working' and not d\.needs_local_compute/, 'and the department opened for everyone (82a)');
+  assert.match(code(SQL), /exists \(select 1 from ryagram_private\.departments_for\(p_person\) x where x\.id = 'compilations' and x\.status = 'working'\)/, 'compilations_on reads the top bar itself (departments_for: the switch, 82a, invited only; CC1 09:35)');
 });
 
 test('the request schema name is the one the connector already writes', () => {

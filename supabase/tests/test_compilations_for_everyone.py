@@ -47,6 +47,8 @@ class Compilations(unittest.TestCase):
         self.n = 0
         self.d().execute("insert into public.app_admins (user_id, note) values (%s, 'test')", (RYAN,))
         self.d().execute("insert into auth.users (id, email) values (%s, 'third@x')", (THIRD,))
+        # compilations_on follows the top bar (departments_for), which shows departments to INVITED accounts only (CC1 09:35)
+        self.d().execute("insert into public.connect_access (user_id, enabled) values (%s, true), (%s, true) on conflict do nothing", (OTHER, THIRD))
 
     def d(self):
         return self.db.as_(None).c
@@ -396,7 +398,6 @@ class Compilations(unittest.TestCase):
 
     # ------------------------------------------------------------------ the top bar
     def test_the_top_bar_shows_a_department_working_only_to_an_account_with_its_switch(self):
-        self.d().execute("insert into public.connect_access (user_id, enabled) values (%s, true), (%s, true)", (OTHER, THIRD))
         bar = lambda who: {d["id"]: d["status"] for d in self.db.as_(who).one("select my_departments()")}
         self.assertEqual(bar(OTHER)["compilations"], "soon")
         self.assertEqual(bar(OTHER)["data_films"], "working")
@@ -410,6 +411,70 @@ class Compilations(unittest.TestCase):
         self.assertEqual(bar(THIRD)["compilations"], "working", "step 82a opens the department, and the calls, for everyone")
         self.assertRegex(self.put(self.project(THIRD), REQ, THIRD), r"^[0-9a-f]{64}$", "the bar and the calls agree")
         self.assertEqual(self.db.as_(RYAN).one("select my_departments()"), [], "an administrator account sees no departments at all (as before): walk them on a test account")
+
+    # ------------------------------------------------------------------ CC1 09:35: the calls follow the top bar exactly
+    def bar_and_call(self, who):
+        bar = {d["id"]: d["status"] for d in self.db.as_(who).one("select my_departments()")}.get("compilations")
+        try:
+            self.db.as_(who).one("select my_compilation_get(%s)", self.project(who))
+            call = "on"
+        except psycopg.Error as e:
+            self.db.c.execute("rollback") if self.db.c.info.transaction_status else None
+            call = "refused " + e.sqlstate
+        return bar, call
+
+    def test_an_administrator_with_the_switch_is_off_and_sees_no_bar(self):
+        self.switch_on(RYAN)
+        self.assertEqual(self.db.as_(RYAN).one("select my_departments()"), [])
+        self.assertFalse(self.admin("select ryagram_private.compilations_on(%s)", RYAN))
+        self.refused(self.put, self.project(RYAN), REQ, RYAN, code="42501")
+
+    def test_an_uninvited_account_with_the_switch_is_off(self):
+        self.d().execute("delete from public.connect_access where user_id = %s", (THIRD,))
+        self.switch_on(THIRD)
+        self.assertFalse(self.admin("select ryagram_private.compilations_on(%s)", THIRD))
+        self.refused(self.put, self.project(THIRD), REQ, THIRD, code="42501")
+
+    def test_the_bar_and_the_calls_agree_for_an_invited_account_in_every_case(self):
+        self.assertEqual(self.bar_and_call(OTHER), ("soon", "refused 42501"), "switch off")
+        self.switch_on(OTHER)
+        self.assertEqual(self.bar_and_call(OTHER), ("working", "on"), "switch on")
+        self.assertEqual(self.bar_and_call(THIRD), ("soon", "refused 42501"), "another invited account without the switch")
+        self.d().execute((core.ROOT / "live-steps" / "82a_open_compilations_for_everyone.sql").read_text(encoding="utf-8"))
+        self.assertEqual(self.bar_and_call(THIRD), ("working", "on"), "82a: opened for everyone")
+        self.d().execute((core.ROOT / "live-steps" / "82d_close_compilations_for_everyone.sql").read_text(encoding="utf-8"))
+        self.assertEqual(self.bar_and_call(THIRD), ("soon", "refused 42501"), "82d: closed again")
+
+    def test_padding_nested_keys_and_a_huge_count_are_refused(self):
+        self.switch_on(OTHER)
+        pid = self.project()
+        cases = [dict(REQ, phrase=" " * 10 + "x" * 195), dict(REQ, folders=["a" + " " * 85]),
+                 dict(REQ, rules=[{"phrase": "hi", "picture": "a.png", "seconds": 2, "mode": "full", "url": "x"}]),
+                 dict(REQ, texts=[{"text": "hi", "start_s": 0, "length_s": 2, "position": "top", "colour": "red"}]),
+                 dict(REQ, cards=[{"text": "hi", "where": "start", "seconds": 2, "extra": 1}]),
+                 dict(REQ, folders=["Holiday 2025"], checklist=[{"what": "the launch", "folder": "Holiday 2025", "count": 1234567}]),
+                 dict(REQ, folders=["Holiday 2025"], checklist=[{"what": "the launch", "folder": "Holiday 2025", "count": 1, "link": "x"}])]
+        for c in cases:
+            with self.subTest(c=str(c)[-90:]):
+                self.refused(self.put, pid, c, code="22023")
+        self.assertRegex(self.put(pid, dict(REQ, folders=["Holiday 2025"], checklist=[{"what": "the launch", "folder": "Holiday 2025", "count": 20}])), r"^[0-9a-f]{64}$")
+
+    # ------------------------------------------------------------------ CONNECT 09:46: the desktop app for a compilations account
+    def test_a_compilations_account_can_be_given_the_desktop_app_and_a_plain_account_still_cannot(self):
+        self.d().execute("insert into public.app_releases (kind, file_name, size_bytes, sha256, object_key, active) values ('app', 'app-9.zip', 1000, %s, 'releases/app-9.zip', true)", ("a" * 64,))
+        ask = lambda who: self.db.as_("service").one("select request_app_download(%s, 'app')", who)
+        with self.assertRaises(psycopg.Error) as cm:
+            ask(THIRD)
+        self.assertEqual(cm.exception.sqlstate, "PT403", "a plain invited account without the switch: still no app")
+        self.switch_on(OTHER)
+        self.assertEqual(ask(OTHER)["file_name"], "app-9.zip", "a compilations account gets the app")
+        self.d().execute("insert into public.account_settings (owner_id, local_compute) values (%s, true) on conflict (owner_id) do update set local_compute = true", (THIRD,))
+        self.assertEqual(ask(THIRD)["file_name"], "app-9.zip", "a tester still gets it")
+        self.assertIn("or ryagram_private.compilations_on(p_owner)) then", self.admin("select prosrc from pg_proc where oid = 'public.request_app_download(uuid, text)'::regprocedure").replace(chr(13), ""))
+
+    def test_the_rollback_puts_request_app_download_back(self):
+        self.d().execute(RB.read_text(encoding="utf-8"))
+        self.assertNotIn("compilations_on", self.admin("select prosrc from pg_proc where oid = 'public.request_app_download(uuid, text)'::regprocedure"))
 
     # ------------------------------------------------------------------ live step 81 and the rollback
     def test_step_81_pass_after_stop_before_and_the_rollback_restores_device_decide(self):
