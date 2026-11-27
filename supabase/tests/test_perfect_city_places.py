@@ -183,6 +183,19 @@ class PerfectCityPlaces(core.Base):
         self.make_admin(RYAN)
         self.refused(RYAN, "clark_oh", "fast_food", code="22023")
 
+    def test_every_food_sub_kind_is_accepted_in_both_counties_and_stored(self):
+        # chicken, burger, pizza and the 2026-11-27 kinds sandwich, mexican and asian: the check accepts each in both counties (a kind missing
+        # from the check's list is refused there, and get() then FAILS), and the table stores an INVENTED row of each kind
+        self.switch_on(OTHER)
+        for kind in ("chicken", "burger", "pizza", "sandwich", "mexican", "asian"):
+            for county in ("montgomery_oh", "greene_oh"):
+                self.owner("insert into ryagram_private.perfect_city_places (county, kind, osm_ref, name, lat, lon) values (%s, %s, %s, %s, %s, %s)",
+                           county, kind, f"t-{kind}", f"Test {kind.title()} Place", *SPOT[county])
+                got = self.get(OTHER, county=county, kind=kind)
+                self.assertEqual((got["kind"], got["loaded"], [p["name"] for p in got["places"]]), (kind, 1, [f"Test {kind.title()} Place"]), (county, kind))
+        e = self.refused(OTHER, "greene_oh", "grocery", code="22023")
+        self.assertIn("sandwich, mexican or asian", e.diag.message_primary)
+
     def test_the_table_itself_refuses_a_bad_row(self):
         for bad in (("clark_oh", "grocery", "x1", "Test Place", 39.7, -84.2), ("greene_oh", "cafe", "x2", "Test Place", 39.7, -84.2),
                     ("greene_oh", "grocery", "x3", "Test Place", 91.0, -84.2), ("greene_oh", "grocery", "x4", "Test Place", 39.7, -181.0)):

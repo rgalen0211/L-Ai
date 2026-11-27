@@ -388,7 +388,12 @@
       perfect_city_places(args) {
         const q = typeof location !== 'undefined' ? (location.search || '') : '';
         if (!/[?&]perfectcity/.test(q) || /[?&]placeserr/.test(q)) return fail('not allowed');
-        const mid = { montgomery_oh: [-84.2, 39.76], greene_oh: [-83.98, 39.70] }[args && args.p_county] || [-84.2, 39.76];
+        // like the real perfect_city_check: only the kinds the migration's lists name (grocery in Montgomery only), else refused in its words
+        const KINDS_OK = ['fast_food', 'restaurant', 'grocery', 'chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian'];
+        if (!args || !KINDS_OK.includes(args.p_kind) || (args.p_county === 'greene_oh' && args.p_kind === 'grocery')) {
+          return fail('Choose a kind this county has: fast_food, restaurant, chicken, burger, pizza, sandwich, mexican or asian (grocery in montgomery_oh only).');
+        }
+        const mid ={ montgomery_oh: [-84.2, 39.76], greene_oh: [-83.98, 39.70] }[args && args.p_county] || [-84.2, 39.76];
         const n = (args && args.p_kind) === 'grocery' ? 6 : 14;
         const all = /[?&]noplaces/.test(q) ? [] : Array.from({ length: n }, (_, i) => ({ name: i % 5 === 4 ? '' : `Test Place ${i + 1}`, lat: mid[1] + Math.sin(i * 2.4) * 0.012 * (1 + i % 4), lon: mid[0] + Math.cos(i * 2.4) * 0.016 * (1 + i % 4) }));
         // like the real function: only the places within 5 km of the spot, plus the nearest five (never the whole county)

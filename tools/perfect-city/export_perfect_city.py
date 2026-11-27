@@ -17,6 +17,7 @@ import io
 import json
 import math
 import pathlib
+import re
 import sys
 import zipfile
 
@@ -129,8 +130,12 @@ def census(args):
 KINDS = {'fast_food': ('amenity', 'fast_food'), 'restaurant': ('amenity', 'restaurant'), 'grocery': ('shop', 'supermarket')}
 
 # Food sub-kinds: a place in one of these is ALSO in fast_food or restaurant. The rules are COPIED from the Ryagram engine,
-# ryagram/geo/categories.py DEFAULT (rows chicken, burger, pizza: requires, cuisine and brands, unchanged), and applied the same way as its
-# classify(): the FIRST row that matches wins, so a place is in at most one of the three. Keep them in step with that file; do not add rules here.
+# ryagram/geo/categories.py DEFAULT (rows chicken, burger, pizza, sandwich, mexican, asian, in that order: requires, match, cuisine and brands,
+# unchanged), and applied the same way as its classify(): the FIRST row that matches wins, so a place is in at most one sub-kind, and sandwich,
+# mexican and asian are checked in that order AFTER chicken, burger and pizza. Rows with "match": "words" need a WHOLE cuisine token (the tag split
+# on ; and ,) or a brand as whole words in the name, brand or operator (a curly apostrophe counts as a plain one); the older rows match substrings.
+# Keep them in step with that file; do not add rules here. With RYAGRAM_ENGINE set to a Ryagram checkout, `places` compares these rows with that
+# checkout's categories.py first and refuses on any difference (engine_drift below).
 SUBKINDS = (
     {"id": "chicken", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "cuisine": ["chicken"],
      "brands": ["kfc", "kentucky fried", "popeyes", "chick-fil-a", "raising cane", "wingstop", "bojangles", "zaxby", "church's chicken", "churchs chicken", "el pollo loco", "golden chick", "slim chickens", "bonchon", "lee's famous recipe"]},
@@ -138,7 +143,43 @@ SUBKINDS = (
      "brands": ["mcdonald", "burger king", "wendy's", "wendys", "white castle", "five guys", "culver", "whataburger", "sonic drive", "jack in the box", "carl's jr", "hardee", "smashburger", "steak n shake", "in-n-out", "habit burger"]},
     {"id": "pizza", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "cuisine": ["pizza"],
      "brands": ["domino", "pizza hut", "papa john", "little caesars", "marco's pizza", "papa murphy", "jet's pizza", "cici's"]},
+    {"id": "sandwich", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "match": "words", "cuisine": ["sandwich", "sub", "deli"],
+     "brands": ["subway", "jimmy john's", "jersey mike's", "firehouse subs", "potbelly", "penn station", "quiznos", "jason's deli", "arby's"]},
+    {"id": "mexican", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "match": "words", "cuisine": ["mexican", "tex-mex", "tex_mex", "tacos", "taco", "burrito"],
+     "brands": ["taco bell", "chipotle", "qdoba", "moe's southwest", "taco john's", "el toro"]},
+    {"id": "asian", "requires": [("amenity", ["fast_food", "restaurant"])], "tags": [], "match": "words", "cuisine": ["chinese", "japanese", "sushi", "thai", "vietnamese", "korean", "asian", "ramen", "pho"],
+     "brands": ["panda express", "p.f. chang's", "pf chang's"]},
 )
+APOSTROPHES = str.maketrans({chr(0x2019): "'", chr(0x2018): "'"})
+
+
+def engine_drift(engine):
+    """[] when SUBKINDS equal the matching rows of <engine>/ryagram/geo/categories.py DEFAULT (same ids in the same relative order, same
+    requires, tags, match, cuisine and brands); else the differences in words. categories.py imports only json and re."""
+    import importlib.util
+    path = pathlib.Path(engine) / 'ryagram' / 'geo' / 'categories.py'
+    if not path.exists():
+        return [f'{path} does not exist']
+    spec = importlib.util.spec_from_file_location('_ryagram_categories', path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mine = [c['id'] for c in SUBKINDS]
+    theirs = {c['id']: c for c in mod.DEFAULT}
+    out = [f'{i}: not in the engine table' for i in mine if i not in theirs]
+    order = [c['id'] for c in mod.DEFAULT if c['id'] in mine]
+    if not out and order != mine:
+        out.append(f'order differs: engine {order}, export {mine}')
+    def norm(c):
+        d = {k: [(a, list(b)) for a, b in c.get(k, [])] for k in ('requires', 'tags')}
+        d.update({k: list(c.get(k, [])) for k in ('cuisine', 'brands')}, match=c.get('match'))
+        return d
+    out += [f'{c["id"]}: the rule differs from the engine' for c in SUBKINDS if c['id'] in theirs and norm(c) != norm(theirs[c['id']])]
+    return out
+
+
+def has_words(text, fragment):
+    """True if `fragment` appears in `text` as a whole word run (no letter or digit just before or after it), as the engine's _has_words."""
+    return re.search(r'(?<![a-z0-9])' + re.escape(fragment) + r'(?![a-z0-9])', text) is not None
 
 
 def subkind(tags):
@@ -150,7 +191,12 @@ def subkind(tags):
             continue
         if any(tags.get(k) in vals for k, vals in c.get('tags', [])):
             return c['id']
-        if any(w in cuisine for w in c.get('cuisine', [])) or any(b in name for b in c.get('brands', [])):
+        if c.get('match') == 'words':
+            tokens = {t.strip() for t in re.split(r'[;,]', cuisine) if t.strip()}
+            words = name.translate(APOSTROPHES)
+            if (tokens & set(c.get('cuisine', []))) or any(has_words(words, b) for b in c.get('brands', [])):
+                return c['id']
+        elif any(w in cuisine for w in c.get('cuisine', [])) or any(b in name for b in c.get('brands', [])):
             return c['id']
     return None
 
@@ -168,6 +214,15 @@ def places(args):
     out = pathlib.Path(args.out).resolve()
     if REPO in out.parents or out == REPO:
         sys.exit('REFUSED: the OpenStreetMap points must never be written inside the repo (attorney row G11).')
+    import os
+    engine = os.environ.get('RYAGRAM_ENGINE')
+    if engine:
+        drift = engine_drift(engine)
+        if drift:
+            sys.exit('REFUSED: SUBKINDS are not the Ryagram engine\'s rows (' + engine + '): ' + '; '.join(drift))
+        print('SUBKINDS match the engine at', engine)
+    else:
+        print('RYAGRAM_ENGINE not set: SUBKINDS were NOT compared with the engine')
     rows, outside = [], 0
     for key in COUNTIES:
         # keep only the points INSIDE the county's own block groups (the queries used a box wider than the county; GAMES 08:44 LOW)
@@ -242,7 +297,7 @@ def units_seed(args):
 
 
 # The OFFICIAL count of each kind in the county (GEO 11-27): U.S. Census Bureau, County Business Patterns (CBP), public domain,
-# read from the bulk county files already in the cache (no network). There is no CBP code for chicken, burger or pizza places.
+# read from the bulk county files already in the cache (no network). There is no CBP code for chicken, burger, pizza, sandwich, Mexican or Asian places.
 CBP_DIR = pathlib.Path(r'C:/Users/Ryan/Ryagram-cache/cbp_bulk')
 CBP_NAICS = {'fast_food': '722513', 'restaurant': '722511', 'grocery': '445110'}
 CBP_LABELS = {'722513': 'Limited-service restaurants', '722511': 'Full-service restaurants',
@@ -285,7 +340,7 @@ def official_block(year, meta):
             kinds[kind]['note'] = 'fewer than 3 or none (not published)'
     return {'year': year,
             'source': f'U.S. Census Bureau, County Business Patterns {year}, county file cbp{year % 100:02d}co (establishments, by NAICS industry code): OBSERVED. Public domain (U.S. government work).',
-            'not_counted': ['chicken', 'burger', 'pizza'],
+            'not_counted': ['chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian'],
             'kinds': kinds}
 
 

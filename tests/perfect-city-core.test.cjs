@@ -128,10 +128,52 @@ test('the page offers exactly the kinds the server allows, county by county (rea
   }
   assert.deepEqual(Object.keys(page.KINDS).sort(), table, 'a label for every server kind and no other');
   assert.equal(page.KINDS.chicken, 'Chicken places'); assert.equal(page.KINDS.burger, 'Burger places'); assert.equal(page.KINDS.pizza, 'Pizza places');
-  // the export tool writes the same kinds: its base KINDS plus the sub-kinds copied from the Ryagram engine
+  assert.equal(page.KINDS.sandwich, 'Sandwich places'); assert.equal(page.KINDS.mexican, 'Mexican places'); assert.equal(page.KINDS.asian, 'Asian places');
+  // the export tool writes the same kinds: its base KINDS plus the sub-kinds copied from the Ryagram engine, in the engine's order (first match wins)
   const py = fs.readFileSync(path.join(__dirname, '..', 'tools', 'perfect-city', 'export_perfect_city.py'), 'utf8');
   const base = [...py.match(/^KINDS = \{(.*)\}$/m)[1].matchAll(/'([a-z_]+)': \(/g)].map((m) => m[1]);
   const subs = [...py.matchAll(/^ {4}\{"id": "([a-z_]+)"/gm)].map((m) => m[1]);
-  assert.deepEqual(subs, ['chicken', 'burger', 'pizza']);
+  assert.deepEqual(subs, ['chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian']);
   assert.deepEqual([...base, ...subs].sort(), table, 'the export tool writes only kinds the table accepts');
+  // every food sub-kind says what its rule misses under the results; asian says independents are often untagged, so undercounted
+  assert.deepEqual(Object.keys(page.KIND_LIMITS), subs);
+  for (const k of subs) assert.ok(page.KIND_LIMITS[k].startsWith(page.KINDS[k] + ' are sorted by'), k);
+  assert.match(page.KIND_LIMITS.asian, /Independent places are often not tagged with a cuisine, so Asian places are undercounted\./);
+  assert.match(page.KIND_LIMITS.asian, /Indian places are not counted here\./);
+  for (const k of ['sandwich', 'mexican']) assert.match(page.KIND_LIMITS[k], /checked in the order chicken, burger, pizza, sandwich, Mexican, Asian/, k);
+  // the refusal sentence names every kind the check accepts
+  const refusal = sql.match(/'Choose a kind this county has: ([^(]*) \(grocery in montgomery_oh only\)\.'/);
+  assert.ok(refusal, 'the refusal sentence');
+  assert.deepEqual(refusal[1].replace(' or ', ', ').split(', ').sort(), table.filter((k) => k !== 'grocery'));
+  // the page mock (tests/fake-supabase.js) accepts the same kinds and refuses in the same words
+  const fake = fs.readFileSync(path.join(__dirname, 'fake-supabase.js'), 'utf8');
+  const fakeKinds = fake.match(/const KINDS_OK = \[([^\]]*)\]/);
+  assert.ok(fakeKinds, 'the mock names its kinds');
+  assert.deepEqual(fakeKinds[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).sort(), table, 'the mock accepts exactly the server kinds');
+  assert.ok(fake.includes(`fail('Choose a kind this county has: ${refusal[1]} (grocery in montgomery_oh only).')`), 'the mock refuses in the server\'s words');
+});
+
+// The export's SUBKINDS are a COPY of rows in the Ryagram engine's ryagram/geo/categories.py DEFAULT. With RYAGRAM_ENGINE set to a Ryagram checkout,
+// every row must equal the engine's (requires, tags, match, cuisine, brands) and keep the engine's relative order.
+const ENGINE = process.env.RYAGRAM_ENGINE;
+test('the export\'s sub-kind rules equal the Ryagram engine\'s categories.py rows, in its order', { skip: !ENGINE && 'RYAGRAM_ENGINE not set: SKIPPED, not passed' }, () => {
+  const cat = fs.readFileSync(path.join(ENGINE, 'ryagram', 'geo', 'categories.py'), 'utf8');
+  const py = fs.readFileSync(path.join(__dirname, '..', 'tools', 'perfect-city', 'export_perfect_city.py'), 'utf8');
+  const rows = (text) => {
+    const out = new Map();
+    for (const m of text.matchAll(/^ {4}\{"id": "([a-z_]+)"([\s\S]*?)\}(?:,|\n)/gm)) {
+      const body = m[2], grab = (re) => { const g = body.match(re); return g ? g[1] : null; };
+      out.set(m[1], { requires: grab(/"requires": (\[.*?\]), "tags"/), tags: grab(/"tags": (\[.*?\]), "(?:match|cuisine)"/), match: grab(/"match": "([a-z]+)"/),
+        cuisine: grab(/"cuisine": (\[[^\]]*\])/), brands: grab(/"brands": (\[[^\]]*\])/) });
+    }
+    return out;
+  };
+  const mine = rows(py), theirs = rows(cat);
+  const ids = [...mine.keys()];
+  assert.deepEqual(ids, ['chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian']);
+  assert.deepEqual([...theirs.keys()].filter((k) => mine.has(k)), ids, 'the engine has every sub-kind, in the same relative order');
+  for (const k of ids) {
+    assert.ok(theirs.get(k).cuisine && theirs.get(k).brands, `${k}: the engine row was read`);
+    assert.deepEqual(mine.get(k), theirs.get(k), `${k}: the export's rule is the engine's`);
+  }
 });

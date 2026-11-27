@@ -48,6 +48,9 @@ FAULTS = [
     ("the AI summary nearest carries a name", SUMMARY,
      "jsonb_build_object('rank', n.rk, 'km',", "jsonb_build_object('rank', n.rk, 'name', 'x', 'km',"),
     ("people at 1 km are given in the summary", SUMMARY, "case when r.km = 5 then", "case when r.km >= 1 then"),
+    # 2026-11-27: the table accepts asian but perfect_city_check's list forgot it (the two lists drifted), so the page's Asian places are refused
+    ("a new kind missing from the check list", PLACES,
+     "'sandwich', 'mexican', 'asian') or (p_county = 'greene_oh' and p_kind = 'grocery') then", "'sandwich', 'mexican') or (p_county = 'greene_oh' and p_kind = 'grocery') then"),
     ("the spot box check is removed", PLACES, BOX, ""),
 ]
 

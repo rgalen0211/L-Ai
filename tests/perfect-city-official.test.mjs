@@ -27,7 +27,7 @@ test('the page data files carry the pinned County Business Patterns counts, labe
     assert.equal(o.year, PINNED.year);
     assert.match(o.source, /County Business Patterns 2023/);
     assert.match(o.source, /Public domain/);
-    assert.deepEqual(o.not_counted, ['chicken', 'burger', 'pizza']);
+    assert.deepEqual(o.not_counted, ['chicken', 'burger', 'pizza', 'sandwich', 'mexican', 'asian']);      // no NAICS code of their own
     assert.deepEqual(Object.keys(o.kinds), Object.keys(NAICS));
     for (const [kind, code] of Object.entries(NAICS)) {
       assert.equal(o.kinds[kind].naics, code, `${county} ${kind}`);
@@ -73,11 +73,11 @@ test('the counts equal the County Business Patterns 2023 county file in the loca
   }
 });
 
-test('the page says the official count beside the loaded count, and says the Census does not count chicken, burger or pizza', () => {
+test('the page says the official count beside the loaded count, and says the Census does not count chicken, burger, pizza, sandwich, Mexican or Asian places', () => {
   const src = read('assets/app-perfect-city.js');
   assert.match(src, /Census County Business Patterns \$\{o\.year\} counts \$\{n\}/);
   assert.match(src, /establishments in this county \(observed\); \$\{m\}/);
   assert.match(src, /the map data has \$\{fmt\(state\.loaded\)\} of this kind loaded/);
   assert.match(src, /'fewer than 3 or none \(not published\)'/);
-  assert.match(src, /The Census does not count chicken, burger or pizza places separately\./);
+  assert.match(src, /The Census does not count chicken, burger, pizza, sandwich, Mexican or Asian places separately\./);
 });
