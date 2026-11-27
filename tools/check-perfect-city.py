@@ -108,7 +108,7 @@ def main():
                 check(p.locator('#pc-spot').count() == 1 and p.locator('#pc-spot-b').count() == 1 and p.locator('circle.pc-ring').count() == 6, 'compare: both spots and both ring sets are on the map')
                 st = p.inner_text('#pc-status')
                 check('Spot A:' in st and 'Spot B:' in st and 'within 5 km' in st, 'compare: the status line names both spots')
-                check(p.locator('#pc-marks').count() == 1 and 'blue square' in p.inner_text('#pc-marks'), 'compare: the marks are said in words')
+                check(p.locator('#pc-marks').count() == 1 and 'cyan square' in p.inner_text('#pc-marks'), 'compare: the marks are said in words')
                 a_before = p.locator('#pc-compare tbody tr').first.locator('td').first.inner_text()
                 p.select_option('#pc-target', 'B')
                 p.fill('#pc-lat', '39.7589'); p.fill('#pc-lon', '-84.1916'); p.press('#pc-lon', 'Enter')
