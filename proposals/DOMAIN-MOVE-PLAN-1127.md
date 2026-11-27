@@ -120,7 +120,29 @@ Rule for every step: the old domain keeps working the whole time, and both domai
 | **5. Switch hosting** | (a) set up the OLD-domain redirector first (below); (b) CC1 pushes `CNAME` = NEW; (c) GitHub issues NEW's certificate (minutes, up to about an hour), then "Enforce HTTPS"; (d) turn the redirector on | CC1 push on Ryan's yes; Ryan for DNS | without a redirector, every old link 404s | push `CNAME` = uselai.com back; switch the redirector off; the GitHub certificate for uselai.com is re-issued (minutes) |
 | **6. Flip what builds links** | Supabase Site URL = `https://NEW`; SMTP sender `noreply@NEW`; `SITE_URL` secret = NEW (redeploy the 6 functions); `CONNECT_APP_URL`, `CONNECT_CONSENT_URL`, `NODE_APPROVAL_URL` = NEW; `order_status` config row = NEW; ops-ping URL; then one test sign-up, one reset, one invite, one connector consent, one delivery link | Ryan (dashboard, secrets, SQL), CC1 (ops-ping) | | set each value back; keep the old values on paper before the sitting |
 | **7. Words and listings** | canonicals; footers in the six email templates; contact addresses (only where the attorney agrees); connector listings; Stripe business URL | WEB, CONNECT, Ryan | | revert commits / paste the old templates back |
-| **8. Much later (months)** | remove uselai.com from CORS and Redirect URLs **only when no traffic arrives through the old domain**. Arguably never: the old domain keeps redirecting, and the cost of keeping both allowed is nil. | Ryan | | add back |
+| **8. Much later (months)** | remove uselai.com from CORS and Redirect URLs **only when no traffic arrives through the old domain**. Arguably never: the old domain keeps redirecting, and the cost of keeping both allowed is nil. For EMAILS alone the old Redirect URL is needed only as long as a link already sent can still be used: reset and magic links expire after Supabase's link lifetime (1 hour by default), invites after the configured invite limit. The 301 itself must stay for YEARS for shared film links and YouTube descriptions (GAMES 00:34, LOW 2). | Ryan | | add back |
+
+### What people notice on the day (GAMES 00:34 MEDIUM, RENDERER 00:32 LOW, folded)
+- **Everyone is signed out once at step 5.** The app keeps its sign-in in the browser's storage for the
+  address it is on (`assets/app-auth.js:126`, `persistSession: true`). That storage belongs to uselai.com, so after
+  the 301 the page runs on NEW with empty storage, and every signed-in person meets the sign-in page and types
+  their password again. **No film, credit or account is lost: they are all on the server.**
+- The same move drops the choices kept only in the browser: the Start-door snooze (`app-start.js:67`), the
+  editor's saved choice (`app-editor-pro.js:11`), the tester wizard's disk step (`app-tester-wizard.js:57`), and the
+  funnel's first-source note for a visitor not yet signed up (`funnel.js:45`; an account's source is on the server).
+- **Links already sent still work.** Reset, confirm and invite links use `token_hash` + `verifyOtp`
+  (`app-auth.js:254`), which needs nothing stored in the browser, so a link sent before the move still works after the 301.
+- **So, at steps 5 and 6:** (a) pick a quiet hour, and never while a film waits for an approval click; (b) for a few
+  weeks after the move the sign-in page shows one line. DRAFT words for Ryan's yes: *"Ryagram has a new address, so
+  you may need to sign in again."*; (c) the render PC signs in with its own password through the API (supabase.co),
+  not through the site, so it is not affected.
+- **Offline demo:** `/preview-demo/` registers a service worker (scope `/preview-demo/`, `preview-offline.js:41`).
+  A visitor who saved it for offline use keeps getting the cached page from uselai.com and is never redirected,
+  because a service worker answers before the network. That is harmless while the demo is unchanged. If it ever changes,
+  ship a `sw.js` that unregisters itself before step 5 (GAMES LOW 1).
+- **Stubs carry no `auth-forward.js`** (workflow-audit, workflow-audit-thanks, thank-you). That is fine because no
+  auth email or Supabase redirect points at them. **Never point a Redirect URL or an email link at a stub page**
+  (RENDERER LOW).
 
 ### The old-domain redirector (step 5) -- Ryan picks one
 GitHub Pages serves one domain per repo, so after the CNAME flip uselai.com is served by nothing unless we set this up.

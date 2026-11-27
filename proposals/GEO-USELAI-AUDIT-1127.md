@@ -70,8 +70,9 @@ Canonicals are absolute `https://uselai.com/...` on about 20 pages.
 (`#/auth?token_hash=`, `#/auth/expired`, `#/join?code=`, `#/connect/consent?request=`, `#/delivery/<id>`,
 `#/device`, `#/credits`, `#/create-account`), `/film/?s=`, `/get-app/#t=`, `/help/`, `/connect-ai/`,
 `/terms/`, `/privacy-policy.html`, `/report/`, `/404.html`, `CNAME`, `assets/auth-forward.js`.
-WEB's branch changes none of these paths. Its edits to `app/index.html` and `help/index.html` are one line
-each: RENDERER, please confirm they are text-only.
+WEB's branch changes none of these paths. RENDERER confirmed (00:32, FOLD, against `455dd273`) that the edits to
+`app/index.html` and `help/index.html` are one cache stamp each. `auth-forward.js` is byte-identical and still the
+first script on `/`, and `/ryagram/` keeps auth-forward, its query, its hash and the word "ryagram".
 
 ## 3. Where "L'Ai" shows to a visitor (BRAND = a Ryan wording call; LEGAL-KEEP = do not touch)
 
