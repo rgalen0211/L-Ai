@@ -101,6 +101,50 @@ for (const [county, pop, km2] of [['montgomery_oh', 537309, 1202.4], ['greene_oh
   });
 }
 
+// CC1 11-27 09:15 MEDIUM: the share of a block group inside a ring must be measured against the SAME (simplified) shape the
+// page clips, never against the exported km2 (the full shape's true area, kept for the density figure). Check: for every unit
+// in both counties, a circle that covers the whole unit gives back exactly its pop. The pop is scaled by 1e6 so the rounding
+// to the nearest 100 cannot hide a share of a few percent.
+const COVER_SCALE = 1e6;
+function coverCheck(core, county) {
+  const win = {};
+  require('node:vm').runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'assets', 'perfect-city', `${county}.census.js`), 'utf8'), { window: win });
+  const bad = [];
+  let n = 0;
+  for (const u of win.ryagramPerfectCityData[county].units) {
+    if (!u.pop) continue;
+    let far = 0;
+    for (const ring of u.rings) for (const p of ring) far = Math.max(far, core.km(u.centre, p));
+    const r = far * 1.02 + 0.05;              // covers every vertex, with room for the 96-sided circle and the flat projection
+    const got = core.peopleWithinArea(u.centre, [{ ...u, pop: u.pop * COVER_SCALE }], [r])[0].about / COVER_SCALE;
+    n++;
+    if (Math.abs(got - u.pop) > 0.001) bad.push(`${u.id}: ${got} vs ${u.pop}`);
+  }
+  return { n, bad };
+}
+for (const county of ['montgomery_oh', 'greene_oh']) {
+  test(`${county}: a circle covering a whole block group gives back exactly its people, for every block group (CC1 09:15)`, () => {
+    const { n, bad } = coverCheck(pc, county);
+    assert.ok(n > 100, `${n} units checked`);
+    assert.deepEqual(bad, []);
+  });
+}
+test('MUST-FAIL: a core that shares a block group by its full-shape km2 instead of the simplified shape fails the covering check', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'assets', 'perfect-city-core.js'), 'utf8');
+  const was = 'total += u.pop * Math.min(1, inside / full);';
+  assert.equal(src.split(was).length, 2, 'the line the fault is planted on is there exactly once');
+  const mutant = src.replace(was, 'total += u.pop * Math.min(1, inside / u.km2);');
+  const box = { module: { exports: {} } };
+  require('node:vm').runInNewContext(mutant, box);
+  const core = box.module.exports;
+  assert.equal(typeof core.peopleWithinArea, 'function', 'the mutant loaded');
+  for (const county of ['montgomery_oh', 'greene_oh']) {
+    const { n, bad } = coverCheck(core, county);
+    assert.ok(n > 100, `${county}: ${n} units checked`);
+    assert.ok(bad.length > n / 4, `${county}: the full-shape area must break many units (got ${bad.length} of ${n})`);
+  }
+});
+
 test('NO OpenStreetMap data in the repo: no file under assets/perfect-city carries OSM ids or the ODbL notice', () => {
   const dir = path.join(__dirname, '..', 'assets', 'perfect-city');
   for (const f of fs.readdirSync(dir)) {
