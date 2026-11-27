@@ -63,18 +63,19 @@ test('the price table the cost gate reads is the real one: a line 6, a map 8, ba
   assert.equal(PRICE.final_line, 6);
   assert.equal(PRICE.final_map, 8);
   assert.ok(CBP_SECTORS.includes("'health_care'") && CBP_SECTORS.includes("'manufacturing'") && CBP_SECTORS.includes("'accommodation_food'"));
+  assert.ok(CBP_SECTORS.includes("'construction'") && CBP_SECTORS.includes("'retail'") && CBP_SECTORS.includes("'transportation'"));   // the three 11-26 starts
 });
 
 test('every ready-made start passes all five gates (catalog, engine passed, not blocked, the dataset\'s own years, 8 credits or less)', () => {
-  assert.equal(B.READY_MADE.length, 6);
+  assert.equal(B.READY_MADE.length, 9);
   for (const r of B.READY_MADE) assert.deepEqual(failures(r), [], `${r.id}: ${failures(r).join(', ')}`);
   assert.equal(new Set(B.READY_MADE.map(r => r.id)).size, B.READY_MADE.length, 'ids are unique');
   assert.equal(new Set(B.READY_MADE.map(r => r.dataset)).size, B.READY_MADE.length, 'one start per dataset');
 });
 
-test('the three job starts read true: label, blurb years and title match the dataset; a line blurb says lines, a map blurb says state by state', () => {
+test('the six job starts read true: label, blurb years and title match the dataset; a line blurb says lines, a map blurb says state by state', () => {
   const jobs = B.READY_MADE.filter(r => /^cbp_/.test(r.dataset));
-  assert.deepEqual(JSON.parse(JSON.stringify(jobs.map(r => r.id))), ['health-care-jobs', 'factory-jobs', 'food-jobs']);
+  assert.deepEqual(JSON.parse(JSON.stringify(jobs.map(r => r.id))), ['health-care-jobs', 'factory-jobs', 'food-jobs', 'construction-jobs', 'shop-jobs', 'trucking-jobs']);
   for (const r of jobs) {
     assert.ok(r.blurb.includes(`${r.start} to ${r.end}`), `${r.id} blurb names its years`);
     assert.equal(r.title, T.DATASETS[r.dataset].headline, `${r.id} title is the dataset's own headline`);
