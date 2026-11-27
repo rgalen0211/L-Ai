@@ -18,3 +18,8 @@
 .games-host .gh-results li,.games-host .gh-final li{font-size:1.15rem}
 .games-host .gh-final{list-style:none;padding:0}
 @media (min-width:1600px){.games-host .gh-results li,.games-host .gh-final li,.games-host button{font-size:1.3rem}}
+.games-host .gh-player-list{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px}
+.games-host .gh-player{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.games-host .gh-player-name{font-weight:700;overflow-wrap:anywhere}
+.games-host .gh-remove,.games-host #gh-lock{min-height:44px;min-width:44px}
+.games-host .gh-lock-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}

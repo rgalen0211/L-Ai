@@ -75,7 +75,7 @@ test('REJOIN: the phone remembers its seat in THIS TAB only (sessionStorage), re
   assert.match(src, /s\.pid = await Room\.pidOf\(s\.pair\.pub\);/, 'the pid is always made from the key');
   const leaves = (src.match(/'Leave the room'\)/g) || []).length, forget = (src.match(/await leave\(\); writeSeat\(null\); join\('You left the room\.'\)/g) || []).length;
   assert.ok(leaves >= 3, 'a phone can leave in the lobby, during a round and at the final'); assert.equal(forget, leaves, 'every Leave button forgets the seat');
-  assert.match(src, /else if \(m\.t === 'state' && s\.welcomed\) \{ if \(await fromHost\(m\)\) \{ s\.lastHeard = Date\.now\(\); onState\(m\); \} \}/, 'nothing from the room is shown before the host lets the phone in, and then only what the pinned host key signed');
+  assert.match(src, /if \(m\.t === 'state' && s\.welcomed\) \{ if \(await fromHost\(m\)\) onState\(m\); \}/, 'nothing from the room is shown before the host lets the phone in, and then only what the pinned host key signed');
   assert.match(src, /else if \(m\.t === 'got' && m\.pid === s\.pid && s\.welcomed\) \{ if \(await fromHost\(m\)\) gotIt\(m\); \}/);
   // the stored value is checked before use
   const store = new Map(); const ss = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };

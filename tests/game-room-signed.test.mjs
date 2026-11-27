@@ -36,8 +36,8 @@ const h = (tag, attrs, ...kids) => { const e = new El(tag); for (const [k, v] of
 
 // One browser world: the six scripts (or mutated copies) in one context, a session store, and the page bits they touch.
 function world(mutate = {}) {
-  const store = new Map();
-  const ctx = { console, URLSearchParams, URL, TextEncoder, crypto: globalThis.crypto, setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
+  const store = new Map(), clock = { off: 0 };
+  const ctx = { Date: class extends Date { static now() { return Date.now() + clock.off; } }, console, URLSearchParams, URL, TextEncoder, crypto: globalThis.crypto, setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
     location: { hostname: '127.0.0.1', search: '?relay=http://127.0.0.1:9', hash: '#/d/games', origin: 'http://127.0.0.1:1' },
     sessionStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) },
     document: { createElement: t => new El(t), createTextNode: t => ({ nodeType: 3, textContent: String(t) }), getElementById: () => null },
@@ -49,7 +49,7 @@ function world(mutate = {}) {
     for (const [from, to] of (mutate[f] || [])) { assert.ok(src.includes(from), `mutant text is in ${f}: ${from}`); src = src.split(from).join(to); }
     vm.runInContext(src, ctx, { filename: f });
   }
-  return { W: ctx, G: ctx.ryagramGameRoom, store };
+  return { W: ctx, G: ctx.ryagramGameRoom, store, clock };
 }
 
 // A fake room: every endpoint's message (validated, as the real room does) reaches every OTHER endpoint; drop() can hold some back; log keeps everything sent.
@@ -77,9 +77,9 @@ function bus(G) {
   return b;
 }
 
-function mountHost(w, room) {
+function mountHost(w, room, opts = {}) {
   const Room = { ...w.G, connect: async () => room.endpoint('host') };
-  return w.W.ryagramGamesHost.mount(new El('div'), { h, Room, Score: w.W.ryagramGameScore, Rounds: w.W.ryagramGameRounds, cfg: {} });
+  return w.W.ryagramGamesHost.mount(opts.root || new El('div'), { h, Room, Score: w.W.ryagramGameScore, Rounds: w.W.ryagramGameRounds, cfg: {}, seconds: opts.seconds });
 }
 async function fakePhone(w, room, name) {
   const pair = await w.G.keyPair(), pid = await w.G.pidOf(pair.pub), end = room.endpoint(name);
@@ -180,7 +180,7 @@ async function hostScenario(w) {
   // a replayed guess (A's own, same seq) does not overwrite a later one
   const oldGuess = A.last;
   await A.send({ t: 'guess', round: 0, text: 'under the hill' }); await settle();
-  await A.end.send(oldGuess); await settle();
+  w.clock.off += 1100; await A.end.send(oldGuess); await settle();          // a second later, so the guess rate limit (2 per second) is not what drops it
   out.replayedGuessRefused = host.state().guesses.get(A.pid) === 'under the hill';
   // B's key cannot make A leave
   await B.end.send(await w.G.sign(B.pair, CODE, { t: 'leave', pid: A.pid, seq: 5000 })); await settle();
@@ -254,7 +254,7 @@ async function phoneScenario(w) {
     out.forgedGotRefused = !/Sent:/.test(root.querySelector('#ph-sent').textContent) && /Sending/.test(root.querySelector('#ph-sent').textContent);
     room.drop = () => false;
     room.to('phone', room.from('host', 'got')[0]); await settle();
-    out.realGotShown = /Sent:/.test(root.querySelector('#ph-sent').textContent);
+    out.realGotShown = /^Sent: \u201cover the hill\u201d\. You can change it until time is up\.$/.test(root.querySelector('#ph-sent').textContent);          // a stop after the quote (words check 10:13)
     const guess = room.from('phone', 'guess')[0];
     out.guessSigned = !!guess && guess.pid === join.pid && guess.seq > join.seq && await w.G.verify(join.pub, CODE, guess) && host.state().guesses.get(join.pid) === 'over the hill';
     // a replayed genuine host state (a real signature, an old seq) must not take the phone back to the lobby
@@ -325,22 +325,278 @@ test('MUST FAIL: no signing, no game: without crypto.subtle the host opens no ro
   assert.match(root.textContent, /cannot sign the game/);
 });
 
+// 11-27 HARDENING (WORKER and CC1 reviews; GAMES picture book). The room code is SLOW on purpose: PBKDF2-HMAC-SHA-256, 300,000 rounds, of the host's raw key.
+const VECTOR_PUB = 'BA' + 'A'.repeat(85), VECTOR_CODE = 'VNETNG';          // worked out once with node:crypto pbkdf2Sync (and checked again below)
+async function codeScenario(w) {
+  const G = w.G, out = {};
+  out.kdfParams = JSON.stringify(G.CODE_KDF) === JSON.stringify({ name: 'PBKDF2', hash: 'SHA-256', salt: 'ryagram-game-room-v2', iterations: 300000, bits: 256 }) && Object.isFrozen(G.CODE_KDF);
+  const t0 = Date.now(); const c = await G.codeOf(VECTOR_PUB); const ms = Date.now() - t0;
+  out.knownVector = c === VECTOR_CODE;
+  const raw = Buffer.from(VECTOR_PUB, 'base64url'), d = (await import('node:crypto')).pbkdf2Sync(raw, 'ryagram-game-room-v2', 300000, 32, 'sha256'); let want = '';
+  for (const b of d) if (b < 240 && want.length < 6) want += G.CODE_LETTERS[b % 24];
+  out.sameAsNodePbkdf2 = want === VECTOR_CODE && c === want;
+  out.slowOnPurpose = ms >= 25;          // about 50-120 ms on the PC it was measured on; 25 ms is a floor that plain SHA-256 (well under 1 ms) can never reach
+  const t1 = Date.now(); out.cached = (await G.codeOf(VECTOR_PUB)) === c && Date.now() - t1 < 20;
+  return out;
+}
+
+test('MUST FAIL: codeOf is PBKDF2-HMAC-SHA-256 (salt ryagram-game-room-v2, 300,000 rounds, 256 bits), slow on purpose, cached per key, and gives the known vector', async () => {
+  assert.deepEqual(await codeScenario(world()), { kdfParams: true, knownVector: true, sameAsNodePbkdf2: true, slowOnPurpose: true, cached: true });
+});
+
+// HOST CONTROLS: Remove (kick) and Lock the room, refused in plain words through the signed welcome, lines updated in place.
+async function controlsScenario(w) {
+  const room = bus(w.G), root = new El('div'), host = mountHost(w, room, { root }), out = {};
+  await until(() => room.from('host', 'state').length > 0);
+  CODE = host.state().code;
+  const settle = async () => { await sleep(10); await host.settled(); await sleep(5); await host.settled(); };
+  const welcomeFor = pid => room.from('host', 'welcome').filter(m => m.pid === pid);
+  const player = pid => host.state().players.find(p => p.pid === pid);
+  const hostPub = host.state().pair.pub;
+  try {
+    const A = await fakePhone(w, room, 'a'), B = await fakePhone(w, room, 'b'), C = await fakePhone(w, room, 'c'), D = await fakePhone(w, room, 'd');
+    for (const [P, n] of [[A, 'Ana'], [B, 'Ben'], [C, 'Cy']]) await P.send({ t: 'join', name: n, pub: P.pair.pub });
+    await settle();
+    const list = root.querySelector('#gh-player-list'), rowA = list && list.children[0], lockBtn = root.querySelector('#gh-lock');
+    out.rowsShown = !!list && list.children.length === 3 && /Ana/.test(rowA.textContent) && !!rowA.querySelector('button') && /Remove/.test(rowA.querySelector('button').textContent)
+      && rowA.querySelector('button').attrs['aria-label'] === 'Remove Ana from the room' && !!lockBtn && /Lock the room/.test(lockBtn.textContent);
+    // Remove Ben: dropped, told in a signed welcome, and refused in words when he tries again
+    host.kick(B.pid); await settle();
+    const told = welcomeFor(B.pid).pop();
+    out.kickTold = !!told && told.ok === false && told.problem === 'The host removed you from this room.' && await w.G.verify(hostPub, CODE, told) && !player(B.pid);
+    await B.send({ t: 'join', name: 'Ben', pub: B.pair.pub }); await settle();
+    const again = welcomeFor(B.pid).pop();
+    out.kickedRejoinRefused = welcomeFor(B.pid).length === 3 && again.ok === false && again.problem === 'The host removed you from this room.' && !player(B.pid);
+    out.rowsInPlace = root.querySelector('#gh-player-list') === list && list.children[0] === rowA && list.children.length === 2 && !/Ben/.test(list.textContent);
+    // Lock: a new player is refused in words; a seated player can still come back; Unlock lets new players in again
+    host.lock(true); await settle();
+    out.lockInPlace = root.querySelector('#gh-lock') === lockBtn && /Unlock the room/.test(lockBtn.textContent) && /locked/.test(root.querySelector('#gh-lock-note').textContent);
+    await D.send({ t: 'join', name: 'Dee', pub: D.pair.pub }); await settle();
+    const wd = welcomeFor(D.pid).pop();
+    out.lockedRefused = !!wd && wd.ok === false && wd.problem === 'This room is locked.' && await w.G.verify(hostPub, CODE, wd) && !player(D.pid);
+    await A.send({ t: 'join', name: 'Ana', pub: A.pair.pub }); await settle();
+    out.seatedComesBackWhileLocked = welcomeFor(A.pid).pop().ok === true;
+    host.lock(false); await settle();
+    await D.send({ t: 'join', name: 'Dee', pub: D.pair.pub }); await settle();
+    out.unlockLetsIn = welcomeFor(D.pid).pop().ok === true && !!player(D.pid);
+  } catch (e) { out.crashed = String(e).slice(0, 200); }
+  host.close();
+  return out;
+}
+
+test('MUST FAIL: host controls: Remove drops a player and refuses that pid in words, Lock refuses new joins in words (both signed welcomes), and the lines update in place', async () => {
+  assert.deepEqual(await controlsScenario(world()), { rowsShown: true, kickTold: true, kickedRejoinRefused: true, rowsInPlace: true, lockInPlace: true, lockedRefused: true, seatedComesBackWhileLocked: true, unlockLetsIn: true });
+});
+
+// GHOST SEATS and the kept-key store (WORKER LOW): a refused join replayed later seats no one; cycling throwaway pids never pushes out a seated or recently-gone player's key.
+async function ghostScenario(w) {
+  const room = bus(w.G), host = mountHost(w, room), out = {};
+  await until(() => room.from('host', 'state').length > 0);
+  CODE = host.state().code;
+  const settle = async () => { await sleep(10); await host.settled(); await sleep(5); await host.settled(); };
+  const welcomeFor = pid => room.from('host', 'welcome').filter(m => m.pid === pid);
+  const player = pid => host.state().players.find(p => p.pid === pid);
+  try {
+    const A = await fakePhone(w, room, 'a'), X = await fakePhone(w, room, 'x'), S = await fakePhone(w, room, 's');
+    await A.send({ t: 'join', name: 'Ana', pub: A.pair.pub }); await S.send({ t: 'join', name: 'Sol', pub: S.pair.pub }); await settle();
+    await X.send({ t: 'join', name: 'Ana', pub: X.pair.pub }); await settle();
+    const refusedJoin = X.last;
+    out.refusedFirst = welcomeFor(X.pid).length === 1 && welcomeFor(X.pid)[0].ok === false && !player(X.pid);
+    await A.send({ t: 'leave' }); await settle();          // the name Ana is free now
+    await X.end.send(refusedJoin); await settle();          // the refused join, sent again word for word
+    out.replayedRefusedJoinCannotSeat = !player(X.pid) && welcomeFor(X.pid).length === 1;
+    await X.send({ t: 'join', name: 'Ana', pub: X.pair.pub }); await settle();
+    out.freshJoinStillWorks = !!player(X.pid);
+    // 100 throwaway pids join and leave (the room's clock steps 5 s after every 6, under the room-wide limit of 8 new pids per 5 s): the store stays bounded, and A (gone a moment ago) and S (seated) keep their keys
+    for (let i = 0; i < 100; i++) { if (i % 6 === 0) w.clock.off += 5100; const T = await fakePhone(w, room, 't' + i); await T.send({ t: 'join', name: 'T' + i, pub: T.pair.pub }); await T.send({ t: 'leave' }); T.end.close(); }
+    await settle();
+    const keys = host.state().keys;
+    out.keptBounded = keys.size <= 96;
+    out.goneKeyKept = keys.has(A.pid) && keys.has(S.pid) && keys.has(X.pid);
+  } catch (e) { out.crashed = String(e).slice(0, 200); }
+  host.close();
+  return out;
+}
+
+test('MUST FAIL: a refused join sent again later cannot seat its pid, and 100 throwaway pids cannot push out a seated or recently-gone player\'s key', async () => {
+  assert.deepEqual(await ghostScenario(world()), { refusedFirst: true, replayedRefusedJoinCannotSeat: true, freshJoinStillWorks: true, keptBounded: true, goneKeyKept: true });
+});
+
+// THE PHONE: a replayed old welcome on rejoin is refused; a kicked phone is told so; a rejoin typed in another case keeps the host's name; a new round starts with no guess.
+function mountPhone(w, room, endName) {
+  const root = new El('div'), P = w.W.ryagramGamePhone, H = { ...P, codeProblem: v => P.codeProblem(v, w.G.CODE_LEN) };
+  const api = w.W.ryagramGamePhoneLive.mount(root, H, { ...w.G, connect: async () => room.endpoint(endName) }, { games: 'account' });
+  return { root, api, text: () => root.textContent };
+}
+async function phoneRejoinScenario(w) {
+  const timers = []; w.W.setInterval = fn => { timers.push(fn); return timers.length; };
+  const room = bus(w.G), host = mountHost(w, room, { seconds: 1 }), out = {};
+  await until(() => room.from('host', 'state').length > 0);
+  CODE = host.state().code;
+  const settle = async () => { await sleep(15); await host.settled(); await sleep(15); };
+  const RQ = String.fromCharCode(0x201d);
+  try {
+    const Eve = await fakePhone(w, room, 'eve'), Cy = await fakePhone(w, room, 'cy');
+    await Cy.send({ t: 'join', name: 'Cy', pub: Cy.pair.pub }); await settle();          // a second player who never guesses, so no round ends early
+    const p1 = mountPhone(w, room, 'p1');
+    p1.root.querySelector('#ph-code').value = CODE; p1.root.querySelector('#ph-name').value = 'Ben';
+    await submit(p1.root.querySelector('form')); await settle();
+    const pid = room.from('p1', 'join')[0].pid, w1 = room.from('host', 'welcome').filter(m => m.pid === pid)[0];
+    out.joined = /You are in room/.test(p1.text()) && !!w1;
+    host.start(); await until(() => !!p1.root.querySelector('#ph-guess')); await settle();
+    // the page reloads (pagehide leave; the seat stays), and the player types the name in lower case
+    await p1.api.leave(); await settle();
+    const p2 = mountPhone(w, room, 'p2');
+    room.drop = (from, to, m) => from === 'host' && to === 'p2' && m.t === 'welcome';          // the host's real welcome is held back ...
+    Eve.end.onMessage(m => { if (m.t === 'join' && m.pid === pid && !Eve.sent) { Eve.sent = true; Eve.end.send(w1); } });          // ... while Eve replays the OLD real one
+    p2.root.querySelector('#ph-name').value = 'ben';
+    const going = submit(p2.root.querySelector('form'));
+    await until(() => Eve.sent); await settle(); await sleep(100);
+    out.replayedWelcomeIgnored = Eve.sent === true && !!p2.root.querySelector('#ph-code');          // still waiting at the join form
+    await until(() => room.from('host', 'welcome').filter(m => m.pid === pid).length >= 2);
+    room.drop = () => false;
+    const real = room.from('host', 'welcome').filter(m => m.pid === pid).pop();
+    room.to('p2', real); await going; await settle();
+    room.to('p2', room.from('host', 'state').pop()); await settle();          // the host's next state (its clock sends one every 5 s; the clocks do not run here)
+    out.rejoined = !p2.root.querySelector('#ph-code') && real.seq > w1.seq && real.name === 'Ben';
+    const seat = JSON.parse(w.store.get('ryagram-game-seat') || 'null');
+    out.seatKeepsHostSeq = !!seat && seat.hostSeq >= real.seq && seat.name === 'Ben';
+    await until(() => !!p2.root.querySelector('#ph-guess')); await settle();
+    p2.root.querySelector('#ph-guess').value = 'over the hill'; await submit(p2.root.all(e => e.tagName === 'form')[0]); await settle();
+    host.reveal(); await until(() => !!p2.root.querySelector('#ph-mine')); await settle();
+    if (!p2.root.querySelector('#ph-mine')) throw new Error('no reveal on the phone: ' + p2.text().slice(150, 500));
+    out.rejoinOtherCaseFindsOwnScore = /^You: \d+ points/.test(p2.root.querySelector('#ph-mine').textContent);
+    // round 2: this phone sends NOTHING; at time up it must not show the round-1 guess
+    host.next(); await until(() => !!p2.root.querySelector('#ph-guess') && /Round 2/.test(p2.text())); await settle();
+    timers[timers.length - 1]();          // the phone's own clock, one tick: 1 s left -> time is up
+    out.pendingClearedOnNewRound = !/over the hill/.test(p2.root.querySelector('#ph-sent').textContent);
+    // round 3: a guess that ends in a full stop is not followed by a second one
+    host.reveal(); await settle(); host.next(); await until(() => /Round 3/.test(p2.text()) && !!p2.root.querySelector('#ph-guess')); await settle();
+    p2.root.querySelector('#ph-guess').value = 'garden shed.'; await submit(p2.root.all(e => e.tagName === 'form')[0]); await settle();
+    timers[timers.length - 1]();
+    const sentLine = p2.root.querySelector('#ph-sent').textContent;
+    out.timeUpNoDoubleStop = /garden shed\./.test(sentLine) && !sentLine.includes('.' + RQ + '.') && /Time is up/.test(sentLine);
+  } catch (e) { out.crashed = String(e).slice(0, 200); }
+  host.close();
+  return out;
+}
+
+test('MUST FAIL: the PHONE refuses a replayed old welcome on rejoin, keeps the highest host seq in its seat, takes the host\'s name for itself (ben for Ben), and starts each round with no guess', async () => {
+  assert.deepEqual(await phoneRejoinScenario(world()), { joined: true, replayedWelcomeIgnored: true, rejoined: true, seatKeepsHostSeq: true, rejoinOtherCaseFindsOwnScore: true, pendingClearedOnNewRound: true, timeUpNoDoubleStop: true });
+});
+
+async function phoneKickScenario(w) {
+  const room = bus(w.G), host = mountHost(w, room), out = {};
+  await until(() => room.from('host', 'state').length > 0);
+  CODE = host.state().code;
+  const settle = async () => { await sleep(15); await host.settled(); await sleep(15); };
+  try {
+    const p = mountPhone(w, room, 'p');
+    p.root.querySelector('#ph-code').value = CODE; p.root.querySelector('#ph-name').value = 'Ana';
+    await submit(p.root.querySelector('form')); await settle();
+    out.joined = /You are in room/.test(p.text());
+    const pid = room.from('p', 'join')[0].pid;
+    host.kick(pid); await settle(); await settle();
+    out.phoneToldRemoved = /The host removed you from this room\./.test(p.text()) && !!p.root.querySelector('#ph-code') && !w.store.get('ryagram-game-seat');
+    out.titleReset = p.root.querySelector('#ph-title').textContent === 'Guess the next line';
+  } catch (e) { out.crashed = String(e).slice(0, 200); }
+  host.close();
+  return out;
+}
+
+test('MUST FAIL: a phone the host removes is told so in plain words and is back at the join form with no seat', async () => {
+  assert.deepEqual(await phoneKickScenario(world()), { joined: true, phoneToldRemoved: true, titleReset: true });
+});
+
+// RED TEAM 6a / 9e: room-wide limits. A burst of fresh-key joins gets at most 8 new pids in 5 s; a seated player flooding signed guesses gets at most 2 taken per second
+// and at most one 'got' waiting; refusals are capped room-wide (10 in 5 s), past that a join gets no answer.
+async function floodScenario(w) {
+  const room = bus(w.G), host = mountHost(w, room), out = {};
+  await until(() => room.from('host', 'state').length > 0);
+  CODE = host.state().code;
+  const settle = async () => { await sleep(10); await host.settled(); await sleep(5); await host.settled(); };
+  try {
+    const A = await fakePhone(w, room, 'a'), B = await fakePhone(w, room, 'b');
+    await A.send({ t: 'join', name: 'Ana', pub: A.pair.pub }); await B.send({ t: 'join', name: 'Ben', pub: B.pair.pub }); await settle();
+    const burst = []; for (let i = 0; i < 20; i++) burst.push(await fakePhone(w, room, 'f' + i));
+    for (const [i, F] of burst.entries()) await F.send({ t: 'join', name: 'Fake' + i, pub: F.pair.pub });
+    await settle();
+    const answered = burst.filter(F => room.from('host', 'welcome').some(m => m.pid === F.pid)).length;
+    out.roomJoinLimit = answered === 6;          // A and B used 2 of the 8 new pids this 5 s allows
+    // refusals: the 6 fakes let in are removed (those notices are the host's own and not capped), then each tries twice more: 12 refusals asked for, 10 sent
+    const inFakes = burst.filter(F => room.from('host', 'welcome').some(m => m.pid === F.pid));
+    for (const F of inFakes) host.kick(F.pid);
+    await settle();
+    const before = room.from('host', 'welcome').filter(m => m.ok === false).length;
+    for (const F of inFakes) { await F.send({ t: 'join', name: 'Again', pub: F.pair.pub }); await F.send({ t: 'join', name: 'Again', pub: F.pair.pub }); }
+    await settle();
+    out.refusalsCapped = room.from('host', 'welcome').filter(m => m.ok === false).length - before === 10;
+    host.start(); await settle();
+    const gotsBefore = room.from('host', 'got').length;
+    for (let i = 0; i < 30; i++) await A.send({ t: 'guess', round: 0, text: 'flood ' + i });
+    await settle();
+    out.guessRateLimit = host.state().guesses.get(A.pid) === 'flood 1' && room.from('host', 'got').length - gotsBefore <= 2;
+    w.clock.off += 1100;
+    await A.send({ t: 'guess', round: 0, text: 'a real one' }); await settle();
+    out.guessAfterASecond = host.state().guesses.get(A.pid) === 'a real one';
+  } catch (e) { out.crashed = String(e).slice(0, 200); }
+  host.close();
+  return out;
+}
+
+test('MUST FAIL: room-wide limits: at most 8 new pids per 5 s, at most 10 refusals per 5 s, at most 2 guesses per pid per second', async () => {
+  assert.deepEqual(await floodScenario(world()), { roomJoinLimit: true, refusalsCapped: true, guessRateLimit: true, guessAfterASecond: true });
+});
+
+// RED TEAM 7: names that show as nothing, look-alikes from other scripts, punctuation and piled-up marks.
+async function names2Scenario(w) {
+  const H = w.W.ryagramGamesHost, out = {}, players = [{ pid: 'AnaPhone01', name: 'Ana' }];
+  const ch = c => String.fromCodePoint(c), blank = /do not show/;
+  out.blankRefused = [ch(0x3164), ch(0xffa0), ch(0x115f) + 'x', ch(0x1160), ch(0x2800), 'Ben' + ch(0xe0041), 'Ben' + ch(0xfff9) + 'x' + ch(0xfffb), 'B' + ch(0x200b) + 'en', '...', '!!'].every(n => blank.test(H.nameProblem(n, players) || ''));
+  out.marksCapped = blank.test(H.nameProblem('Be' + ch(0x301) + ch(0x302) + ch(0x303) + ch(0x304) + 'n', players) || '') && H.nameProblem('Zo' + ch(0xeb), players) === null;
+  out.cyrillicSame = /already has that name/.test(H.nameProblem(ch(0x410) + 'n' + ch(0x430), players) || '');
+  out.punctuationSame = /already has that name/.test(H.nameProblem('Ana!', players) || '') && /already has that name/.test(H.nameProblem('A.n.a', players) || '');
+  out.reservedSkeleton = ['h' + ch(0x43e) + 'st', 'Admin!', 'ry-agram', ch(0x4bb) + 'ost', ch(0x280) + 'yagram', 'ADM' + ch(0x130) + 'N'].every(n => /kept for the game/.test(H.nameProblem(n, players) || ''));
+  out.plainOk = ['Ben', 'Hostess', 'Zoe 2'].every(n => H.nameProblem(n, players) === null);
+  return out;
+}
+
+test('MUST FAIL: names: blank-looking characters, no letter or digit, more than 2 marks are refused; Cyrillic look-alikes and punctuation count as the same name; kept names too', async () => {
+  assert.deepEqual(await names2Scenario(world()), { blankRefused: true, marksCapped: true, cyrillicSame: true, punctuationSame: true, reservedSkeleton: true, plainOk: true });
+});
+
 // Each mutant takes ONE check out (in memory only); the scenario must then report that forgery as getting through. A mutant that changes nothing would fail on its own text check.
 const HOST = 'assets/app-games.js', PHONE = 'assets/game-phone-live.js', ROOMJS = 'assets/game-room.js';
 const MUTANTS = [
   { name: 'host: no signature check', file: HOST, edits: [['if (!(await Room.verify(pub, s.code, m))) return;', '']], scenario: hostScenario, caught: ['forgedGuessRefused', 'forgedLeaveRefused'] },
-  { name: 'host: no seq check', file: HOST, edits: [['if (known && m.seq <= known.seq) return;', ''], ['(now.pub !== pub || m.seq <= now.seq)', '(now.pub !== pub)']], scenario: hostScenario, caught: ['replayedLeaveRefused', 'replayedGuessRefused'] },
+  { name: 'host: no seq check', file: HOST, edits: [['if (known && m.seq <= known.seq) return;', ''], ['(now.pub !== pub || m.seq <= now.seq)', '(now.pub !== pub)'], ['if (m.seq <= lastSeqOf(m.pid)) return;', ''], ['|| m.seq <= lastSeqOf(m.pid)) return;', ') return;']], scenario: hostScenario, caught: ['replayedLeaveRefused', 'replayedGuessRefused'] },
   { name: 'host: no pid-from-key check', file: HOST, edits: [['if ((await Room.pidOf(m.pub)) !== m.pid) return;', '']], scenario: hostScenario, caught: ['pidMismatchRefused'] },
   { name: 'host: unsigned messages taken', file: HOST, edits: [["if (s.closed || !['join', 'guess', 'leave'].includes(m.t) || !Number.isInteger(m.seq)) return;", "if (s.closed) return; if (!Number.isInteger(m.seq)) { onMessage(m); return; }"]], scenario: hostScenario, caught: ['unsignedJoinRefused', 'unsignedGuessRefused'] },
   { name: 'phone: host messages not verified', file: PHONE, edits: [['if (!(await Room.verify(s.hostPub, s.code, m)) || m.seq <= s.hostSeq) return false;', '']], scenario: phoneScenario, caught: ['forgedStateRefused', 'forgedGotRefused'] },
   { name: 'phone: host seq not checked', file: PHONE, edits: [['if (!s.hostPub || !Number.isInteger(m.seq) || m.seq <= s.hostSeq) return false;', 'if (!s.hostPub) return false;'], ['if (!(await Room.verify(s.hostPub, s.code, m)) || m.seq <= s.hostSeq) return false;', 'if (!(await Room.verify(s.hostPub, s.code, m))) return false;']], scenario: phoneScenario, caught: ['replayedStateRefused'] },
-  { name: 'phone: host key pinned from whoever answers first (no code check)', file: PHONE, edits: [['if ((await Room.codeOf(m.pub)) !== s.code) return;', '']], scenario: phoneScenario, caught: ['strangerWelcomeIgnored'] },
+  { name: 'phone: host key pinned from whoever answers first (no code check)', file: PHONE, edits: [['Room.codeOf(m.pub).then(c => c === s.code, () => false)', 'Promise.resolve(true)']], scenario: phoneScenario, caught: ['strangerWelcomeIgnored'] },
   { name: 'host: no join rate limit', file: HOST, edits: [['if (!joinAllowed(m.pid)) return;', '']], scenario: hostScenario, caught: ['joinRateLimited'] },
-  { name: 'host: refused joins remembered', file: HOST, edits: [['if (now || s.players.some(p => p.pid === m.pid)) remember(m.pid, pub, m.seq);', 'remember(m.pid, pub, m.seq);']], scenario: hostScenario, caught: ['refusedJoinsKeepNoKey'] },
+  { name: 'host: refused joins remembered', file: HOST, edits: [['if (now || seated(m.pid)) remember(m.pid, pub, m.seq);', 'remember(m.pid, pub, m.seq);']], scenario: hostScenario, caught: ['refusedJoinsKeepNoKey'] },
   { name: 'host: names compared without NFKC', file: HOST, edits: [['if (players.some(p => fold(p.name) === fold(name)))', 'if (players.some(p => p.name.toLowerCase() === name.toLowerCase()))']], scenario: namesScenario, caught: ['fullWidthSame', 'ligatureSame'] },
   { name: 'host: no reserved names', file: HOST, edits: [["if (RESERVED_NAMES.includes(fold(name).trim()))", 'if (false)']], scenario: namesScenario, caught: ['reservedRefused'] },
   { name: 'room: invisible set without the four new characters', file: ROOMJS, edits: [['\\u00ad\\u034f\\u061c\\u180e', '']], scenario: namesScenario, caught: ['newInvisiblesCleaned'] },
   { name: 'room: verify says yes to anything signed', file: ROOMJS, edits: [['return await subtle().verify(SIGN_ALG, key, sig, bytes);', 'return true;']], scenario: hostScenario, caught: ['forgedGuessRefused', 'forgedLeaveRefused'] },
+  // 11-27 hardening
+  { name: 'room: the code from plain SHA-256 (the old fast code)', file: ROOMJS, edits: [["new Uint8Array(await subtle().deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(CODE_SALT), iterations: CODE_ITERATIONS }, base, 256))", "new Uint8Array(await subtle().digest('SHA-256', raw))"]], scenario: codeScenario, caught: ['knownVector', 'sameAsNodePbkdf2', 'slowOnPurpose'] },
+  { name: 'host: a removed pid let back in', file: HOST, edits: [['if (s.kicked.has(m.pid)) { welcome(m.pid, false, KICKED_TEXT); return; }', '']], scenario: controlsScenario, caught: ['kickedRejoinRefused'] },
+  { name: 'host: the lock ignored', file: HOST, edits: [['if (s.locked) { welcome(m.pid, false, LOCKED_TEXT); return; }', '']], scenario: controlsScenario, caught: ['lockedRefused'] },
+  { name: 'host: a refused join not remembered (ghost seat)', file: HOST, edits: [['if (m.seq <= lastSeqOf(m.pid)) return;', ''], ['|| m.seq <= lastSeqOf(m.pid)) return;', ') return;']], scenario: ghostScenario, caught: ['replayedRefusedJoinCannotSeat'] },
+  { name: 'host: kept keys let go oldest first, recently gone or not', file: HOST, edits: [['for (const [p] of old) { s.keys.delete(p); if (s.keys.size < KEEP_KEYS) return true; }', 'for (const [p] of [...s.keys].filter(([p]) => !seated(p))) { s.keys.delete(p); return true; }']], scenario: ghostScenario, caught: ['goneKeyKept'] },
+  { name: 'phone: a rejoin takes an old welcome (no host seq check)', file: PHONE, edits: [['if (!Number.isInteger(m.seq) || m.seq <= s.hostSeq) return;', '']], scenario: phoneRejoinScenario, caught: ['replayedWelcomeIgnored'] },
+  { name: 'phone: the name from the welcome not taken', file: PHONE, edits: [['s.welcomed = true; if (m.name) s.name = m.name; }', 's.welcomed = true; }']], scenario: phoneRejoinScenario, caught: ['rejoinOtherCaseFindsOwnScore'] },
+  { name: 'phone: the last round\'s guess kept into a new round', file: PHONE, edits: [["s.sentText = ''; s.pending = '';", "s.sentText = '';"]], scenario: phoneRejoinScenario, caught: ['pendingClearedOnNewRound'] },
+  { name: 'phone: the time-up line adds a stop after the quote', file: PHONE, edits: [['}' + String.fromCharCode(0x201d) + '${stopAfter(s.pending)} Time is up.`', '}' + String.fromCharCode(0x201d) + '. Time is up.`']], scenario: phoneRejoinScenario, caught: ['timeUpNoDoubleStop'] },
+  { name: 'phone: a removal from the host ignored', file: PHONE, edits: [['else if (m.t === \'welcome\' && m.pid === s.pid && s.welcomed && m.ok === false && m.pub === s.hostPub) { if (await fromHost(m)) removed(m.problem); }', '']], scenario: phoneKickScenario, caught: ['phoneToldRemoved'] },
+  { name: 'host: no room-wide join limit', file: HOST, edits: [[' || !within(s.roomJoins, ROOM_JOINS, ROOM_JOIN_MS)', '']], scenario: floodScenario, caught: ['roomJoinLimit'] },
+  { name: 'host: refusals not capped', file: HOST, edits: [['(!ok && !force && !within(s.refusals, REFUSALS, REFUSAL_MS)) ? Promise.resolve() : post(', 'post(']], scenario: floodScenario, caught: ['refusalsCapped'] },
+  { name: 'host: no guess rate limit', file: HOST, edits: [["if (m.t === 'guess' && !guessAllowed(m.pid)) return; ", '']], scenario: floodScenario, caught: ['guessRateLimit'] },
+  { name: 'host: blank-looking names let in', file: HOST, edits: [['BLANKISH.test(name) || ', '']], scenario: names2Scenario, caught: ['blankRefused'] },
+  { name: 'host: no look-alike map', file: HOST, edits: [['const i = LOOK_FROM.indexOf(c); return i >= 0 ? LOOK_TO[i] : c;', 'return c;']], scenario: names2Scenario, caught: ['cyrillicSame', 'reservedSkeleton'] },
 ];
 
 for (const mu of MUTANTS) {

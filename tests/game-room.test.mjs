@@ -52,11 +52,11 @@ class TinyEventSource {
 test('MUST FAIL: a room code is 6 letters with no I and no O, made from the host key (codeOf, unbiased), forgiving spaces, dashes and lower case', async () => {
   assert.equal(R.CODE_LETTERS, 'ABCDEFGHJKLMNPQRSTUVWXYZ'); assert.equal(R.CODE_LEN, 6); assert.equal(R.MAX_BYTES, 8192);
   const seen = new Set();
-  for (let i = 0; i < 40; i++) { const k = await R.keyPair(); const c = await R.codeOf(k.pub); assert.match(c, /^[ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/); assert.equal(await R.codeOf(k.pub), c, 'the same key, the same code'); seen.add(c); }
-  assert.ok(seen.size >= 39, 'codes vary with the key');
-  // the mapping by hand: SHA-256 of the raw key, bytes below 240 in order, mod 24
+  for (let i = 0; i < 8; i++) { const k = await R.keyPair(); const c = await R.codeOf(k.pub); assert.match(c, /^[ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/); assert.equal(await R.codeOf(k.pub), c, 'the same key, the same code'); seen.add(c); }
+  assert.ok(seen.size >= 7, 'codes vary with the key');          // 8 keys, not 40: codeOf is slow on purpose now (PBKDF2, about 60 ms each)
+  // the mapping by hand (11-27 v2): PBKDF2-HMAC-SHA-256 of the raw key, salt ryagram-game-room-v2, 300,000 rounds, 32 bytes; bytes below 240 in order, mod 24
   const k = await R.keyPair(); const raw = Buffer.from(k.pub, 'base64url');
-  const h = new Uint8Array(await webcrypto.subtle.digest('SHA-256', raw)); let want = '';
+  const h = (await import('node:crypto')).pbkdf2Sync(raw, 'ryagram-game-room-v2', 300000, 32, 'sha256'); let want = '';
   for (const b of h) if (b < 240 && want.length < 6) want += R.CODE_LETTERS[b % 24];
   assert.equal(await R.codeOf(k.pub), want);
   assert.equal(await R.codeOf('not a key'), '');
@@ -64,7 +64,7 @@ test('MUST FAIL: a room code is 6 letters with no I and no O, made from the host
   assert.ok(!/Math\.random/.test(SRC));
   assert.equal(R.normCode(' ab-cd ef '), 'ABCDEF'); assert.equal(R.normCode('w x y z a b'), 'WXYZAB'); assert.equal(R.normCode(null), '');
   assert.equal(R.channelName('ABCDEF'), 'ryagram-game-ABCDEF');
-  assert.ok(Object.isFrozen(R)); assert.deepEqual(Object.keys(R).sort(), ['CODE_LEN', 'CODE_LETTERS', 'MAX_BYTES', 'channelName', 'codeOf', 'connect', 'keyPair', 'normCode', 'pidOf', 'sign', 'validate', 'verify']);
+  assert.ok(Object.isFrozen(R)); assert.deepEqual(Object.keys(R).sort(), ['CODE_KDF', 'CODE_LEN', 'CODE_LETTERS', 'MAX_BYTES', 'channelName', 'codeOf', 'connect', 'keyPair', 'normCode', 'pidOf', 'sign', 'validate', 'verify']);
 });
 
 test('MUST FAIL: validate accepts each good kind and returns a clean copy with unknown fields dropped', () => {

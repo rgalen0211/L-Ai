@@ -6,9 +6,21 @@
 // strangers who do not know it; it is not a password. Nothing private belongs in a room: a scoreboard name, a typed guess and the round's public text only.
 // SIGNED (11-27): since anyone in the room can send, every join/guess/leave is signed by the phone's own key (its pid is made from that key) and every state/welcome/got by the
 // host's key (sign/verify/keyPair/pidOf below). The host drops what a pid's key did not sign; a phone drops what the host key it pinned did not sign. A phone
-// pins the host's key only from a welcome whose key gives the very code the player typed (codeOf), so a stranger who answers first cannot pose as the host: they would
-// need a key whose SHA-256 maps to the same 6 letters (24^6, about 191 million keys to try on average, while the room is open). THE LIMIT LEFT: that search is possible
-// for a determined attacker with time and hardware; and anyone with the code can still join under their own name and see the room's public text.
+// pins the host's key only from a welcome whose key gives the very code the player typed (codeOf), so a stranger who answers first cannot pose as the host.
+// THE CODE IS DELIBERATELY SLOW (11-27, WORKER and CC1 review MEDIUM): codeOf is PBKDF2-HMAC-SHA-256 over the host's raw public key, CODE_ITERATIONS = 300,000 rounds.
+// Measured in node 24 on this PC (one core): 52 to 122 ms per codeOf, mostly about 60 ms (a phone is slower, perhaps 2 to 4 times). A stranger who wants to pose as the host
+// must make keys until one gives the same 6 letters: 24^6, about 191 million keys on average. Plain SHA-256 let one core try 27.7k keys/s (about 2 h per room); now one
+// core tries about 14 keys/s, so one room takes about 191e6 / 14 = 1.4e7 s, about 3,800 core-hours (about 5 months on one core, about 10 days on 16 cores).
+// THE TRADE-OFF (red team HIGH W1): 800,000 rounds (about 0.2 s) made a flood of fake welcomes able to stall a phone's join, so the count is 300,000: slow enough to make
+// grinding a host key expensive, fast enough that a phone can check a few dozen candidate host keys (in parallel, once each) inside its join wait.
+// HONEST LIMITS: a GPU runs PBKDF2-SHA-256 far faster than a CPU (public cracking benchmarks put a top GPU near 1e10 rounds/s, about 33,000 codes/s here: about 1.6 h per
+// room per GPU, an estimate, not measured here), so a well-equipped attacker can still do it while a long party runs; and the salt is fixed, so a table of every code (about
+// 3.6e9 keys, to cover all 191 million codes) is possible, but it now costs 3.6e9 x 300,000 PBKDF2 rounds (about 8 core-years, or about 1.3 GPU-days) instead of 3.6e9 hashes.
+// SAID PLAINLY: a determined attacker who builds that table once (or rents GPUs for a few hours per room) and knows a room's code CAN answer new phones before the host
+// and pose as the host to them (showing them made-up rounds and text; their guesses still reach the real host signed). The slow code only raises the one-time cost of
+// that table from minutes to about 8 core-years or 1.3 GPU-days; it does not make it impossible. A longer code or a QR of the host key would close it.
+// THE LIMIT LEFT: the code keeps out strangers who do not know it and makes posing as the host expensive; it is not a password, and anyone with the code can still join
+// under their own name and see the room's public text.
 // Every message is checked both ways (validate): a message of an unknown kind, too long, or with a field out of range is refused when sent and dropped when received, unknown fields are
 // removed, and invisible or control characters are cleaned out of every string.
 // The 'relay' kind is FOR TESTS ON THIS COMPUTER ONLY: it talks to tools/game-relay.mjs on 127.0.0.1 and refuses to run unless both the page and the relay are on this computer.
@@ -78,7 +90,7 @@
   // Each kind of message: its required fields and its optional ones (left out when absent; a present but wrong optional field refuses the whole message).
   const KINDS = {
     join: { need: { pid, name }, may: WITH_PUB },
-    welcome: { need: { pid, ok: v => typeof v === 'boolean' ? v : BAD }, may: { problem: v => text(v, 0, PROBLEM_MAX), ...WITH_PUB } },
+    welcome: { need: { pid, ok: v => typeof v === 'boolean' ? v : BAD }, may: { problem: v => text(v, 0, PROBLEM_MAX), name, ...WITH_PUB } },          // name: the name the host seated this pid under (11-27)
     guess: { need: { pid, round: v => int(v, 0, 99), text: v => text(v, 1, ANSWER_MAX) }, may: SIGNED },
     got: { need: { pid, round: v => int(v, 0, 99) }, may: SIGNED },
     state: {
@@ -119,7 +131,7 @@
   // What is signed: a fixed label, the room code and the message as validate cleans it, every field but sig, keys in sorted order (so the bytes are the same on both sides).
   const ALG = { name: 'ECDSA', namedCurve: 'P-256' }, SIGN_ALG = { name: 'ECDSA', hash: 'SHA-256' };
   const B64U = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  const subtle = () => { const c = typeof crypto !== 'undefined' ? crypto : null; if (!c || !c.subtle) throw new Error('This browser cannot sign game messages (no crypto.subtle).'); return c.subtle; };
+  const subtle = () => { const c = typeof crypto !== 'undefined' ? crypto : null; if (!c || !c.subtle) throw new Error('This browser cannot sign game messages (no crypto.subtle): open the game on a secure (https) page in an up-to-date browser.'); return c.subtle; };
   function b64u(buf) {
     const b = new Uint8Array(buf); let out = '';
     for (let i = 0; i < b.length; i += 3) {
@@ -170,17 +182,31 @@
     if (!raw) return '';
     return b64u(await subtle().digest('SHA-256', raw)).replace(/[^A-Za-z0-9]/g, '').slice(0, 20);
   }
-  // The ROOM CODE of a host key: SHA-256 of the raw key, its bytes below 240 taken in order (240 = 10 x 24, so no letter is more likely), each mod 24 onto CODE_LETTERS.
+  // The ROOM CODE of a host key (11-27 v2): PBKDF2-HMAC-SHA-256 with password = the raw public key, salt = CODE_SALT, CODE_ITERATIONS rounds, 256 bits out; its bytes below
+  // 240 taken in order (240 = 10 x 24, so no letter is more likely), each mod 24 onto CODE_LETTERS. Slow on purpose (see the header): about 60 ms here, so it is cached per key.
   // The host's room code is codeOf(its own key), so the code a player reads off the host's screen binds the host key: a phone pins only a key whose code is the code it typed.
-  async function codeOf(pub) {
-    const raw = typeof pub === 'string' && B64U_KEY.test(pub) ? unb64u(pub) : null;
-    if (!raw) return '';
-    let out = '', bytes = new Uint8Array(await subtle().digest('SHA-256', raw));
+  const CODE_SALT = 'ryagram-game-room-v2', CODE_ITERATIONS = 300000;
+  const CODE_KDF = Object.freeze({ name: 'PBKDF2', hash: 'SHA-256', salt: CODE_SALT, iterations: CODE_ITERATIONS, bits: 256 });
+  const codes = new Map();          // pub -> Promise of its code (the same key always gives the same code; a few per room)
+  async function slowCode(raw) {
+    const base = await subtle().importKey('raw', raw, 'PBKDF2', false, ['deriveBits']);
+    let out = '', bytes = new Uint8Array(await subtle().deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(CODE_SALT), iterations: CODE_ITERATIONS }, base, 256));
     for (;;) {
       for (const b of bytes) if (b < 240 && out.length < CODE_LEN) out += CODE_LETTERS[b % 24];
       if (out.length === CODE_LEN) return out;
       bytes = new Uint8Array(await subtle().digest('SHA-256', bytes));          // fewer than 6 usable bytes in 32 (about 1 in 10^25): hash again
     }
+  }
+  function codeOf(pub) {
+    const raw = typeof pub === 'string' && B64U_KEY.test(pub) ? unb64u(pub) : null;
+    if (!raw) return Promise.resolve('');
+    if (codes.has(pub)) return codes.get(pub);
+    let p;
+    try { p = slowCode(raw); } catch (e) { return Promise.reject(e); }
+    p = p.catch(e => { codes.delete(pub); throw e; });
+    if (codes.size >= 32) codes.clear();
+    codes.set(pub, p);
+    return p;
   }
   // A copy of msg with its sig, signed by the key pair for this room. msg must already carry its seq.
   async function sign(pair, code, msg) {
@@ -298,5 +324,5 @@
     return Promise.reject(new Error("A room connection is 'realtime' or 'relay'."));
   }
 
-  window.ryagramGameRoom = Object.freeze({ CODE_LETTERS, CODE_LEN, codeOf, normCode, channelName, validate, connect, MAX_BYTES, keyPair, pidOf, sign, verify });
+  window.ryagramGameRoom = Object.freeze({ CODE_LETTERS, CODE_LEN, CODE_KDF, codeOf, normCode, channelName, validate, connect, MAX_BYTES, keyPair, pidOf, sign, verify });
 })();
