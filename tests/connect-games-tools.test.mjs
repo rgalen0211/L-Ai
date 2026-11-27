@@ -10,7 +10,7 @@ import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
 import { toolList } from '../supabase/functions/connect-core/mcp.ts';
-import { GAMES_OFFERED, GAMES_PAGE_PATH, PLAYERS_PAGE_PATH, HOW_A_ROUND_GOES } from '../supabase/functions/connect-core/games_tools.ts';
+import { GAMES_OFFERED, GAMES_PAGE_PATH, PLAYERS_PAGE_PATH, HOW_A_ROUND_GOES, ABOUT_THE_GAMES, GAMES_FACTS } from '../supabase/functions/connect-core/games_tools.ts';
 
 const compile = makeCompile(Ajv2020);
 const NAMES = ['list_games', 'open_games_page'];
@@ -52,8 +52,9 @@ test('list_games: the games on offer, with the next step named', async () => {
   const { A, call } = world();
   const r = await call(A, 'list_games');
   assert.ok(!r.isError, r.text);
-  assert.deepEqual(r.data.games.map((g) => g.id), ['guess_the_next_line']);
-  assert.match(r.text, /guess_the_next_line: Guess the next line\./); assert.match(r.text, /open_games_page/);
+  assert.deepEqual(r.data.games.map((g) => g.id), ['guess_the_next_line', 'fill_the_gap']);                  // the two games under "Which game?" on GAMES' page, in its order
+  assert.deepEqual(r.data.games.map((g) => g.label), ['Guess the next line', 'Fill the gap']);
+  assert.match(r.text, /guess_the_next_line: Guess the next line\./); assert.match(r.text, /fill_the_gap: Fill the gap\./); assert.match(r.text, /open_games_page/); assert.match(r.text, /"Which game\?"/);
   assert.deepEqual(r.data.games, GAMES_OFFERED);
 });
 
@@ -64,7 +65,7 @@ test('open_games_page: where Games is, how a round goes, and what the AI cannot 
   assert.equal(r.data.page_path, GAMES_PAGE_PATH); assert.equal(r.data.players_page_path, PLAYERS_PAGE_PATH);
   for (const p of [r.data.page_path, r.data.players_page_path]) assert.match(p, SITE_PATH, p);                // a path on the site, never an address
   assert.deepEqual(r.data.steps, [...HOW_A_ROUND_GOES]);
-  assert.match(r.text, /four-letter room code/); assert.match(r.text, /if the page looks different, the page is right/); assert.match(r.text, /cannot press anything/);
+  assert.match(r.text, /room code of four letters/); assert.match(r.text, /if the page looks different, the page is right/); assert.match(r.text, /cannot press anything/);
   for (const bad of ['press anything on the page', 'see a room, its players or their guesses', 'play', 'start or end a round']) assert.ok(r.data.ai_cannot.includes(bad), bad);
 });
 
@@ -134,7 +135,8 @@ test('PRIVACY: the answers hold no email, address, key, token, code, file or oth
     assert.ok(!all.includes('u-a') && !all.includes('example.test'), n);                                      // nothing about the person's account either
   }
   const d = (await call(A, 'open_games_page')).data;
-  assert.deepEqual(Object.keys(d).sort(), ['ai_can', 'ai_cannot', 'ok', 'page_path', 'players_page_path', 'steps']);
+  assert.deepEqual(Object.keys(d).sort(), ['ai_can', 'ai_cannot', 'facts', 'notes', 'ok', 'page_path', 'players_page_path', 'steps']);
+  assert.deepEqual(Object.keys(d.facts).sort(), ['players_max', 'players_min', 'room_code_letters', 'rounds_per_game', 'seconds_per_round']);         // numbers only, nothing about a room
   const l = (await call(A, 'list_games')).data;
   assert.deepEqual(Object.keys(l).sort(), ['games', 'ok']); for (const g of l.games) assert.deepEqual(Object.keys(g).sort(), ['id', 'label', 'line']);
 });
@@ -154,4 +156,73 @@ test('the page the tools name is the page the site really has: the phone page ex
   assert.match(dept, /\('games', 'Games'/);
   const home = fs.readFileSync('supabase/functions/connect-core/home_panel.ts', 'utf8');
   assert.match(home, /games: \{ label: "Games"/);
+});
+
+// ---- ALIGNED TO GAMES' PAGE (CONNECT 11-27 09:0x): the words the AI reads are tested against what GAMES' page says about itself (tests/fixtures/games-page-facts-1127.json, read from its code on e7e2b0c6 / e22af41f).
+const FACTS = JSON.parse((await import('node:fs')).readFileSync('tests/fixtures/games-page-facts-1127.json', 'utf8'));
+const quoted = (s) => [...s.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+
+test('the games listed are exactly the games the page offers under "Which game?", same names, same order', () => {
+  assert.deepEqual(GAMES_OFFERED.map((g) => g.label), FACTS.games.map((g) => g.label));
+  assert.deepEqual(GAMES_OFFERED.map((g) => g.id), ['guess_the_next_line', 'fill_the_gap']);
+  for (const g of GAMES_OFFERED) assert.match(g.line, /^The host reads out /);                                  // the host reads the line aloud: there is no video on the page
+});
+
+test('the numbers the AI is told are the numbers on the page; the paths are the page\'s paths', () => {
+  assert.equal(GAMES_FACTS.players_max, FACTS.max_players); assert.equal(GAMES_FACTS.seconds_per_round, FACTS.round_seconds);
+  assert.equal(GAMES_FACTS.rounds_per_game, FACTS.rounds_per_game.line); assert.equal(GAMES_FACTS.rounds_per_game, FACTS.rounds_per_game.gap);
+  assert.equal(GAMES_FACTS.room_code_letters, FACTS.code_letters); assert.equal(GAMES_FACTS.players_min, FACTS.start_needs_a_player ? 1 : 0);
+  assert.equal(GAMES_PAGE_PATH, FACTS.host_path); assert.equal(PLAYERS_PAGE_PATH, FACTS.players_path);
+  const steps = HOW_A_ROUND_GOES.join('\n');
+  assert.match(steps, /Up to 8 players/); assert.match(steps, /45 seconds/); assert.match(steps, /five rounds/); assert.match(steps, /room code of four letters/);
+  assert.match(steps, /No sign-in is needed on a phone/); assert.equal(FACTS.phone_needs_sign_in, false);
+});
+
+test('the steps come in the order the page runs: the code shows, the host picks a game, players join, the host starts, the answer and scores, the final', () => {
+  const at = (re) => HOW_A_ROUND_GOES.findIndex((s) => re.test(s));
+  const order = [at(/room code of four letters/), at(/Which game\?/), at(/players' page/), at(/"Start the game"/), at(/shows the answer, each player's points/)];
+  assert.deepEqual(order, [0, 1, 2, 3, 4]);
+  assert.match(HOW_A_ROUND_GOES[4], /final scores/); assert.match(HOW_A_ROUND_GOES[4], /"Play again with the same players"/);
+});
+
+test('every button or heading the steps put in quotes is a real one on the page', () => {
+  const real = new Set([...FACTS.buttons, FACTS.which_game_legend, FACTS.lobby_heading]);
+  const named = [...HOW_A_ROUND_GOES, ...ABOUT_THE_GAMES, ...GAMES_OFFERED.map((g) => g.line)].flatMap(quoted);
+  assert.ok(named.length >= 4, 'the steps do name the page\'s own buttons: ' + named.join(' | '));
+  for (const n of named) assert.ok(real.has(n), `"${n}" is not a button or heading on the page`);
+  assert.ok(named.includes('Start the game') && named.includes('Which game?'));
+});
+
+test('the notes say what the page says of itself: a draft with sample rounds, nothing kept, and the code is the only lock; no price, no date, no "free"', async () => {
+  const { A, call } = world();
+  const r = await call(A, 'open_games_page');
+  assert.deepEqual(r.data.notes, [...ABOUT_THE_GAMES]); assert.deepEqual(r.data.facts, { ...GAMES_FACTS });
+  const n = ABOUT_THE_GAMES.join('\n');
+  assert.match(n, /draft/); assert.match(n, /made-up script/); assert.match(n, /no video/); assert.match(n, /are not kept/); assert.match(n, /only lock on a room/);
+  for (const line of ABOUT_THE_GAMES) assert.ok(!/\$|\bfree\b|\bcosts?\b|\b20\d\d\b|\bsoon\b|\bkey\b|\btoken\b/i.test(line), line);
+  assert.ok(ABOUT_THE_GAMES.every((line) => r.text.includes(line)), 'every note reaches the AI in the answer text');
+});
+
+test('a closed account is told nothing about the page: no game name, no button, no number, no path', async () => {
+  const { B, call } = world();
+  for (const n of NAMES) {
+    const r = await call(B, n); const all = everything(r);
+    for (const secret of ['Guess the next line', 'Fill the gap', 'fill_the_gap', 'Which game', 'Start the game', 'room code', 'sample rounds', GAMES_PAGE_PATH, PLAYERS_PAGE_PATH]) assert.ok(!all.includes(secret), `${n}: ${secret}`);
+    assert.ok(!/\b(45|8 players|five rounds)\b/.test(all), n);
+  }
+});
+
+test('when GAMES\' own files are in the checkout, the page itself says what the tools say (skips nothing: with no page files it only notes so)', async (t) => {
+  const fs = await import('node:fs');
+  if (!fs.existsSync('assets/app-games.js')) { t.diagnostic('GAMES\' page files are not in this checkout (they land with games-live-1127): only the copied facts were checked.'); return; }
+  const host = fs.readFileSync('assets/app-games.js', 'utf8');
+  assert.match(host, new RegExp(`MAX_PLAYERS = ${GAMES_FACTS.players_max}\\b`)); assert.match(host, new RegExp(`ROUND_SECONDS = ${GAMES_FACTS.seconds_per_round}\\b`));
+  for (const g of GAMES_OFFERED) assert.ok(host.includes(`'${g.label}'`), g.label);
+  for (const b of [...FACTS.buttons, FACTS.which_game_legend, FACTS.lobby_heading]) assert.ok(host.includes(b), b);
+  const room = fs.readFileSync('assets/game-room.js', 'utf8');
+  assert.match(room, new RegExp(`CODE_LEN = ${GAMES_FACTS.room_code_letters}\\b`)); assert.ok(room.includes(`'${FACTS.code_alphabet}'`));
+  const load = (file, key) => { const w = {}; new Function('window', fs.readFileSync(file, 'utf8'))(w); return w[key]; };
+  assert.equal(load('assets/game-rounds.js', 'ryagramGameRounds').rounds.length, GAMES_FACTS.rounds_per_game);
+  assert.equal(load('assets/game-gap-rounds.js', 'ryagramGameGapRounds').rounds.length, GAMES_FACTS.rounds_per_game);
+  assert.ok(!/\bfetch\(|\.rpc\(|\.from\(/.test(host), 'the host page makes no server call, so the tools need none');
 });
