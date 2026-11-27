@@ -110,6 +110,8 @@ window.ryagramConfig = Object.freeze({
   liveEditor: 'account',
   // The Compilations department (phrase finder: find every time a phrase is said in the person's OWN footage; the footage, the matches and the film stay on their computer): a working page for an account that has this switch (WEB 11-27, wave 8, branch web-compilations-1127). Needs BUILDER's set_my_compilation_request. OFF for everyone until Ryan flips it for his own account; the department stays Coming soon for everybody else.
   compilations: 'account',
+  // "Help tune Ryagram, earn credits" (#/calibrate and a card on Your projects; WEB 11-27, proposals/WEB-CALIBRATE-PAGE-1127.md): opt-in questions about clips for free credits the server decides. Needs BUILDER's my_calibration_* functions. OFF for everyone until Ryan flips it for his own account.
+  calibrate: 'account',
   // The lyric card choice (three designs) in the live editor's Look panel (NEXT-WEB 189). Needs liveEditor and SQL 20261031000200_lyric_card_look.sql. OFF until Ryan has seen it; the song film does not draw the cards yet.
   lyricCards: false,
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.

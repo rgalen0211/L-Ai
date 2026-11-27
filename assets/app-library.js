@@ -71,6 +71,7 @@
   // The AI-first front door (#/start), needs connectAi too (app-start.js). Off by default; in mock mode it follows the flag so the mock walk can show both.
   const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
   // The live editor (#/editor/data, #/editor/compilation; app-editor.js). Flag only: it does not follow mock mode, so with the flag off nothing about any page changes.
+  const calibrateOn = () => window.ryagramSwitches?.featureOn('calibrate') === true;      // 'Help tune Ryagram' (#/calibrate; assets/app-calibrate.js): card on Your projects only while the account has the switch
   const liveEditorOn = () => window.ryagramSwitches?.featureOn('liveEditor') === true;
   // The Edit link shows only to an account the editor is ON for (the same test the editor route uses): config 'account' with this account off the list shows nothing, so no one lands on the 'isn't on' page by a link (CC1 11-20).
   // An account without it who types the address still gets a plain page saying so, never the library (Ryan 11-17).
@@ -184,6 +185,7 @@
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
         else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)(?:\/([0-9a-fA-F-]{36}))?$/))) view = editorUi().editorView(m[1], onStop, m[2] || null);
         else if (!liveEditorOn() && /^#\/editor\/(data|compilation)(?:\/[0-9a-fA-F-]{36})?$/.test(hash)) view = editorOffView();
+        else if (window.ryagramCalibrate && hash === '#/calibrate') view = await calUi2().pageView();      // the page checks the switch itself: off = one 'Coming soon' line and no call
         else if (departmentsOn() && window.ryagramDepartments.idFromHash(hash)) view = await deptUi().pageView(window.ryagramDepartments.idFromHash(hash));
         else if (builderOn() && /^#\/build(\?.*)?$/.test(hash)) view = await builderUi().builderView(onStop, window.ryagramIntake ? window.ryagramIntake.parseBuildQuery(hash) : null);
         else if (intakeOn() && window.ryagramIntake && hash === '#/new') view = intakeUi().intakeView(onStop);
@@ -386,6 +388,8 @@
     let editorCache = null;
     const editorUi = () => editorCache || (editorCache = window.ryagramEditorPage.create({ h, data }));
     let deptCache = null;
+    let calibCache = null;
+    const calUi2 = () => calibCache || (calibCache = window.ryagramCalibrate.create({ h, data, date }));
     let compCache = null;      // the Compilations page (assets/app-compilations.js), built once; the department module shows it only behind the 'compilations' account switch
     const compUi = () => compCache || (compCache = window.ryagramCompilations.create({ h, data, busy, showError, errorLine, date }));
     const deptUi = () => deptCache || (deptCache = window.ryagramDepartments.create({ h, data, startUi, pages: window.ryagramCompilations ? { compilations: () => compUi().pageView() } : {} }));
@@ -432,6 +436,7 @@
       const looksLink = looksOn() ? h('a', { href: '#/looks' }, 'Your look') : null;
       const requestLink = requestsOn() ? h('a', { href: '#/request' }, 'Ask us to make a film') : null;
       const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Contact sheets are free. Each project gets some free previews, then 1 credit each. The rule is on ', h('a', { href: '#/credits' }, 'Credits'), '.') : null;
+      const calibCard = calibrateOn() && window.ryagramCalibrate ? window.ryagramCalibrate.card(h) : null;      // behind the switch; it makes no call
       const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
       const aiInvited = startOn() ? await connectAllowed(data).catch(() => false) : false;               // the Ask your AI button only for an account the connector counts as invited (the Start strip's own rule); the page it opens does nothing for anyone else
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
@@ -451,7 +456,7 @@
       const quietItem = x => (x === requestLink ? requestGate(data, h('li', {}, x)) : h('li', {}, x));      // the request link's whole row hides (no empty bullet) while it cannot be used
       // Ryan 11-20 11:55: no long vertical scroll. The hero, the Start card and the tab row sit on the first screen; the films (in their own scroll panel), the departments and the credits and links are flip sections.
       const filmsSection = h('div', { class: 'home-films' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), h('div', { class: 'scroll-panel' }, list));
-      const deptSection = deptCards ? h('div', { class: 'home-depts' }, h('div', { class: 'scroll-panel' }, deptCards)) : null;
+      const deptSection = deptCards || calibCard ? h('div', { class: 'home-depts' }, h('div', { class: 'scroll-panel' }, deptCards, calibCard)) : null;      // the 'Help tune Ryagram' card sits in this tab's own scroll panel, so it never makes the page longer
       const moreBits = [credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(quietItem)) : null].filter(Boolean);
       const moreSection = moreBits.length ? h('div', { class: 'home-more' }, moreBits) : null;
       const flip = window.ryagramFlip.create({ h, label: 'Home', address: false, sections: [

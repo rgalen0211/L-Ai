@@ -381,7 +381,7 @@
       // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list.
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]compon/.test(location.search || '') ? ['myFilms', 'compilations'] : /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : typeof location !== 'undefined' && /[?&]calibon/.test(location.search || '') ? ['myFilms', 'calibrate'] : (typeof location !== 'undefined' && /[?&]compon/.test(location.search || '') ? ['myFilms', 'compilations'] : /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']), error: null };      // ?editoron: this account is on the live-editor list too
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
@@ -764,6 +764,75 @@
 
       // Mock of the order functions (PIPE-1, SQL 20261017000600). With seed.autoRender === false a full render waits for approval (credits held); otherwise it starts at once through the
       // direct path, so the older mock flows keep working. The real rules are tested against Postgres.
+      // Mock of the proposed my_calibration_* functions (WEB 11-27; docs/calibrate-contract-needs-1127.md): ?calibon puts the switch 'calibrate' on this account. The mock's rules are stand-ins (the real ones are BUILDER's):
+      // ?calibconsented starts consented; ?calibnone no round; ?calibcap the daily cap already reached; ?calibcapafter=N the cap after N answers; ?caliberr round/consent load fails; ?calibanswererr answers fail;
+      // ?calibnoaward answers return awarded null; ?calibtype=<type> a round of that one type; ?calibbad an unknown type and a bad clip address; ?calibended the first answer says round_ended.
+      my_calibration_consent_get() {
+        const q = typeof location !== 'undefined' ? (location.search || '') : '';
+        if (/[?&]caliberr/.test(q)) return fail('no');
+        if (!/[?&]calibon/.test(q)) return fail('not_on');
+        db.calib = db.calib || { consented: /[?&]calibconsented/.test(q), answered: 0, total: 0, today: 0, earned: 0, ledger: [], log: [] };
+        return { data: { consented: db.calib.consented, at: db.calib.consented ? now() : null, words_id: db.calib.words_id || null }, error: null };
+      },
+      my_calibration_consent_set({ p_on, p_words_id }) {
+        const q = typeof location !== 'undefined' ? (location.search || '') : '';
+        if (!/[?&]calibon/.test(q)) return fail('not_on');
+        if (p_on === true && p_words_id !== 'calibrate-consent-1') return fail('The words are not known.');
+        db.calib = db.calib || { consented: false, answered: 0, total: 0, today: 0, earned: 0, ledger: [], log: [] };
+        db.calib.consented = p_on === true; db.calib.words_id = p_on === true ? p_words_id : null;
+        db.calib.log.push({ rpc: 'consent_set', p_on, p_words_id });
+        return { data: { consented: db.calib.consented, at: now(), words_id: db.calib.words_id }, error: null };
+      },
+      my_calibration_round_get() {
+        const q = typeof location !== 'undefined' ? (location.search || '') : '';
+        if (/[?&]caliberr/.test(q)) return fail('no');
+        if (!/[?&]calibon/.test(q)) return fail('not_on');
+        const c = db.calib;
+        if (!c || !c.consented) return { data: { state: 'not_consented', round: null, cap: { reached: false, resets_at: null } }, error: null };
+        c.log.push({ rpc: 'round_get' });
+        if (/[?&]calibcap(&|$)/.test(q) || c.capped) return { data: { state: 'cap_reached', round: null, cap: { reached: true, resets_at: null } }, error: null };
+        if (/[?&]calibnone/.test(q)) return { data: { state: 'none', round: null, cap: { reached: false, resets_at: null } }, error: null };
+        const clip = (kind, n) => ({ kind, url: kind === 'own_app' ? `http://127.0.0.1:9/clip-${n}.mp4` : `https://example.test/clip-${n}.mp4`, label: `Clip ${n}`, start_seconds: 0, end_seconds: 6 });
+        const all = {
+          better_cut: { id: 't-1', type: 'better_cut', prompt: 'Which cut is better?', options: [{ id: 'a', label: 'Cut A', clip: clip('own_app', 'a') }, { id: 'b', label: 'Cut B', clip: clip('licensed', 'b') }] },
+          confirm_speaker: { id: 't-2', type: 'confirm_speaker', prompt: 'Is this the same person speaking?', clip: clip('own_app', 'c'), options: [{ id: 'yes', label: 'Yes, the same person' }, { id: 'no', label: 'No, a different person' }, { id: 'unsure', label: 'Can’t tell' }] },
+          is_phrase: { id: 't-3', type: 'is_phrase', prompt: 'Is this the phrase “of the people”?', clip: clip('licensed', 'd'), options: [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }, { id: 'unsure', label: 'Can’t tell' }] },
+          rate_match: { id: 't-4', type: 'rate_match', prompt: 'How good a match is this clip?', clip: clip('licensed', 'e'), options: [1, 2, 3, 4, 5].map(n => ({ id: String(n), label: n === 1 ? '1 (poor)' : n === 5 ? '5 (great)' : String(n) })) }
+        };
+        const only = (/[?&]calibtype=([a-z_]+)/.exec(q) || [])[1];
+        let tasks = only && all[only] ? [all[only]] : Object.values(all);
+        if (/[?&]calibbad/.test(q)) tasks = [{ id: 't-9', type: 'mystery', prompt: 'x', options: [] }, { ...all.is_phrase, id: 't-8', clip: { kind: 'licensed', url: 'javascript:alert(1)', label: 'bad' } }];
+        tasks = tasks.filter(t => !c.log.some(l => l.rpc === 'answer_set' && l.p_task === t.id));
+        if (!tasks.length) return { data: { state: 'none', round: null, cap: { reached: false, resets_at: null } }, error: null };
+        c.total = c.total || tasks.length;
+        return { data: { state: 'ready', round: { id: 'r-1', total: c.total, answered: c.answered, tasks }, cap: { reached: false, resets_at: null } }, error: null };
+      },
+      my_calibration_answer_set({ p_round, p_task, p_answer }) {
+        const q = typeof location !== 'undefined' ? (location.search || '') : '';
+        const c = db.calib;
+        if (!/[?&]calibon/.test(q)) return fail('not_on');
+        if (!c || !c.consented) return fail('not_consented');
+        if (/[?&]calibanswererr/.test(q)) return fail('no');
+        if (/[?&]calibended/.test(q) && !c.endedOnce) { c.endedOnce = true; return fail('round_ended'); }
+        c.log.push({ rpc: 'answer_set', p_round, p_task, p_answer });
+        c.answered += 1;
+        const award = p_answer === 'skip' || /[?&]calibnoaward/.test(q) ? null : 1;
+        if (award) { c.earned += award; c.today += award; c.ledger.unshift({ id: 'l-' + c.ledger.length, at: now(), task_type: ({ 't-1': 'better_cut', 't-2': 'confirm_speaker', 't-3': 'is_phrase', 't-4': 'rate_match' })[p_task] || 'is_phrase', credits: award, undone: false }); }
+        const after = Number((/[?&]calibcapafter=(\d+)/.exec(q) || [])[1] || 0);
+        if (after && c.answered >= after) c.capped = true;
+        return { data: { ok: true, answered: c.answered, total: c.total, awarded: award, cap_reached: !!c.capped, round_done: c.answered >= c.total }, error: null };
+      },
+      my_calibration_earned_get() {
+        const c = db.calib;
+        if (!c) return fail('not_on');
+        return { data: { total: c.earned, today: c.today, ledger: c.ledger.slice(0, 20) }, error: null };
+      },
+      my_calibration_undo({ p_ledger }) {
+        const c = db.calib, row = c && c.ledger.find(r => r.id === p_ledger);
+        if (!row || row.undone) return fail('That award can’t be taken back.');
+        row.undone = true; c.earned -= row.credits; c.today -= row.credits;
+        return { data: { ok: true }, error: null };
+      },
       // Mock of BUILDER's my_compilation_set (builder-compilations-server-1127, 11-27): an app-session writer for the person's OWN project; the schema, the 32 KB cap and the account switch 'compilations' are checked like the connector's twin.
       my_compilation_set({ p_project, p_request }) {
         const p = db.projects.find(x => x.id === p_project);
