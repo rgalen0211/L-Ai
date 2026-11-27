@@ -26,7 +26,7 @@ test('SWITCH: compilations is an account switch, the department module promotes 
   const d = read('assets/app-departments.js');
   assert.ok(d.includes("featureOn('compilations') === true") && d.includes("if (id === 'compilations' && compilationsOn()"));
   const data = read('assets/app-data.js');
-  assert.ok(data.includes("client.rpc('set_my_compilation_request', { p_project: projectId, p_request: request })"));
+  assert.ok(data.includes("client.rpc('my_compilation_set', { p_project: projectId, p_request: request })"));
   assert.ok(data.includes("client.from('compilation_requests').select('project_id, request, updated_at')"));
   const page = read('assets/app-compilations.js');
   assert.ok(!/fetch\(|XMLHttpRequest|FileReader|\.text\(\)|arrayBuffer|FormData/.test(page), 'the page reads and sends no file');
@@ -35,4 +35,13 @@ test('LOCAL: the folder picker reads only the folder NAME and a file count; the 
   const page = read('assets/app-compilations.js');
   assert.ok(page.includes("split('/')[0]"));
   assert.ok(page.includes('Nothing is uploaded.') && page.includes('Your videos never leave your computer.'));
+});
+test('RUN LINES: what the person\'s computer reported becomes a plain line: counts only, a closed list of reasons, the generic line for anything else', () => {
+  const W = C.WORDS, run = s => C.runLine(s, W);
+  assert.equal(run(null), W.waiting);
+  assert.match(run({ state: 'matching', matches: 7 }), /finding the matches on your computer\. 7 matches\.$/);
+  assert.match(run({ state: 'done', matches: 7, clips: 7, film_seconds: 41.2 }), /^Done\. Your film is on your computer\. 7 matches, 7 clips, 41 seconds long\.$/);
+  assert.match(run({ state: 'failed', error_code: 'not_said' }), /It did not finish\. Your videos do not say it\.$/);
+  assert.match(run({ state: 'failed', error_code: '<b>x</b>' }), /Something went wrong\. Try again from the app\.$/);
+  assert.equal(run({ state: 'nonsense' }), W.waiting);
 });

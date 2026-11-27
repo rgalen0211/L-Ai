@@ -1,7 +1,7 @@
 // The Compilations department page (WEB 11-27, wave 8 "departments on"; behind the per-account switch 'compilations').
 // A compilation finds every time a phrase is said in the person's OWN footage and strings the moments together. The footage, the matches and the finished film stay on the person's computer
 // (tools/check-compilation-stays-local.py): this page only saves a REQUEST (the words, the NAMES of folders, a few switches) that the Ryagram app on the person's computer reads and builds from.
-// It never sends or reads a video, a picture or a path. The server call is set_my_compilation_request (BUILDER's RPC; the request has the connector's own shape, ryagram.compilation-request/0).
+// It never sends or reads a video, a picture or a path. The server calls are my_compilation_set and my_compilation_get (BUILDER's, branch builder-compilations-server-1127; the request has the connector's own shape, ryagram.compilation-request/0).
 // FOR RYAN'S YES: every public word on this page is new.
 (() => {
   const BS = String.fromCharCode(92);
@@ -43,10 +43,25 @@
     return `“${String(q.phrase || '').slice(0, 120)}”: ${how}, in ${n} folder${n === 1 ? '' : 's'}${q.song ? ', as a song' : ''}. Saved ${when ? when(row.updated_at) : ''}`.trim();
   }
 
+  // The newest run -> the line under a request. Counts only; no path, no transcript text ever arrives.
+  function runLine(run, W) {
+    if (!run || typeof run.state !== 'string') return W.waiting;
+    const base = W.states[run.state] || W.waiting;
+    if (run.state === 'failed') return `${base} ${W.errors[run.error_code] || 'Something went wrong. Try again from the app.'}`;
+    const bits = [];
+    if (Number.isFinite(Number(run.matches)) && run.matches !== null && run.matches !== undefined) bits.push(`${Number(run.matches)} match${Number(run.matches) === 1 ? '' : 'es'}`);
+    if (Number.isFinite(Number(run.clips)) && run.clips !== null && run.clips !== undefined) bits.push(`${Number(run.clips)} clip${Number(run.clips) === 1 ? '' : 's'}`);
+    if (run.state === 'done' && Number.isFinite(Number(run.film_seconds)) && run.film_seconds !== null) bits.push(`${Math.round(Number(run.film_seconds))} seconds long`);
+    return bits.length ? `${base} ${bits.join(', ')}.` : base;
+  }
+
   const WORDS = {
     intro: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together.',
     local: 'Your videos never leave your computer. This page saves only your request: the words, and the names of your folders. The Ryagram app on your computer finds the matches and makes the film there.',
     waiting: 'Waiting for the Ryagram app on your computer.',
+    states: { planning: 'The Ryagram app is planning your film.', matching: 'The Ryagram app is finding the matches on your computer.', building: 'The Ryagram app is making your film on your computer.', done: 'Done. Your film is on your computer.', failed: 'It did not finish.', cancelled: 'Stopped.' },
+    // the closed list of reasons the app can report (FACES 08:16, docs/COMPILATION-REPORT-1127.md); anything else reads as the generic line
+    errors: { request_invalid: 'Your AI’s request could not be read.', song_request: 'Songs are made in the song tools, not here.', folder_not_chosen: 'Choose where these videos are on your computer.', folder_missing: 'A folder you chose is not there any more.', folder_empty: 'A folder you chose has no videos.', folders_overlap: 'Two folders hold the same videos.', no_speech: 'No speech was found in your videos.', not_said: 'Your videos do not say it.', edit_failed: 'The draft could not be made into a film list.', build_failed: 'The film could not be built. Nothing left your computer.', crash: 'Something went wrong on your computer.' },
     noApp: 'The Ryagram app is not on a computer of yours yet. You can save a request now; the app reads it when you open it.'
   };
 
@@ -122,7 +137,7 @@
           haveApp === false ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp, ' ', h('a', { href: '/get-app/' }, 'Get the Ryagram app')) : null,
           rows.length ? h('ul', { class: 'project-list comp-rows' }, rows.map(r => h('li', {},
             h('strong', {}, String(r.title || 'A compilation').slice(0, 120)), h('span', { class: 'meta' }, ` ${requestLine(r, date)}`),
-            h('p', { class: 'form-note' }, WORDS.waiting)))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
+            h('p', { class: 'form-note comp-run', role: 'status' }, runLine(r.run, WORDS))))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
       }
       await drawRequests();
 
@@ -135,5 +150,5 @@
     return { pageView };
   }
 
-  window.ryagramCompilations = { NAME, PLACE, LIMITS, WORDS, folderList, buildRequest, requestLine, create };
+  window.ryagramCompilations = { NAME, PLACE, LIMITS, WORDS, folderList, buildRequest, requestLine, runLine, create };
 })();
