@@ -42,10 +42,11 @@ test('every template on every offered dataset builds a story in the worker schem
   assert.deepEqual([...views].sort(), ['bars', 'line', 'map']);              // paired is not built: it needs keyframes_per_year measured (tests/paired-guard.test.mjs)
 });
 
-test('state maps keep hatching; the county permits map is no longer a template pair (legend check fails it) and the Bars template is gone', () => {
+test('state maps keep hatching except the obesity map, which is five shades; the county permits map is no longer a template pair (legend check fails it) and the Bars template is gone', () => {
   assert.throws(() => T.build('map', 'bps_county_permits', ''), /isn.t offered for this template/);
   assert.equal(T.TEMPLATES.find(x => x.id === 'bars'), undefined);
-  assert.equal(T.build('map', 'state_obesity_fastfood', '').sequence.style_overrides, undefined);
+  assert.deepEqual(plain(T.build('map', 'state_obesity_fastfood', '').sequence.style_overrides), { choropleth: { mode: 'solid', steps: 5, low: '#dfe6f3', high: '#2f3f73' } });       // 2026-11-27: shades for the film Ryan watched; every other state map keeps hatching
+  assert.equal(T.build('highest', 'state_obesity_fastfood', '').sequence.style_overrides, undefined);
 });
 
 test('"Highest" template: the six states with the highest adult obesity, as a line', () => {
