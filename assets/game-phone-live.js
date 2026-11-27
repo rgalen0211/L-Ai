@@ -3,8 +3,12 @@
 // no camera, no picture, no file. The phone talks to the host's screen through the room in assets/game-room.js (Supabase Realtime broadcast on
 // uselai.com; a test relay on 127.0.0.1 only): nothing is stored on any server, and the phone never sees an answer before the host's screen reveals it.
 // The host scores; the phone only shows what the host sends. Words are drafts FOR RYAN'S YES.
-// REJOIN: this browser TAB remembers its own seat (room code, its random player id, its name) in sessionStorage, which is gone when the tab is closed,
-// so a phone whose page reloads mid-game (a sleeping screen, a dropped connection) joins again as the same player and keeps its score.
+// REJOIN: this browser TAB remembers its own seat (room code, its player id, its name, its signing key and counter, the host key it pinned) in sessionStorage, which is gone
+// when the tab is closed, so a phone whose page reloads mid-game (a sleeping screen, a dropped connection) joins again as the same player and keeps its score.
+// SIGNED (11-27): the player id is made from this phone's own key and every join/guess/leave is signed with it, so another phone in the room cannot speak for this one;
+// what the host sends is shown only when the host key pinned from this phone's welcome signed it, and a welcome is taken (and its key pinned) ONLY when its key gives the
+// very room code the player typed (ryagramGameRoom.codeOf): the code on the host's screen names the host's key, so whoever answers first cannot pose as the host.
+// The limit: a stranger would need a key whose SHA-256 maps to the same 6 letters (about 191 million tries on average) while the room is open.
 (function () {
   const local = () => ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
   const liveOn = cfg => !!cfg && (cfg.games === true || cfg.games === 'account');
@@ -19,13 +23,16 @@
     const client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     return { kind: 'realtime', client, code };
   }
-  const newPid = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); return [...a].map(b => b.toString(36).padStart(2, '0')).join('').slice(0, 20); };
   const SEAT_KEY = 'ryagram-game-seat';
-  // The tab's seat: { code, pid, name } or null. Any problem reading or writing it (storage blocked, a bad value) means "no seat": the player simply joins as new.
+  // The tab's seat: { code, pid, name, jwk, seq, hostPub } or null. SIGNED ROOM (11-27): jwk is this phone's private signing key (its pid is made from it, see
+  // ryagramGameRoom.pidOf), seq the last number it used (a reload goes on above it), hostPub the host key it pinned. Any problem reading or writing it (storage blocked,
+  // a bad value) means "no seat": the player simply joins as new, with a new key.
   function readSeat() {
     try {
       const v = JSON.parse(sessionStorage.getItem(SEAT_KEY) || 'null');
-      return v && /^[A-Z]{4}$/.test(v.code) && /^[A-Za-z0-9]{8,32}$/.test(v.pid) && typeof v.name === 'string' && v.name.length <= 16 ? v : null;
+      return v && /^[A-Z]{6}$/.test(v.code) && /^[A-Za-z0-9]{8,32}$/.test(v.pid) && typeof v.name === 'string' && v.name.length <= 16
+        && v.jwk && typeof v.jwk === 'object' && typeof v.jwk.d === 'string' && Number.isInteger(v.seq) && v.seq >= 0 && v.seq < 1e9
+        && (v.hostPub == null || (typeof v.hostPub === 'string' && /^[A-Za-z0-9_-]{80,100}$/.test(v.hostPub))) ? v : null;
     } catch { return null; }
   }
   const writeSeat = seat => { try { if (seat) sessionStorage.setItem(SEAT_KEY, JSON.stringify(seat)); else sessionStorage.removeItem(SEAT_KEY); } catch { /* storage blocked: no rejoin, nothing else changes */ } };
@@ -37,7 +44,30 @@
       for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
       return n;
     };
-    const s = { conn: null, off: null, pid: newPid(), name: '', code: '', round: -1, phase: '', sentText: '', timer: null, left: 0 };
+    const s = { conn: null, off: null, pid: '', name: '', code: '', round: -1, phase: '', sentText: '', timer: null, left: 0,
+      pair: null, seq: 0, sentSeq: 0, kept: false, hostPub: null, hostSeq: -1, leaveMsg: null, outQ: Promise.resolve(), inQ: Promise.resolve() };
+    // SIGNED ROOM (11-27). Every join/guess/leave carries the next seq and this phone's signature; the numbers are kept in the seat as they are used, so a reload goes on above them.
+    // After each send a signed leave is made ready, so a closing page (pagehide) can send it at once without waiting for the signature.
+    const seatNow = () => ({ code: s.code, pid: s.pid, name: s.name, jwk: s.pair.jwk, seq: s.seq, hostPub: s.hostPub });
+    const nextSeq = () => { s.seq += 1; if (s.kept) writeSeat(seatNow()); return s.seq; };
+    const prepareLeave = async () => {
+      if (!s.conn || !s.pair) return;
+      const seq = nextSeq(), m = await Room.sign(s.pair, s.code, { t: 'leave', pid: s.pid, seq });
+      if (seq > s.sentSeq) s.leaveMsg = m;
+    };
+    const sendSigned = msg => {
+      const conn = s.conn;
+      if (!conn || !s.pair) return Promise.reject(new Error('This room connection is closed.'));
+      const p = s.outQ.then(async () => { const seq = nextSeq(); s.sentSeq = seq; await conn.send(await Room.sign(s.pair, s.code, { ...msg, seq })); });
+      s.outQ = p.catch(() => {}).then(prepareLeave).catch(() => {});
+      return p;
+    };
+    // What the host sends is shown only when it is signed by the host key this phone pinned from its welcome, with a seq above the last one taken; the rest is dropped.
+    const fromHost = async m => {
+      if (!s.hostPub || !Number.isInteger(m.seq) || m.seq <= s.hostSeq) return false;
+      if (!(await Room.verify(s.hostPub, s.code, m)) || m.seq <= s.hostSeq) return false;
+      s.hostSeq = m.seq; return true;
+    };
     const live = el('p', { class: 'ph-live', role: 'status', 'aria-live': 'polite' });
     const stage = el('div', { class: 'ph-stage' });
     const show = (kids, focus) => { stage.replaceChildren(...kids.filter(Boolean)); (focus || stage.querySelector('h2')).focus(); };
@@ -52,7 +82,20 @@
     const watch = () => { if (s.watch) clearInterval(s.watch); s.lastHeard = Date.now(); s.watch = setInterval(() => {
       if (s.welcomed && s.conn && Date.now() - s.lastHeard > SILENT_MS) { clearInterval(s.watch); s.watch = null; silent(); } }, 2000); };
     const unwatch = () => { if (s.watch) clearInterval(s.watch); s.watch = null; };
-    async function leave() { stopTimer(); unwatch(); if (s.off) s.off(); s.off = null; if (s.conn) { try { await s.conn.send({ t: 'leave', pid: s.pid }); } catch { /* the room is gone */ } s.conn.close(); } s.conn = null; }
+    async function leave() {
+      stopTimer(); unwatch(); if (s.off) s.off(); s.off = null;
+      const conn = s.conn, ready = s.leaveMsg && s.leaveMsg.seq > s.sentSeq ? s.leaveMsg : null;
+      s.leaveMsg = null;
+      if (conn && s.pair) {
+        try {
+          if (ready) { s.sentSeq = ready.seq; s.kept = false; await conn.send(ready); }          // sent at once: a closing page does not wait for a signature
+          else { const seq = nextSeq(); s.sentSeq = seq; s.kept = false; await conn.send(await Room.sign(s.pair, s.code, { t: 'leave', pid: s.pid, seq })); }
+        } catch { /* the room is gone */ }
+      }
+      s.kept = false;
+      if (conn) conn.close();
+      s.conn = null;
+    }
 
     function join(note) {
       s.round = -1; s.phase = ''; live.textContent = ''; banner.hidden = false;
@@ -68,11 +111,24 @@
         if (np) return name.input.focus();
         s.code = Room.normCode(code.input.value); s.name = H.clean(name.input.value);
         const seat = readSeat();
-        s.pid = seat && seat.code === s.code && seat.name.toLowerCase() === s.name.toLowerCase() ? seat.pid : newPid();     // the same room and name in this tab: the same player
         s.welcomed = false;
         const opts = roomOptions(cfg, s.code);
         if (!opts) { showErr(code, 'This page could not reach the game rooms. Reload the page and try again.'); return code.input.focus(); }
-        button.disabled = true; button.textContent = 'Joining…';
+        button.disabled = true; button.textContent = 'Joining\u2026';
+        // the same room and name in this tab: the same player (the same key, so the same pid); otherwise a new key and so a new pid
+        const same = !!(seat && seat.code === s.code && seat.name.toLowerCase() === s.name.toLowerCase());
+        try {
+          s.pair = null;
+          if (same) { try { const p = await Room.keyPair(seat.jwk); if ((await Room.pidOf(p.pub)) === seat.pid) s.pair = p; } catch { s.pair = null; } }
+          s.kept = !!s.pair; s.seq = s.kept ? seat.seq : 0; s.hostPub = s.kept ? (seat.hostPub || null) : null;
+          if (!s.pair) s.pair = await Room.keyPair();
+          s.pid = await Room.pidOf(s.pair.pub);
+        } catch {
+          button.disabled = false; button.textContent = 'Join the room';
+          showErr(code, 'This browser cannot sign the game\u2019s messages. Try an up-to-date browser.'); return code.input.focus();
+        }
+        s.sentSeq = s.seq; s.hostSeq = -1; s.leaveMsg = null; s.outQ = Promise.resolve(); s.inQ = Promise.resolve();
+        const pinned = s.hostPub;
         try {
           s.conn = await Room.connect(opts);
         } catch {
@@ -80,13 +136,23 @@
           showErr(code, 'This page could not reach the game rooms. Check your connection and try again.'); return code.input.focus();
         }
         const answer = await new Promise(resolve => {
-          const t = setTimeout(() => resolve(null), JOIN_WAIT_MS);
-          s.off = s.conn.onMessage(m => {
-            if (m.t === 'welcome' && m.pid === s.pid) { clearTimeout(t); resolve(m); }
-            else if (m.t === 'state' && s.welcomed) { s.lastHeard = Date.now(); onState(m); }          // nothing from the room is shown before the host has let this phone in
-            else if (m.t === 'got' && m.pid === s.pid && s.welcomed) gotIt(m);
-          });
-          s.conn.send({ t: 'join', pid: s.pid, name: s.name }).catch(() => { clearTimeout(t); resolve(null); });
+          let done = false;
+          const t = setTimeout(() => { done = true; resolve(null); }, JOIN_WAIT_MS);
+          // nothing from the room is shown before the host has let this phone in, and then only what the pinned host key signed
+          const handle = async m => {
+            if (m.t === 'welcome' && m.pid === s.pid && !done) {
+              if (!m.pub || (pinned && m.pub !== pinned)) return;          // a rejoin keeps the host key it pinned before
+              if ((await Room.codeOf(m.pub)) !== s.code) return;          // the key must be the one the typed code names: a stranger's welcome (ok or not, any problem text) is ignored
+              if (!(await Room.verify(m.pub, s.code, m)) || done) return;
+              done = true; clearTimeout(t);
+              if (m.ok) { s.hostPub = m.pub; s.hostSeq = m.seq; s.welcomed = true; }
+              resolve(m);
+            }
+            else if (m.t === 'state' && s.welcomed) { if (await fromHost(m)) { s.lastHeard = Date.now(); onState(m); } }
+            else if (m.t === 'got' && m.pid === s.pid && s.welcomed) { if (await fromHost(m)) gotIt(m); }
+          };
+          s.off = s.conn.onMessage(m => { s.inQ = s.inQ.then(() => handle(m)).catch(() => {}); });
+          sendSigned({ t: 'join', pid: s.pid, name: s.name, pub: s.pair.pub }).catch(() => { if (!done) { done = true; clearTimeout(t); resolve(null); } });
         });
         if (!answer || !answer.ok) {
           await leave();
@@ -96,7 +162,7 @@
           if (answer && /full|started/i.test(why || '')) { joinNote.textContent = why; joinNote.hidden = false; return button.focus(); }        // the code was right: say it above the form (8-player test LOW)
           showErr(code, why || 'The host did not let you in.'); return code.input.focus();
         }
-        s.welcomed = true; writeSeat({ code: s.code, pid: s.pid, name: s.name }); banner.hidden = true; watch();        // the draft note collapses once in, so Send stays on a small screen (audit 16)
+        s.welcomed = true; s.kept = true; writeSeat(seatNow()); banner.hidden = true; watch();        // the draft note collapses once in, so Send stays on a small screen (audit 16)
         live.textContent = `You joined room ${s.code} as ${s.name}.`;
         lobby();
       } }, code.node, name.node, button);
@@ -118,7 +184,7 @@
       stopTimer();
       const draw = () => { counter.textContent = s.left > 0 ? `${s.left} seconds left` : 'Time is up'; };
       draw();
-      s.timer = setInterval(() => { s.left = Math.max(0, s.left - 1); draw(); if (!s.left) { stopTimer(); const b = stage.querySelector('#ph-send'); if (b) b.disabled = true; } }, 1000);        // time is up: no guess can land late (audit 13)
+      s.timer = setInterval(() => { s.left = Math.max(0, s.left - 1); draw(); if (!s.left) { stopTimer(); const b = stage.querySelector('#ph-send'); if (b) b.disabled = true; const g = stage.querySelector('#ph-guess'); if (g) g.readOnly = true; const sl = stage.querySelector('#ph-sent'); if (sl && s.pending) sl.textContent = `Your guess: “${s.pending}”. Time is up.`; } }, 1000);        // time is up: no guess can land late (audit 13)
     }
 
     function question(m) {
@@ -138,7 +204,7 @@
         if (p) return guess.input.focus();
         const text = H.clean(guess.input.value);
         s.sentText = text; s.pending = text; sentLine.textContent = 'Sending…';          // set BEFORE the send: the host's 'got' can arrive before send() resolves (3-player test race); 'Sent' only on 'got' (audit 13)
-        try { await s.conn.send({ t: 'guess', pid: s.pid, round: s.round, text }); } catch { s.pending = ''; sentLine.textContent = ''; showErr(guess, 'Your guess did not reach the host. Send it again.'); return guess.input.focus(); }
+        try { await sendSigned({ t: 'guess', pid: s.pid, round: s.round, text }); } catch { s.pending = ''; sentLine.textContent = ''; showErr(guess, 'Your guess did not reach the host. Send it again.'); return guess.input.focus(); }
       } }, guess.node, counter, el('button', { type: 'submit', class: 'ph-btn', id: 'ph-send' }, 'Send my guess'), sentLine);
       const leaveBtn = () => twoStepLeave();        // leave at any time, not only in the lobby (verify H1); a second press is needed so a mis-tap under Send does not drop the player
       s.left = m.left_s || 0;
@@ -165,8 +231,10 @@
       let place = 0, last = null; const placed = totals.map((t, i) => { if (t.total !== last) { place = i + 1; last = t.total; } return { ...t, place }; });
       const me = placed.find(t => t.name === s.name);
       const nth = n => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
-      live.textContent = me ? `The game is over. You came ${nth(me.place)} with ${me.total} points.` : 'The game is over.';
-      show([el('h2', { tabindex: '-1' }, 'The game is over'), me ? el('p', { id: 'ph-place' }, `You came ${nth(me.place)} with ${me.total} points.`) : null,
+      const shared = me && placed.filter(t => t.place === me.place).length > 1;
+      const mine = me ? `You came ${nth(me.place)}${shared ? ' (shared)' : ''} with ${me.total} points.` : '';
+      live.textContent = me ? `The game is over. ${mine}` : 'The game is over.';
+      show([el('h2', { tabindex: '-1' }, 'The game is over'), me ? el('p', { id: 'ph-place' }, mine) : null,
         el('ul', { id: 'ph-totals', class: 'ph-meta' }, placed.map(t => el('li', {}, `${t.place}. ${t.name}: ${t.total}`))),
         el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
     }
@@ -200,7 +268,7 @@
       if (m.phase === 'final') { if (s.phase !== 'final') final(m); }
     }
 
-    const banner = el('p', { class: 'ph-banner', role: 'note' }, el('strong', {}, 'DRAFT. '), 'Text only: no microphone and no camera. Your name and guesses go to the host’s screen in this room and are not kept.');
+    const banner = el('p', { class: 'ph-banner', role: 'note' }, el('strong', {}, 'DRAFT. '), 'Text only: no microphone and no camera. Ryagram keeps nothing, but your name and guesses go to everyone in this room. Anyone with the room code can join.');
     const title = el('h1', { id: 'ph-title' }, 'Guess the next line');
     const setTitle = (mode, compact) => { title.textContent = mode === 'gap' ? 'Fill the gap' : 'Guess the next line'; title.classList.toggle('ph-compact', !!compact); };        // the page's own title says which game (8-player test LOW); small during a round so Send stays higher
     root.replaceChildren(el('div', { class: 'ph-screen' }, banner, title, live, stage));

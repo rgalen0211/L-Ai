@@ -70,52 +70,73 @@ test('PHONE: live mode needs games on (true or \'account\'); the sample room is 
 test('REJOIN: the phone remembers its seat in THIS TAB only (sessionStorage), reuses its player id only for the same room and name, forgets it on Leave, and a bad stored value means a new seat', () => {
   const src = read('assets/game-phone-live.js');
   assert.match(src, /sessionStorage\.getItem\(SEAT_KEY\)/); assert.ok(!/localStorage/.test(src), 'never localStorage: the seat dies with the tab');
-  assert.match(src, /s\.pid = seat && seat\.code === s\.code && seat\.name\.toLowerCase\(\) === s\.name\.toLowerCase\(\) \? seat\.pid : newPid\(\);/);
+  assert.match(src, /const same = !!\(seat && seat\.code === s\.code && seat\.name\.toLowerCase\(\) === s\.name\.toLowerCase\(\)\);/);
+  assert.match(src, /if \(same\) \{ try \{ const p = await Room\.keyPair\(seat\.jwk\); if \(\(await Room\.pidOf\(p\.pub\)\) === seat\.pid\) s\.pair = p; \} catch \{ s\.pair = null; \} \}/, 'the same seat reuses its key only when the pid is that key\'s');
+  assert.match(src, /s\.pid = await Room\.pidOf\(s\.pair\.pub\);/, 'the pid is always made from the key');
   const leaves = (src.match(/'Leave the room'\)/g) || []).length, forget = (src.match(/await leave\(\); writeSeat\(null\); join\('You left the room\.'\)/g) || []).length;
   assert.ok(leaves >= 3, 'a phone can leave in the lobby, during a round and at the final'); assert.equal(forget, leaves, 'every Leave button forgets the seat');
-  assert.match(src, /else if \(m\.t === 'state' && s\.welcomed\) \{ s\.lastHeard = Date\.now\(\); onState\(m\); \}/, 'nothing from the room is shown before the host lets the phone in');
+  assert.match(src, /else if \(m\.t === 'state' && s\.welcomed\) \{ if \(await fromHost\(m\)\) \{ s\.lastHeard = Date\.now\(\); onState\(m\); \} \}/, 'nothing from the room is shown before the host lets the phone in, and then only what the pinned host key signed');
+  assert.match(src, /else if \(m\.t === 'got' && m\.pid === s\.pid && s\.welcomed\) \{ if \(await fromHost\(m\)\) gotIt\(m\); \}/);
   // the stored value is checked before use
   const store = new Map(); const ss = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
   const W = load(['assets/game-phone-live.js'], { sessionStorage: ss });
   assert.equal(typeof W.ryagramGamePhoneLive.mount, 'function');
   const body = src.slice(src.indexOf('function readSeat'), src.indexOf('const writeSeat'));
-  assert.match(body, /\/\^\[A-Z\]\{4\}\$\/\.test\(v\.code\)/); assert.match(body, /\/\^\[A-Za-z0-9\]\{8,32\}\$\/\.test\(v\.pid\)/); assert.match(body, /catch \{ return null; \}/);
+  assert.match(body, /\/\^\[A-Z\]\{6\}\$\/\.test\(v\.code\)/); assert.match(body, /\/\^\[A-Za-z0-9\]\{8,32\}\$\/\.test\(v\.pid\)/); assert.match(body, /catch \{ return null; \}/);
 });
 
 test('NO ANSWER BEFORE THE REVEAL: across a whole game (host mounted on a fake room), no message before a reveal holds any of that round\'s answer, and every reveal holds it whole with the engine\'s points', async () => {
   const mkEl = tag => ({ tag, kids: [], attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener() {}, append(...k) { this.kids.push(...k); }, replaceChildren(...k) { this.kids = k; }, querySelector() { return null; }, focus() {} });
   const h = (tag, attrs, ...kids) => { const e = mkEl(tag); for (const [k, v] of Object.entries(attrs || {})) if (v != null && v !== false && !k.startsWith('on')) e.setAttribute(k, v); e.kids = kids.flat(); return e; };
-  const W = load(['assets/game-score.js', 'assets/game-rounds.js', 'assets/app-games.js'], { location: { hostname: '127.0.0.1', search: '?relay=http://127.0.0.1:9', hash: '#/d/games', origin: 'http://127.0.0.1:1' },
-    setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} });
+  const W = load(['assets/game-room.js', 'assets/game-score.js', 'assets/game-rounds.js', 'assets/app-games.js'], { location: { hostname: '127.0.0.1', search: '?relay=http://127.0.0.1:9', hash: '#/d/games', origin: 'http://127.0.0.1:1' },
+    setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {}, TextEncoder });
   const sent = []; let onMsg = null;
-  const Room = { newCode: () => 'ABCD', connect: async () => ({ send: async m => { sent.push(JSON.parse(JSON.stringify(m))); }, onMessage: cb => { onMsg = cb; return () => {}; }, close() {} }) };
+  const G = W.ryagramGameRoom;                  // the real signing helper: the fake phones sign exactly as the real ones do
+  const Room = { ...G, connect: async () => ({ send: async m => { sent.push(JSON.parse(JSON.stringify(m))); }, onMessage: cb => { onMsg = cb; return () => {}; }, close() {} }) };
   const R = W.ryagramGameRounds, S = W.ryagramGameScore;
   const host = W.ryagramGamesHost.mount(mkEl('div'), { h, Room, Score: S, Rounds: R, cfg: {} });
-  await new Promise(r => setTimeout(r, 0));
+  for (let i = 0; i < 50 && !onMsg; i++) await new Promise(r => setTimeout(r, 10));          // the host makes its key, then opens the room
   assert.ok(onMsg, 'the host listens to the room');
-  onMsg({ t: 'join', pid: 'aaaaaaaa1', name: 'Ana' }); onMsg({ t: 'join', pid: 'bbbbbbbb1', name: 'Ben' });
-  onMsg({ t: 'join', pid: 'cccccccc1', name: 'ANA' });
-  assert.ok(sent.some(m => m.t === 'welcome' && m.pid === 'cccccccc1' && m.ok === false), 'a name differing only in case is refused');
-  host.start();
+  const CODE = host.state().code; assert.equal(CODE, await G.codeOf(host.state().pair.pub), 'the room code is made from the host key'); assert.match(CODE, /^[A-Z]{6}$/);
+  const phone = async () => { const pair = await G.keyPair(); const pid = await G.pidOf(pair.pub); let seq = 0;
+    return { pid, pair, msg: (m, extra = {}) => G.sign(pair, CODE, { ...m, pid, seq: ++seq, ...extra }) }; };
+  const deliver = async m => { onMsg(G.validate(m)); await host.settled(); };          // as the room does: validated first
+  const pa = await phone(), pb = await phone(), pc = await phone();
+  await deliver(await pa.msg({ t: 'join', name: 'Ana', pub: pa.pair.pub })); await deliver(await pb.msg({ t: 'join', name: 'Ben', pub: pb.pair.pub }));
+  await deliver(await pc.msg({ t: 'join', name: 'ANA', pub: pc.pair.pub }));
+  assert.ok(sent.some(m => m.t === 'welcome' && m.pid === pc.pid && m.ok === false), 'a name differing only in case is refused');
+  await deliver({ t: 'join', pid: 'dddddddd1', name: 'Dee' });
+  assert.ok(!sent.some(m => m.pid === 'dddddddd1'), 'an unsigned join gets no answer at all');
+  // every message the host sent is signed by the key its welcome carries, with a seq that only goes up
+  const hostPub = sent.find(m => m.t === 'welcome').pub;
+  for (const m of sent) assert.equal(await G.verify(hostPub, CODE, m), true, `host ${m.t} is signed`);
+  for (let i = 1; i < sent.length; i++) assert.ok(sent[i].seq > sent[i - 1].seq, 'host seq goes up');
+  host.start(); await host.settled();
   for (let i = 0; i < R.rounds.length; i++) {
     const words = R.rounds[i].answer.map(w => w.word.toLowerCase().replace(/[^a-z0-9']/g, '')).filter(w => w.length > 3 && !R.rounds[i].public.heard_text.toLowerCase().includes(w));
     const mark = sent.length;
-    onMsg({ t: 'guess', pid: 'aaaaaaaa1', round: i, text: R.rounds[i].answer.map(w => w.word).join(' ') });
+    if (i === 0) {                                // Ben's key cannot speak for Ana: a guess with Ana's pid signed by Ben is dropped (no got, no score)
+      await deliver(await G.sign(pb.pair, CODE, { t: 'guess', pid: pa.pid, round: 0, text: 'forged by ben', seq: 999 }));
+      assert.ok(!sent.slice(mark).some(m => m.t === 'got'), 'no got for a forged guess');
+    }
+    await deliver(await pa.msg({ t: 'guess', round: i, text: R.rounds[i].answer.map(w => w.word).join(' ') }));
+    assert.ok(sent.slice(mark).some(m => m.t === 'got' && m.pid === pa.pid && m.round === i), `round ${i + 1}: Ana's guess is acknowledged`);
     const pre = sent.slice(0, sent.length).filter(m => m.t === 'state' && m.phase === 'question' && m.round === i);
     assert.ok(pre.length >= 1, `round ${i + 1} was sent as a question`);
     for (const m of pre) for (const w of words) assert.ok(!JSON.stringify(m).toLowerCase().includes(w), `round ${i + 1}: '${w}' was sent before the reveal`);
-    onMsg({ t: 'guess', pid: 'bbbbbbbb1', round: i, text: 'nothing like it' });           // both in: the host reveals at once
+    await deliver(await pb.msg({ t: 'guess', round: i, text: 'nothing like it' }));           // both in: the host reveals at once
     const rev = sent.slice(mark).find(m => m.t === 'state' && m.phase === 'reveal' && m.round === i);
     assert.ok(rev, `round ${i + 1} was revealed`);
     assert.equal(rev.reveal.answer_text, R.rounds[i].answer.map(w => w.word).join(' '));
     const ana = rev.reveal.results.find(r => r.name === 'Ana');
     assert.equal(ana.points, S.scoreGuess(R.rounds[i], R.rounds[i].answer.map(w => w.word).join(' ')).points);
-    host.next();
+    host.next(); await host.settled();
   }
   const fin = sent.filter(m => m.t === 'state' && m.phase === 'final').pop();
   assert.ok(fin, 'the final was sent');
   const sum = R.rounds.reduce((t, r) => t + S.scoreGuess(r, r.answer.map(w => w.word).join(' ')).points, 0);
   assert.equal(fin.totals.find(t => t.name === 'Ana').total, sum);
+  for (const m of sent) assert.equal(await G.verify(hostPub, CODE, m), true, `host ${m.t} is signed`);
   host.close();
 });
 

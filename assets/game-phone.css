@@ -34,3 +34,6 @@
 .ph-screen h1.ph-compact{font-size:1.1rem;margin:2px 0 4px}
 .ph-leave{margin-top:22px}
 .ph-join-note{font-weight:700}
+/* GAMES 11-27 picture book: a disabled button (Send after Time is up, Joining...) must look disabled, not only be it */
+.ph-btn:disabled,.ph-btn[disabled]{opacity:.55;cursor:not-allowed;background:var(--soft,#1a1d29);border-style:dashed;color:var(--muted,#c3c8d8)}
+.ph-input:disabled,.ph-input[readonly]{opacity:.7;cursor:not-allowed}

@@ -8,16 +8,17 @@
   const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';      // no I or O: on a TV across the room they read as 1 and 0
   const CODE_LEN = 4, NAME_MAX = 16, ANSWER_MAX = 120;
   const SAMPLE_CODE = 'GAME';
-  const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+  const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;          // keep equal to assets/game-room.js
 
   const clean = s => String(s ?? '').replace(INVISIBLE, ' ').replace(/\s+/g, ' ').trim();
   const chars = s => [...s].length;
   // A code as typed on a phone: lower case, spaces or a dash in the middle are all fine.
   const normCode = s => String(s ?? '').toUpperCase().replace(/[\s-]/g, '');
-  function codeProblem(s) {
-    const c = normCode(s);
-    if (!c) return 'Type the room code from the TV.';
-    if (c.length !== CODE_LEN || ![...c].every(ch => CODE_LETTERS.includes(ch))) return `A room code is ${CODE_LEN} letters from the TV, like ${SAMPLE_CODE}. It has no I, no O and no numbers.`;
+  // GAMES 11-27: the SAMPLE room (live mode off) keeps its 4-letter code GAME; the LIVE room passes its own length (6, assets/game-room.js CODE_LEN).
+  function codeProblem(s, len = CODE_LEN) {
+    const c = normCode(s), sample = len === CODE_LEN;
+    if (!c) return sample ? 'Type the room code from the TV.' : 'Type the room code from the host' + "'" + 's screen.';
+    if (c.length !== len || ![...c].every(ch => CODE_LETTERS.includes(ch))) return sample ? `A room code is ${CODE_LEN} letters from the TV, like ${SAMPLE_CODE}. It has no I, no O and no numbers.` : `A room code is ${len} letters from the host's screen. It has no I, no O and no numbers.`;
     return null;
   }
   function nameProblem(s, taken = []) {
@@ -137,7 +138,7 @@
     const enabled = live || on(window.ryagramConfig);
     root.hidden = !enabled; if (off) off.hidden = enabled;
     if (enabled) document.title = live ? 'Guess the next line, phone | Ryagram' : "Guess the next line, phone (draft) | L'Ai";          // GAMES 11-19: the HTML's title names no draft game while it is off; the game's own title only when it is on
-    if (live) L.mount(root, { clean, codeProblem, nameProblem, answerProblem, counterText, NAME_MAX, ANSWER_MAX }, R, window.ryagramConfig);
+    if (live) L.mount(root, { clean, codeProblem: v => codeProblem(v, R.CODE_LEN), nameProblem, answerProblem, counterText, NAME_MAX, ANSWER_MAX }, R, window.ryagramConfig);
     else if (enabled) { const room = sampleRoom(S); if (!room) root.textContent = 'The sample room could not be made, so nothing is shown.'; else mount(root, [room]); }
   }
 })();
