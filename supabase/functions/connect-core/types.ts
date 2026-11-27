@@ -105,6 +105,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
   /** Compilations, department path (CONNECT 11-27; PROPOSED twin of BUILDER's public.my_compilation_get, NOT APPLIED): the person's request for one project and where the build on THEIR OWN computer stands, as the database reports it.
    *  null = the project is not the person's. `request` is null when the project has no request yet; `run` is null when the person's computer has reported nothing. Data only: no path, no transcript, no video. Optional: a database without the migration has none, and the tool says so. */
   compilationGet?(projectId: string): Promise<CompilationStatusRead | null>;
+  /** Perfect City (migration 20261127000500: connect_perfect_city_summary, the token-checked twin of GEO's ryagram_private.perfect_city_summary_for): the numbers for ONE spot, as the database answers them (schema ryagram.perfect-city-summary/0). UNTRUSTED until perfect_city.ts has checked it. Throws the database's sentences (42501 switch off, 22023 unknown place or kind or a spot outside the county, PT503 not available yet); a database without the function throws code "unavailable". Optional: an older server has none and the tool says so. */
+  perfectCitySummary?(q: { county: string; kind: string; lat: number; lon: number }): Promise<unknown>;
   /** NEXT-CONNECT 196: writes a place question for the house computer to answer. The point is rounded to 4 decimals by the database. Asking the same thing twice is one request (repeat: true). */
   askGeo(q: { lat: number; lon: number; minutes: number; categories: string[] }): Promise<{ id: string; state: string; repeat?: boolean }>;
   /** GEO question shapes (migration 20261104000400): compare two places, "will a <category> place at A succeed" (never a yes or no), "where should a <category> place go" (never a place picked). Same rules as askGeo. */
@@ -249,6 +251,7 @@ export const LIMITS = Object.freeze({
   filmCardsPerHourPerUser: 20,           // Editor Step A: asks for a film's look card (reads are the panel's own bucket)
   projectsPerDayPerUser: 20,
   compilationRequestsPerDayPerUser: 50,
+  perfectCitySummariesPerHourPerUser: 60,  // perfect_city_summary: one indexed read in the database, but it reaches the person's AI allowance, so a loop is stopped
   compilationReadsPerHourPerUser: 120,    // get_compilation_status and open_compilations_page (reads, like geoReadsPerHourPerUser)
   footagePlansPerDayPerUser: 20,
   geoQuestionsPerHourPerUser: 30,
