@@ -45,16 +45,20 @@ test('on, it answers with the person\'s departments: the words for a host with n
   assert.deepEqual(ids, ['data_films', 'my_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.deepEqual(r.data.coming_soon, ['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.ok(!/<|>|javascript:/.test(r.text));
-  w.users.get(A.userId).departments = rows(['data_films', 'working'], ['compilations', 'working'], ['games', 'soon']);          // a promoted department without a page is NOT shown as working
+  w.users.get(A.userId).departments = rows(['data_films', 'working'], ['studio', 'working'], ['games', 'soon']);          // a promoted department without a page is NOT shown as working
   const r2 = await call('open_ryagram_home', {});
   assert.deepEqual(r2.data.departments.map((d) => d.id), ['data_films', 'my_films', 'games']);
 });
 
 test('the list follows the site\'s rule: only ids with words, only the two statuses, each once, in the site order, a working one only with a page', () => {
   const e = homeEntries([{ id: 'games', status: 'soon', label: 'Games' }, { id: 'data_films', status: 'working', label: 'Data films' }, { id: 'data_films', status: 'soon', label: 'Again' },
-    { id: 'nobody_knows', status: 'working', label: 'x' }, { id: 'animation_studio', status: 'broken', label: 'x' }, { id: 'compilations', status: 'working', label: 'Compilations' }, null, 7, { id: 5 }]);
+    { id: 'nobody_knows', status: 'working', label: 'x' }, { id: 'animation_studio', status: 'broken', label: 'x' }, { id: 'studio', status: 'working', label: 'Studio' }, null, 7, { id: 5 }]);
   assert.deepEqual(e.map((d) => d.id + ':' + d.status), ['data_films:working', 'my_films:working', 'games:soon']);
   assert.deepEqual(homeEntries(null).map((d) => d.id), ['my_films'], 'a failed read still shows the person\'s own films');
+  // the three departments turned on (11-27) show as working, with their own page and one line to say, only when the account's list says working
+  const on = homeEntries([{ id: 'compilations', status: 'working', label: 'x' }, { id: 'geo_intelligence', status: 'working', label: 'x' }, { id: 'games', status: 'working', label: 'x' }]);
+  assert.deepEqual(on.filter((d) => d.status === 'working' && d.id !== 'my_films').map((d) => [d.id, d.page, d.starts.length]), [['compilations', '#/d/compilations', 1], ['geo_intelligence', '#/d/geo_intelligence', 1], ['games', '#/d/games', 1]]);
+  assert.deepEqual(homeEntries([{ id: 'compilations', status: 'soon', label: 'x' }, { id: 'games', status: 'soon', label: 'x' }]).filter((d) => d.status === 'soon').map((d) => [d.id, d.page, d.starts.length]), [['compilations', null, 0], ['games', null, 0]], 'a coming-soon department has no page and nothing to start');
   assert.deepEqual(HOME_ORDER, ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.equal(homeEntries([{ id: 'data_films', status: 'working', label: 'x'.repeat(61) }])[0].label, 'Data films', 'the panel says its own word, whatever the database row says');
   assert.equal(homeEntries([{ id: 'geo_intelligence', status: 'soon', label: 'Geographic Intelligence' }]).find((d) => d.id === 'geo_intelligence').label, 'Perfect City', 'ONE name everywhere (Ryan 2026-11-13, Q601), even while the database row still holds the old one');
