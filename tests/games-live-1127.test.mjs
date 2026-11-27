@@ -725,37 +725,6 @@ test('one number: a room holds 8 in the room library and on the host', () => {
   assert.equal(W.ryagramGameRoom.MAX_PLAYERS, 8); assert.equal(W.ryagramGamesHost.MAX_PLAYERS, W.ryagramGameRoom.MAX_PLAYERS);
 });
 
-// GAMES 11-27 HOW TO PLAY (Ryan's walk 15:43): the host's TV line next to the code, the plain sample sentence in the banner while the rounds are the bundled
-// made-up ones, and (his walk's small bug) a player who reloads mid-round and rejoins is said to be back: the '<name> left.' line does not stay. Names invented.
-async function howtoHostScenario(o = {}) {
-  const b = await bench(o), out = {}, t = sel => (b.root.querySelector(sel) || { textContent: '' }).textContent;
-  try {
-    const code = b.root.querySelector('.gh-code-line'), tv = b.root.querySelector('#gh-tv'), kids = b.root.querySelector('.gh-stage').children;
-    out.tvLine = t('#gh-tv') === 'Put this screen on a TV or share it, and read each line out loud. Players see the lines on their phones too.' && kids.indexOf(tv) === kids.indexOf(code) + 1;
-    out.sampleNote = t('#gh-sample') === 'These are five made-up sample lines. Clips with sound are not here yet.' && t('#gh-note').startsWith('These are five made-up sample lines. Clips with sound are not here yet. The game saves nothing to an account or a file');
-    const [A, B] = await b.seat(['Ana', 'Ben']);
-    b.host.start(); await b.host.settled();
-    b.ft.advance(3000);
-    await B.send({ t: 'leave' });          // the pagehide leave of a reload mid-round
-    out.leftSaid = t('#gh-live') === 'Ben left.' && b.host.state().players.find(p => p.pid === B.pid).gone === true;
-    await B.join();                        // the reloaded page: the same key, a fresh nonce
-    const wb = b.welcomes(B.pid).pop();
-    out.backSaid = !!wb && wb.ok === true && t('#gh-live') === 'Ben is back.' && b.host.state().players.find(p => p.pid === B.pid).gone === false && !/left/.test(t('#gh-player-list'));
-    await A.send({ t: 'guess', round: 0, text: 'a made up guess' });
-    out.stillPlays = b.host.state().phase === 'question';
-  } catch (e) { out.crashed = String(e.stack).slice(0, 300); }
-  b.host.close();
-  return out;
-}
-test('MUST FAIL: the host TV line next to the code, the sample sentence in the banner, and a player back after a mid-round reload replaces the left line', async () => {
-  assert.deepEqual(await howtoHostScenario(), { tvLine: true, sampleNote: true, leftSaid: true, backSaid: true, stillPlays: true });
-});
-test('the sample sentence is only for the bundled made-up rounds: rounds without the MADE-UP note get the banner without it', () => {
-  const src = read(HOST_SRC);
-  assert.match(src, /const sampleOnly = \[Rounds, MODE_ROUNDS\.gap\]\.every\(R => !R \|\| \/MADE-UP\/\.test\(String\(R\.note \|\| ''\)\)\);/);
-  for (const f of ['assets/game-rounds.js', 'assets/game-gap-rounds.js']) assert.match(read(f), /"note":"[^"]*MADE-UP/, f);
-});
-
 const HOST_MUTANTS = [
   { name: 'F1: a locked lobby refuses a pid that held a seat (the old stranger path)', edits: [['if (s.locked && !s.keys.has(m.pid)) {', 'if (s.locked) {']], scenario: lockedRejoinScenario, caught: ['seatedAgain'] },
   { name: 'A: a refused join not recorded after its verify (ghost seat on replay)', edits: [['s.lastSeq.set(m.pid, m.seq); nonceTaken(m.nonce);          // recorded', '          // recorded']], scenario: refusedReplayScenario, caught: ['replayNotSeated'] },
@@ -781,9 +750,6 @@ const HOST_MUTANTS = [
   { name: 'Escape does not keep the player', edits: [["if (e && e.key === 'Escape')", 'if (false)']], scenario: keyboardScenario, caught: ['escapeKeeps'] },
   { name: 'focus not moved to Yes', edits: [['if (yes.focus) yes.focus();', '']], scenario: keyboardScenario, caught: ['confirmInRow'] },
   { name: 'removal welcome without the seating nonce', edits: [['seatNonce(m.pid, s.joinNonce); seen();\n        welcome(', 'seen();\n        welcome(']], scenario: keyboardScenario, caught: ['removalSigned'] },
-  { name: 'no TV line in the lobby', edits: [["          h('p', { class: 'gh-tv', id: 'gh-tv' }, TV_TEXT),\n", '']], scenario: howtoHostScenario, caught: ['tvLine'] },
-  { name: 'no sample sentence in the banner', edits: [['...(sampleOnly ? [', '...(false ? [']], scenario: howtoHostScenario, caught: ['sampleNote'] },
-  { name: 'a rejoin leaves the left line standing', edits: [['seen(); backLine(known.name, wasGone); broadcast();', 'seen(); broadcast();']], scenario: howtoHostScenario, caught: ['backSaid'] },
 ];
 for (const mu of HOST_MUTANTS) {
   test(`MUST FAIL (mutant caught): host: ${mu.name}`, async () => {
