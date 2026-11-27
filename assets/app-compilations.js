@@ -6,11 +6,13 @@
 (() => {
   const BS = String.fromCharCode(92);
   // A folder or picture is a NAME: no slash, no colon, nothing a path is made of (the connector's NAME_PATTERN).
-  const NAME = new RegExp('^[^' + BS + BS + '/:*?"<>|\\u0000-\\u001f\\u007f]{1,80}$');
+  const NAME = new RegExp('^[^' + BS + BS + '/:*?"<>|\\u0000-\\u001f\\u007f-\\u009f]{1,80}$');
   // A drive letter and a slash, a network share, a parent folder or a path from the root: a place on a computer (the connector's looksLikePlace).
   const PLACE = new RegExp('[A-Za-z]:[' + BS + BS + '/]|' + BS + BS + BS + BS + '|(^|\\s)/[A-Za-z]|\\.\\.[' + BS + BS + '/]'
     // what the server migration also refuses (its value check): a home path, %NAME%, $HOME, a percent-encoded slash/backslash/colon, a fullwidth slash or colon
-    + '|(^|\\s)~[a-z0-9_]*[' + BS + BS + '/]|%[a-z_]+%|\\$home\\b|%2f|%5c|%3a|[\\uff0f\\uff3c\\u2215\\uff1a]', 'i');
+    + '|(^|\\s)~[a-z0-9_]*[' + BS + BS + '/]|%[a-z_]+%|\\$home\\b|%2f|%5c|%3a|[\\uff0f\\uff3c\\u2215\\uff1a]'
+    // and a known top folder after ANY punctuation, like "(/home/x", and a link (the same two the migration checks)
+    + '|(^|[^a-z0-9._-])/(users|home|mnt|volumes|private|tmp|var|media|etc|srv|opt|root)/|[a-z][a-z0-9+.-]*://', 'i');
   // the server strips these invisible characters before it checks; so does the page
   const INVISIBLE = /[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g;
   const isPlace = t => PLACE.test(String(t).replace(INVISIBLE, ''));
@@ -52,7 +54,8 @@
 
   // The newest run -> the line under a request. Counts only; no path, no transcript text ever arrives.
   function runLine(run, W) {
-    if (!run || typeof run.state !== 'string' || run.current === false) return W.waiting;      // a run that belongs to an older save of the request is not shown as this one's (absent = current)
+    if (!run || typeof run.state !== 'string') return W.waiting;
+    if (run.current === false) return W.earlier;      // a run that belongs to an older save of the request is not shown as this one's (absent = current)
     const base = W.states[run.state] || W.waiting;
     if (run.state === 'failed') return `${base} ${W.errors[run.error_code] || 'Something went wrong. Try again from the app.'}`;
     const bits = [];
@@ -66,9 +69,10 @@
     intro: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together.',
     local: 'Your videos never leave your computer. This page saves only your request: the words, the names of your folders, your note and the name of your compilation. The Ryagram app on your computer finds the matches and makes the film there.',
     waiting: 'Waiting for the Ryagram app on your computer.',
+    earlier: 'This is for an earlier version of your request. Save again to start over.',
     states: { planning: 'The Ryagram app is planning your film.', matching: 'The Ryagram app is finding the matches on your computer.', building: 'The Ryagram app is making your film on your computer.', done: 'Done. Your film is on your computer.', failed: 'It did not finish.', cancelled: 'Stopped.' },
     // the closed list of reasons the app can report (FACES 08:16, docs/COMPILATION-REPORT-1127.md); anything else reads as the generic line
-    errors: { request_invalid: 'The request could not be read. Save it again, or ask your AI to write it again.', song_request: 'Compilations do not make songs. Take out the song and save again.', folder_not_chosen: 'A folder in your request is not chosen on your computer yet. Open the Ryagram app and choose where that folder is.', folder_missing: 'A folder you chose is not there any more. Open the Ryagram app and choose it again.', folder_empty: 'A folder you chose has no videos in it. Choose the folder that holds your videos.', folders_overlap: 'Two of your folders hold the same videos. Choose folders that do not overlap.', no_speech: 'No speech was found in your videos. Try videos where people talk.', not_said: 'Your videos do not say these words. Try other words, or add more folders.', edit_failed: 'The matches could not be turned into a film. Try again; if it happens twice, tell us.', build_failed: 'The film could not be built. Nothing left your computer. Try again in the Ryagram app.', stale: 'That request was replaced by a newer one.', crash: 'Something went wrong on your computer. Nothing left it. Close the app, open it and try again.' },
+    errors: { request_invalid: 'The request could not be read. Save it again, or ask your AI to write it again.', song_request: 'Compilations do not make songs. Take out the song and save again.', folder_not_chosen: 'A folder in your request is not chosen on your computer yet. Open the Ryagram app and choose where that folder is.', folder_missing: 'A folder you chose is not there any more. Open the Ryagram app and choose it again.', folder_empty: 'A folder you chose has no videos in it. Choose the folder that holds your videos.', folders_overlap: 'Two of your folders hold the same videos. Choose folders that do not overlap.', no_speech: 'No speech was found in your videos. Try videos where people talk.', not_said: 'Your videos do not say these words. Try other words, or add more folders.', edit_failed: 'The matches could not be turned into a film. Try again; if it happens twice, tell us.', build_failed: 'The film could not be built. Nothing left your computer. Try again in the Ryagram app.', stale: 'The build stopped reporting. You can start it again from the app.', crash: 'Something went wrong on your computer. Nothing left it. Close the app, open it and try again.' },
     noApp: 'The Ryagram app is not on a computer of yours yet. You can save a request now; the app reads it when you open it.'
   };
 
@@ -141,8 +145,8 @@
         let rows;
         try { rows = await data.myCompilationRequests(); } catch (err) { list.replaceChildren(h('p', { class: 'form-note', role: 'alert' }, window.ryagramJobs ? window.ryagramJobs.plainRefusal(err && err.message) : 'Couldn’t load your requests.')); return; }
         rows = Array.isArray(rows) ? rows.slice(0, 50) : [];
-        let haveApp = null;
-        try { haveApp = typeof data.myLocalCompute === 'function' ? await data.myLocalCompute() : null; } catch { haveApp = null; }
+        let haveApp = null;      // true/false only when the list of the person's signed-in computers loaded; the tester flag is not this question
+        try { const mine = typeof data.myComputers === 'function' ? await data.myComputers() : null; haveApp = Array.isArray(mine) ? mine.length > 0 : null; } catch { haveApp = null; }
         list.replaceChildren(...[
           haveApp === false ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp, ' ', h('a', { href: '/get-app/', class: 'comp-link' }, 'Get the Ryagram app')) : null,
           rows.length ? h('ul', { class: 'project-list comp-rows' }, rows.map(r => h('li', {},

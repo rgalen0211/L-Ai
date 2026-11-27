@@ -1,5 +1,5 @@
 // Pins the site's Compilations calls against BUILDER's server migration, WITHOUT a database (WEB 11-27).
-// The migration text is read from the branch origin/builder-compilations-server-1127 with `git show` (like the other tests that read a branch); no git or no branch = skipped in words.
+// The migration text is a pinned copy in tests/fixtures/ (the commit is in its name); the branch origin/builder-compilations-server-1127 is compared to it when present and any drift is printed.
 // The page refuses everything the migration refuses (the mismatches of 11-27 are resolved; docs/compilations-contract-mismatches-1127.md).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,12 +12,18 @@ const read = p => fs.readFileSync(new URL(p, ROOT), 'utf8');
 const BRANCH = 'origin/builder-compilations-server-1127';
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 26 });
 
-let SQL = null, SKIP = false;
+// The migration text: a pinned copy under tests/fixtures/ (named with the commit it came from) is what the tests use, so they do not go quiet if the branch is deleted.
+// When the branch is still there it is compared to the pin; a difference is noted in the test output (drift), not silently ignored.
+const PIN = 'tests/fixtures/compilations-server-aa53b232-20261127000300.sql';
+let SQL = null, SKIP = false, BRANCH_SQL = null;
+try { SQL = read(PIN).replace(/\r/g, ''); } catch (e) { SKIP = `the pinned migration ${PIN} is missing`; }
 try {
   const name = git('ls-tree', '--name-only', BRANCH, 'supabase/migrations/').split('\n').find(n => /\/20261127000300_.*\.sql$/.test(n));
-  SKIP = name ? false : `the migration 20261127000300_* is not on ${BRANCH}`;
-  if (name) SQL = git('show', `${BRANCH}:${name}`).replace(/\r/g, '');
-} catch (e) { SKIP = `git or ${BRANCH} is not available here (${String(e.message).split('\n')[0]}); contract not checked`; }
+  if (name) BRANCH_SQL = git('show', `${BRANCH}:${name}`).replace(/\r/g, '');
+} catch { BRANCH_SQL = null; }
+if (SQL === null && BRANCH_SQL !== null) { SQL = BRANCH_SQL; SKIP = false; }
+const DRIFT = BRANCH_SQL === null ? 'the branch is not available here; checked against the pinned copy only' : (BRANCH_SQL === SQL ? null : `DRIFT: ${BRANCH} differs from the pinned copy ${PIN}; refresh the pin and re-check the page`);
+if (DRIFT) console.log('# compilations contract: ' + DRIFT);
 const T = (name, a, b) => { const opts = typeof a === 'function' ? {} : a, fn = typeof a === 'function' ? a : b; test(name, { skip: SKIP || undefined, ...opts }, fn); };
 
 const win = {};
@@ -49,12 +55,12 @@ function serverProblem(p) {
   if (SQL_KEYS.test(t)) return 'file key';
   if (SQL_PLACE.test(allStrings(p).join('\n').replace(INVISIBLE, ''))) return 'place';
   for (const k of Object.keys(p)) if (!requestKeys().includes(k)) return 'unknown part ' + k;
-  if (typeof p.phrase !== 'string' || ![...p.phrase.trim()].length || [...p.phrase.trim()].length > 200) return 'phrase';
+  if (typeof p.phrase !== 'string' || ![...p.phrase.trim()].length || [...p.phrase].length > 200) return 'phrase';
   if ('search' in p && !['every', 'words'].includes(p.search)) return 'search';
   if (!Array.isArray(p.folders) || p.folders.length < 1 || p.folders.length > 10) return 'folders count';
   for (const e of p.folders) {
-    const f = typeof e === 'string' ? e.trim() : null, n = f === null ? 0 : [...f].length;
-    if (f === null || n < 1 || n > 80 || f === '.' || f === '..' || /[\\/:*?"<>|\x00-\x1f\x7f]/.test(f)) return 'folder name';
+    const f = typeof e === 'string' ? e.trim() : null, n = f === null ? 0 : [...e].length;
+    if (f === null || ![...f].length || n > 80 || f === '.' || f === '..' || /[\\/:*?"<>|\x00-\x1f\x7f-\x9f]/.test(f)) return 'folder name';
   }
   if (p.song === true || p.mode === 'song') return 'song';
   if ('note' in p && (typeof p.note !== 'string' || [...p.note].length > 500)) return 'note';
@@ -106,9 +112,9 @@ T('ERRORS: WORDS.errors keys are the migration\'s eleven reasons plus the one do
 // ---- 3. the request the page builds against the migration's own request rules
 T('LIMITS: the page\'s limits equal the numbers in the migration text', () => {
   assert.ok(SQL.includes('> 32768'));
-  assert.ok(/char_length\(btrim\(p ->> 'phrase'\)\) not between 1 and 200/.test(SQL) && C.LIMITS.phrase === 200);
+  assert.ok(/char_length\(btrim\(p ->> 'phrase'\)\) < 1 or char_length\(p ->> 'phrase'\) > 200/.test(SQL) && C.LIMITS.phrase === 200);
   assert.ok(/jsonb_array_length\(p -> 'folders'\) not between 1 and 10/.test(SQL) && C.LIMITS.folders === 10);
-  assert.ok(/char_length\(f\) not between 1 and 80/.test(SQL));
+  assert.ok(/char_length\(f\) < 1 or char_length\(e #>> '\{\}'\) > 80/.test(SQL));
   assert.ok(/char_length\(p ->> 'note'\) > 500/.test(SQL) && C.LIMITS.note === 500);
   assert.ok(SQL.includes("'schema', 'phrase', 'search', 'mode', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist'"));
   assert.ok(SQL.includes("'ryagram.compilation-request/0'"));
@@ -147,6 +153,10 @@ const MUST_REFUSE = {
   'an environment name as a folder': { form: { phrase: 'x', folders: '%TEMP%' }, say: 'folder' },
   'a fullwidth slash as a folder': { form: { phrase: 'x', folders: 'a\uff0fb' }, say: 'folder' },
   'a fullwidth backslash as a folder': { form: { phrase: 'x', folders: 'a\uff3cb' }, say: 'folder' },
+  'a home path after an opening bracket in the words': { form: { phrase: 'see (/home/x', folders: 'A' }, say: 'words' },
+  'a home path after a quote in the note': { form: { phrase: 'x', folders: 'A', note: 'at "/Users/me/v' }, say: 'words' },
+  'a link in the words': { form: { phrase: 'see https://example.com', folders: 'A' }, say: 'words' },
+  'a C1 control character in a folder name': { form: { phrase: 'x', folders: 'a\u0085b' }, say: 'folder' },
   'a DEL character in a folder name': { form: { phrase: 'x', folders: 'a\x7fb' }, say: 'folder' },
   'a home path hidden by an invisible character': { form: { phrase: 'a ~\u200b/x', folders: 'A' }, say: 'words' },
 };
@@ -159,7 +169,7 @@ for (const [name, { form, say }] of Object.entries(MUST_REFUSE)) T(`REFUSED: ${n
   assert.ok(b.error, 'the page let through what the migration refuses');
   assert.match(b.error, SAY[say]);
   for (const v of Object.values(form)) if (v.length > 2) assert.ok(!b.error.includes(v.trim()), 'the sentence echoes the typed text');
-  const echoed = /(~|%|\$home|\uff0f|\uff1a|\x7f)/i.test(b.error);
+  const echoed = /(~|%|\$home|\uff0f|\uff1a|\x7f|\u0085|home|https)/i.test(b.error);
   assert.ok(!echoed, 'the sentence echoes a character that was typed');
 });
 // The migration (mirrored) refuses the same inputs when sent raw, so each of these is a real server refusal, not a page-only rule.
@@ -181,6 +191,8 @@ const NORMAL = {
   'a tilde in the words': { phrase: 'about ~5 minutes', folders: 'A' },
   'a tilde in a folder': { phrase: 'x', folders: 'Trip ~2024' },
   'a dollar sign in the words': { phrase: 'it cost $5 at home', folders: 'A' },
+  'brackets and a percent in the words': { phrase: '(and then) 100% sure', folders: 'A' },
+  'a slash-free bracketed word': { phrase: 'see (home) and (users)', folders: 'A' },
   'home as a plain word': { phrase: 'going home', folders: 'Home movies' },
 };
 for (const [name, form] of Object.entries(NORMAL)) T(`NORMAL: ${name}: the page accepts it and so does the migration`, () => {

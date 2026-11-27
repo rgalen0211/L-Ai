@@ -56,12 +56,15 @@ test('HONEST OPTIONS (FACES 08:21): no song box and no clean-cuts box (the engin
 });
 test('GAMES REVIEW 11-27: an old run is not shown, a typed place is never echoed, a refused save archives its empty project, a failed list load is plain, stale has words', () => {
   const W = C.WORDS;
-  assert.equal(C.runLine({ state: 'done', current: false, matches: 3 }, W), W.waiting);
+  assert.equal(C.runLine({ state: 'done', current: false, matches: 3 }, W), W.earlier);
   assert.match(C.runLine({ state: 'done', current: true, matches: 3 }, W), /^Done\./);
   const b = C.buildRequest({ phrase: 'x', folders: 'bad:name' });
   assert.equal(b.error.includes('bad:name'), false);
   assert.match(b.error, /^That is not a folder name\./);
-  assert.equal(W.errors.stale, 'That request was replaced by a newer one.');
+  assert.equal(W.errors.stale, 'The build stopped reporting. You can start it again from the app.');
+  assert.equal(C.runLine({ state: 'done', current: false, matches: 3 }, W), 'This is for an earlier version of your request. Save again to start over.');
+  const pg = read('assets/app-compilations.js');
+  assert.ok(pg.includes('data.myComputers()') && !pg.includes('myLocalCompute'), 'the no-app line is keyed on the computers list, not the tester flag');
   assert.match(W.local, /your note and the name of your compilation/);
   const page = read('assets/app-compilations.js');
   assert.ok(page.includes('data.archiveProject(made.project.id)') && page.includes('plainRefusal') && page.includes("'Added one folder.") && !page.includes('err.message)); return; }'));
