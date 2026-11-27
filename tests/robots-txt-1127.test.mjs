@@ -23,8 +23,19 @@ test('one group for every crawler, Disallow lines only, no wildcards; the ONE fu
 
 test('the working folders are kept out of search', () => {
   for (const p of ['/proposals/X.md', '/docs/A.md', '/supabase/migrations/a.sql', '/tests/a.test.mjs', '/tools/x.py',
-    '/legal-drafts/terms.html', '/directory-drafts/terms/', '/landing-drafts/song-films/',
     '/README.md', '/package.json', '/package-lock.json']) assert.ok(blocked(p), p);
+});
+
+test('no lines for the draft folders: every page in them already says noindex', () => {
+  assert.ok(!disallow.some((d) => /drafts/.test(d)), disallow.join(' '));
+  for (const dir of ['legal-drafts', 'directory-drafts', 'landing-drafts']) {
+    const files = fs.readdirSync(new URL(`../${dir}`, import.meta.url), { recursive: true }).filter((f) => /\.html$/.test(f));
+    assert.ok(files.length > 0, dir);
+    for (const f of files) {
+      const s = fs.readFileSync(new URL(`../${dir}/${f.replace(/\\/g, '/')}`, import.meta.url), 'utf8');
+      assert.match(s, /name="robots" content="[^"]*noindex/, `${dir}/${f}`);
+    }
+  }
 });
 
 test('no line for the consulting archive: _archive/ is never published by the Pages build, and /archive/ no longer exists', () => {

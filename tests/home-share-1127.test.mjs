@@ -38,7 +38,13 @@ test('og:image is a full https address of the hero still that exists, a JPEG of 
   }
   for (const p of PAGES) {
     const h = read(p);
-    assert.equal(meta(h, 'property', 'og:image'), `https://uselai.com/${IMAGE}`, p);
+    // a version on the address: link previews cache by address, so a swapped picture gets a new ?v= and shares refresh
+    const [addr, ver] = meta(h, 'property', 'og:image').split('?v=');
+    assert.equal(addr, `https://uselai.com/${IMAGE}`, p);
+    assert.match(ver || '', /^\d{8}[a-z]\d+$/, `${p}: og:image carries a version`);
+    assert.equal(meta(h, 'property', 'og:image'), meta(read('index.html'), 'property', 'og:image'), `${p}: the same version on both pages`);
+    // the picture's words are the home hero's own alt text, unchanged
+    assert.equal(meta(h, 'property', 'og:image:alt'), read('index.html').match(/<img class="rg-hero-still" [^>]*alt="([^"]*)">/)[1], `${p}: og:image:alt`);
     assert.equal(meta(h, 'property', 'og:image:type'), 'image/jpeg', p);
     assert.equal(Number(meta(h, 'property', 'og:image:width')), w, `${p}: width`);
     assert.equal(Number(meta(h, 'property', 'og:image:height')), hgt, `${p}: height`);
