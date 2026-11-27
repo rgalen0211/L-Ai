@@ -88,7 +88,7 @@ test('ROW 2 COMING SOON: an account that is NOT invited gets a plain line and NO
 test('ROW 2 AND THE FALLBACK LIST: a non-invited account whose list is empty (the server answers [] for it) still reaches the page, with the line and without the button', async () => {
   const p = await pageOf('compilations', { invited: false, rows: [] });
   const t = textOf(p.view);
-  assert.ok(t.includes('Coming soon') && t.includes('Compilations') && t.includes('Save a request for a phrase'));
+  assert.ok(t.includes('Coming soon') && t.includes('Compilations') && t.includes('Say a phrase.'));
   assert.deepEqual(p.calls, []);
   const m = await p.ui.load();
   assert.ok(m.soon.includes('compilations'));
