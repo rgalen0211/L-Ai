@@ -589,12 +589,12 @@
         const runs = await Promise.all(rows.map(r => run(client.rpc('my_compilation_get', { p_project: r.project_id }), 'x').then(g => (g && g.run) || null).catch(() => null)));
         return rows.map((r, i) => ({ ...r, title: by[r.project_id] || 'A compilation', run: runs[i] }));
       },
-      // Calibrate for credits (WEB 11-27; behind the account switch 'calibrate'; docs/calibrate-contract-needs-1127.md, names proposed for BUILDER and CONNECT). The page sends only the consent choice with the id of the words it showed, a round id,
-      // a task id and the option the person chose; never a clip, a path or a transcript. Every credit number comes back from the server.
+      // Calibrate for credits (WEB 11-27; behind the account switch 'calibrate'; docs/calibrate-contract-needs-1127.md, names proposed for BUILDER and CONNECT). The page sends only the consent choice with the id of the words it showed, the round token,
+      // the item token and the option the person chose; never a clip, a path or a transcript. Every credit number comes back from the server.
       myCalibrationConsent() { return run(client.rpc('my_calibration_consent_get'), 'Couldn’t load your choice.'); },
       setMyCalibrationConsent(on, wordsId) { return run(client.rpc('my_calibration_consent_set', { p_on: on === true, p_words_id: String(wordsId) }), 'Couldn’t save your choice.'); },
       myCalibrationRound() { return run(client.rpc('my_calibration_round_get'), 'Couldn’t load your questions.'); },
-      setMyCalibrationAnswer(roundId, taskId, answer) { return run(client.rpc('my_calibration_answer_set', { p_round: roundId, p_task: taskId, p_answer: String(answer) }), 'Couldn’t save that answer.'); },
+      setMyCalibrationAnswer(roundToken, itemToken, answer) { return run(client.rpc('my_calibration_answer_set', { p_round: roundToken, p_item: itemToken, p_answer: String(answer) }), 'Couldn’t save that answer.'); },
       myCalibrationEarned() { return run(client.rpc('my_calibration_earned_get'), 'Couldn’t load your credits.'); },
       undoMyCalibrationAward(ledgerId) { return run(client.rpc('my_calibration_undo', { p_ledger: ledgerId }), 'Couldn’t take that back.'); },
       listOrders(versionId) { return run(client.from('render_orders').select('id, state, want, error_code, created_at, ended_at, version_id').eq('version_id', versionId).order('created_at', { ascending: false }), 'Couldn\u2019t load the render requests.'); },
