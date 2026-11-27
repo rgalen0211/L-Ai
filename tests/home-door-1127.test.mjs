@@ -21,9 +21,9 @@ test('DOOR: the old consulting pages are stubs that go to / and keep nothing of 
   for (const f of ['workflow-audit/index.html', 'workflow-audit-thanks.html', 'thank-you.html']) {
     const s = read(f);
     assert.match(s, /http-equiv="refresh" content="0; url=\/"/); assert.match(s, /rel="canonical" href="\/"/); assert.match(s, /noindex/); assert.ok(s.length < 1200, f);
-    assert.ok(fs.existsSync(new URL(`../archive/consulting/${f}`, import.meta.url)), `${f} is kept in the archive`);
+    assert.ok(fs.existsSync(new URL(`../_archive/consulting/${f}`, import.meta.url)), `${f} is kept in the archive`);
   }
-  assert.ok(fs.existsSync(new URL('../archive/consulting/index.html', import.meta.url)));
+  assert.ok(fs.existsSync(new URL('../_archive/consulting/index.html', import.meta.url)));
 });
 test('DOOR: relative links only, so a later move to a Ryagram domain needs no edit here: the only domain on the page is the contact address in the footer', () => {
   assert.doesNotMatch(html.replace(/ryagram@uselai\.com/g, ''), /uselai\.com/);
@@ -36,4 +36,10 @@ test('DOOR: the hero is ONE swappable still (FACES pick: the shaded 2017 frame);
   assert.match(html, /<img class="rg-hero-still" src="\/assets\/ryagram-hero-still\.jpg" width="1280" height="720" alt="A map of US states shaded by adult obesity, with dots for new restaurants\.">/);
   assert.ok(fs.statSync(new URL('../assets/ryagram-hero-still.jpg', import.meta.url)).size < 150 * 1024);
   assert.match(html, /Rise of the Interstate Highway/);
+});
+test('ARCHIVE: the consulting originals live under _archive/ (GitHub Pages\' default Jekyll build does not publish folders starting with an underscore); no archive/ folder, no .nojekyll, no _config.yml', () => {
+  assert.ok(fs.existsSync(new URL('../_archive/consulting/index.html', import.meta.url)));
+  assert.ok(!fs.existsSync(new URL('../archive', import.meta.url)), 'archive/ would be served');
+  assert.ok(!fs.existsSync(new URL('../.nojekyll', import.meta.url)), 'a .nojekyll file would publish _archive: move _archive out of the repo first');
+  assert.ok(!fs.existsSync(new URL('../_config.yml', import.meta.url)), 'a _config.yml could change what Pages skips');
 });

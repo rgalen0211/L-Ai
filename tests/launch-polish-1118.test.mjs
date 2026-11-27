@@ -80,5 +80,5 @@ test('the phone footer is a tidy two-by-two under its source line', () => {
 
 // Live walk 11-18 rough spot 5: on the desktop home page 10 text links (nav, footer, contact line) were 16-23 px tall, under the 24 px minimum.
 test('home page desktop: nav and footer links are at least 24 px tall (a rule for 721 px and wider)', () => {
-  assert.match(read('archive/consulting/index.html'), /@media\(min-width:721px\)\{nav a,\.footer-row a\{display:inline-block;padding:3px 6px;min-height:28px;box-sizing:border-box\}\}/);
+  assert.match(read('_archive/consulting/index.html'), /@media\(min-width:721px\)\{nav a,\.footer-row a\{display:inline-block;padding:3px 6px;min-height:28px;box-sizing:border-box\}\}/);
 });
