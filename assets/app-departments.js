@@ -97,9 +97,7 @@
   const flagOn = () => window.ryagramConfig?.departments === true && window.ryagramConfig?.aiFirst === true && window.ryagramConfig?.connectAi === true;
 
   // ---------------------------------------------------------------- the bar and the pages
-  // The Compilations department is a WORKING page only for an account that has the per-account switch 'compilations' (WEB 11-27, wave 8): the page's own switch, like liveEditor, so the server's row can stay 'soon' for everyone else.
-  const compilationsOn = () => !!(window.ryagramSwitches && window.ryagramSwitches.featureOn('compilations') === true);
-  function create({ h, data, startUi, pages = {} }) {
+  function create({ h, data, startUi }) {
     let model = null, cleanup = () => {}, mountToken = 0;
     // May this account start films by talking to an AI? The SAME gate #/start itself uses (app-start.js canStart: connectAccess() exactly true; a failing check is no). Every way into #/start on these pages asks this,
     // and the Coming soon sign-up asks it too (the server's register_department_interest answers only an invited account). Without app-start.js loaded the answer is no.
@@ -112,9 +110,6 @@
       const announced = new Set(Array.isArray(rows) ? rows.filter(r => r && typeof r.id === 'string').map(r => r.id) : []);       // what the server itself named (the sign-up button needs it)
       if (!hasAny(model)) { model = normalize(FALLBACK); }       // the server did not answer or listed nothing this page knows: the page's own default, never an empty bar
       for (const id of PAGE_ONLY) if (!model.working.includes(id) && !model.soon.includes(id)) model.soon = ORDER.filter(x => model.soon.includes(x) || x === id);
-      if (compilationsOn() && typeof pages.compilations === 'function' && !model.working.includes('compilations')) {      // promoted by the switch: the bar lists it with the working ones
-        model.soon = model.soon.filter(x => x !== 'compilations'); model.working = ORDER.filter(x => model.working.includes(x) || x === 'compilations');
-      }
       model.announced = announced;
       return model;
     }
@@ -277,7 +272,6 @@
     async function pageView(id) {
       const m = model || await load();
       if (!m || !known(id)) return unavailable();
-      if (id === 'compilations' && compilationsOn() && typeof pages.compilations === 'function') return pages.compilations();
       if (m.working.includes(id)) return workingPage(id);
       if (m.soon.includes(id)) return soonPage(id);
       return unavailable();
