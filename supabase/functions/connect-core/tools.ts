@@ -12,6 +12,7 @@ import { BLOCKED_VIEWS } from "../_shared/blocked_views.ts";
 import { KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
 import { makeGamesTools } from "./games_tools.ts";
+import { makeCalibrationTools } from "./calibration_tools.ts";
 import { homeView } from "./home_panel.ts";
 import { makePerfectCityTools } from "./perfect_city.ts";
 import { SQL_WORDS } from "./words.ts";
@@ -1574,4 +1575,6 @@ const listMyData: ToolDef = {
 export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, getCompilationStatus, openCompilationsPage, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, submitPrepared, listMyData, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome, ...makePerfectCityTools(friendlyError)];
 // GAMES (CONNECT 11-27): two read-only tools in games_tools.ts, each gated by the account's own `games` switch; one line of their own so department branches merge cleanly
 TOOLS.push(...makeGamesTools());
+// CALIBRATE (CONNECT 11-27): two read-only, counts-only tools in calibration_tools.ts, gated by the account's own `calibrate` switch; no write tool, none returns a question, clip or answer
+TOOLS.push(...makeCalibrationTools());
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

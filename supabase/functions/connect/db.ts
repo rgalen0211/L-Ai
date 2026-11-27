@@ -103,6 +103,16 @@ export class ConnectDb {
           throw e;
         }
       },
+      // PROPOSED, NOT WRITTEN YET (proposals/CONNECT-CALIBRATE-1127.md): public.connect_calibration_status(p_token_hash text) returns jsonb, the token-checked, READ-ONLY, counts-only twin of the Calibrate page's own status. It takes no owner and no other argument,
+      // reads no question and no answer, and awards nothing. Same deploy-order rule as compilationGet: a database without the function (42883 / PGRST202) becomes the code "unavailable" and nothing else.
+      async calibrationStatus() {
+        try { return await self.fn("connect_calibration_status", ["text"], [h]); }
+        catch (e) {
+          const code = (e as { code?: string })?.code;
+          if (code === "42883" || code === "PGRST202") throw Object.assign(new Error("Calibrate numbers are not available just now."), { code: "unavailable" });
+          throw e;
+        }
+      },
       askGeo: (q) => self.fn("connect_geo_ask", ["text", "float8", "float8", "int", "text[]"], [h, q.lat, q.lon, q.minutes, q.categories]),
       // the series goes in as the ARRAY it is: `fn` turns every jsonb parameter into JSON text itself, so a pre-stringified series was encoded twice and reached SQL as a JSON string, refused as "not 6 to 120 pairs"
       askForecast: (q) => self.fn("connect_forecast_ask", ["text", "jsonb", "int", "text", "int[]", "text"], [h, q.series, q.horizon, q.method ?? null, q.breaks ?? null, q.unit ?? null]),

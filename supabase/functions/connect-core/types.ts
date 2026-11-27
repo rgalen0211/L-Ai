@@ -107,6 +107,10 @@ export interface Data extends Omit<UserData, "submitJob"> {
   compilationGet?(projectId: string): Promise<CompilationStatusRead | null>;
   /** Perfect City (migration 20261127000500: connect_perfect_city_summary, the token-checked twin of GEO's ryagram_private.perfect_city_summary_for): the numbers for ONE spot, as the database answers them (schema ryagram.perfect-city-summary/0). UNTRUSTED until perfect_city.ts has checked it. Throws the database's sentences (42501 switch off, 22023 unknown place or kind or a spot outside the county, PT503 not available yet); a database without the function throws code "unavailable". Optional: an older server has none and the tool says so. */
   perfectCitySummary?(q: { county: string; kind: string; lat: number; lon: number }): Promise<unknown>;
+  /** Calibrate (CONNECT 11-27; PROPOSED public.connect_calibration_status(p_token_hash), NOT APPLIED): the person's own Calibrate numbers, READ-ONLY and COUNTS ONLY (schema ryagram.calibration-status/0). There is deliberately NO method here that
+   *  returns a question, a clip, an answer or a known answer, and NO method that answers or awards: credits are awarded only by the person's own page session. UNTRUSTED until calibration_tools.ts has checked its closed shape.
+   *  Throws {code:"unavailable"} when the database has no such function yet (42883 / PGRST202). Optional: a database without the migration has none, and the tools say so. */
+  calibrationStatus?(): Promise<unknown>;
   /** NEXT-CONNECT 196: writes a place question for the house computer to answer. The point is rounded to 4 decimals by the database. Asking the same thing twice is one request (repeat: true). */
   askGeo(q: { lat: number; lon: number; minutes: number; categories: string[] }): Promise<{ id: string; state: string; repeat?: boolean }>;
   /** GEO question shapes (migration 20261104000400): compare two places, "will a <category> place at A succeed" (never a yes or no), "where should a <category> place go" (never a place picked). Same rules as askGeo. */
@@ -252,7 +256,8 @@ export const LIMITS = Object.freeze({
   projectsPerDayPerUser: 20,
   compilationRequestsPerDayPerUser: 50,
   perfectCitySummariesPerHourPerUser: 60,  // perfect_city_summary: one indexed read in the database, but it reaches the person's AI allowance, so a loop is stopped
-  compilationReadsPerHourPerUser: 120,    // get_compilation_status and open_compilations_page (reads, like geoReadsPerHourPerUser)
+  calibrationReadsPerHourPerUser: 60,     // open_calibration and calibration_status (read-only counts; the same bucket for both)
+  compilationReadsPerHourPerUser: 120,   // get_compilation_status and open_compilations_page (reads, like geoReadsPerHourPerUser)
   footagePlansPerDayPerUser: 20,
   geoQuestionsPerHourPerUser: 30,
   geoReadsPerHourPerUser: 120,

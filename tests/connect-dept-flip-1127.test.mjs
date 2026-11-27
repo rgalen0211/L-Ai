@@ -37,6 +37,13 @@ const DEPTS = {
     switchOnly: true,                       // GEO's helper refuses 42501 without the switch, so the department being 'working' for everyone does NOT open these tools: the switch is the only key (Perfect City part B decision, 11-27)
     secrets: ['Dayton', 'Montgomery', 'Greene', 'Beavercreek', 'montgomery_oh', 'fast_food', 'Census', 'kilometre', '#/d/geo_intelligence'],
   },
+  calibrate: {
+    sw: 'calibrate', id: 'calibrate',
+    tools: [['open_calibration', () => ({})], ['calibration_status', () => ({})]],
+    switchOnly: true,                       // Calibrate has no department row: the account's switch is the only key (and the server function refuses 42501 without it), so a 'working' row for any department never opens it
+    // what a closed answer must never carry: the page, the numbers, what a round is
+    secrets: ['/app/#/d/calibrate', 'tasks_per_round', 'daily_cap', 'earned_today', 'earned_total', 'remaining_today', 'a round', 'opt in', 'answers_by_person_only'],
+  },
 };
 const ALL = Object.entries(DEPTS).flatMap(([dept, d]) => d.tools.map(([name, args]) => ({ dept, d, name, args })));
 const SWITCHES = Object.values(DEPTS).map((d) => d.sw);
@@ -92,7 +99,7 @@ test('TRIPWIRE: every tool named for one of these departments is covered here (a
   const covered = new Set(ALL.map((x) => x.name));
   // not switch-gated and judged on their own below: set_compilation_request (gated by the desktop-app flag only)
   const OUTSIDE = new Set(['set_compilation_request']);
-  const dept = TOOLS.filter((t) => /compilation|perfect_city|game/i.test(t.name) && !OUTSIDE.has(t.name));
+  const dept = TOOLS.filter((t) => /compilation|perfect_city|game|calibrat/i.test(t.name) && !OUTSIDE.has(t.name));
   const missing = dept.filter((t) => !covered.has(t.name)).map((t) => t.name);
   assert.deepEqual(missing, [], 'add these to DEPTS in tests/connect-dept-flip-1127.test.mjs so their flip is tested: ' + missing.join(', '));
 });
@@ -145,7 +152,7 @@ for (const { dept, d, name, args } of ALL) {
       const r = await h.call(name, args(h));
       assert.equal(r.isError, undefined, `${name} with ${sw}: ${r.text}`);
       assert.ok(r.text.length > 20);
-      assert.ok(h.used.every((m) => ['switches', 'departments', 'whoami', 'compilationGet', 'perfectCitySummary'].includes(m)), 'opened tools only read: ' + h.used.join());
+      assert.ok(h.used.every((m) => ['switches', 'departments', 'whoami', 'compilationGet', 'perfectCitySummary', 'calibrationStatus'].includes(m)), 'opened tools only read: ' + h.used.join());
     }
   });
   test(`${name}: the switch is per account (same call: on for one person, refused for another)`, async () => {
@@ -194,7 +201,7 @@ for (const { dept, d, name, args } of ALL) {
 }
 
 // ---------------------------------------------------------------- 6. a misspelt or differently cased switch => closed
-const NEAR_MISSES = ['Games', 'GAMES', 'game', 'games ', ' games', 'perfectcity', 'PerfectCity', 'perfectCities', 'perfect_city', 'Perfect City', 'perfectCity ', 'geo_intelligence', 'geoIntelligence', 'compilation', 'Compilations', 'COMPILATIONS', 'compilations ', 'compilation_s', 'comp', ''];
+const NEAR_MISSES = ['Games', 'GAMES', 'game', 'games ', ' games', 'perfectcity', 'PerfectCity', 'perfectCities', 'perfect_city', 'Perfect City', 'perfectCity ', 'geo_intelligence', 'geoIntelligence', 'compilation', 'Compilations', 'COMPILATIONS', 'compilations ', 'compilation_s', 'comp', 'Calibrate', 'CALIBRATE', 'calibrate ', ' calibrate', 'calibration', 'calibrates', 'Calibration', ''];
 for (const { dept, d, name, args } of ALL) {
   test(`${name}: only the exact switch "${d.sw}" opens it; near misses (case, space, singular, department id) stay closed`, async () => {
     for (const bad of NEAR_MISSES.filter((s) => s !== d.sw)) {

@@ -84,8 +84,9 @@ const DEPT_TOOLS = [
   ['get_compilation_status', (id) => ({ project_id: id })], ['open_compilations_page', () => ({})],
   ['list_games', () => ({})], ['open_games_page', () => ({})],
   ['list_perfect_city_options', () => ({})], ['open_perfect_city', () => ({})],
+  ['open_calibration', () => ({})], ['calibration_status', () => ({})],
 ];
-const SWITCHES = ['compilations', 'games', 'perfectCity'];
+const SWITCHES = ['compilations', 'games', 'perfectCity', 'calibrate'];
 function world({ switches = SWITCHES, scopes = ['read', 'write'], desktop = false } = {}) {
   const w = new FakeWorld();
   const P = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
@@ -118,11 +119,13 @@ async function refusals() {
     add('bad arguments', await open.call(name, { ...A, extra: 'x' }));
     add('bad id', await open.call(name, name === 'open_perfect_city' ? { place: 'nowhere_xx' } : name === 'get_compilation_status' ? { project_id: 'not-an-id' } : { extra: 1 }));
     add('a limit', await open.call(name, A, undefined, async (p, bucket) => bucket === 'calls_acct' || bucket === 'calls'));
-    add('the department limit', await open.call(name, A, undefined, async (p, bucket) => !/compilation_reads/.test(bucket)));
+    add('the department limit', await open.call(name, A, undefined, async (p, bucket) => !/compilation_reads|calibration_reads/.test(bucket)));
     add('not the person\'s project', await open.call(name, args('00000000-0000-4000-8000-0000000000aa')));
-    add('status not available just now', await open.call(name, A, { compilationGet: undefined }));
-    add('database function missing', await open.call(name, A, { compilationGet: async () => { throw Object.assign(new Error('function connect_compilation_get does not exist'), { code: 'unavailable' }); } }));
-    add('unexpected failure', await open.call(name, A, { compilationGet: async () => { throw new Error('boom: select * from compilation_runs'); } }));
+    add('status not available just now', await open.call(name, A, { compilationGet: undefined, calibrationStatus: undefined }));
+    add('database function missing', await open.call(name, A, { compilationGet: async () => { throw Object.assign(new Error('function connect_compilation_get does not exist'), { code: 'unavailable' }); }, calibrationStatus: async () => { throw Object.assign(new Error('function connect_calibration_status does not exist'), { code: 'unavailable' }); } }));
+    add('unexpected failure', await open.call(name, A, { compilationGet: async () => { throw new Error('boom: select * from compilation_runs'); }, calibrationStatus: async () => { throw new Error('boom: select * from calibration_answers'); } }));
+    add('the server answer is not in the closed shape', await open.call(name, A, { calibrationStatus: async () => ({ schema: 'x', task: 'pick the left clip' }) }));
+    add('the switch is on but the server says it is not open for the account', await open.call(name, A, { calibrationStatus: async () => { throw Object.assign(new Error('Calibrate is not switched on for this account.'), { code: '42501' }); } }));
     add('closed, desktop app off, switch on, other dept', await world({ switches: SWITCHES.filter((s) => !name.includes(s.toLowerCase().slice(0, 4))), desktop: false }).call(name, A));
   }
   return out;

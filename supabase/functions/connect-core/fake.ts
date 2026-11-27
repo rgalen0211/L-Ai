@@ -43,6 +43,10 @@ export class FakeWorld {
   compilationRuns = new Map<string, unknown>();
   /** Tests: what GEO's private helper (ryagram_private.perfect_city_summary_for) would answer for a question that passed the database's checks (default: a made-up county with 12 made-up places). Whatever it returns is untrusted: the tool checks it. */
   perfectCityAnswer: ((q: { owner: string; county: string; kind: string; lat: number; lon: number }) => unknown) | null = null;
+  /** Tests: what connect_calibration_status would answer for a person whose switch list names calibrate (default: a made-up round of 5 questions, a daily limit of 50, nothing earned). Whatever it returns is untrusted: the tool checks it. */
+  calibrationAnswer: ((owner: string) => unknown) | null = null;
+  /** Tests: who the stand-in's status call ran for (it takes no argument but the person: there is nothing else to send). */
+  calibrationCalls: string[] = [];
   /** Tests: every question the database layer was asked, as it arrived (the spot already rounded to 4 decimals). */
   perfectCityAsked: { owner: string; county: string; kind: string; lat: number; lon: number }[] = [];
   setCompilationRun(userId: string, projectId: string, run: unknown): void { this.compilationRuns.set(userId + "|" + projectId, run); }
@@ -262,6 +266,14 @@ export class FakeWorld {
         const row = user.requests.get(pid);
         const run = this.compilationRuns.get(userId + "|" + pid) ?? null;
         return JSON.parse(JSON.stringify({ request: row ? row.request : null, sha256: row ? row.sha256 : null, updated_at: row ? "2026-11-27T08:00:00Z" : null, run: row ? run : null }));
+      },
+      // mirrors connect_calibration_status (PROPOSED): 42501 unless the person's own switch list names calibrate; read-only, counts only, no argument but the person
+      calibrationStatus: async () => {
+        const user = u();
+        if (!(user.switches ?? []).includes("calibrate")) throw err("Calibrate is not switched on for this account.", "42501");
+        this.calibrationCalls.push(userId);
+        if (this.calibrationAnswer) return JSON.parse(JSON.stringify(this.calibrationAnswer(userId)));
+        return { schema: "ryagram.calibration-status/0", open: true, eligible: true, consent_given: true, tasks_per_round: 5, daily_cap: 50, earned_today: 0, remaining_today: 50, earned_total: 0, page_path: "/app/#/d/calibrate" };
       },
       // mirrors connect_perfect_city_summary + GEO's helper: 42501 unless the person's own switch list names perfectCity, 22023 for an unknown county or kind (grocery is in montgomery_oh only) or a spot outside the county's box, the spot rounded to 4 decimals
       perfectCitySummary: async (q) => {

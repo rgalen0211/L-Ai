@@ -50,22 +50,22 @@ test('no tool takes a credit or payment argument other than the one refused conf
 });
 
 test('the department tools carry no spend marker at all and are read scope', () => {
-  const names = ['get_compilation_status', 'open_compilations_page', 'list_games', 'open_games_page', 'list_perfect_city_options', 'open_perfect_city'];
+  const names = ['get_compilation_status', 'open_compilations_page', 'list_games', 'open_games_page', 'list_perfect_city_options', 'open_perfect_city', 'open_calibration', 'calibration_status'];
   for (const n of names) {
     const t = TOOLS.find((x) => x.name === n);
     assert.deepEqual(spendMarkers(t), [], n);
     assert.equal(t.scope, 'read'); assert.equal(t.readOnly, true);
   }
   // any other tool named for a department (perfect_city_summary ...) is held to the same
-  for (const t of TOOLS.filter((x) => /perfect_city|game|compilation_status|compilations_page/.test(x.name))) {
+  for (const t of TOOLS.filter((x) => /perfect_city|game|compilation_status|compilations_page|calibrat/.test(x.name))) {
     assert.deepEqual(spendMarkers(t), [], t.name);
     assert.equal(t.scope, 'read', t.name);
   }
 });
 
 // ---------------------------------------------------------------- (b)(c) a stand-in world run
-const DEPT_TOOLS = TOOLS.filter((t) => /^(get_compilation_status|open_compilations_page|list_games|open_games_page|list_perfect_city_options|open_perfect_city|perfect_city_summary)$/.test(t.name)).map((t) => t.name);
-const SWITCHES = ['compilations', 'games', 'perfectCity'];
+const DEPT_TOOLS = TOOLS.filter((t) => /^(get_compilation_status|open_compilations_page|list_games|open_games_page|list_perfect_city_options|open_perfect_city|perfect_city_summary|open_calibration|calibration_status)$/.test(t.name)).map((t) => t.name);
+const SWITCHES = ['compilations', 'games', 'perfectCity', 'calibrate'];
 const PATHISH = [/[A-Za-z]:[\\/](?!\/)/, /\\/, /\/Users\//i, /\/home\//i, /file:\/\//i, /\/mnt\//i, /\/var\/|\/tmp\//];
 const strings = (v, out = []) => { if (typeof v === 'string') out.push(v); else if (Array.isArray(v)) v.forEach((x) => strings(x, out)); else if (v && typeof v === 'object') Object.values(v).forEach((x) => strings(x, out)); return out; };
 const SEEN = [];                                                                // every answer of every fixture, for (c)

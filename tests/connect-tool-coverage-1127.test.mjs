@@ -24,7 +24,7 @@ function world() {
   w.addUser(A.userId, 'alice@example.test', 100); w.addUser(B.userId, 'bob@example.test', 100); w.addUser(N.userId, 'nobody@example.test', 100); w.addUser(R.userId, 'ro@example.test', 100);
   w.invite(A.userId, A.clientId, ALL_SCOPES); w.invite(B.userId, B.clientId, ALL_SCOPES); w.invite(R.userId, R.clientId, ['read']);
   // every switch on, so a tool is judged on its own guards and not on "not open" (the switch tests are in each tool's own file)
-  for (const u of [A, B, R]) { const f = w.users.get(u.userId); f.switches = ['compilations', 'games', 'perfectCity', 'geo', 'forecast', 'footage', 'preparedData']; }
+  for (const u of [A, B, R]) { const f = w.users.get(u.userId); f.switches = ['compilations', 'games', 'perfectCity', 'calibrate', 'geo', 'forecast', 'footage', 'preparedData']; }
   const env = (p) => ({ data: w.data(p.userId), policy: w.policy(), deps: { compile }, chatEditor: true, homePanel: true, preparedData: true });
   const call = async (p, name, args) => { w.counters.clear(); return callTool(name, args, p, env(p)); };
   return { w, env, call };
@@ -297,6 +297,8 @@ const PINNED = {
   list_perfect_city_options: ['read', true],
   open_perfect_city: ['read', true],
   perfect_city_summary: ['read', true],
+  open_calibration: ['read', true],
+  calibration_status: ['read', true],
   list_games: ['read', true],
   open_games_page: ['read', true],
 };
