@@ -20,7 +20,7 @@ const ON_BY_RYAN = ['visitCounting', 'credits', 'payments', 'stripeTestMode', 'a
   'waitingAccounts'];      // waitingAccounts: Ryan 11-21 11:30, sign-up OPEN at launch (branch web-signup-open-1122; LAUNCH-WED-1125 row 1); the server's join_open decides whether it works
 // Permanently off and read by nothing (the config says so; tests/app-catalog.test.cjs fails if either turns true).
 // Switches that hold the string 'account' (on only for accounts an admin named; assets/app-switches.js featureOn). Each must be read through featureOn, and nothing else may be a string.
-const ACCOUNT_SWITCHES = ['myFilms', 'intake', 'testerFilmProgress', 'testerWizard', 'adminTesterDevices', 'adminTestTopup', 'launchFunnel', 'liveEditor'];
+const ACCOUNT_SWITCHES = ['myFilms', 'intake', 'testerFilmProgress', 'testerWizard', 'adminTesterDevices', 'adminTestTopup', 'liveEditor'];
 const UNREAD_ON_PURPOSE = ['catalog', 'catalogComingSoon'];
 
 const stripComments = src => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1').replace(/<!--[\s\S]*?-->/g, ' ');
