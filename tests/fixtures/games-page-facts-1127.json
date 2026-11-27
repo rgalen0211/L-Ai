@@ -1,19 +1,45 @@
 {
-  "_what": "What GAMES' Games page said about itself, copied by hand (CONNECT, 11-27 09:0x) from the code on origin/games-live-1127 e7e2b0c6 and origin/games-on-compilations-1127 e22af41f (assets/app-games.js, assets/game-room.js, assets/game-phone-live.js, assets/game-rounds.js, assets/game-gap-rounds.js, game-phone/index.html). The connector's two Games tools are tested against THIS file; when GAMES' files are in the checkout the same test also reads them. If GAMES changes the page, change this file and games_tools.ts in one step.",
+  "_what": "What GAMES' Games page says about itself, copied by hand (CONNECT, re-read 11-27 11:5x) from the code on origin/games-alert-order-1127 4d95fc2b (= games-live-1127 95c9cad7 + one commit; the launch holds, a longer code, seats and an idle close, are being built on other GAMES branches and are NOT in it): assets/app-games.js, assets/game-room.js, assets/game-phone-live.js, assets/game-rounds.js, assets/game-gap-rounds.js, game-phone/index.html. The connector's two Games tools are tested against THIS file; when GAMES' files are in the checkout the same test also reads them. If GAMES changes the page, change this file and games_tools.ts in one step. code_letters is the length ON THAT HEAD: the tools' words do not state a length (GAMES is lengthening it), so a different length in the page only produces a note in the test, never a red.",
   "host_path": "/app/#/d/games",
   "players_path": "/game-phone/",
   "games": [
-    { "mode": "line", "label": "Guess the next line", "hint": "A line stops partway; type what comes next." },
-    { "mode": "gap", "label": "Fill the gap", "hint": "A line has one word missing; type the missing word." }
+    {
+      "mode": "line",
+      "label": "Guess the next line",
+      "hint": "A line stops partway; type what comes next."
+    },
+    {
+      "mode": "gap",
+      "label": "Fill the gap",
+      "hint": "A line has one word missing; type the missing word."
+    }
   ],
   "which_game_legend": "Which game?",
   "lobby_heading": "Waiting for players",
-  "buttons": ["Start the game", "Show the answer now", "Next round", "See the final scores", "Play again with the same players"],
+  "buttons": [
+    "Start the game",
+    "Show the answer now",
+    "Next round",
+    "See the final scores",
+    "Play again with the same players",
+    "Remove",
+    "Lock the room",
+    "Unlock the room"
+  ],
   "max_players": 8,
+  "name_max": 16,
   "round_seconds": 45,
-  "rounds_per_game": { "line": 5, "gap": 5 },
-  "code_letters": 4,
+  "rounds_per_game": {
+    "line": 5,
+    "gap": 5
+  },
+  "code_letters": 6,
   "code_alphabet": "ABCDEFGHJKLMNPQRSTUVWXYZ",
+  "code_has_digits": false,
+  "host_can_remove_a_player_in_the_lobby": true,
+  "host_can_lock_the_room": true,
+  "phone_says_when_host_screen_stops_answering": true,
+  "idle_close": "not in the code at 4d95fc2b (GAMES plans 15 minutes: ask GAMES); the tools say nothing about it",
   "start_needs_a_player": true,
   "phone_needs_sign_in": false,
   "server_call": false
