@@ -167,6 +167,7 @@ class OAuthMustFail(core.Base):
         self.assertEqual(r.one("select connect_list_projects(%s)", h(a)), [])
         self.assertIsNone(r.one("select connect_current_version(%s, %s)", h(a), pb))
         self.assertEqual(r.one("select connect_list_versions(%s, %s)", h(a), pb), [])
+        self.db.as_(None).c.execute("insert into public.account_settings (owner_id, local_compute) values (%s, true) on conflict (owner_id) do update set local_compute = true", (ALICE,))   # the AI's writer is for accounts Compilations are open for (20261127000400)
         self.assertEqual(self.state("select connect_set_compilation_request(%s, %s, %s::jsonb)", a, (pb, '{"schema": "ryagram.compilation-request/0"}')), "ok")
         self.assertIsNone(r.one("select connect_set_compilation_request(%s, %s, %s::jsonb)", h(a), pb, '{"schema": "ryagram.compilation-request/0"}'), "Bob's project looks absent")
         self.assertEqual(self.db.as_(None).one("select count(*) from public.compilation_requests"), 0)
