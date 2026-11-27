@@ -122,7 +122,7 @@
         h('div', { class: 'actions-row' }, save), status, error);
 
       // ---- tab 2: your requests
-      const list = h('div', { class: 'comp-requests' });
+      const list = h('div', { class: 'comp-requests', role: 'status', 'aria-live': 'polite' });
       async function drawRequests() {
         let rows;
         try { rows = await data.myCompilationRequests(); } catch (err) { list.replaceChildren(h('p', { class: 'form-note', role: 'alert' }, err.message)); return; }
@@ -133,7 +133,7 @@
           haveApp === false ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp, ' ', h('a', { href: '/get-app/', class: 'comp-link' }, 'Get the Ryagram app')) : null,
           rows.length ? h('ul', { class: 'project-list comp-rows' }, rows.map(r => h('li', {},
             h('strong', {}, String(r.title || 'A compilation').slice(0, 120)), h('span', { class: 'meta' }, ` ${requestLine(r, date)}`),
-            h('p', { class: 'form-note comp-run', role: 'status' }, runLine(r.run, WORDS))))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
+            h('p', { class: 'form-note comp-run' }, runLine(r.run, WORDS))))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
       }
       await drawRequests();
 

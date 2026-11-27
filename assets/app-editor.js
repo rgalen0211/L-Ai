@@ -377,8 +377,9 @@
 
       // ---- the controls
       const pill = h('span', { class: 'le-pill' });
-      const undoBtn = btn('Undo', 'secondary', async () => { stopPlay(); if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } saved = false; paint(); });
-      const redoBtn = btn('Redo', 'secondary', async () => { stopPlay(); if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } saved = false; paint(); });
+      let histBusy = false;
+      const undoBtn = btn('Undo', 'secondary', async () => { if (histBusy) return; histBusy = true; try { stopPlay(); if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } saved = false; paint(); } finally { histBusy = false; } });
+      const redoBtn = btn('Redo', 'secondary', async () => { if (histBusy) return; histBusy = true; try { stopPlay(); if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } saved = false; paint(); } finally { histBusy = false; } });
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say(realFilm ? 'Your changes are already kept in this film’s draft.' : 'Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
       const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) { paintChips(); note.focus(); } }, { class: 'button secondary le-ai-btn' });
@@ -389,11 +390,12 @@
         h('li', {}, 'On the picture slider: ', h('kbd', {}, 'Space'), ' or ', h('kbd', {}, 'K'), ' play and pause; ', h('kbd', {}, '←'), ' ', h('kbd', {}, '→'), ' one step; ', h('kbd', {}, 'Shift'), ' with an arrow, or ', h('kbd', {}, 'J'), ' ', h('kbd', {}, 'L'), ', a tenth of the film'),
         h('li', {}, 'In Pro: ', h('kbd', {}, 'J'), ' ', h('kbd', {}, 'K'), ' ', h('kbd', {}, 'L'), ' shuttle; ', h('kbd', {}, ','), ' ', h('kbd', {}, '.'), ' one frame; ', h('kbd', {}, '['), ' ', h('kbd', {}, ']'), ' previous or next cut or marker; ', h('kbd', {}, 'M'), ' add a marker; ', h('kbd', {}, 'S'), ' split a clip (clip films)'),
         h('li', {}, h('kbd', {}, '?'), ' shows or hides this list')));
-      const shortcutsBtn = btn('Shortcuts', 'secondary small', () => { shortcutsBox.hidden = !shortcutsBox.hidden; shortcutsBtn.setAttribute('aria-expanded', String(!shortcutsBox.hidden)); }, { 'aria-label': 'Keyboard shortcuts (?)', 'aria-expanded': 'false' });
+      const shortcutsBtn = btn('Shortcuts', 'secondary small le-keys-btn', () => { shortcutsBox.hidden = !shortcutsBox.hidden; shortcutsBtn.setAttribute('aria-expanded', String(!shortcutsBox.hidden)); }, { 'aria-label': 'Keyboard shortcuts (?)', 'aria-expanded': 'false' });
       const typingIn = el => el && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !['range', 'button', 'checkbox', 'radio', 'color'].includes(el.type)) || el.isContentEditable);
       const onEditorKey = ev => {
         if (typingIn(ev.target) || ev.altKey) return;
         const mod = ev.ctrlKey || ev.metaKey, k = String(ev.key).toLowerCase();
+        if (mod && (k === 'z' || k === 'y') && histBusy) { ev.preventDefault(); return; }
         if (mod && k === 'z' && !ev.shiftKey) { if (!undoBtn.disabled) { ev.preventDefault(); undoBtn.click(); } }
         else if (mod && (k === 'y' || (k === 'z' && ev.shiftKey))) { if (!redoBtn.disabled) { ev.preventDefault(); redoBtn.click(); } }
         else if (!mod && ev.key === '?') { ev.preventDefault(); shortcutsBtn.click(); }
