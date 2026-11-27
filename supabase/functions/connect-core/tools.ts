@@ -301,6 +301,8 @@ const looksLikePlace = (s: string) => PLACE.test(s);
 const LINKISH = /[A-Za-z][A-Za-z0-9+.-]*:\/\/|\bwww\.|\b[A-Za-z0-9-]+\.(com|org|net|gov|edu|io|co|us|uk)\b\/?/i;
 const looksLikeLink = (s: string) => LINKISH.test(s);
 const MAX_CHECKLIST = 12;
+/** The most folders a request may name: the Ryagram app's own limit (FACES 11-27; BUILDER's server lowers its own from 10 to 8 to match), so a request the connector accepts is never one the app then refuses. */
+const MAX_FOLDERS = 8;
 const MAX_CARDS = 4;
 
 const setCompilationRequest: ToolDef = {
@@ -312,7 +314,7 @@ const setCompilationRequest: ToolDef = {
     project_id: uuid,
     phrase: { type: "string", minLength: 1, maxLength: 200, description: "The words to find in the person's videos." },
     search: { type: "string", enum: ["every", "words"], description: "every = every time the phrase is said; words = the words in this order, one place each." },
-    folders: { type: "array", minItems: 1, maxItems: 10, items: { type: "string", pattern: NAME_PATTERN, not: { enum: [".", ".."] } }, description: "The NAMES of the person's folders, as the desktop app shows them. Never paths." },
+    folders: { type: "array", minItems: 1, maxItems: MAX_FOLDERS, items: { type: "string", pattern: NAME_PATTERN, not: { enum: [".", ".."] } }, description: "The NAMES of the person's folders, as the desktop app shows them. Never paths." },
     clean_cuts: { type: "boolean", description: "Move each cut to the nearest shot change without cutting a word. Default false." },
     rules: { type: "array", maxItems: 20, items: obj({
       phrase: { type: "string", minLength: 1, maxLength: 200 }, picture: { type: "string", pattern: PICTURE_PATTERN, description: "The NAME of a picture the person has added in the app." },
@@ -379,8 +381,10 @@ const setCompilationRequest: ToolDef = {
 /** Is the Compilations department open for this person? The database's own rule is the last word (every server call refuses in words when it is off); this is the connector's early, plain answer from what it can read:
  *  the account's switch list names 'compilations', or the person's departments list says Compilations works for them, or the account already has the desktop app (the invited testers who use set_compilation_request today keep it).
  *  Anything unreadable counts as off. The site-wide public lever (ops_settings) cannot be read from here: it reaches the connector through the departments list.
- *  THIS IS ONLY A PRE-FILTER, NEVER THE AUTHORITY: the database is. connect_compilations_open (migration 20261127000400) uses BUILDER's ryagram_private.compilations_on as the one rule when it exists (plus a tester door),
- *  and refuses in words (42501) what this lets through; an account this says "open" for can still be refused there, and the tool then says what the database said. */
+ *  THIS IS ONLY A PRE-FILTER, NEVER THE AUTHORITY: THE DATABASE IS. connect_compilations_open (migration 20261127000400, final version) follows BUILDER's ryagram_private.compilations_on EXCLUSIVELY once it exists (no tester door,
+ *  no administrator door), and before it exists is closed by default except for an invited tester. It refuses in words (42501) what this lets through; an account this says "open" for can still be refused there, and the tool then says what
+ *  the database said. The third door above (the desktop app, i.e. an invited tester) is kept only because the database's fallback admits that same tester until BUILDER's migration is applied; after it, the database refuses a tester
+ *  who has no switch and this pre-filter's "yes" costs one round trip, never a wrong save. */
 export async function compilationsOpen(ctx: ToolCtx): Promise<boolean> {
   const switches = await ctx.data.switches().catch(() => [] as string[]);
   if (Array.isArray(switches) && switches.includes("compilations")) return true;
@@ -426,7 +430,9 @@ export function summariseRequest(req: unknown): CompilationSummary | null {
 
 /** The state of the build on the person's own computer, in plain words. Counts only; the film itself is on that computer. */
 export function runWords(run: { state: string; matches: number | null; clips: number | null; film_seconds: number | null; error_code: string | null } | null, current: boolean): string {
-  if (!run || !RUN_STATES.has(run.state) || !current) return "Waiting for the Ryagram app on the person's computer to pick it up. Nothing is searched or built on Ryagram's side.";
+  if (!run || !RUN_STATES.has(run.state)) return "Waiting for the Ryagram app on the person's computer to pick it up. Nothing is searched or built on Ryagram's side.";
+  // a report that was made for an earlier version of the request (the request was saved again after it) is not the answer for this one: say so, instead of a bare "waiting" that hides that a film may already exist for the old version (FACES 11-27: no "earlier version" line)
+  if (!current) return "The last report from the person's computer was for an earlier version of this request, so it is not shown. Waiting for the Ryagram app on the person's computer to pick up this version. Nothing is searched or built on Ryagram's side.";
   const n = (v: number | null, one: string, many: string) => (v === null ? "" : `${v} ${v === 1 ? one : many}`);
   switch (run.state) {
     case "planning": return "The Ryagram app on the person's computer has the request and is planning the film.";

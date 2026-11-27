@@ -5,8 +5,8 @@ Same setup as test_compilation_requests.py (its helpers are borrowed, the OAuth 
 
 Rules proved (each with a control that passes and a fault that must be refused)
   * THE GATE, on BOTH the reader (connect_compilation_get) and the AI's writer (connect_set_compilation_request): an account Compilations are not open for is refused in words (42501, 'Compilations are not open for this account yet.')
-    and nothing is read or written. ONE gate with BUILDER's ryagram_private.compilations_on: when it exists it is THE rule (an administrator is open only if it says yes) plus ONE kept tester door (local_compute: his function does not cover testers);
-    when it does not exist yet, today's rule (invited tester or administrator). A read-only or invalid token is still refused first, by the token's own rules. The writer also runs his compilation_request_problem when it exists (no file, path or link; 22023)
+    and nothing is read or written. ONE gate, FINAL (CC1's 09:45 ruling, the tester door closed): when BUILDER's ryagram_private.compilations_on exists it is the ONLY rule (not a tester without the switch, not an administrator);
+    when it does not exist yet the fallback is closed by default: an invited tester (local_compute) only, never an administrator. A read-only or invalid token is still refused first, by the token's own rules. The writer also runs his compilation_request_problem when it exists (no file, path or link; 22023)
   * the writer keeps its signature, its answer, its grants (the connector login only) and every other behaviour: someone else's project looks absent, a wrong-schema or oversize request is refused (22023), the hash is the SHA-256, a second save replaces
   * the token's own person only: a project that is not theirs, or does not exist, answers null; a token that is not valid is refused; the reader takes no owner argument
   * an own project with no request answers {request: null, run: null}; a saved request comes back exactly as saved with its hash
@@ -70,7 +70,7 @@ class ConnectCompilationStatus(core.Base):
         self.run_sql("create or replace function ryagram_private.compilations_on(p uuid) returns boolean language sql as $$ select p = '%s'::uuid $$" % who)
 
     # ---------------------------------------------------------------------------------------------- the gate, on the reader
-    def test_a_closed_account_is_refused_in_words_and_an_invited_tester_or_an_administrator_is_let_in(self):
+    def test_a_closed_account_is_refused_in_words_and_before_his_function_exists_an_invited_tester_is_let_in(self):
         _, a, _ = self.connect(ALICE)
         p = self.project_for(a)
         err = self.fails("select connect_compilation_get(%s, %s)", h(a), p, code="42501")
@@ -78,7 +78,7 @@ class ConnectCompilationStatus(core.Base):
         self.open_for(ALICE)
         self.assertEqual(self.get(a, p), {"request": None, "sha256": None, "updated_at": None, "run": None})
 
-    def test_builders_function_adds_to_the_older_rule_and_never_takes_it_away(self):
+    def test_once_his_function_exists_it_is_the_only_rule_and_the_tester_door_is_shut(self):
         _, b, _ = self.connect(BOB)
         p = self.project_for(b)
         self.runner()
@@ -86,10 +86,11 @@ class ConnectCompilationStatus(core.Base):
         self.stand_in_switch(BOB)
         self.assertIsNone(self.get(b, p)["request"], "the person with the account switch gets in")
         _, a, _ = self.connect(ALICE)
+        self.open_for(ALICE)                                                       # an invited tester, switch off (his function says no to her)
+        pa = self.project_for(a)
         self.runner()
-        self.fails("select connect_compilation_get(%s, %s)", h(a), "00000000-0000-4000-8000-000000000009", code="42501")
-        self.open_for(ALICE)
-        self.assertIsNone(self.get(a, "00000000-0000-4000-8000-000000000009"), "an invited tester keeps the way in that is live today")
+        err = self.fails("select connect_compilation_get(%s, %s)", h(a), pa, code="42501")
+        self.assertIn(CLOSED, str(err), "the tester door is CLOSED: his function does not say yes, so the AI is refused like the bar and the site")
 
     # ---------------------------------------------------------------------------------------------- the gate, on the AI's writer
     def test_the_writer_refuses_a_stranger_in_words_and_writes_nothing(self):
@@ -100,22 +101,27 @@ class ConnectCompilationStatus(core.Base):
         self.assertIn(CLOSED, str(err))
         self.assertEqual(self.admin("select count(*) from public.compilation_requests"), 0)
 
-    def test_the_writer_lets_in_an_invited_tester_an_administrator_and_the_account_switch(self):
+    def test_the_writer_lets_in_an_invited_tester_before_his_function_exists_and_the_account_switch_after_it(self):
         _, a, _ = self.connect(ALICE)
         _, b, _ = self.connect(BOB)
         pa, pb = self.project_for(a), self.project_for(b)
-        self.open_for(ALICE)                                                       # an invited tester
+        self.open_for(ALICE)                                                       # an invited tester, his function not there yet: the closed fallback
         self.assertRegex(self.save(a, pa, REQ), r"^[0-9a-f]{64}$")
         self.runner()
         self.fails(WRITE, h(b), pb, json.dumps(REQ), code="42501")                 # Bob is still a stranger
         self.stand_in_switch(BOB)                                                  # BUILDER's switch says yes for Bob
         self.assertRegex(self.save(b, pb, REQ), r"^[0-9a-f]{64}$")
         self.assertEqual(self.admin("select count(*) from public.compilation_requests"), 2)
+        self.runner()
+        self.fails(WRITE, h(a), pa, json.dumps(REQ), code="42501")                 # and now the tester, who has no switch, is refused
 
-    def test_the_gate_lets_in_an_administrator_and_not_a_nobody(self):
-        # an administrator's connection needs its own invitation to have a token at all (connect_actor), so this proves the gate itself, which both functions call
-        self.assertTrue(self.admin("select ryagram_private.connect_compilations_open(%s)", tc.ADMIN))
+    def test_the_gate_refuses_an_administrator_and_a_nobody_in_the_fallback_and_after_it(self):
+        # an administrator's connection can hold no token at all (connect_person_ok excludes administrators), so this proves the gate itself, which both functions call
+        self.assertFalse(self.admin("select ryagram_private.connect_compilations_open(%s)", tc.ADMIN), "the fallback has no administrator door")
         self.assertFalse(self.admin("select ryagram_private.connect_compilations_open(%s)", tc.NOBODY))
+        self.assertFalse(self.admin("select ryagram_private.connect_compilations_open(null)"), "nobody at all")
+        self.stand_in_switch(tc.ADMIN)                                             # even if his function said yes, the gate would only repeat it: it adds and removes nothing
+        self.assertTrue(self.admin("select ryagram_private.connect_compilations_open(%s)", tc.ADMIN))
 
     def test_the_token_is_checked_before_the_gate_and_the_writer_keeps_its_other_behaviour(self):
         self.open_for(ALICE)
@@ -161,20 +167,24 @@ class ConnectCompilationStatus(core.Base):
         """BUILDER's ryagram_private.compilations_on as a stand-in that says NO to everyone (it exists, and nobody has the switch)."""
         self.run_sql("create or replace function ryagram_private.compilations_on(p uuid) returns boolean language sql as $$ select false $$")
 
-    def test_before_compilations_on_exists_an_administrator_and_a_tester_are_open_and_after_it_exists_only_its_yes_and_the_tester_door(self):
+    def test_before_compilations_on_exists_only_a_tester_is_open_and_after_it_exists_only_its_yes(self):
         gate = "select ryagram_private.connect_compilations_open(%s)"
         self.assertIsNone(self.admin("select to_regprocedure('ryagram_private.compilations_on(uuid)')"), "the template does not have his function")
-        self.assertTrue(self.admin(gate, tc.ADMIN), "today's rule: an administrator is open when his function is not there")
+        self.assertFalse(self.admin(gate, tc.ADMIN), "the fallback is closed by default: no administrator door")
         self.assertFalse(self.admin(gate, tc.NOBODY))
+        self.assertFalse(self.admin(gate, BOB), "a stranger is refused in the fallback")
         self.open_for(ALICE)
-        self.assertTrue(self.admin(gate, ALICE), "today's rule: an invited tester is open")
+        self.assertTrue(self.admin(gate, ALICE), "the fallback: an invited tester (what works through the AI today)")
         self.stand_in_off()                                                        # his function now exists and says no to everyone
         self.assertFalse(self.admin(gate, tc.ADMIN), "once it exists it is THE rule: an administrator is open only if it says yes")
         self.assertFalse(self.admin(gate, BOB))
-        self.assertTrue(self.admin(gate, ALICE), "the one door kept: an invited tester (his compilations_on does not cover local_compute), said plainly in the migration header")
+        self.assertFalse(self.admin(gate, ALICE), "THE TESTER DOOR IS CLOSED: a tester (local_compute) his function does not say yes to is refused, like the bar and the site")
         self.stand_in_switch(BOB)
         self.assertTrue(self.admin(gate, BOB), "his yes opens the account")
         self.assertFalse(self.admin(gate, tc.ADMIN))
+        self.assertFalse(self.admin(gate, ALICE))
+        self.run_sql("create or replace function ryagram_private.compilations_on(p uuid) returns boolean language sql as $$ select null::boolean $$")
+        self.assertFalse(self.admin(gate, BOB), "a maybe from his function is a no")
 
     def test_the_writer_follows_the_same_single_gate_once_his_function_exists(self):
         _, a, _ = self.connect(ALICE)
@@ -185,7 +195,9 @@ class ConnectCompilationStatus(core.Base):
         self.fails(WRITE, h(b), pb, json.dumps(REQ), code="42501")                 # no switch, not a tester: refused, nothing saved
         self.assertEqual(self.admin("select count(*) from public.compilation_requests"), 0)
         self.open_for(ALICE)
-        self.assertRegex(self.save(a, pa, REQ), r"^[0-9a-f]{64}$")                 # a tester keeps the AI writer
+        self.runner()
+        self.fails(WRITE, h(a), pa, json.dumps(REQ), code="42501")                 # a tester WITHOUT the switch is refused too: the door is closed
+        self.assertEqual(self.admin("select count(*) from public.compilation_requests"), 0)
         self.stand_in_switch(BOB)
         self.assertRegex(self.save(b, pb, REQ), r"^[0-9a-f]{64}$")                 # the switch opens it
 

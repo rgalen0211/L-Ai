@@ -6,19 +6,26 @@
 --   request  = the saved request as written (jsonb) or null when none is saved yet; sha256 and updated_at are that row's.
 --   run      = the NEWEST report for that project (by started_at), or null when the person's computer has reported nothing: {id, state, matches, clips, film_seconds, error_code, started_at, updated_at, ended_at, current};
 --              current = the report was made for the request as it is saved NOW. (The same shape BUILDER's my_compilation_get answers.)
--- THE GATE (ONE rule, shared with the site and the computer: GEO's 09:18 review asked that the AI cannot save what the site and the PC then refuse). ryagram_private.connect_compilations_open(person) is used by BOTH functions:
---   * WHEN BUILDER's ryagram_private.compilations_on(person) EXISTS (looked up with to_regprocedure), IT IS THE RULE: the account's 'compilations' switch, or the department opened for everyone (his migration 20261127000300). An
---     administrator is open only if compilations_on says so. ONE DOOR IS KEPT (see below): an invited tester (account_settings.local_compute).
---   * WHEN IT DOES NOT EXIST YET, today's rule: an invited tester (local_compute) or an administrator. So this migration applies and works before his does.
---   THE TESTER DOOR: BUILDER's compilations_on (origin/builder-compilations-server-1127 3a43a044, and department_switch_on in builder-dept-switches-1127) does NOT cover account_settings.local_compute. Ryan's own tester account would
---   therefore be locked out of set_compilation_request the day his migration lands if the gate used compilations_on alone. So a tester stays open HERE. The cost, said plainly: a tester without the switch can save and read a request
---   through the AI, but the site's my_compilation_set and the computer's node_compilation_report refuse that account. The clean fix is one line on BUILDER's side: add `or local_compute` to compilations_on; then this door can go.
+-- THE GATE, FINAL VERSION (CC1's ruling 09:45: the tester door is CLOSED). ONE rule, shared with the top bar, the site's calls, the computer's calls and the AI: ryagram_private.connect_compilations_open(person) is used by BOTH functions.
+--   * WHEN BUILDER's ryagram_private.compilations_on(person) EXISTS (looked up with to_regprocedure; his migration 20261127000300, read on origin/builder-compilations-server-1127 aca4887e), IT IS THE ONLY RULE. No other door:
+--     not an invited tester (account_settings.local_compute), not an administrator. His function READS THE TOP BAR's own function (departments_for) and so says yes exactly when the person's own bar shows Compilations as working:
+--     an invited account (not an administrator, not a worker, not waiting) whose 'compilations' switch is on (department_switch_on, 20261127000250) or for whom Ryan has opened the department for everyone (live step 82a).
+--     (GEO's HIGH, "compilations_on does not read the department list", is closed in that head: it does.)
+--   * WHEN IT DOES NOT EXIST YET (this migration applied before his), THE FALLBACK IS CLOSED BY DEFAULT: only an invited tester (account_settings.local_compute) is open, because those are the people who save a compilation request
+--     through their AI today; EVERYONE ELSE, ADMINISTRATORS INCLUDED, IS REFUSED. There is no administrator door: an administrator cannot hold an AI connection at all (connect_person_ok excludes administrators), so it would open
+--     nothing but a hole. The moment his function exists the fallback is never reached again (the lookup is made on every call), so there is nothing to remove later and no way to leave a tester door open by forgetting it.
+--   WHAT THIS COSTS, SAID LOUDLY: BUILDER's compilations_on does NOT cover an invited tester (local_compute) and does NOT cover an administrator, because the top bar does not: a tester whose department switch is off sees
+--     Compilations as 'Coming soon' on the bar. So once his migration is applied, Ryan's own tester accounts need their 'compilations' switch turned on (admin_account_switch_set), or step 82a run, to keep saving requests through their
+--     AI. That is the one-lever design (CC1 08:10), and it makes the bar, the site, the PC and the AI agree. If Ryan would rather have testers in without the switch, the line belongs on BUILDER's side, in
+--     ryagram_private.compilations_on (and department_switch_on, so the bar agrees): `or coalesce((select s.local_compute from public.account_settings s where s.owner_id = p_person), false)`. It must not be added here: a door
+--     only this function knew about is exactly what this ruling closes.
 -- Otherwise the call is refused in words (42501, like the site's own calls) and nothing is read or written.
 -- connect_set_compilation_request IS REPLACED with its live definition (20261026000300_compilation_requests.sql) copied exactly and TWO checks added: the gate right after the person is resolved, and, when BUILDER's
 -- ryagram_private.compilation_request_problem(jsonb) exists (found by name, skipped when absent), the request must pass it (no file, path or link anywhere in it; 22023 in his plain words), so a path an AI writes cannot come back on the
--- site through my_compilation_get (BUILDER 09:17). Its signature, its grants (the connector login only) and every other behaviour are unchanged; today's invited testers keep working, a stranger no longer reaches a half-on department.
--- ORDER: needs 20261026000300_compilation_requests.sql (applied live 2026-10-27) and 20261018000100_connect_ai.sql. It does NOT need BUILDER's 20261127000300 / 20261127000250: until compilation_runs exists, `run` is null (guarded with
--- to_regclass, like connect_whoami's credit balances). compilation_runs columns read (BUILDER's final list): owner_id, project_id, request_sha256, state, matches, clips, film_seconds, error_code, started_at, updated_at, ended_at, id;
+-- site through my_compilation_get (BUILDER 09:17). Its signature, its grants (the connector login only) and every other behaviour are unchanged; a stranger no longer reaches a half-on department.
+-- ORDER: needs 20261026000300_compilation_requests.sql (applied live 2026-10-27) and 20261018000100_connect_ai.sql. It does NOT need BUILDER's 20261127000300 / 20261127000250 to APPLY: until compilation_runs exists, `run` is null (guarded with
+-- to_regclass, like connect_whoami's credit balances). Apply BUILDER's two first all the same (live steps 81, 82): before them only today's invited testers can use these two calls, and after them only the department switch can.
+-- compilation_runs columns read (BUILDER's final list): owner_id, project_id, request_sha256, state, matches, clips, film_seconds, error_code, started_at, updated_at, ended_at, id;
 -- a table with other column names gives run null, not an error, and the after-check says false.
 -- DEPLOY ORDER: apply this migration BEFORE deploying the `connect` function (the connector treats a missing connect_compilation_get as "not available just now").
 -- Undo: supabase/rollbacks/20261127000400_connect_compilation_status_rollback.sql (drops the new functions and puts connect_set_compilation_request back exactly as it was). Check: supabase/live-steps/66_connect_compilation_status_check.sql.
@@ -29,14 +36,13 @@ begin;
 create function ryagram_private.connect_compilations_open(p_person uuid) returns boolean
 language plpgsql security definer set search_path = '' as $$
 declare is_open boolean;
-declare tester boolean;
 begin
-  tester := coalesce((select s.local_compute from public.account_settings s where s.owner_id = p_person), false);
   if to_regprocedure('ryagram_private.compilations_on(uuid)') is not null then
-    execute 'select ryagram_private.compilations_on($1)' into is_open using p_person;      -- BUILDER's rule is THE rule (administrators included only if it says yes) ...
-    return coalesce(is_open, false) or tester;                                                -- ... plus the one tester door (header)
+    execute 'select ryagram_private.compilations_on($1)' into is_open using p_person;      -- BUILDER's rule is THE rule: no tester door, no administrator door, nothing added
+    return coalesce(is_open, false);
   end if;
-  return tester or exists (select 1 from public.app_admins a where a.user_id = p_person);   -- his function is not there yet: today's rule
+  -- his function is not there yet: CLOSED BY DEFAULT. Only an invited tester (what works through the AI today); everyone else, administrators included, is refused.
+  return coalesce((select s.local_compute from public.account_settings s where s.owner_id = p_person), false);
 end $$;
 revoke all on function ryagram_private.connect_compilations_open(uuid) from public, anon, authenticated, service_role;
 
