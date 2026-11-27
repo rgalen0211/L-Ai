@@ -581,12 +581,19 @@
       const cell = v => (v === null || v === undefined) ? 'not kept' : String(Number(v) || 0);
       async function loadLaunch() {
         let rows;
-        try { rows = await data.adminLaunchFunnel(launchDays); } catch (err) { launchOut.replaceChildren(); showError(launchError, err); return; }
+        // the 7/14/30 buttons stay on screen after an error, with Try again, so retrying never needs a reload
+        const dayButtons = () => h('p', {}, [7, 14, 30].map(n => h('button', { class: `button secondary small${n === launchDays ? ' is-chosen' : ''}`, type: 'button', 'aria-pressed': String(n === launchDays), onclick: async () => { launchDays = n; await loadLaunch(); launchOut.querySelector(`[data-days="${n}"]`)?.focus(); }, 'data-days': String(n) }, `${n} days`)), ' ');
+        try { rows = await data.adminLaunchFunnel(launchDays); } catch (err) {
+          const again = h('button', { class: 'button secondary small', type: 'button', 'data-key': 'launch-retry', onclick: async () => { await loadLaunch(); (launchOut.querySelector('[data-key="launch-retry"]') || launchOut.querySelector(`[data-days="${launchDays}"]`))?.focus(); } }, 'Try again');
+          launchOut.replaceChildren(dayButtons(), h('p', {}, again));
+          showError(launchError, err);
+          return;
+        }
         launchError.hidden = true;
         rows = Array.isArray(rows) ? rows.slice(0, 60) : [];
         const total = k => rows.reduce((s, r) => s + (Number(r[k]) || 0), 0);
         launchOut.replaceChildren(
-          h('p', {}, [7, 14, 30].map(n => h('button', { class: `button secondary small${n === launchDays ? ' is-chosen' : ''}`, type: 'button', 'aria-pressed': String(n === launchDays), onclick: async () => { launchDays = n; await loadLaunch(); launchOut.querySelector(`[data-days="${n}"]`)?.focus(); }, 'data-days': String(n) }, `${n} days`)), ' '),
+          dayButtons(),
           h('table', { class: 'admin-table funnel-days launch-funnel funnel-weeks', tabindex: '0', 'aria-label': 'Launch funnel by day (scrolls sideways on a narrow screen)' }, h('thead', {}, h('tr', {}, h('th', {}, 'Day (Eastern)'), LAUNCH_COLS.map(([, label]) => h('th', { class: 'num' }, label)))),
             h('tbody', {}, rows.map(r => h('tr', {}, h('td', {}, String(r.day || '').slice(0, 10)), LAUNCH_COLS.map(([k]) => h('td', { class: 'num' }, cell(r[k]))))),
               h('tr', { class: 'funnel-total' }, h('th', {}, 'Total'), LAUNCH_COLS.map(([k]) => h('th', { class: 'num' }, k === 'signups_asked' ? `${total(k)} (2 days)` : String(total(k))))))),
