@@ -98,8 +98,6 @@ window.ryagramConfig = Object.freeze({
   // First-party funnel tracking (our own database, no cookies, no third-party pixels): the source of a visit, kept once in the browser until sign-up. Turn on only once
   // SQL 20261017000900 is applied and the Privacy Policy line for it is published (supabase/README.md, "Funnel tracking").
   funnelTracking: false,
-  // On #/admin/funnel, the launch funnel by day from the tables the site already fills (sign-up asked, account opened, first sheet, first preview, full film asked, approved, delivered; BUILDER 11-27). Needs SQL 20261127000200 (live step 80). OFF until then.
-  launchFunnel: 'account',
   // Send full renders through request_final_render (the approval queue). Turn on only once SQL 20261017000500 and 20261017000600 (PIPE-1) are applied; until then the old direct path is used.
   renderOrders: true,
   // Connecting an AI (Claude, ChatGPT): the consent page (#/connect/consent) and Account > Connected AIs. ON (Ryan's typed yes) once CONNECT's SQL (20261018000100_connect_ai.sql) is applied and the connect function is deployed
