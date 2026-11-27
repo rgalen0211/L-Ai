@@ -169,7 +169,7 @@ def main():
                 p.locator('svg.pc-svg').click(position={'x': box['width'] * 0.55, 'y': box['height'] * 0.5}, timeout=5000)
                 p.wait_for_selector('#pc-rings', timeout=5000)
                 check(p.locator('#pc-nearest').count() == 0 and 'People (estimated)' in p.inner_text('#pc-rings'), 'no places: people within the rings only, no made-up distances')
-                check('not loaded on this account yet' in p.inner_text('#pc-status'), 'no places: after a spot, the page says the points are not loaded')
+                check('points are not loaded yet' in p.inner_text('#pc-status'), 'no places: after a spot, the page says the points are not loaded')
                 p.screenshot(path=str(out / f'5-no-places-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()

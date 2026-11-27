@@ -23,8 +23,9 @@
       "People within a ring are an estimate: each block group's people are shared by the part of its area inside the ring, as if they were spread evenly.",
       'Median income is a survey estimate with a margin of error, for the whole block group.',
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.',
-      'The map shows the places near your spot only: within 5 km, and the nearest five.'],
-    noPlaces: 'The business points are not loaded on this account yet, so the map shows people and income only.',
+      'The map shows the places near your spot only: within 5 km, and the nearest five.',
+      'One county at a time: places and people across the county line are not counted, even inside a ring.'],
+    noPlaces: 'The business points are not loaded yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
     badTyped: 'Type a latitude and a longitude as numbers, for example 39.7589 and -84.1916.',
     pickSpot: 'Click the map, or type a latitude and longitude, to put a spot on it.',
@@ -97,23 +98,42 @@
     }
 
     // The server answers only for a spot: the places within 5 km of it and the nearest five (never a whole county: RENDERER 08:24, the licence question).
-    // A spot outside the county is not asked about at all (it would only spend the account's daily count).
-    async function fetchPlaces(spot) {
-      const got = { places: null, note: '', credit: '' };
-      if (!spot || !state.census || !pc.unitAt(spot, state.census.units)) return got;
+    // Each spot has its own request token: an older answer that arrives late is dropped, and an answer is used only if it is
+    // still for the county, kind and spot it was asked for. A spot outside the county is not asked about at all (no use of the day's count).
+    const asked = { A: 0, B: 0 };
+    const spotOf = (which) => (which === 'B' ? (state.compare ? state.b.spot : null) : state.spot);
+    const keyOf = (spot) => (spot ? [state.county, state.kind, spot[0], spot[1]].join('|') : '');
+    async function fetchPlaces(which) {
+      const spot = spotOf(which), got = { places: null, note: '', credit: '' };
+      const mine = ++asked[which];
+      if (!spot || !state.census || !pc.unitAt(spot, state.census.units)) return got;      // outside the county: no server call
+      const key = keyOf(spot);
+      const stale = () => mine !== asked[which] || key !== keyOf(spotOf(which));
       try {
         const r = await data.perfectCityPlaces(state.county, state.kind, spot[1], spot[0]);
+        if (stale()) return null;
         if (!r || !(r.loaded > 0)) { got.note = WORDS.noPlaces; return got; }
         got.places = Array.isArray(r.places) ? r.places.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)) : [];
         got.credit = typeof r.credit === 'string' ? r.credit : '';
-      } catch { got.note = WORDS.placesError; }
+      } catch {
+        if (stale()) return null;
+        got.note = WORDS.placesError;
+      }
       return got;
     }
+    // true when the answer was used; false when a newer request for that spot superseded it
     async function loadPlaces() {
-      const r = await fetchPlaces(state.spot);
+      const r = await fetchPlaces('A');
+      if (!r) return false;
       state.places = r.places; state.placesNote = r.note; state.credit = r.credit;
+      return true;
     }
-    async function loadPlacesB() { state.b = { spot: state.b.spot, ...(await fetchPlaces(state.b.spot)) }; }
+    async function loadPlacesB() {
+      const r = await fetchPlaces('B');
+      if (!r) return false;
+      state.b = { spot: state.b.spot, ...r };
+      return true;
+    }
 
     function drawMap() {
       const c = state.census, P = pc.projector(c.bbox, W, H);
@@ -193,7 +213,7 @@
         row('Census block group', '', (k) => cell(k, (x) => x.u.id)),
         row("People in the spot's block group", 'observed, 2020 Census', (k) => cell(k, (x) => (x.u.pop == null ? 'not published' : fmt(x.u.pop)))),
         row('People per square kilometre in the block group', 'calculated', (k) => cell(k, (x) => (x.u.density == null ? 'not available' : fmt(x.u.density)))),
-        row('Median household income in the block group', 'estimated, American Community Survey 2019 to 2023', (k) => cell(k, (x) => (x.u.income ? '$' + fmt(x.u.income[0]) + (x.u.income[1] ? ` (plus or minus $${fmt(x.u.income[1])})` : '') : 'not published for this block group'))),
+        row('Median household income in the block group', 'estimated, American Community Survey 2019 to 2023', (k) => cell(k, (x) => (x.u.income ? '$' + fmt(x.u.income[0]) + (x.u.income[1] ? ` (plus or minus $${fmt(x.u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'))),
         row(`Nearest ${kind.toLowerCase()}`, 'calculated, straight line', (k) => placesCell(k, (x) => (x.near ? `${km1(x.near.km)} km (${x.near.name || 'no name in the map data'})` : 'none found'))),
         ...pc.RINGS_KM.map((r, i) => row(`${kind} within ${r} km`, 'calculated', (k) => placesCell(k, (x) => fmt(x.counts[i].count)))),
         ...pc.RINGS_KM.map((r, i) => row(`People within ${r} km`, 'estimated', (k) => cell(k, (x) => peopleCell(x.people[i]))))
@@ -241,7 +261,7 @@
         h('ul', { class: 'pc-facts', id: 'pc-unit' },
           h('li', {}, `People: ${u.pop == null ? 'not published' : fmt(u.pop)}`, u.pop == null ? null : h('span', { class: 'pc-label' }, ' observed, 2020 Census')),
           h('li', {}, `People per square kilometre: ${u.density == null ? 'not available' : fmt(u.density)}`, u.density == null ? null : h('span', { class: 'pc-label' }, ' calculated')),
-          h('li', {}, `Median household income: ${u.income ? '$' + fmt(u.income[0]) + (u.income[1] ? ` (plus or minus $${fmt(u.income[1])})` : '') : 'not published for this block group'}`, u.income ? h('span', { class: 'pc-label' }, ' estimated, American Community Survey 2019 to 2023') : null),
+          h('li', {}, `Median household income: ${u.income ? '$' + fmt(u.income[0]) + (u.income[1] ? ` (plus or minus $${fmt(u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'}`, u.income ? h('span', { class: 'pc-label' }, ' estimated, American Community Survey 2019 to 2023') : null),
           h('li', { class: 'meta' }, `Census block group ${u.id}`))];
       const people = pc.peopleWithinArea(state.spot, c.units);
       if (state.places) {
@@ -263,13 +283,17 @@
     function drawCredits() {
       const s = state.census.sources;
       const credit = state.credit || (state.compare ? state.b.credit : '');
-      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}. ${s.calculated}${credit ? ' ' + credit + '.' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
+      credits.replaceChildren(`Sources: ${s.boundaries}; ${s.population}; ${s.income}. ${s.calculated}${credit ? ' ' + credit + ' (' : ''}`,
+        credit ? h('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'noopener', target: '_blank' }, 'openstreetmap.org/copyright') : '',
+        `${credit ? ').' : ''} This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.`);
     }
 
     // which: 'A' or 'B'. Only the spot that moved is asked about again (each spot is its own server call).
     async function place(pt, which = 'A') {
       latIn.value = pt[1].toFixed(5); lonIn.value = pt[0].toFixed(5);
-      if (which === 'B' && state.compare) { state.b.spot = pt; await loadPlacesB(); } else { state.spot = pt; await loadPlaces(); }
+      let fresh;
+      if (which === 'B' && state.compare) { state.b.spot = pt; fresh = await loadPlacesB(); } else { state.spot = pt; fresh = await loadPlaces(); }
+      if (!fresh) return;                                          // a newer spot was put down meanwhile: that one draws
       drawAll();
       status.textContent = statusLine();
     }

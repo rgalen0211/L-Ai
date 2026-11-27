@@ -106,6 +106,7 @@
 
     async function load() {
       let rows = null;
+      try { await window.ryagramSwitches?.load(data); } catch { /* fails closed: every 'account' switch stays off */ }
       try { rows = await data.myDepartments(); } catch { rows = null; }
       model = normalize(rows);
       const announced = new Set(Array.isArray(rows) ? rows.filter(r => r && typeof r.id === 'string').map(r => r.id) : []);       // what the server itself named (the sign-up button needs it)
