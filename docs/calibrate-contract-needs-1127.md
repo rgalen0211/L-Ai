@@ -26,7 +26,7 @@ Task:
   "options": [ { "id": text, "label": text, "clip": Clip | null } ] }   -- better_cut: one clip per option
 Clip: { "kind": "own_app" | "licensed", "url": text, "label": text, "start_seconds": number|null, "end_seconds": number|null }
 ```
-`own_app` url: a loopback address served by the person's own Ryagram app (http://127.0.0.1:PORT/... or localhost). `licensed` url: https only, for a public-domain or licensed clip. The page plays nothing else. Clips only ever come from the person's own uploads or public-domain/licensed clips.
+`own_app` url: a loopback address served by the person's own Ryagram app (http://127.0.0.1:PORT/... or localhost). `licensed` url: https only, for a public-domain or licensed clip. The page plays nothing else. CSP: media-src on the app page allows only the project's storage host today, so `licensed` urls must be signed URLs on that host; `own_app` loopback clips need media-src to allow http://127.0.0.1:* and http://localhost:* (WEB will add it when Ryan says yes). Clips only ever come from the person's own uploads or public-domain/licensed clips.
 
 ## my_calibration_answer_set(p_round uuid, p_task uuid, p_answer text) -> json
 `p_answer` is one of the task's option ids, or the fixed word `skip`.

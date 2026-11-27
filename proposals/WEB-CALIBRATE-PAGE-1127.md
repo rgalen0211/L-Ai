@@ -7,7 +7,7 @@ Not in this page: the earn rules and every number about credits (BUILDER sets th
 
 - Route `#/calibrate` (no department; same shape as `#/films`). Page code: `assets/app-calibrate.js` (`window.ryagramCalibrate`), data wrappers in `assets/app-data.js`.
 - Switch `calibrate: 'account'` in `assets/ryagram-config.js`; read only through `featureOn('calibrate')`. Switch off: the route shows one Coming soon page and makes NO call; Your projects shows no card.
-- A card on Your projects (the home), in the "Credits and links" tab, only when the switch is on: heading "Help tune Ryagram, earn credits", one line, a link to `#/calibrate`. The card makes no call either (it never shows a number); a returning person sees what they earned on the page itself.
+- A card on Your projects (the home), in the "Departments" tab inside that tab's own scroll panel (so the home never gets longer: tools/check-pages-flip.py caps each tab and the other tabs have no room), only when the switch is on: heading "Help tune Ryagram, earn credits", one line, a link to `#/calibrate`. The card makes no call either (it never shows a number); a returning person sees what they earned on the page itself.
 - The page never sends a clip, a path, a transcript or a picture. It sends only: the consent choice and the id of the words shown, a round id, a task id and the option the person chose. Tasks arrive as small text and option cards plus a clip REFERENCE.
 
 ## 2. Page states
@@ -37,6 +37,8 @@ All arrive as `{ id, type, prompt, options:[{id,label,clip?}], clip? }`. The pag
 4. `rate_match` (rate a match): one clip; five options, ids `1`..`5` with labels from the server.
 
 An unknown `type`, a missing prompt or an option list the page cannot draw: the card says "We can't show this question. Skip it." with only Skip. The page never invents options.
+
+CSP note: the app page's media-src today allows only the project's own storage host, so a `licensed` clip must be a signed URL on that host, and an `own_app` (loopback) clip needs `media-src http://127.0.0.1:* http://localhost:*` added to app/index.html (a WEB change for Ryan's yes, not made in this skeleton; until then the page shows the "Open the Ryagram app" line for those).
 
 Clips: `clip = { kind: 'own_app' | 'licensed', url, label, start_seconds?, end_seconds? }`. `own_app` is served by the person's OWN Ryagram app on their computer (a loopback address, http://127.0.0.1 or localhost); `licensed` is an https URL the server gives for a public-domain or licensed clip. The page plays a clip only for those two shapes and refuses anything else (no `file:`, no other host over http, no `javascript:`), so a task cannot make the page load a path or another site's video. If an own_app clip does not load (the app is closed): "Open the Ryagram app on your computer to see this clip." and Skip. A clip is never preloaded before the person has opted in.
 
