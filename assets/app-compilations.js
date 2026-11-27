@@ -11,6 +11,8 @@
   const PLACE = new RegExp('[A-Za-z]:[' + BS + BS + '/]|' + BS + BS + BS + BS + '|(^|\\s)/[A-Za-z]|\\.\\.[' + BS + BS + '/]');
   const LIMITS = { phrase: 200, folders: 10, note: 500 };
 
+  // Cut text to a length and SAY it was cut (an ellipsis), never silently.
+  const cut = (s, max) => { const t = String(s == null ? '' : s); return t.length > max ? t.slice(0, max).trimEnd() + '…' : t; };
   const clean = (s, max) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, max);
   // "Interviews, B-roll" or one per line -> ['Interviews', 'B-roll'] (names only, each once).
   function folderList(text) {
@@ -31,7 +33,7 @@
     if (!folders.length) return { error: 'Name at least one folder of yours that holds the videos.' };
     if (folders.length > LIMITS.folders) return { error: 'Name at most 10 folders.' };
     const bad = folders.find(n => !NAME.test(n) || n === '.' || n === '..');
-    if (bad) return { error: `“${bad.slice(0, 40)}” is not a folder name. Type only the folder’s name, like Interviews, never where it is.` };
+    if (bad) return { error: `“${cut(bad, 40)}” is not a folder name. Type only the folder’s name, like Interviews, never where it is.` };
     return { request: { schema: 'ryagram.compilation-request/0', phrase, search: f.search === 'words' ? 'words' : 'every', folders, song: false, clean_cuts: false, rules: [], texts: [], note } };
   }
 
@@ -40,7 +42,7 @@
     const q = (row && row.request) || {};
     const n = Array.isArray(q.folders) ? q.folders.length : 0;
     const how = q.search === 'words' ? 'these words in this order' : 'every time it is said';
-    return `“${String(q.phrase || '').slice(0, 120)}”: ${how}, in ${n} folder${n === 1 ? '' : 's'}${q.song ? ', as a song' : ''}. Saved ${when ? when(row.updated_at) : ''}`.trim();
+    return `“${cut(q.phrase, 120)}”: ${how}, in ${n} folder${n === 1 ? '' : 's'}${q.song ? ', as a song' : ''}. Saved ${when ? when(row.updated_at) : ''}`.trim();
   }
 
   // The newest run -> the line under a request. Counts only; no path, no transcript text ever arrives.
@@ -52,7 +54,7 @@
     if (Number.isFinite(Number(run.matches)) && run.matches !== null && run.matches !== undefined) bits.push(`${Number(run.matches)} match${Number(run.matches) === 1 ? '' : 'es'}`);
     if (Number.isFinite(Number(run.clips)) && run.clips !== null && run.clips !== undefined) bits.push(`${Number(run.clips)} clip${Number(run.clips) === 1 ? '' : 's'}`);
     if (run.state === 'done' && Number.isFinite(Number(run.film_seconds)) && run.film_seconds !== null) bits.push(`${Math.round(Number(run.film_seconds))} seconds long`);
-    return bits.length ? `${base} ${bits.join(', ')}.` : base;
+    return bits.length ? `${base} ${bits.join(', ')}, counted on your computer.` : base;
   }
 
   const WORDS = {
@@ -86,7 +88,7 @@
         if (!first) return;
         const have = folderList(folders.value);
         if (!have.includes(first)) { have.push(first); folders.value = have.join('\n'); }
-        picked.textContent = `Added the folder name “${first.slice(0, 80)}” (${files.length} file${files.length === 1 ? '' : 's'} in it). Only its name is used; nothing was read or sent.`;
+        picked.textContent = `Added the folder name “${cut(first, 80)}” (${files.length} file${files.length === 1 ? '' : 's'} in it). Only its name is used; nothing was read or sent.`;
         picker.value = '';
       });
       const note = h('textarea', { id: 'comp-note', rows: '2', maxlength: '500' });
@@ -100,9 +102,10 @@
             const name = clean(title.value, 120) || clean(phrase.value, 80);
             const made = await data.createProject(name);
             await data.setMyCompilationRequest(made.project.id, built.request);
-            status.textContent = 'Saved. Open the Ryagram app on your computer to find the matches and make a preview.';
+            status.textContent = SAVED;
             title.value = ''; phrase.value = ''; note.value = '';
             await drawRequests();
+            savedNote.textContent = SAVED;      // the same line on the tab we are about to show, so a screen reader hears it where the person lands
             if (flip) flip.go('requests');
           } catch (err) { showError(error, err); }
         });
@@ -122,6 +125,8 @@
         h('div', { class: 'actions-row' }, save), status, error);
 
       // ---- tab 2: your requests
+      const SAVED = 'Saved. Open the Ryagram app on your computer to find the matches and make a preview.';
+      const savedNote = h('p', { class: 'form-note comp-saved', role: 'status', 'aria-live': 'polite' });
       const list = h('div', { class: 'comp-requests' });
       async function drawRequests() {
         let rows;
@@ -132,14 +137,14 @@
         list.replaceChildren(...[
           haveApp === false ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp, ' ', h('a', { href: '/get-app/', class: 'comp-link' }, 'Get the Ryagram app')) : null,
           rows.length ? h('ul', { class: 'project-list comp-rows' }, rows.map(r => h('li', {},
-            h('strong', {}, String(r.title || 'A compilation').slice(0, 120)), h('span', { class: 'meta' }, ` ${requestLine(r, date)}`),
+            h('strong', {}, cut(r.title || 'A compilation', 120)), h('span', { class: 'meta' }, ` ${requestLine(r, date)}`),
             h('p', { class: 'form-note comp-run', role: 'status' }, runLine(r.run, WORDS))))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
       }
       await drawRequests();
 
       flip = window.ryagramFlip.create({ h, label: 'Compilations', address: false, sections: [
         { id: 'start', label: 'Start a compilation', el: start },
-        { id: 'requests', label: 'Your requests', el: h('div', {}, list) }
+        { id: 'requests', label: 'Your requests', el: h('div', {}, savedNote, list) }
       ] });
       return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('h1', { tabindex: '-1' }, 'Compilations'), flip.el];
     }

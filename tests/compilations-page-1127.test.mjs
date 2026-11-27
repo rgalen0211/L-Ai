@@ -39,11 +39,14 @@ test('LOCAL: the folder picker reads only the folder NAME and a file count; the 
 test('RUN LINES: what the person\'s computer reported becomes a plain line: counts only, a closed list of reasons, the generic line for anything else', () => {
   const W = C.WORDS, run = s => C.runLine(s, W);
   assert.equal(run(null), W.waiting);
-  assert.match(run({ state: 'matching', matches: 7 }), /finding the matches on your computer\. 7 matches\.$/);
-  assert.match(run({ state: 'done', matches: 7, clips: 7, film_seconds: 41.2 }), /^Done\. Your film is on your computer\. 7 matches, 7 clips, 41 seconds long\.$/);
+  assert.match(run({ state: 'matching', matches: 7 }), /finding the matches on your computer\. 7 matches, counted on your computer\.$/);
+  assert.match(run({ state: 'done', matches: 7, clips: 7, film_seconds: 41.2 }), /^Done\. Your film is on your computer\. 7 matches, 7 clips, 41 seconds long, counted on your computer\.$/);
   assert.match(run({ state: 'failed', error_code: 'not_said' }), /It did not finish\. Your videos do not say it\.$/);
   assert.match(run({ state: 'failed', error_code: '<b>x</b>' }), /Something went wrong\. Try again from the app\.$/);
+  assert.match(run({ state: 'cancelled', matches: 3 }), /^Stopped\. 3 matches, counted on your computer\.$/);
   assert.equal(run({ state: 'nonsense' }), W.waiting);
+  assert.match(C.requestLine({ request: { phrase: 'x'.repeat(130), folders: ['a'] } }), /x…”/);      // a cut phrase says so
+  assert.ok(read('assets/app-compilations.js').includes("savedNote"));      // the Saved line is repeated at the top of tab 2
 });
 test('HONEST OPTIONS (FACES 08:21): no song box and no clean-cuts box (the engine refuses a song request and makes no clean cuts); the request always sends song false and clean_cuts false; the privacy paragraph is on the first tab once', () => {
   const page = read('assets/app-compilations.js');
