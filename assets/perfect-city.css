@@ -17,3 +17,4 @@
 .pc-typed label { display: inline-flex; gap: 6px; align-items: center; }
 .pc-compare th[scope="row"] { white-space: normal; max-width: 22em; }
 .pc-compare td { vertical-align: top; }
+.pc-table-wrap { max-width: 100%; overflow-x: auto; }

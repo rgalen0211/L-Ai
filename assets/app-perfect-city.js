@@ -34,7 +34,7 @@
     compareAdd: 'Compare with a second spot',
     compareRemove: 'Remove the second spot',
     pickB: 'Click the map, or type a latitude and longitude, to put spot B.',
-    compareMarks: 'Spot A: white circle and yellow rings. Spot B: blue square and blue rings.',
+    compareMarks: 'Spot A: white circle, yellow dashed rings. Spot B: cyan square, cyan dotted rings.',
     compareNote: 'Each spot is looked up on its own. This shows what is around each spot side by side; it does not say which spot is better.',
     notCounted: 'The Census does not count chicken, burger or pizza places separately.'
   };
@@ -187,7 +187,7 @@
       const keys = FILL.map((f, i) => h('li', {}, h('span', { class: 'pc-swatch', 'data-fill': f }), ' ',
         i === 0 ? `under ${lab(br[0])}` : i === FILL.length - 1 ? `${lab(br[i - 1])} or more` : `${lab(br[i - 1])} to ${lab(br[i])}`));
       const legend = h('div', { class: 'pc-legend' }, h('p', { class: 'meta' }, legendTitle), h('ul', { class: 'pc-keys' }, keys),
-        h('p', { class: 'meta' }, 'Grey: no published figure.' + (two ? ' Rings: 1, 2 and 5 km around each spot (A: white dot, yellow dashes; B: blue square, blue dots).' : state.spot ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : '') + (!anyPlaces ? '' : two ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of either spot, and the nearest five to each.' : ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.')));
+        h('p', { class: 'meta' }, 'Grey: no published figure.' + (two ? ' Rings: 1, 2 and 5 km around each spot (A: white circle, yellow dashes; B: cyan square, cyan dotted rings).' : state.spot ? ' Dashed yellow rings: 1, 2 and 5 km around the spot (white dot).' : '') + (!anyPlaces ? '' : two ? ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of either spot, and the nearest five to each.' : ' Orange dots: ' + KINDS[state.kind].toLowerCase() + ' within 5 km of the spot, and the nearest five.')));
       // the swatch colours are attributes on SVG squares (the page's CSP allows no inline style)
       legend.querySelectorAll('.pc-swatch').forEach((s) => { const f = s.getAttribute('data-fill'); s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: f })])); });
       mapBox.replaceChildren(root, legend);
@@ -235,9 +235,9 @@
         ...pc.RINGS_KM.map((r, i) => row(`People within ${r} km`, 'estimated', (k) => cell(k, (x) => peopleCell(x.people[i]))))
       ];
       results.replaceChildren(h('h2', {}, 'Two spots side by side'),
-        h('table', { class: 'pc-table pc-compare', id: 'pc-compare' },
+        h('div', { class: 'pc-table-wrap' }, h('table', { class: 'pc-table pc-compare', id: 'pc-compare' },
           h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Figure'), h('th', { scope: 'col' }, 'Spot A'), h('th', { scope: 'col' }, 'Spot B'))),
-          h('tbody', {}, rows)),
+          h('tbody', {}, rows))),
         h('p', { class: 'meta' }, WORDS.compareNote),
         h('p', { class: 'meta' }, 'People within a ring: ' + pc.peopleWithinArea(state.spot, []).at(0).method + ', rounded to the nearest 100.'));
     }
@@ -358,8 +358,6 @@
       status.textContent = 'Loading...';
       try { state.census = await loadCensus(state.county); } catch { status.textContent = 'The map data could not be loaded. Try again later.'; return; }
       kindSelect();
-      if (state.spot && !pc.unitAt(state.spot, state.census.units)) state.spot = null;
-      if (!state.spot) { state.compare = false; state.target = 'A'; state.b = noB(); }
       await loadPlaces();
       if (state.compare) await loadPlacesB();
       await checkLoaded();
@@ -369,7 +367,7 @@
     }
 
     const controls = h('div', { class: 'pc-controls' },
-      select('pc-county', 'County', COUNTIES.map((c) => [c.id, c.label]), state.county, (v) => { state.county = v; state.spot = null; state.compare = false; state.target = 'A'; state.b = noB(); refresh(); }), ' ',
+      select('pc-county', 'County', COUNTIES.map((c) => [c.id, c.label]), state.county, (v) => { state.county = v; state.spot = null; state.compare = false; state.target = 'A'; state.b = noB(); state.kindNote = `County changed to ${COUNTIES.find((c) => c.id === v).label}: put a spot on the map.`; refresh(); }), ' ',
       kindWrap, ' ',
       select('pc-shade', 'Shade by', Object.entries(SHADES), state.shade, (v) => { state.shade = v; drawMap(); }));
     kindSelect();
