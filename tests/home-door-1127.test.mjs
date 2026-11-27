@@ -19,8 +19,12 @@ test('DOOR: no consulting words, no creator beta, no email list, no L\'Ai in the
 test('DOOR: the old consulting pages are stubs that go to / and keep nothing of the old page', () => {
   for (const f of ['workflow-audit/index.html', 'workflow-audit-thanks.html', 'thank-you.html']) {
     const s = read(f);
-    assert.match(s, /http-equiv="refresh" content="0; url=\/"/); assert.match(s, /rel="canonical" href="https:\/\/uselai\.com\/"/); assert.match(s, /noindex/); assert.ok(s.length < 1200, f);
+    assert.match(s, /http-equiv="refresh" content="0; url=\/"/); assert.match(s, /rel="canonical" href="\/"/); assert.match(s, /noindex/); assert.ok(s.length < 1200, f);
     assert.ok(fs.existsSync(new URL(`../archive/consulting/${f}`, import.meta.url)), `${f} is kept in the archive`);
   }
   assert.ok(fs.existsSync(new URL('../archive/consulting/index.html', import.meta.url)));
+});
+test('DOOR: relative links only, so a later move to a Ryagram domain needs no edit here: the only domain on the page is the contact address in the footer', () => {
+  assert.doesNotMatch(html.replace(/ryagram@uselai\.com/g, ''), /uselai\.com/);
+  assert.match(html, /<link rel="canonical" href="\/">/);
 });
