@@ -50,7 +50,7 @@ test('the two tools exist: read scope, read-only, closed schemas, no argument ca
 
 test('success: a saved request with no report yet says it is waiting for the app on the person\'s computer, in words and as data; no credit, no job', async () => {
   const { w, call } = world();
-  const id = await asked(call, A, { song: true, rules: [{ phrase: 'great news', picture: 'cheer.png', seconds: 2, mode: 'full' }], note: 'For Friday.' });
+  const id = await asked(call, A, { rules: [{ phrase: 'great news', picture: 'cheer.png', seconds: 2, mode: 'full' }], note: 'For Friday.' });
   const r = await call(A, 'get_compilation_status', { project_id: id });
   assert.equal(r.isError, undefined, r.text);
   assert.match(r.text, /great news/);

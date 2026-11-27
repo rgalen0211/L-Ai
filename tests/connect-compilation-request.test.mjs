@@ -41,7 +41,7 @@ test('the tool exists: a write tool, not read-only, a closed schema, found by a 
 test('a whole request is saved as data: the stored copy is exactly the normalised request, nothing is built, no credit is used', async () => {
   const { w, call } = world();
   const id = await project(call);
-  const r = await call(A, 'set_compilation_request', { ...GOOD(id), search: 'every', song: true, clean_cuts: true,
+  const r = await call(A, 'set_compilation_request', { ...GOOD(id), search: 'every', clean_cuts: true,
     rules: [{ phrase: 'great news', picture: 'cheer.png', seconds: 2, mode: 'full' }],
     texts: [{ text: 'Thanks for watching', start_s: 0, length_s: 2, position: 'bottom', size: 'large' }], note: 'For the Friday cut.' });
   assert.equal(r.isError, undefined, r.text);
@@ -49,7 +49,7 @@ test('a whole request is saved as data: the stored copy is exactly the normalise
   assert.match(r.text, /Nothing has been built and no credit was used/);
   const stored = w.users.get(A.userId).requests.get(id);
   assert.equal(stored.sha256, r.data.request_sha256);
-  assert.deepEqual(stored.request, { schema: 'ryagram.compilation-request/0', phrase: 'great news', search: 'every', folders: ['My Videos'], song: true, clean_cuts: true,
+  assert.deepEqual(stored.request, { schema: 'ryagram.compilation-request/0', phrase: 'great news', search: 'every', folders: ['My Videos'], song: false, clean_cuts: true,
     rules: [{ phrase: 'great news', picture: 'cheer.png', seconds: 2, mode: 'full' }],
     texts: [{ text: 'Thanks for watching', start_s: 0, length_s: 2, position: 'bottom', size: 'large' }], note: 'For the Friday cut.' });
   const u = w.users.get(A.userId);
@@ -92,7 +92,7 @@ test('MUST FAIL: pictures are NAMES of still pictures; seconds, lengths, counts 
     { rules: [rule({ picture: 'C:\\pics\\cheer.png' })] }, { rules: [rule({ picture: '../cheer.png' })] }, { rules: [rule({ picture: 'cheer.exe' })] }, { rules: [rule({ picture: 'cheer.gif' })] },
     { rules: [rule({ seconds: 30 })] }, { rules: [rule({ seconds: 0.1 })] }, { rules: [rule({ mode: 'everywhere' })] }, { rules: [rule({ extra: 1 })] }, { rules: Array.from({ length: 21 }, () => rule()) },
     { texts: [text({ length_s: 100 })] }, { texts: [text({ position: 'middle' })] }, { texts: [text({ size: 'huge' })] }, { texts: [text({ extra: 1 })] }, { texts: Array.from({ length: 21 }, () => text()) },
-    { search: 'sometimes' }, { song: 'yes' }, { clean_cuts: 1 }, { phrase: '' }, { phrase: 'x'.repeat(201) }, { note: 'x'.repeat(501) },
+    { search: 'sometimes' }, { song: 'yes' }, { song: true }, { song: false }, { clean_cuts: 1 }, { phrase: '' }, { phrase: 'x'.repeat(201) }, { note: 'x'.repeat(501) },
     { path: 'C:\\Videos' }, { url: 'https://example.test/v.mp4' }, { project_id: 'not-a-uuid' },
   ];
   for (const extra of refused) {
@@ -192,4 +192,23 @@ test('the real database call is wired to the SQL function that is still PAPER (n
   const src = fs.readFileSync(new URL('../supabase/functions/connect/db.ts', import.meta.url), 'utf8');
   assert.match(src, /"connect_set_compilation_request"/);
   assert.match(src, /\["text", "uuid", "jsonb"\], \[h, projectId, request\]/);
+});
+
+test('SONG (11-27): the AI is not offered song anywhere in this tool, and an AI that still sends it gets a plain refusal and nothing is saved (songs are internal-only; the database refuses them too)', async () => {
+  const t = TOOLS.find((x) => x.name === 'set_compilation_request');
+  assert.ok(!('song' in t.inputSchema.properties), 'song is not a property');
+  assert.doesNotMatch(t.title + ' ' + t.description + ' ' + JSON.stringify(t.inputSchema), /song/i, 'no song in the title, description or schema');
+  const { w, call } = world();
+  const id = await project(call);
+  for (const song of [true, false, 'yes']) {
+    const r = await call(A, 'set_compilation_request', { ...GOOD(id), song });
+    assert.equal(r.isError, true, `song: ${JSON.stringify(song)} is refused`);
+    assert.equal(r.code, 'args');
+    assert.match(r.text, /song/, 'the refusal names the field it will not take');
+  }
+  assert.equal(w.users.get(A.userId).requests.size, 0, 'nothing saved');
+  const ok = await call(A, 'set_compilation_request', GOOD(id));
+  assert.equal(ok.isError, undefined, ok.text);
+  assert.doesNotMatch(ok.text, /song/i, 'the answer never says song');
+  assert.equal(w.users.get(A.userId).requests.get(id).request.song, false, 'what is written is never a song');
 });
