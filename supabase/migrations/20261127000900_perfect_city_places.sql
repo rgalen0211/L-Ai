@@ -71,9 +71,10 @@ begin
   -- Who may: the owner's own switch, an app admin, or the department opened for everyone (departments.status 'working', the public flip; CC1 08:10).
   is_admin := p_owner is not null and exists (select 1 from public.app_admins a where a.user_id = p_owner);
   has_switch := p_owner is not null and exists (select 1 from public.account_settings s where s.owner_id = p_owner and 'perfectCity' = any (s.switches_on));
-  -- the public flip lets in only an ACTIVE person (ryagram_private.account_active, the waiting list's own test) who is not a worker account (WORKER 10:17)
+  -- the public flip lets in only an INVITED person (ryagram_private.departments_for, the one rule every department uses: RENDERER 10:38 F1)
+  -- who is ACTIVE (ryagram_private.account_active, the waiting list's own test) and not a worker account (WORKER 10:17)
   if p_owner is null or not (is_admin or has_switch
-                             or (exists (select 1 from public.departments d where d.id = 'geo_intelligence' and d.status = 'working')
+                             or (exists (select 1 from ryagram_private.departments_for(p_owner) f where f.id = 'geo_intelligence' and f.status = 'working')
                                  and ryagram_private.account_active(p_owner)
                                  and not exists (select 1 from public.workers w where w.user_id = p_owner))) then
     raise exception 'Perfect City is not switched on for this account.' using errcode = '42501';

@@ -175,21 +175,26 @@ class PerfectCityPlaces(core.Base):
         self.owner("delete from public.app_admins where user_id = %s", RYAN)
         self.owner("delete from ryagram_private.perfect_city_calls where owner_id = %s", RYAN)
         self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
+        self.owner("insert into public.connect_access (user_id) values (%s) on conflict (user_id) do update set enabled = true", RYAN)   # the flip needs the invite (F1)
         self.owner("insert into ryagram_private.perfect_city_calls (owner_id, day, calls) values (%s, (now() at time zone 'utc')::date, 40)", RYAN)
         self.refused(RYAN, "montgomery_oh", "fast_food", code="54000")                        # let in by the public flip only: 40 a day
         for role in ("anon", "authenticated", "service_role"):
             self.assertFalse(self.owner("select has_table_privilege(%s, 'ryagram_private.perfect_city_calls', 'select,insert,update,delete')", role).fetchone()[0], role)
 
-    def test_the_public_flip_opens_it_for_every_signed_in_account(self):
+    def test_the_public_flip_opens_it_for_every_invited_signed_in_account(self):
         self.refused(OTHER, "montgomery_oh", "fast_food", code="42501")
         self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
+        self.refused(OTHER, "montgomery_oh", "fast_food", code="42501")                    # RENDERER 10:38 F1: not invited, so not by the flip
+        self.owner("insert into public.connect_access (user_id) values (%s) on conflict (user_id) do update set enabled = true", OTHER)
         self.assertEqual(self.get(OTHER)["loaded"], 4)
         self.refused("anon", "montgomery_oh", "fast_food", code="42501")                     # a visitor still cannot
 
     def test_the_public_flip_never_lets_in_a_waiting_account_or_a_worker(self):
         # WORKER 10:17: the flip key checks the person too, with the waiting list's own account_active (the summary_for path takes any owner uuid)
         self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
-        self.assertEqual(self.get(OTHER)["loaded"], 4)                                     # setup: an active account gets in by the flip
+        self.refused(OTHER, "montgomery_oh", "fast_food", code="42501")                    # RENDERER 10:38 F1: active but NOT invited: never by the flip
+        self.owner("insert into public.connect_access (user_id) values (%s) on conflict (user_id) do update set enabled = true", OTHER)
+        self.assertEqual(self.get(OTHER)["loaded"], 4)                                     # setup: an active, invited account gets in by the flip
         self.owner("insert into public.account_status (user_id, status, source) values (%s, 'waiting', 'signup') "
                    "on conflict (user_id) do update set status = 'waiting'", OTHER)
         self.refused(OTHER, "montgomery_oh", "fast_food", code="42501")                    # waiting: never by the flip

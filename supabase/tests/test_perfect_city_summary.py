@@ -86,7 +86,9 @@ class PerfectCitySummary(core.Base):
         third = "00000000-0000-4000-8000-000000000333"
         self.refused("42501", third, "montgomery_oh", "fast_food", *self.spot)            # anyone else: no
         self.owner("update public.departments set status = 'working' where id = 'geo_intelligence'")
-        self.assertEqual(self.summary(third)["place"], "montgomery_oh")                    # the public flip opens it for everyone
+        self.refused("42501", third, "montgomery_oh", "fast_food", *self.spot)            # RENDERER 10:38 F1: the flip opens it only for INVITED accounts
+        self.owner("insert into public.connect_access (user_id) values (%s) on conflict (user_id) do update set enabled = true", OTHER)
+        self.assertEqual(self.summary(OTHER)["place"], "montgomery_oh")                    # an invited account without the switch: yes, by the flip
 
     def test_03_refusals_in_words(self):
         self.switch_on(OTHER)

@@ -39,7 +39,7 @@ FAULTS = [
      "has_switch := true;"),
     ("the admin clause is dropped from the gate", PLACES, "if p_owner is null or not (is_admin or has_switch", "if p_owner is null or not (has_switch"),
     ("the public flip is always true", PLACES,
-     "exists (select 1 from public.departments d where d.id = 'geo_intelligence' and d.status = 'working')", "true"),
+     "exists (select 1 from ryagram_private.departments_for(p_owner) f where f.id = 'geo_intelligence' and f.status = 'working')", "true"),
     ("the 60-place cap is raised to 6000", PLACES, "and n.rn <= 60), '[]'::jsonb))", "and n.rn <= 6000), '[]'::jsonb))"),
     ("within is counted after the 60-place cap", PLACES,
      "'within', jsonb_build_object('1', count(*) filter (where n.km <= 1), '2', count(*) filter (where n.km <= 2), '5', count(*) filter (where n.km <= 5)),",
@@ -48,6 +48,9 @@ FAULTS = [
     ("the daily cap is multiplied by 1000", PLACES, "when has_switch then 300 else", "when has_switch then 300000 else"),
     # what is true (WORKER 10:17): a SUCCESSFUL call adds exactly 1 (a refusal rolls back with its call, so nothing claims refused calls count)
     ("a successful call does not add 1 to the day's count", PLACES, "do update set calls = c.calls + 1", "do update set calls = c.calls"),
+    ("the flip ignores the department invite", PLACES,
+     "exists (select 1 from ryagram_private.departments_for(p_owner) f where f.id = 'geo_intelligence' and f.status = 'working')",
+     "exists (select 1 from public.departments d where d.id = 'geo_intelligence' and d.status = 'working')"),
     ("the flip lets an inactive account in", PLACES, "                                 and ryagram_private.account_active(p_owner)\n", ""),
     ("the flip lets a worker account in", PLACES, "                                 and not exists (select 1 from public.workers w where w.user_id = p_owner))) then",
      "                                 )) then"),
