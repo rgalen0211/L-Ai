@@ -158,7 +158,8 @@
     root.replaceChildren(h('p', { class: 'form-note', role: 'note' }, h('strong', {}, 'DRAFT. '), 'Five sample rounds made from a made-up script. Names and guesses pass between this screen and the phones and are not kept.'),
       status, live, stage);
     draw();
-    return { close, state: () => s };
+    // the same functions the host's buttons call (tests drive a whole game through them)
+    return { close, state: () => s, start: () => startRound(0), reveal, next: () => (s.round + 1 >= rounds.length ? finish() : startRound(s.round + 1)) };
   }
 
   window.ryagramGamesHost = Object.freeze({ on, roomOptions, nameProblem, ranks, scoreRound, mount, MAX_PLAYERS, ROUND_SECONDS });

@@ -80,3 +80,40 @@ test('REJOIN: the phone remembers its seat in THIS TAB only (sessionStorage), re
   const body = src.slice(src.indexOf('function readSeat'), src.indexOf('const writeSeat'));
   assert.match(body, /\/\^\[A-Z\]\{4\}\$\/\.test\(v\.code\)/); assert.match(body, /\/\^\[A-Za-z0-9\]\{8,32\}\$\/\.test\(v\.pid\)/); assert.match(body, /catch \{ return null; \}/);
 });
+
+test('NO ANSWER BEFORE THE REVEAL: across a whole game (host mounted on a fake room), no message before a reveal holds any of that round\'s answer, and every reveal holds it whole with the engine\'s points', async () => {
+  const mkEl = tag => ({ tag, kids: [], attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener() {}, append(...k) { this.kids.push(...k); }, replaceChildren(...k) { this.kids = k; }, querySelector() { return null; }, focus() {} });
+  const h = (tag, attrs, ...kids) => { const e = mkEl(tag); for (const [k, v] of Object.entries(attrs || {})) if (v != null && v !== false && !k.startsWith('on')) e.setAttribute(k, v); e.kids = kids.flat(); return e; };
+  const W = load(['assets/game-score.js', 'assets/game-rounds.js', 'assets/app-games.js'], { location: { hostname: '127.0.0.1', search: '?relay=http://127.0.0.1:9', hash: '#/d/games', origin: 'http://127.0.0.1:1' },
+    setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} });
+  const sent = []; let onMsg = null;
+  const Room = { newCode: () => 'ABCD', connect: async () => ({ send: async m => { sent.push(JSON.parse(JSON.stringify(m))); }, onMessage: cb => { onMsg = cb; return () => {}; }, close() {} }) };
+  const R = W.ryagramGameRounds, S = W.ryagramGameScore;
+  const host = W.ryagramGamesHost.mount(mkEl('div'), { h, Room, Score: S, Rounds: R, cfg: {} });
+  await new Promise(r => setTimeout(r, 0));
+  assert.ok(onMsg, 'the host listens to the room');
+  onMsg({ t: 'join', pid: 'aaaaaaaa1', name: 'Ana' }); onMsg({ t: 'join', pid: 'bbbbbbbb1', name: 'Ben' });
+  onMsg({ t: 'join', pid: 'cccccccc1', name: 'ANA' });
+  assert.ok(sent.some(m => m.t === 'welcome' && m.pid === 'cccccccc1' && m.ok === false), 'a name differing only in case is refused');
+  host.start();
+  for (let i = 0; i < R.rounds.length; i++) {
+    const words = R.rounds[i].answer.map(w => w.word.toLowerCase().replace(/[^a-z0-9']/g, '')).filter(w => w.length > 3 && !R.rounds[i].public.heard_text.toLowerCase().includes(w));
+    const mark = sent.length;
+    onMsg({ t: 'guess', pid: 'aaaaaaaa1', round: i, text: R.rounds[i].answer.map(w => w.word).join(' ') });
+    const pre = sent.slice(0, sent.length).filter(m => m.t === 'state' && m.phase === 'question' && m.round === i);
+    assert.ok(pre.length >= 1, `round ${i + 1} was sent as a question`);
+    for (const m of pre) for (const w of words) assert.ok(!JSON.stringify(m).toLowerCase().includes(w), `round ${i + 1}: '${w}' was sent before the reveal`);
+    onMsg({ t: 'guess', pid: 'bbbbbbbb1', round: i, text: 'nothing like it' });           // both in: the host reveals at once
+    const rev = sent.slice(mark).find(m => m.t === 'state' && m.phase === 'reveal' && m.round === i);
+    assert.ok(rev, `round ${i + 1} was revealed`);
+    assert.equal(rev.reveal.answer_text, R.rounds[i].answer.map(w => w.word).join(' '));
+    const ana = rev.reveal.results.find(r => r.name === 'Ana');
+    assert.equal(ana.points, S.scoreGuess(R.rounds[i], R.rounds[i].answer.map(w => w.word).join(' ')).points);
+    host.next();
+  }
+  const fin = sent.filter(m => m.t === 'state' && m.phase === 'final').pop();
+  assert.ok(fin, 'the final was sent');
+  const sum = R.rounds.reduce((t, r) => t + S.scoreGuess(r, r.answer.map(w => w.word).join(' ')).points, 0);
+  assert.equal(fin.totals.find(t => t.name === 'Ana').total, sum);
+  host.close();
+});
