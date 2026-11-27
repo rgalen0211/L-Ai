@@ -377,7 +377,9 @@ const setCompilationRequest: ToolDef = {
 
 /** Is the Compilations department open for this person? The database's own rule is the last word (every server call refuses in words when it is off); this is the connector's early, plain answer from what it can read:
  *  the account's switch list names 'compilations', or the person's departments list says Compilations works for them, or the account already has the desktop app (the invited testers who use set_compilation_request today keep it).
- *  Anything unreadable counts as off. The site-wide public lever (ops_settings) cannot be read from here: it reaches the connector through the departments list. */
+ *  Anything unreadable counts as off. The site-wide public lever (ops_settings) cannot be read from here: it reaches the connector through the departments list.
+ *  THIS IS ONLY A PRE-FILTER, NEVER THE AUTHORITY: the database is. connect_compilations_open (migration 20261127000400) uses BUILDER's ryagram_private.compilations_on as the one rule when it exists (plus a tester door),
+ *  and refuses in words (42501) what this lets through; an account this says "open" for can still be refused there, and the tool then says what the database said. */
 export async function compilationsOpen(ctx: ToolCtx): Promise<boolean> {
   const switches = await ctx.data.switches().catch(() => [] as string[]);
   if (Array.isArray(switches) && switches.includes("compilations")) return true;
