@@ -45,16 +45,20 @@ test('on, it answers with the person\'s departments: the words for a host with n
   assert.deepEqual(ids, ['data_films', 'my_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.deepEqual(r.data.coming_soon, ['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.ok(!/<|>|javascript:/.test(r.text));
-  w.users.get(A.userId).departments = rows(['data_films', 'working'], ['compilations', 'working'], ['games', 'soon']);          // a promoted department without a page is NOT shown as working
+  w.users.get(A.userId).departments = rows(['data_films', 'working'], ['studio', 'working'], ['games', 'soon']);          // a promoted department without a page is NOT shown as working
   const r2 = await call('open_ryagram_home', {});
   assert.deepEqual(r2.data.departments.map((d) => d.id), ['data_films', 'my_films', 'games']);
 });
 
 test('the list follows the site\'s rule: only ids with words, only the two statuses, each once, in the site order, a working one only with a page', () => {
   const e = homeEntries([{ id: 'games', status: 'soon', label: 'Games' }, { id: 'data_films', status: 'working', label: 'Data films' }, { id: 'data_films', status: 'soon', label: 'Again' },
-    { id: 'nobody_knows', status: 'working', label: 'x' }, { id: 'animation_studio', status: 'broken', label: 'x' }, { id: 'compilations', status: 'working', label: 'Compilations' }, null, 7, { id: 5 }]);
+    { id: 'nobody_knows', status: 'working', label: 'x' }, { id: 'animation_studio', status: 'broken', label: 'x' }, { id: 'studio', status: 'working', label: 'Studio' }, null, 7, { id: 5 }]);
   assert.deepEqual(e.map((d) => d.id + ':' + d.status), ['data_films:working', 'my_films:working', 'games:soon']);
   assert.deepEqual(homeEntries(null).map((d) => d.id), ['my_films'], 'a failed read still shows the person\'s own films');
+  // the two departments turned on (11-27) show as working, with their own page and one line to say, only when the account's list says working
+  const on = homeEntries([{ id: 'compilations', status: 'working', label: 'x' }, { id: 'games', status: 'working', label: 'x' }]);
+  assert.deepEqual(on.filter((d) => d.status === 'working' && d.id !== 'my_films').map((d) => [d.id, d.page, d.starts.length]), [['compilations', '#/d/compilations', 1], ['games', '#/d/games', 1]]);
+  assert.deepEqual(homeEntries([{ id: 'compilations', status: 'soon', label: 'x' }, { id: 'games', status: 'soon', label: 'x' }]).filter((d) => d.status === 'soon').map((d) => [d.id, d.page, d.starts.length]), [['compilations', null, 0], ['games', null, 0]], 'a coming-soon department has no page and nothing to start');
   assert.deepEqual(HOME_ORDER, ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.equal(homeEntries([{ id: 'data_films', status: 'working', label: 'x'.repeat(61) }])[0].label, 'Data films', 'the panel says its own word, whatever the database row says');
   assert.equal(homeEntries([{ id: 'geo_intelligence', status: 'soon', label: 'Geographic Intelligence' }]).find((d) => d.id === 'geo_intelligence').label, 'Opportunity Map', 'ONE name everywhere (Ryan 2026-11-13, Q601), even while the database row still holds the old one');
@@ -84,6 +88,10 @@ test('a coming-soon department has nothing to start and nothing to open; a worki
   for (const d of e) { assert.ok(d.page === null || /^#\/[A-Za-z0-9_\/-]{0,40}$/.test(d.page), d.id); for (const s of d.starts) assert.ok(s.length <= 200 && !/[<>]/.test(s)); }
 });
 
+// The connector goes live with the Compilations page push, in one step. On a tree whose site file still has the OLD line, the panel must say the NEW one (exact words below).
+const PAIRED_OLD_COMPILATIONS_LINE = 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.';
+const PAIRED_NEW_COMPILATIONS_LINE = 'Save a request for a phrase in your footage. The film needs the Ryagram app, not open to everyone yet.';
+
 test('the words equal the site\'s where the site has them (assets/app-departments.js), except the one line GEO replaced', () => {
   const src = fs.readFileSync(new URL('../assets/app-departments.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const a = src.indexOf('const KNOWN = {'), b = src.indexOf('\n  };', a);
@@ -93,6 +101,7 @@ test('the words equal the site\'s where the site has them (assets/app-department
     assert.ok(site, `${id} is a department the site knows`);
     if (id !== 'geo_intelligence') assert.equal(ours.label, site.label, `${id}: the label`);
     if (id === 'geo_intelligence') { assert.equal(ours.label, 'Opportunity Map', 'the department is called Opportunity Map (Q601); the site changes with WEB\'s branch, so the label is pinned here, not compared'); assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line, word for word'); assert.equal(ours.line, site.line, 'and it is the site\'s line, word for word (Q601: one name, one line); a change to one side is a change to both, in one WEB+CONNECT pair'); continue; }
+    if (id === 'compilations' && site.line === PAIRED_OLD_COMPILATIONS_LINE) { assert.equal(ours.line, PAIRED_NEW_COMPILATIONS_LINE, 'compilations: the panel carries the new line while this tree still holds the old site file; the Compilations page push brings the same line to the site and then the check below holds again'); continue; }
     assert.equal(ours.line, site.line ?? site.sentence, `${id}: the line`);
   }
 });
