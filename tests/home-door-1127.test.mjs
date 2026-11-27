@@ -6,6 +6,7 @@ const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').r
 const html = read('index.html');
 test('DOOR: the Start free buttons carry the number from the one source, not a typed one', () => {
   assert.equal((html.match(/Start free, <span data-welcome-credits>16<\/span> credits/g) || []).length, 2);
+  assert.equal((html.match(/<a class="rg-btn" href="\/app\/#\/create-account"><span>Start free, <span data-welcome-credits>16<\/span> credits<\/span><\/a>/g) || []).length, 2, 'the label sits in one span: inside a flex button the spaces around the number would be dropped');
   assert.match(read('assets/free-account-line.js'), /\[data-welcome-credits\]/);
   assert.match(html, /<p id="wl-free" class="rg-note" data-free-account-line>/);
 });
@@ -30,4 +31,9 @@ test('DOOR: relative links only, so a later move to a Ryagram domain needs no ed
 });
 test('DOOR: the Bring your own AI line is CONNECT\'s wording and stays hidden until Ryan confirms Connect an AI is ON for every new account (live step 35)', () => {
   assert.match(html, /<p class="rg-byoai" hidden>Bring your own AI: connect Claude or ChatGPT to your account \(Account, then Connected AIs\) and ask it to build a film\.<\/p>/);
+});
+test('DOOR: the hero is ONE swappable still (FACES pick: the shaded 2017 frame); the Interstate loop moved to the films row', () => {
+  assert.match(html, /<img class="rg-hero-still" src="\/assets\/ryagram-hero-still\.jpg" width="1280" height="720" alt="A map of US states shaded by adult obesity, with dots for new restaurants\.">/);
+  assert.ok(fs.statSync(new URL('../assets/ryagram-hero-still.jpg', import.meta.url)).size < 150 * 1024);
+  assert.match(html, /Rise of the Interstate Highway/);
 });

@@ -15,7 +15,7 @@ test('the report form preselects no problem: a person who skims is asked to choo
 
 test('the hero caption link on /ryagram/ is a 44 px tap target (padding, so the sentence keeps its line height)', () => {
   assert.match(read('assets/ryagram.css'), /\.rg-hero-film figcaption a\{font-weight:700;padding:13px 2px\}/);
-  assert.match(read('ryagram/index.html'), /ryagram\.css\?v=20261127h1/);
+  assert.match(read('ryagram/index.html'), /ryagram\.css\?v=20261127h3/);
 });
 
 test('sign-in page order: the card, then Forgot your password, then Have an invite code (and its form), then the help lines', () => {

@@ -137,3 +137,4 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,v
 @media(max-width:700px){.rg-depts{grid-template-columns:1fr 1fr;gap:10px}.rg-dept-live{grid-column:1/-1}.rg-dept:not(.rg-dept-live)>p:not(.rg-tag){display:none}.rg-dept{padding:12px 14px}}
 .rg-home .rg-section{padding:36px 0}.rg-home .rg-hero{padding-bottom:28px}.rg-home .rg-steps{gap:12px}.rg-home .rg-films{gap:16px}
 @media(min-width:721px){.rg-home .rg-hero{padding-top:40px;padding-bottom:44px;row-gap:18px}.rg-home .rg-section{padding:44px 0}}
+.rg-hero-still{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:12px;background:#0a0a0e}
