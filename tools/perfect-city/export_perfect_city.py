@@ -167,8 +167,24 @@ def places(args):
     out = pathlib.Path(args.out).resolve()
     if REPO in out.parents or out == REPO:
         sys.exit('REFUSED: the OpenStreetMap points must never be written inside the repo (attorney row G11).')
-    rows = []
+    rows, outside = [], 0
     for key in COUNTIES:
+        # keep only the points INSIDE the county's own block groups (the queries used a box wider than the county; GAMES 08:44 LOW)
+        js = (REPO / 'assets' / 'perfect-city' / f'{key}.census.js').read_text(encoding='utf-8')
+        units = json.loads(js[js.index('] = ') + 4:].rstrip().rstrip(';'))['units']
+        def inside(lon, lat, units=units):
+            for u in units:
+                n = 0
+                for ring in u['rings']:
+                    hit = False
+                    for i in range(len(ring)):
+                        (x1, y1), (x2, y2) = ring[i], ring[i - 1]
+                        if (y1 > lat) != (y2 > lat) and lon < (x2 - x1) * (lat - y1) / (y2 - y1) + x1:
+                            hit = not hit
+                    n += hit
+                if n % 2 == 1:
+                    return True
+            return False
         for fname in ('osm_food_county', 'osm_grocery_county'):
             f = CACHE / key / f'{fname}.json'
             if not f.exists():
@@ -180,10 +196,14 @@ def places(args):
                 lon = e.get('lon', e.get('center', {}).get('lon'))
                 if lat is None or lon is None:
                     continue
+                if not inside(lon, lat):
+                    outside += 1
+                    continue
                 for kind in kinds_of(tags):
                     name = (tags.get('name') or '')[:120]
                     rows.append((key, kind, f"{e['type'][0]}{e['id']}", name, round(lat, 6), round(lon, 6)))
     rows = sorted(set(rows))
+    print('left out (outside the county):', outside, 'elements')
     q = lambda s: "'" + s.replace("'", "''") + "'"
     lines = ['-- Perfect City places (OpenStreetMap contributors, ODbL 1.0). PRIVATE until attorney row G11: never commit this file.',
              'begin;', 'delete from ryagram_private.perfect_city_places;']

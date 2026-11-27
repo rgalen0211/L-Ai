@@ -28,6 +28,7 @@ create table ryagram_private.perfect_city_places (
   lon double precision not null check (lon between -180 and 180),
   primary key (county, kind, osm_ref));
 revoke all on ryagram_private.perfect_city_places from public, anon, authenticated, service_role;
+alter table ryagram_private.perfect_city_places enable row level security;     -- no policy: a second lock behind the revoked grants
 
 create table ryagram_private.perfect_city_units (
   county text not null check (county in ('montgomery_oh', 'greene_oh')),
@@ -37,6 +38,7 @@ create table ryagram_private.perfect_city_units (
   lon double precision not null check (lon between -180 and 180),
   primary key (county, geoid));
 revoke all on ryagram_private.perfect_city_units from public, anon, authenticated, service_role;
+alter table ryagram_private.perfect_city_units enable row level security;
 
 -- One row per account per day (UTC): how many Perfect City calls it made. Closed to every API role; kept small (one row per account per day).
 create table ryagram_private.perfect_city_calls (
@@ -45,6 +47,7 @@ create table ryagram_private.perfect_city_calls (
   calls integer not null default 0 check (calls >= 0),
   primary key (owner_id, day));
 revoke all on ryagram_private.perfect_city_calls from public, anon, authenticated, service_role;
+alter table ryagram_private.perfect_city_calls enable row level security;
 
 -- Great-circle distance in km (haversine, mean Earth radius 6371.0088 km): the same formula as assets/perfect-city-core.js km().
 create function ryagram_private.perfect_city_km(lat1 double precision, lon1 double precision, lat2 double precision, lon2 double precision)
