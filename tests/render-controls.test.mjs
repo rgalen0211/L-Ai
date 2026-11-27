@@ -53,9 +53,11 @@ test('SWITCH: it really changes what a render request does (off holds it for app
   const { data, client } = world({ autoRender: false });
   client.db.projects.push({ id: 'p1', title: 'F' });
   client.db.versions.push({ id: 'v1', project_id: 'p1', number: 1, state: 'draft', story_spec: { schema: 1, engine: 'sequence' }, story_sha256: 's' });
+  client.db.versions.push({ id: 'v2', project_id: 'p1', number: 2, state: 'draft', story_spec: { schema: 1, engine: 'sequence' }, story_sha256: 's' });
   client.db.jobs.push({ id: 'sh', version_id: 'v1', job_type: 'contact_sheet', state: 'complete', story_sha256: 's', engine_commit: 'abc1234' },
                       { id: 'pv', version_id: 'v1', job_type: 'preview', state: 'complete', story_sha256: 's', engine_commit: 'abc1234' },
-                      { id: 'pv2', version_id: 'v1', job_type: 'preview', state: 'complete', story_sha256: 's', engine_commit: 'abc1234' });
+                      { id: 'sh2', version_id: 'v2', job_type: 'contact_sheet', state: 'complete', story_sha256: 's', engine_commit: 'abc1234' },
+                      { id: 'pv2', version_id: 'v2', job_type: 'preview', state: 'complete', story_sha256: 's', engine_commit: 'abc1234' });      // a second VERSION: the first request queued v1 (live does too), and a queued version takes no new jobs
   await data.requestFinalRender('pv', 'app-key-0000001');
   assert.equal(client.db.render_orders[0].state, 'awaiting_approval');
   assert.equal((await data.adminRenderQueue()).length, 1);
