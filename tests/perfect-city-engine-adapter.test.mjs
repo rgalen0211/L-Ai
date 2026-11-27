@@ -97,13 +97,42 @@ test('page units with a missing population add nothing, and an empty server answ
   assert.ok(out.people_est['5'] > 0);
 });
 
-test('must-fail: a planted haversine distance is caught by the golden comparison', () => {
-  const hav = (a, p) => {
-    const r = Math.PI / 180;
-    const s = Math.sin((p.lat - a[1]) * r / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(p.lat * r) * Math.sin((p.lon - a[0]) * r / 2) ** 2;
-    return 2 * 6371.0088 * Math.asin(Math.sqrt(s));
-  };
-  assert.notDeepEqual(check(pageData(null), { dist: hav }), []);
+// A REAL planted fault: the geodesy module's own source with the ellipsoid distance replaced by a haversine, loaded as a second module
+// and handed to the adapter; the golden comparison must fail on it (and must pass on the untouched module).
+function plantedGeodesy() {
+  const src = readFileSync(new URL('../assets/perfect-city-geodesy.js', import.meta.url), 'utf8');
+  const marker = 'function ellipsoidDistanceKm(lon1, lat1, lon2, lat2) { return inverse(lon1, lat1, lon2, lat2).m / 1000; }';
+  assert.ok(src.includes(marker), 'the line to plant into moved: update this test');
+  const hav = 'function ellipsoidDistanceKm(lon1, lat1, lon2, lat2) { const r = Math.PI / 180; const s = Math.sin((lat2 - lat1) * r / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin((lon2 - lon1) * r / 2) ** 2; return 2 * 6371.0088 * Math.asin(Math.sqrt(s)); }';
+  const m = { exports: {} };
+  new Function('module', 'exports', 'self', src.replace(marker, hav))(m, m.exports, undefined);
+  return m.exports;
+}
+
+test('must-fail: a REAL haversine planted into the geodesy module is caught by the golden comparison', () => {
+  const page = pageData(null);
+  const planted = plantedGeodesy();
+  let bad = 0;
+  for (const c of golden.cases) {
+    const out = A.toEngineNumbers(page, c.click, radii, serverPoints, planted);
+    if (out.nearest_km != null && Math.abs(out.nearest_km - c.nearest_km) > 0.00015) bad++;
+  }
+  assert.ok(bad > 0, 'the planted haversine must move at least one nearest_km beyond the golden tolerance');
+  // control: the untouched module passes the same comparison
+  assert.deepEqual(check(page), []);
+});
+
+test('a click that is not two finite numbers returns null, never NaN (a string is refused, not dropped)', () => {
+  const page = pageData(null);
+  const click = golden.cases[0].click;
+  assert.equal(A.toEngineNumbers(page, [NaN, click[1]], radii, serverPoints), null);
+  assert.equal(A.toEngineNumbers(page, [click[0], Infinity], radii, serverPoints), null);
+  assert.equal(A.toEngineNumbers(page, [String(click[0]), click[1]], radii, serverPoints), null);
+  assert.equal(A.toEngineNumbers(page, [click[0]], radii, serverPoints), null);
+  assert.equal(A.toEngineNumbers(page, click, [], serverPoints), null);
+  assert.equal(A.toEngineNumbers(page, click, [1, NaN], serverPoints), null);
+  assert.equal(A.toEngineNumbers(null, click, radii, serverPoints), null);
+  assert.notEqual(A.toEngineNumbers(page, click, radii, serverPoints), null);
 });
 
 test('must-fail: counting people by block group centre (the old page method) is caught', () => {

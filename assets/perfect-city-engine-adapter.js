@@ -69,7 +69,14 @@
 
   // pageData: the page's census object ({ units }). click: [lon, lat]. radiiKm: e.g. [1, 2, 5].
   // points: the server's places [{ name, lat, lon }] (default: none). Returns computeNumbers' result, plus nothing else.
-  function toEngineNumbers(pageData, click, radiiKm, points) {
+  // Returns null (never NaN) for a click that is not two finite NUMBERS (a string is refused, not silently dropped), a page without units,
+  // or radii that are not a non-empty list of finite positive numbers. The optional fifth argument swaps the geodesy module (tests plant a
+  // fault into it to prove the golden comparison catches it); the page never passes it.
+  function toEngineNumbers(pageData, click, radiiKm, points, geodesy) {
+    const num = (v) => typeof v === 'number' && Number.isFinite(v);
+    if (!pageData || !Array.isArray(pageData.units)) return null;
+    if (!Array.isArray(click) || click.length !== 2 || !num(click[0]) || !num(click[1])) return null;
+    if (!Array.isArray(radiiKm) || radiiKm.length === 0 || !radiiKm.every((r) => num(r) && r > 0)) return null;
     const units = pageData.units.map((u) => ({
       id: u.id,
       in_place: true,
@@ -79,7 +86,7 @@
     }));
     const pts = (points || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
       .map((p) => ({ name: p.name == null ? '' : p.name, lon: p.lon, lat: p.lat }));
-    return G.computeNumbers({ units }, click, radiiKm, pts);
+    return (geodesy || G).computeNumbers({ units }, click, radiiKm, pts);
   }
 
   return { toEngineNumbers, pageAreaKm2 };
