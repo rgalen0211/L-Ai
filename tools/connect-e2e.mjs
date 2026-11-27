@@ -124,7 +124,8 @@ function panelSteps(ctx) {
       need(/^ui:\/\/ryagram\//.test(r.uri) && /text\/html/.test(r.mimeType ?? ''), `${r.uri}: not an app page address or type`);
       const g = await c.rpc('resources/read', { uri: r.uri });
       const x = g?.result?.contents?.[0];
-      need(x && typeof x.text === 'string' && x.text.length > 500 && x.text.length < 200000, `${r.uri}: the page did not come back, or has an odd size`);
+      // Sanity cap, not a budget: the chat editor page carries Redo, shortcuts, colours and phone fixes and is one self-contained string, so it outgrew 200000.
+      need(x && typeof x.text === 'string' && x.text.length > 500 && x.text.length < 260000, `${r.uri}: the page did not come back, or has an odd size`);
       need(!/<script[^>]+src=|<link[^>]+href=|https?:\/\/[^"' ]+\.(js|css)\b/i.test(x.text), `${r.uri}: the page loads a script or a style from outside`);
     }
     if (listed('open_ryagram_home')) need(rs.some((r) => /^ui:\/\/ryagram\/home-/.test(r.uri)), 'the home panel is not among the pages');
