@@ -24,7 +24,7 @@ test('GATE: off by default; the shared key list does not hold the new keys, so a
   const page = read('assets/app-editor.js');
   assert.ok(page.includes('E.LOOK_KEYS_V2 === true || window.ryagramLookV2 === true'), 'on only by the core constant, or the mock flag');
   const lib = read('assets/app-library.js');
-  assert.ok(lib.includes('window.ryagramLookV2 = !!window.ryagramMock && /[?&]lookv2'), 'the flag is read in the mock only');
+  assert.ok(lib.includes("get: () => !!window.ryagramMock && /[?&]lookv2"), 'the flag is read in the mock only');
   assert.ok(!page.includes('location'), 'the chat page forbids location in the editor file');
   assert.ok(page.includes('if (!LOOKV2) return [];'), 'gate off: no control is drawn');
   assert.ok(page.includes('E.lookKeysFor(LOOKV2)'));
@@ -105,4 +105,16 @@ test('SERVER NEEDS: the written twin changes name both keys, the bounds, the wor
   const v2 = JSON.parse(read('tests/edit-op-cases-textlegend-1127.json'));
   for (const c of v2.cases) assert.equal(E.check(E.newState(base()), c.op, E.lookKeysFor(true)) === null, c.ok, JSON.stringify(c.op));
   assert.ok(v2.cases.some(c => c.ok) && v2.cases.some(c => !c.ok));
+});
+test('the ?lookv2 flag is read when the editor asks, not when app-library.js loads (the mock arrives later; a value read at load was always false)', () => {
+  const lib = read('assets/app-library.js');
+  assert.ok(/Object\.defineProperty\(window, 'ryagramLookV2', \{[^}]*get: \(\) => !!window\.ryagramMock && \/\[\?&\]lookv2/.test(lib));
+  assert.ok(!/window\.ryagramLookV2 = /.test(lib));
+  const w = { ryagramMock: null }; const loc = { search: '?mock&lookv2&standin' };
+  const m = lib.match(/Object\.defineProperty\(window, 'ryagramLookV2'.*\);/);
+  vm.runInNewContext(m[0], { window: w, location: loc, Object });
+  assert.equal(w.ryagramLookV2, false);            // before the mock is there
+  w.ryagramMock = {};
+  assert.equal(w.ryagramLookV2, true);             // after it is
+  loc.search = '?mock'; assert.equal(w.ryagramLookV2, false);
 });
