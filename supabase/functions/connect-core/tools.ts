@@ -392,7 +392,7 @@ const COMPILATIONS_CLOSED = "Compilations are not open for this Ryagram account 
 const closedResult = () => refuse(COMPILATIONS_CLOSED, "not_available", { data: { ok: false, looked_up: false, reason: "compilations_not_open" } });
 
 /** What the person's computer reported as the reason a build stopped, in plain words. An unknown code gets the general sentence: the code itself is never shown as words. */
-const COMPILATION_STOPPED: Record<string, string> = {
+export const COMPILATION_STOPPED: Record<string, string> = {
   // the closed list of reasons the Ryagram app can report (FACES, docs/COMPILATION-REPORT-1127.md, the same list WEB's Compilations page words)
   request_invalid: "the request could not be read",
   song_request: "songs are made in the song tools, not in a compilation",
