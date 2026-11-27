@@ -263,9 +263,10 @@ test('every number is drawn next to its basis word, and the word is the one the 
   assert.ok(lists(p.root)[0].every((t) => /\(calculated\)$/.test(t)));
   assert.ok(tableRows(p.root).slice(1).every((x) => /\(calculated\)$/.test(x[1]) && /\(estimated\)$/.test(x[2])));
   // the word follows the data, never a fixed word: a word the tool did not return is not invented, and a word outside the three is not drawn
-  const d = JSON.parse(JSON.stringify(r.data)); d.rings[2].people_about.basis = 'observed'; d.nearest[0].basis = 'estimated';
+  const d = JSON.parse(JSON.stringify(r.data)); d.rings[2].people_about.basis = 'observed'; d.nearest[0].basis = 'estimated'; d.rings[0].places.basis = 'observed'; d.rings[1].places.basis = 'estimated';
   const q = drawn(d);
   assert.equal(tableRows(q.root)[3][2], 'about 61200 people (observed)'); assert.equal(lists(q.root)[0][0], '1. 0.41 km (estimated)');
+  assert.deepEqual(tableRows(q.root).slice(1, 3).map((x) => x[1]), ['2 (observed)', '3 (estimated)'], 'the places word follows the data too');
 });
 
 test('the rings are the tool\'s three (1, 2 and 5 km), in order, as rows of a table with its own header', async () => {
@@ -413,7 +414,7 @@ async function broken() {
     mut((d) => { delete d.credits; }), mut((d) => { d.credits = []; }),
     mut((d) => { d.rings = d.rings.slice(0, 2); }), mut((d) => { d.rings[1].km = 3; }), mut((d) => { d.rings.reverse(); }), mut((d) => { d.rings = null; }), mut((d) => { d.rings[0] = 'x'; }),
     mut((d) => { d.rings[0].places.basis = 'guess'; }), mut((d) => { d.rings[0].places.basis = 'constructor'; }), mut((d) => { delete d.rings[0].places.basis; }), mut((d) => { d.rings[2].people_about.basis = 'sure'; }),
-    mut((d) => { d.rings[0].places.value = 2.5; }), mut((d) => { d.rings[0].places.value = -1; }), mut((d) => { d.rings[0].places.value = '2'; }), mut((d) => { d.rings[0].places.value = null; }), mut((d) => { d.rings[0].places = null; }),
+    mut((d) => { d.rings[0].places.value = 2.5; }), mut((d) => { d.rings[0].places.value = -1; }), mut((d) => { d.rings[0].places.value = '2'; }), mut((d) => { d.rings[0].places.value = null; }), mut((d) => { d.rings[0].places.value = 1e8; }), mut((d) => { d.rings.push(JSON.parse(JSON.stringify(d.rings[2]))); }), mut((d) => { d.rings[0].places = null; }),
     mut((d) => { d.rings[2].people_about.value = '61200'; }), mut((d) => { d.rings[2].people_about.value = -5; }), mut((d) => { d.rings[2].people_about.value = 1e11; }), mut((d) => { delete d.rings[2].people_about.method; }), mut((d) => { d.rings[2].people_about = null; }),
     mut((d) => { delete d.rings[2].people_about.value; }),
     mut((d) => { d.nearest[0].basis = 'maybe'; }), mut((d) => { d.nearest.reverse(); }), mut((d) => { d.nearest[0].rank = 2; }), mut((d) => { delete d.nearest[0].rank; }), mut((d) => { d.nearest = new Array(6).fill(0).map((_, i) => ({ rank: i + 1, km: i, basis: 'calculated' })); }),
@@ -421,7 +422,7 @@ async function broken() {
     mut((d) => { d.score_given = true; }), mut((d) => { d.ranking_given = true; }), mut((d) => { delete d.score_given; }), mut((d) => { delete d.ranking_given; }),
     mut((d) => { d.place = 'nowhere_xx'; }), mut((d) => { d.place = 'toString'; }), mut((d) => { d.business_type = 'constructor'; }), mut((d) => { delete d.business_type; }),
     mut((d) => { d.spot.lat = 91; }), mut((d) => { d.spot.lon = -181; }), mut((d) => { d.spot.lon = 'x'; }), mut((d) => { delete d.spot; }), mut((d) => { d.spot = []; }),
-    mut((d) => { d.places_loaded = 1.5; }), mut((d) => { d.places_loaded = -1; }), mut((d) => { d.places_loaded = '12'; }), mut((d) => { d.places_loaded = { count: 12, basis: 'calculated' }; }),
+    mut((d) => { d.places_loaded = 1.5; }), mut((d) => { d.places_loaded = 1e8; }), mut((d) => { d.nearest[0].km = 2.5; }), mut((d) => { d.places_loaded = -1; }), mut((d) => { d.places_loaded = '12'; }), mut((d) => { d.places_loaded = { count: 12, basis: 'calculated' }; }),
     mut((d) => { d.ok = 'true'; }), mut((d) => { delete d.ok; }), mut((d) => { d.looked_up = false; }), mut((d) => { delete d.looked_up; }),
   ];
 }
@@ -448,7 +449,7 @@ test('data that is not an object, and results with no data, are "Numbers not ava
 
 test('a refusal shape the panel does not know is never turned into a stronger claim: ok false alone, or a switch word that is not ours, says nothing about the switch', () => {
   assert.deepEqual(leaves(drawn({ ok: false }).root).slice(2), [PERFECT_CITY_CARD_WORDS.none]);
-  for (const sc of [{ ok: false, looked_up: false, switch: 'games', on: false, owner_only: true }, { ok: false, looked_up: false, on: false }, { ok: false, looked_up: false, owner_only: true }, { ok: false, looked_up: false, retry_after_seconds: 5 }]) {
+  for (const sc of [{ ok: false, looked_up: false, switch: 'games', on: false, owner_only: true }, { ok: false, looked_up: false, on: false }, { ok: false, looked_up: false, owner_only: true }, { ok: false, looked_up: false, retry_after_seconds: 5 }, { ok: false, looked_up: false, switch: 'perfectCity' }, { ok: false, looked_up: false, switch: 'perfectCity', on: false }, { ok: false, looked_up: false, switch: 'perfectCity', owner_only: true }]) {
     const t = leaves(drawn(sc).root).slice(2);
     assert.deepEqual(t, [PERFECT_CITY_CARD_WORDS.other], JSON.stringify(sc));
   }
