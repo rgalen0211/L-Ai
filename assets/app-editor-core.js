@@ -300,7 +300,7 @@
       if (!this.redo.length) return { ok: false };
       const rest = this.redo.slice(0, -1), e = this.redo[this.redo.length - 1];
       this.undone.delete(JSON.stringify(e.op));
-      const r = this.do(e.op, e.by);
+      const r = this.do(e.op, e.by, e.group || null);
       this.redo = r.ok ? rest : this.redo;
       return r;
     }

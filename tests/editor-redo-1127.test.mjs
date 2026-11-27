@@ -30,9 +30,9 @@ test('REDO GROUP: a ready-made look (several ops with one group) is undone and r
 });
 test('PAGE: Redo button next to Undo (disabled with nothing to redo or while locked), the keys skip typing fields, the list names only keys that exist, and the draft redo sends the op again', () => {
   const page = read('assets/app-editor.js'), draft = read('assets/app-editor-draft.js');
-  assert.ok(page.includes("btn('Redo', 'secondary'") && page.includes('redoBtn.disabled = locked || ed.redo.length === 0'));
+  assert.ok(page.includes("btn('Redo', 'secondary'") && page.includes('redoBtn.disabled = locked || histBusy || commitOpen() || ed.redo.length === 0'));
   assert.ok(page.includes('undoBtn, redoBtn, revertBtn'));
   assert.ok(page.includes("if (typingIn(ev.target) || ev.altKey) return;") && page.includes("(k === 'y' || (k === 'z' && ev.shiftKey))") && page.includes("ev.key === '?'"));
   for (const w of ['Ctrl+Z', 'Ctrl+Y', 'Ctrl+Shift+Z', 'Space', 'In Pro:']) assert.ok(page.includes(w), w);
-  assert.ok(draft.includes('async function redo()') && draft.includes('const r = await sendNow(ops, top.group || null);') && draft.includes('undo, redo, undoAi'));
+  assert.ok(draft.includes('async function redoNow()') && draft.includes('const r = await sendNow(ops, top.group || null);') && draft.includes('undo, redo, undoAi'));
 });

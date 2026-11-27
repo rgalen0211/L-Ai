@@ -86,7 +86,12 @@
     }
 
     // Undo the person's last op on screen and in the draft (the log entry's server id), so the AI knows the person undid it.
-    async function undo() {
+    function undo() { return queued(undoNow); }
+    function redo() { return queued(redoNow); }
+    // Undo and Redo run one at a time inside the same queue as sends, and each reads the log only when its turn comes, so two quick presses never read the same last entry.
+    function queued(fn) { const run = tail.then(fn); tail = run.then(() => {}, () => {}); return run; }
+    async function undoNow() {
+      if (ready) await ready;
       const last = [...editor.log].reverse()[0];
       if (!last) return { ok: false };
       // a ready-made look is a group: every op of it is undone on the server too, newest first, so the draft and the screen agree
@@ -95,22 +100,27 @@
         if (!e.serverId) continue;
         const r = await rpc('editor_undo', { p_project: project, p_mode: mode, p_op_id: e.serverId });
         if (r.error) return { ok: false, reason: WORDS[r.error.code] || plainWords(r.error, 'That could not be undone.') };
+        // the server answers ok for an op it had already undone (undone 0): then nothing was undone there, so the screen must not drop it either
+        if (!r.data || !(r.data.undone > 0)) return { ok: false, reason: 'That change was already undone. Nothing was changed.' };
         state.revision = Math.max(state.revision, r.data.revision || 0);
       }
       editor.undo();
       return { ok: true };
     }
     // Redo the person's last undone step: the server takes the op(s) again (it decides first, like any change); the rest of the redo stack stays, because sending an op clears it.
-    async function redo() {
-      const stack = editor.redo;
+    async function redoNow() {
+      if (ready) await ready;
+      const stack = editor.redo;      // read inside the queue: a newer edit that arrived meanwhile has already emptied it
       if (!stack.length) return { ok: false };
       const top = stack[stack.length - 1];
       const take = top.group ? stack.filter(e => e.group === top.group) : [top];
       const ops = take.slice().reverse().map(e => e.op);                  // the stack's top is the OLDEST op of a group: first made, first sent
       const rest = stack.slice(0, stack.length - take.length);
+      const logBefore = editor.log.length;
       const r = await sendNow(ops, top.group || null);
       if (!r.ok) return r;
-      editor.redo = rest;
+      // keep the rest of the redo stack only if nothing newer (an AI edit read by the poll) landed besides the redone ops; otherwise the older undone ops would replay over a newer change
+      editor.redo = editor.log.length === logBefore + ops.length ? rest : [];
       for (const op of ops) editor.undone.delete(JSON.stringify(op));
       return { ok: true };
     }

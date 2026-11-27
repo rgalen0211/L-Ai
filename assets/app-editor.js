@@ -378,8 +378,10 @@
       // ---- the controls
       const pill = h('span', { class: 'le-pill' });
       let histBusy = false;
-      const undoBtn = btn('Undo', 'secondary', async () => { if (histBusy) return; histBusy = true; try { stopPlay(); if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } saved = false; paint(); } finally { histBusy = false; } });
-      const redoBtn = btn('Redo', 'secondary', async () => { if (histBusy) return; histBusy = true; try { stopPlay(); if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } saved = false; paint(); } finally { histBusy = false; } });
+      const commitOpen = () => !renderBox.hidden;                                  // the 'What will render' panel: no undo or redo behind it
+      const histRun = async fn => { if (histBusy || commitOpen() || locked) return; histBusy = true; paint(); try { stopPlay(); await fn(); saved = false; } finally { histBusy = false; paint(); } };
+      const undoBtn = btn('Undo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } }));
+      const redoBtn = btn('Redo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } }));
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say(realFilm ? 'Your changes are already kept in this film’s draft.' : 'Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
       const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) { paintChips(); note.focus(); } }, { class: 'button secondary le-ai-btn' });
@@ -395,7 +397,7 @@
       const onEditorKey = ev => {
         if (typingIn(ev.target) || ev.altKey) return;
         const mod = ev.ctrlKey || ev.metaKey, k = String(ev.key).toLowerCase();
-        if (mod && (k === 'z' || k === 'y') && histBusy) { ev.preventDefault(); return; }
+        if (mod && (k === 'z' || k === 'y') && (ev.repeat || histBusy || commitOpen() || locked)) { ev.preventDefault(); return; }
         if (mod && k === 'z' && !ev.shiftKey) { if (!undoBtn.disabled) { ev.preventDefault(); undoBtn.click(); } }
         else if (mod && (k === 'y' || (k === 'z' && ev.shiftKey))) { if (!redoBtn.disabled) { ev.preventDefault(); redoBtn.click(); } }
         else if (!mod && ev.key === '?') { ev.preventDefault(); shortcutsBtn.click(); }
@@ -411,7 +413,7 @@
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
       }
-      const closeRender = () => { renderBox.hidden = true; renderBox.replaceChildren(); };
+      const closeRender = () => { renderBox.hidden = true; renderBox.replaceChildren(); if (typeof paint === 'function') paint(); };
       // Which render path is real HERE: the person's own computer (host.render), or nothing yet. startJob() below is a MADE-UP job (2,820 invented frames, then 'Your film is ready'): it runs ONLY in mock mode
       // (the test mock, ?mock on localhost), never for a real account on the website (WEB dead-end sweep row 4, 11-21). With no real path the panel says so in plain words and offers no Start button.
       const renderPath = () => (host && typeof host.render === 'function' ? 'host' : window.ryagramMock ? 'mock' : null);
@@ -426,6 +428,7 @@
           ...(path ? [] : [h('p', { class: 'form-note', id: 'le-render-soon', role: 'status' }, RENDER_SOON)]),
           h('div', { class: 'le-actions' }, ...(path === 'host' ? [btn('Start the render', 'primary', startHostBuild)] : path === 'mock' ? [btn('Start the render', 'primary', startJob)] : []), btn(path ? 'Not yet' : 'Close', 'secondary', closeRender)));
         renderBox.querySelector('button').focus();
+        if (typeof paint === 'function') paint();                           // Undo and Redo go grey behind this panel
       }
       // On the person's own computer the maker builds the film itself (POST /api/live/render, one at a time) and answers when it is made: there is no job row and no per-frame numbers to
       // read, so the panel says what is happening and how long it has been, and never invents a percentage or a time left.
@@ -880,7 +883,7 @@
         const empty = onPc && !isData && !ed.state.clips.length;
         emptyNote.hidden = !empty;
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
-        undoBtn.disabled = locked || ed.log.length === 0; redoBtn.disabled = locked || ed.redo.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
+        undoBtn.disabled = locked || histBusy || commitOpen() || ed.log.length === 0; redoBtn.disabled = locked || histBusy || commitOpen() || ed.redo.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
         if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
         else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
