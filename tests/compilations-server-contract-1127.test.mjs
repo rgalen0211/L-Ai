@@ -1,6 +1,6 @@
 // Pins the site's Compilations calls against BUILDER's server migration, WITHOUT a database (WEB 11-27).
 // The migration text is read from the branch origin/builder-compilations-server-1127 with `git show` (like the other tests that read a branch); no git or no branch = skipped in words.
-// Where the page and the migration disagree the assertion is marked todo and listed in docs/compilations-contract-mismatches-1127.md. The page is NOT edited by this test.
+// The page refuses everything the migration refuses (the mismatches of 11-27 are resolved; docs/compilations-contract-mismatches-1127.md).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -131,19 +131,64 @@ T('MIRROR SELF-CHECK: the JS mirror refuses what the migration refuses (a place,
     assert.ok(serverProblem(bad), JSON.stringify(bad));
 });
 
-// Every input the page ACCEPTS must be accepted by the server too (the page may be stricter, never looser).
-// A looser page is a KNOWN mismatch: listed in docs/compilations-contract-mismatches-1127.md and registered as todo.
+// Every input the migration refuses, the page must refuse too, in its own plain sentence (the page may be stricter, never looser).
+// These were the eight todo mismatches of 11-27 (docs/compilations-contract-mismatches-1127.md); the page now refuses each one.
 const BS = String.fromCharCode(92);
-const KNOWN = {
-  'a home path in the words': { phrase: 'in ~/Videos please', folders: 'A' },
-  'an environment name in the words': { phrase: 'from %USERPROFILE% today', folders: 'A' },
-  '$HOME in the words': { phrase: 'under $HOME now', folders: 'A' },
-  'a fullwidth slash in the words': { phrase: 'a\uff0fb', folders: 'A' },
-  'a percent-encoded slash in a folder name': { phrase: 'x', folders: 'a%2fb' },
-  'an environment name as a folder': { phrase: 'x', folders: '%TEMP%' },
-  'a fullwidth slash as a folder': { phrase: 'x', folders: 'a\uff0fb' },
-  'a DEL character in a folder name': { phrase: 'x', folders: 'a\x7fb' },
+const MUST_REFUSE = {
+  'a home path in the words': { form: { phrase: 'in ~/Videos please', folders: 'A' }, say: 'words' },
+  'a home path in the note': { form: { phrase: 'x', folders: 'A', note: 'see ~' + BS + 'Videos' }, say: 'words' },
+  'an environment name in the words': { form: { phrase: 'from %USERPROFILE% today', folders: 'A' }, say: 'words' },
+  '$HOME in the words': { form: { phrase: 'under $HOME now', folders: 'A' }, say: 'words' },
+  '$home in the note': { form: { phrase: 'x', folders: 'A', note: '$home' }, say: 'words' },
+  'a fullwidth slash in the words': { form: { phrase: 'a\uff0fb', folders: 'A' }, say: 'words' },
+  'a fullwidth colon in the note': { form: { phrase: 'x', folders: 'A', note: 'a\uff1ab' }, say: 'words' },
+  'a percent-encoded slash in the words': { form: { phrase: 'a%2Fb', folders: 'A' }, say: 'words' },
+  'a percent-encoded slash in a folder name': { form: { phrase: 'x', folders: 'a%2fb' }, say: 'folder' },
+  'an environment name as a folder': { form: { phrase: 'x', folders: '%TEMP%' }, say: 'folder' },
+  'a fullwidth slash as a folder': { form: { phrase: 'x', folders: 'a\uff0fb' }, say: 'folder' },
+  'a fullwidth backslash as a folder': { form: { phrase: 'x', folders: 'a\uff3cb' }, say: 'folder' },
+  'a DEL character in a folder name': { form: { phrase: 'x', folders: 'a\x7fb' }, say: 'folder' },
+  'a home path hidden by an invisible character': { form: { phrase: 'a ~\u200b/x', folders: 'A' }, say: 'words' },
 };
+const SAY = { words: /^Write words, not a place on your computer\./, folder: /^That is not a folder name\./ };
+// the page's answer, then the migration's on the request it built (a page refusal counts as agreeing with a migration refusal)
+const both = form => { const b = C.buildRequest(form); return { page: b.error || null, server: b.error ? undefined : serverProblem(wire(b.request)) }; };
+
+for (const [name, { form, say }] of Object.entries(MUST_REFUSE)) T(`REFUSED: ${name}: the page refuses it in its plain sentence, never echoing what was typed`, () => {
+  const b = C.buildRequest(form);
+  assert.ok(b.error, 'the page let through what the migration refuses');
+  assert.match(b.error, SAY[say]);
+  for (const v of Object.values(form)) if (v.length > 2) assert.ok(!b.error.includes(v.trim()), 'the sentence echoes the typed text');
+  const echoed = /(~|%|\$home|\uff0f|\uff1a|\x7f)/i.test(b.error);
+  assert.ok(!echoed, 'the sentence echoes a character that was typed');
+});
+// The migration (mirrored) refuses the same inputs when sent raw, so each of these is a real server refusal, not a page-only rule.
+for (const [name, { form }] of Object.entries(MUST_REFUSE)) T(`SERVER REFUSES RAW: ${name}`, () => {
+  const folders = String(form.folders).split(/[\n,;]+/).map(x => x.trim()).filter(Boolean);
+  const raw = { schema: 'ryagram.compilation-request/0', phrase: String(form.phrase).trim(), folders, song: false, clean_cuts: false, rules: [], texts: [], note: form.note || '' };
+  assert.ok(serverProblem(wire(raw)), 'the mirror accepts it: the case is not a mismatch');
+});
+
+// Normal names and words must still pass: the stricter rules do not catch ordinary text.
+const NORMAL = {
+  'B-roll as a folder': { phrase: 'x', folders: 'B-roll' },
+  'Interviews 2 as a folder': { phrase: 'x', folders: 'Interviews 2' },
+  'both together': { phrase: 'x', folders: 'Interviews 2, B-roll, Été 2024' },
+  'a percent sign in the words': { phrase: '100% sure', folders: 'A' },
+  'two percent signs apart in the words': { phrase: '50% of it, then 20% more', folders: 'A' },
+  'a percent sign in the note': { phrase: 'x', folders: 'A', note: 'about 5% of the clips' },
+  'a percent sign in a folder': { phrase: 'x', folders: '100% Done' },
+  'a tilde in the words': { phrase: 'about ~5 minutes', folders: 'A' },
+  'a tilde in a folder': { phrase: 'x', folders: 'Trip ~2024' },
+  'a dollar sign in the words': { phrase: 'it cost $5 at home', folders: 'A' },
+  'home as a plain word': { phrase: 'going home', folders: 'Home movies' },
+};
+for (const [name, form] of Object.entries(NORMAL)) T(`NORMAL: ${name}: the page accepts it and so does the migration`, () => {
+  const b = C.buildRequest(form);
+  assert.ok(!b.error, b.error);
+  assert.equal(serverProblem(wire(b.request)), null);
+});
+
 const AGREE = {
   'a link in the words': { phrase: 'see http://example.com now', folders: 'A' },
   'a link in the note': { phrase: 'x', folders: 'A', note: 'https://example.com' },
@@ -162,21 +207,7 @@ const AGREE = {
   'a folder of 81': { phrase: 'x', folders: 'f'.repeat(81) },
   'eleven folders': { phrase: 'x', folders: 'a,b,c,d,e,f,g,h,i,j,k' },
 };
-// the page's answer, then the migration's on the request it built (a page refusal counts as agreeing with a migration refusal)
-const both = form => { const b = C.buildRequest(form); return { page: b.error || null, server: b.error ? undefined : serverProblem(wire(b.request)) }; };
-
 for (const [name, form] of Object.entries(AGREE)) T(`AGREE: ${name}: the page never lets through what the migration refuses`, () => {
   const r = both(form);
   assert.ok(r.page || r.server === null, 'the page accepted it and the migration refuses it: ' + r.server);
-});
-for (const [name, form] of Object.entries(KNOWN)) T(`TODO MISMATCH: ${name}: the page accepts it, the migration refuses it`, { todo: 'see docs/compilations-contract-mismatches-1127.md' }, () => {
-  const r = both(form);
-  assert.ok(r.page || r.server === null, 'the page lets through what the migration refuses: ' + r.server);
-});
-// Guard: a KNOWN entry that stops disagreeing (page or migration changed) must move to AGREE and out of the doc.
-T('KNOWN list is current: each listed mismatch still exists (page accepts, mirror refuses)', () => {
-  for (const [name, form] of Object.entries(KNOWN)) {
-    const r = both(form);
-    assert.ok(!r.page && r.server, name + ' no longer disagrees: move it to AGREE and update the doc');
-  }
 });

@@ -6,9 +6,14 @@
 (() => {
   const BS = String.fromCharCode(92);
   // A folder or picture is a NAME: no slash, no colon, nothing a path is made of (the connector's NAME_PATTERN).
-  const NAME = new RegExp('^[^' + BS + BS + '/:*?"<>|\\u0000-\\u001f]{1,80}$');
+  const NAME = new RegExp('^[^' + BS + BS + '/:*?"<>|\\u0000-\\u001f\\u007f]{1,80}$');
   // A drive letter and a slash, a network share, a parent folder or a path from the root: a place on a computer (the connector's looksLikePlace).
-  const PLACE = new RegExp('[A-Za-z]:[' + BS + BS + '/]|' + BS + BS + BS + BS + '|(^|\\s)/[A-Za-z]|\\.\\.[' + BS + BS + '/]');
+  const PLACE = new RegExp('[A-Za-z]:[' + BS + BS + '/]|' + BS + BS + BS + BS + '|(^|\\s)/[A-Za-z]|\\.\\.[' + BS + BS + '/]'
+    // what the server migration also refuses (its value check): a home path, %NAME%, $HOME, a percent-encoded slash/backslash/colon, a fullwidth slash or colon
+    + '|(^|\\s)~[a-z0-9_]*[' + BS + BS + '/]|%[a-z_]+%|\\$home\\b|%2f|%5c|%3a|[\\uff0f\\uff3c\\u2215\\uff1a]', 'i');
+  // the server strips these invisible characters before it checks; so does the page
+  const INVISIBLE = /[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g;
+  const isPlace = t => PLACE.test(String(t).replace(INVISIBLE, ''));
   const LIMITS = { phrase: 200, folders: 10, note: 500 };
 
   // Cut text to a length and SAY it was cut (an ellipsis), never silently.
@@ -28,11 +33,11 @@
     if (phrase.length > LIMITS.phrase) return { error: 'The words to look for can be at most 200 characters.' };
     const note = clean(f.note, LIMITS.note + 50);
     if (note.length > LIMITS.note) return { error: 'The note can be at most 500 characters.' };
-    if ([phrase, note].some(w => w && PLACE.test(w))) return { error: 'Write words, not a place on your computer. Folders are named, never located.' };
+    if ([phrase, note].some(w => w && isPlace(w))) return { error: 'Write words, not a place on your computer. Folders are named, never located.' };
     const folders = folderList(f.folders);
     if (!folders.length) return { error: 'Name at least one folder of yours that holds the videos.' };
     if (folders.length > LIMITS.folders) return { error: 'Name at most 10 folders.' };
-    const bad = folders.find(n => !NAME.test(n) || n === '.' || n === '..');
+    const bad = folders.find(n => !NAME.test(n) || n === '.' || n === '..' || isPlace(n));
     if (bad) return { error: 'That is not a folder name. Type only the folder’s name, like Interviews, never where it is.' };      // never echoes what was typed: it may be a place on the person’s computer
     return { request: { schema: 'ryagram.compilation-request/0', phrase, search: f.search === 'words' ? 'words' : 'every', folders, song: false, clean_cuts: false, rules: [], texts: [], note } };
   }
@@ -155,5 +160,5 @@
     return { pageView };
   }
 
-  window.ryagramCompilations = { NAME, PLACE, LIMITS, WORDS, folderList, buildRequest, requestLine, runLine, create };
+  window.ryagramCompilations = { NAME, PLACE, isPlace, LIMITS, WORDS, folderList, buildRequest, requestLine, runLine, create };
 })();
