@@ -87,8 +87,6 @@
   const desktopOn = () => window.ryagramConfig?.desktopApp === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const funnelOn = () => window.ryagramConfig?.funnelTracking === true || !!window.ryagramMock;
-  const launchFunnelOn = () => !!(window.ryagramSwitches && window.ryagramSwitches.featureOn('launchFunnel') === true);   // the launch funnel from existing tables (SQL 20261127000200), on for a named admin account only
-  const funnelPageOn = () => funnelOn() || launchFunnelOn();   // #/admin/funnel exists when either funnel is on
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
   // BUYING OPEN (ryagram-config.js buyingOpen; Ryan's yes flips it with sign-up at launch): every Buy / Subscribe button and "Buy credits" link is tied to THIS one switch. Mock mode is open (so the
@@ -119,7 +117,7 @@
     ['#/admin/waiting', 'Waiting list', 'People waiting for access. Approve them here.', 'People', waitingOn()],
     ['#/admin/waitlist', 'Waitlist by film', 'Signups per film link, per day.', 'People', true],
     ['#/admin/visits', 'Visits and signups', 'Who visited the site and who signed up.', 'People', true],
-    ['#/admin/funnel', 'Funnel by day', 'Signed up, first preview and first order, day by day.', 'People', funnelPageOn()],
+    ['#/admin/funnel', 'Funnel by day', 'Signed up, first preview and first order, day by day.', 'People', funnelOn()],
     ['#/admin/renders', 'Render approvals', 'Full films waiting for your yes.', 'Films', ordersOn()],
     ['#/admin/tester', 'Tester computers and Connect an AI', 'Which computers are signed in for testers, and who has an AI connected.', 'Computers', desktopOn()]
   ].filter(r => r[4]).map(([href, label, about, group]) => ({ href, label, about, group }));
@@ -205,7 +203,7 @@
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
-        else if (funnelPageOn() && hash === '#/admin/funnel' && await data.isAppAdmin()) view = await funnelAdminView(onStop);
+        else if (funnelOn() && hash === '#/admin/funnel' && await data.isAppAdmin()) view = await funnelAdminView(onStop);
         else if (desktopOn() && hash === '#/admin/tester' && await data.isAppAdmin()) view = await deviceUi().testerAdminView();
         else if (ordersOn() && hash === '#/admin/renders' && await data.isAppAdmin()) view = await rendersAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
@@ -572,41 +570,9 @@
               h('tr', { class: 'funnel-total' }, h('th', {}, 'Total'), d.steps.map(s => h('th', { class: 'num' }, String(d.totals[s])))))),
           h('p', { class: 'form-note' }, 'Visits are counted each time; every other step counts an account once, the first time it happens. This page only reads.'));
       }
-      // The launch funnel (BUILDER 11-27; behind launchFunnel; SQL 20261127000200): one row a day from what the site already records. A sign-up ask is kept 2 days (Privacy), so older days say 'not kept', never 0.
-      const LAUNCH_COLS = [['signups_asked', 'Sign-up asked'], ['accounts_opened', 'Account opened'], ['first_sheet', 'First contact sheet'], ['first_preview', 'First preview'],
-        ['film_asked', 'Full film asked'], ['film_approved', 'Approved'], ['film_delivered', 'Delivered']];
-      const launchOut = h('div', {}, h('p', { class: 'form-note' }, 'Loading\u2026'));
-      const launchError = errorLine();
-      let launchDays = 14;
-      const cell = v => (v === null || v === undefined) ? 'not kept' : String(Number(v) || 0);
-      async function loadLaunch() {
-        let rows;
-        // the 7/14/30 buttons stay on screen after an error, with Try again, so retrying never needs a reload
-        const dayButtons = () => h('p', {}, [7, 14, 30].map(n => h('button', { class: `button secondary small${n === launchDays ? ' is-chosen' : ''}`, type: 'button', 'aria-pressed': String(n === launchDays), onclick: async () => { launchDays = n; await loadLaunch(); launchOut.querySelector(`[data-days="${n}"]`)?.focus(); }, 'data-days': String(n) }, `${n} days`)), ' ');
-        try { rows = await data.adminLaunchFunnel(launchDays); } catch (err) {
-          const again = h('button', { class: 'button secondary small', type: 'button', 'data-key': 'launch-retry', onclick: async () => { await loadLaunch(); (launchOut.querySelector('[data-key="launch-retry"]') || launchOut.querySelector(`[data-days="${launchDays}"]`))?.focus(); } }, 'Try again');
-          launchOut.replaceChildren(dayButtons(), h('p', {}, again));
-          showError(launchError, err);
-          return;
-        }
-        launchError.hidden = true;
-        rows = Array.isArray(rows) ? rows.slice(0, 60) : [];
-        const total = k => rows.reduce((s, r) => s + (Number(r[k]) || 0), 0);
-        launchOut.replaceChildren(
-          dayButtons(),
-          h('table', { class: 'admin-table funnel-days launch-funnel funnel-weeks', tabindex: '0', 'aria-label': 'Launch funnel by day (scrolls sideways on a narrow screen)' }, h('thead', {}, h('tr', {}, h('th', {}, 'Day (Eastern)'), LAUNCH_COLS.map(([, label]) => h('th', { class: 'num' }, label)))),
-            h('tbody', {}, rows.map(r => h('tr', {}, h('td', {}, String(r.day || '').slice(0, 10)), LAUNCH_COLS.map(([k]) => h('td', { class: 'num' }, cell(r[k]))))),
-              h('tr', { class: 'funnel-total' }, h('th', {}, 'Total'), LAUNCH_COLS.map(([k]) => h('th', { class: 'num' }, k === 'signups_asked' ? `${total(k)} (2 days)` : String(total(k))))))),
-          h('p', { class: 'form-note' }, 'Each step after the first counts an account once, on the day it first got there. Sign-up asks count different addresses and are kept only 2 days. Delivered means the film was handed over. Administrator and worker accounts are left out; your own test accounts are counted. This page only reads.'));
-      }
-      const launchSection = launchFunnelOn() ? h('section', { class: 'account-section', 'aria-labelledby': 'launch-funnel-h' }, h('h2', { id: 'launch-funnel-h' }, 'Launch funnel'),
-        h('p', { class: 'form-note' }, 'From what the site already records: sign-up asks, verified accounts, and each account\u2019s first contact sheet, preview and full film. No tracking, no cookies.'),
-        h('p', { class: 'form-note' }, 'Your own test accounts are counted, so on a quiet day most of these numbers may be you.'), launchOut, launchError) : null;
-      if (launchSection) await loadLaunch();
-      if (funnelOn()) await load();
+      await load();
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Funnel by day'),
-        ...(launchSection ? [launchSection] : []),
-        ...(funnelOn() ? [h('p', { class: 'form-note' }, 'Signups \u2192 first preview \u2192 first order, counted day by day from our own database. No third-party tools.'), out, error] : [])];
+        h('p', { class: 'form-note' }, 'Signups \u2192 first preview \u2192 first order, counted day by day from our own database. No third-party tools.'), out, error];
     }
 
     // --- #/admin/renders  Ryan only: the full renders waiting for approval. Approve starts the render; Decline returns the credits. Redrawn after each call returns.

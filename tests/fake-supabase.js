@@ -381,7 +381,7 @@
       // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list, ?topupon adds adminTestTopup (the Test credits section on #/admin/tester).
       my_switches() {
         if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
-        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']).concat(typeof location !== 'undefined' && /[?&]topupon/.test(location.search || '') ? ['adminTestTopup'] : []).concat(typeof location !== 'undefined' && /[?&]funnelon/.test(location.search || '') ? ['launchFunnel'] : []), error: null };      // ?editoron: this account is on the live-editor list too
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : (typeof location !== 'undefined' && /[?&]editoron/.test(location.search || '') ? ['myFilms', 'liveEditor'] : ['myFilms']).concat(typeof location !== 'undefined' && /[?&]topupon/.test(location.search || '') ? ['adminTestTopup'] : []), error: null };      // ?editoron: this account is on the live-editor list too
       },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
@@ -641,16 +641,6 @@
         return { data: t.credits, error: null };
       },
       admin_test_topup_list() { if (!adminMock()) return fail('Only an admin can do this.'); return { data: structuredClone(db.topups || []), error: null }; },
-      // Mock of the launch funnel (SQL 20261127000200): admin only; 14 made-up days, sign-up asks only for today and yesterday (kept 2 days), the rest NULL.
-      admin_launch_funnel({ p_days }) {
-        if (!adminMock()) return fail('Only an admin can do this.');
-        const n = Math.min(Math.max(Number(p_days) || 14, 1), 60), out = [];
-        for (let i = 0; i < n; i++) {
-          const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10), k = (i * 7 + 3) % 5;
-          out.push({ day: d, signups_asked: i < 2 ? 4 + k : null, accounts_opened: 2 + (k % 3), first_sheet: 1 + (k % 2), first_preview: k % 2, film_asked: i % 3 === 0 ? 1 : 0, film_approved: i % 3 === 0 ? 1 : 0, film_delivered: i % 6 === 0 ? 1 : 0 });
-        }
-        return { data: out, error: null };
-      },
       admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
       // Mock of the Connect-an-AI switch (NEXT-WEB 157, SQL 20261027000900): admin only, a reason, refuses an administrator and a worker, every change in a history. maya@example.com and
       // sam@example.com start ON (as after tonight's by-hand SQL); ryan@example.com is an administrator.
