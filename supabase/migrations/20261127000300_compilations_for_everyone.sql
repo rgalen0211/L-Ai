@@ -102,7 +102,7 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'rules') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'phrase') is distinct from 'string' or (char_length(btrim(e ->> 'phrase')) < 1 or char_length(e ->> 'phrase') > 200)
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['phrase', 'picture', 'seconds', 'mode']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['phrase', 'picture', 'seconds', 'mode']))
          or jsonb_typeof(e -> 'picture') is distinct from 'string' or (e ->> 'picture') !~* '^[^\\/:*?"<>|[:cntrl:]]{1,100}\.(png|jpg|jpeg|webp)$'
          or jsonb_typeof(e -> 'seconds') is distinct from 'number' or (case when jsonb_typeof(e -> 'seconds') = 'number' then (e ->> 'seconds')::numeric end) not between 0.5 and 10
          or jsonb_typeof(e -> 'mode') is distinct from 'string' or (e ->> 'mode') not in ('full', 'centre', 'corner', 'lower_third') then
@@ -116,7 +116,7 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'texts') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) < 1 or char_length(e ->> 'text') > 120
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['text', 'start_s', 'length_s', 'position', 'size']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['text', 'start_s', 'length_s', 'position', 'size']))
          or jsonb_typeof(e -> 'start_s') is distinct from 'number' or (case when jsonb_typeof(e -> 'start_s') = 'number' then (e ->> 'start_s')::numeric end) not between 0 and 3600
          or jsonb_typeof(e -> 'length_s') is distinct from 'number' or (case when jsonb_typeof(e -> 'length_s') = 'number' then (e ->> 'length_s')::numeric end) not between 0.5 and 30
          or jsonb_typeof(e -> 'position') is distinct from 'string' or (e ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')
@@ -131,7 +131,7 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'cards') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'text') is distinct from 'string' or char_length(btrim(e ->> 'text')) < 1 or char_length(e ->> 'text') > 120
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['text', 'where', 'seconds']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['text', 'where', 'seconds']))
          or jsonb_typeof(e -> 'where') is distinct from 'string' or (e ->> 'where') not in ('start', 'end')
          or jsonb_typeof(e -> 'seconds') is distinct from 'number' or (case when jsonb_typeof(e -> 'seconds') = 'number' then (e ->> 'seconds')::numeric end) not between 0.5 and 10 then
         return 'Each card needs its words (at most 120 characters), start or end, and 0.5 to 10 seconds.';
@@ -144,7 +144,7 @@ begin
     end if;
     for e in select x from jsonb_array_elements(p -> 'checklist') x loop
       if jsonb_typeof(e) <> 'object' or jsonb_typeof(e -> 'what') is distinct from 'string' or char_length(btrim(e ->> 'what')) < 1 or char_length(e ->> 'what') > 200
-         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) k where k <> all (array['what', 'from', 'must_contain', 'folder', 'count']))
+         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(e) = 'object' then e else '{}'::jsonb end) jk(name) where jk.name <> all (array['what', 'from', 'must_contain', 'folder', 'count']))
          or (e ? 'from' and (jsonb_typeof(e -> 'from') <> 'string' or char_length(e ->> 'from') > 200))
          or (e ? 'must_contain' and (jsonb_typeof(e -> 'must_contain') <> 'string' or char_length(e ->> 'must_contain') > 200))
          or (e ? 'count' and (jsonb_typeof(e -> 'count') <> 'number' or (e ->> 'count') !~ '^[0-9]+$' or coalesce((case when (e ->> 'count') ~ '^[0-9]{1,6}$' then (e ->> 'count')::int end), 0) not between 1 and 20)) then
