@@ -494,7 +494,7 @@
       let got = null, problem = '';
       try { got = await data.deliveryUrl(id); } catch (err) { problem = err.message; }
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Your film'),
-        got ? [h('video', { class: 'delivery-video', controls: true, preload: 'metadata', src: got.url }), h('div', { class: 'actions-row' }, h('a', { class: 'button primary', href: got.url, rel: 'noopener noreferrer', target: '_blank', download: '' }, 'Download the film'), h('a', { class: 'button secondary', href: '#/build', id: 'delivery-another' }, 'Make another film')),
+        got ? [h('video', { class: 'delivery-video', controls: true, preload: 'metadata', src: got.url }), h('div', { class: 'actions-row' }, h('a', { class: 'button primary', href: got.url, rel: 'noopener noreferrer', target: '_blank' }, 'Open or download'), h('a', { class: 'button secondary', href: '#/build', id: 'delivery-another' }, 'Make another film')),
                h('p', { class: 'form-note' }, `${AI_LABEL}. This film is kept for 30 days, then deleted. This link works for an hour; come back to this page for a new one.`)]
             : [h('p', { class: 'app-error', role: 'alert' }, /not found|expired|deleted|no longer/i.test(problem) || !problem ? 'We can’t find that film. It may have expired (films are kept 30 days) or belong to another account.' : problem), h('a', { class: 'button primary', href: myFilmsOn() && window.ryagramFilms ? '#/films' : '#/', id: 'delivery-home' }, myFilmsOn() && window.ryagramFilms ? 'Open My films' : 'Open your projects')]];
     }

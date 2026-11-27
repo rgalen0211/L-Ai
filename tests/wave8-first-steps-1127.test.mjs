@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const lib = fs.readFileSync(new URL('../assets/app-library.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 test('DELIVERY: a Download button (primary) and a Make another film button (secondary, to the builder) sit with the player', () => {
-  assert.ok(lib.includes("h('a', { class: 'button primary', href: got.url, rel: 'noopener noreferrer', target: '_blank', download: '' }, 'Download the film')"));
+  assert.ok(lib.includes("h('a', { class: 'button primary', href: got.url, rel: 'noopener noreferrer', target: '_blank' }, 'Open or download')"));      // honest: the signed address is on another origin, so the browser opens it in a tab (GAMES 03:34); no download attribute
   assert.ok(lib.includes("h('a', { class: 'button secondary', href: '#/build', id: 'delivery-another' }, 'Make another film')"));
-  assert.ok(!lib.includes("'Open or download'"));
+  assert.ok(!lib.includes('Download the film') && !lib.includes("download: ''"));
 });
 test('EMPTY STATE: no films yet says the first picture is free and gives ONE button to the ready-made films', () => {
   assert.ok(lib.includes("'No films yet. Your first picture is free.'"));
