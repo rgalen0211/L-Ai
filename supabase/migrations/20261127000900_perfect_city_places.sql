@@ -1,0 +1,136 @@
+-- PERFECT CITY, DATABASE HALF (GEO, 2026-11-27). NOT APPLIED: a PROPOSAL; Ryan applies it (live step PC1, proposals/GEO-PERFECT-CITY-LIVE-STEPS-1127.md).
+-- What it adds, and nothing else:
+--   * ryagram_private.perfect_city_places: one row per business place (county, kind, osm_ref, name, lat, lon). EMPTY here: the rows are OpenStreetMap
+--     data (ODbL; attorney row G11 open), loaded by the dashboard from a file OUTSIDE every repo (live step PC2). Closed to every API role.
+--   * ryagram_private.perfect_city_units: the Census block groups' centres and populations (public domain), loaded from
+--     supabase/live-steps/perfect_city_units_seed.sql (live step PC2b), generated from the page's own data so the server's numbers match the page's.
+--   * public.perfect_city_places(county, kind, lat, lon): for ONE spot, the places within 5 km of it plus the nearest five (never a whole county in one
+--     call: RENDERER 08:24, the licence question), with how many are loaded and the OpenStreetMap credit; never the osm_ref. Signed in only, and only for
+--     an account whose per-account switch list names 'perfectCity', or an app admin; else 42501. Unknown county or kind, or a spot outside the county: 22023.
+--   * ryagram_private.perfect_city_summary_for(owner, county, kind, lat, lon): the AI tool's summary (CONNECT wraps it with its token check), the same gate
+--     for that owner, schema ryagram.perfect-city-summary/0 (proposals/CONNECT-DEPT-PERFECT-CITY-1127.md part B).
+--   * ryagram_private.perfect_city_km and perfect_city_check: the haversine distance (the same formula as assets/perfect-city-core.js) and the shared gate.
+-- Apply AFTER: 20260928000300_2a_worker_is_not_a_person.sql (require_signed_in), 20261003000300_admin_waitlist_by_film.sql (app_admins),
+-- 20261110000400_account_switches.sql (switches_on), 20261104000100_waiting_accounts.sql (the gate; this file ends with gate_apply()).
+-- Undo: supabase/rollbacks/20261127000900_perfect_city_places_rollback.sql (every object below; the loaded rows are lost, nothing else).
+
+begin;
+
+create table ryagram_private.perfect_city_places (
+  county text not null check (county in ('montgomery_oh', 'greene_oh')),
+  kind text not null check (kind in ('fast_food', 'restaurant', 'grocery')),
+  osm_ref text not null,
+  name text not null default '',
+  lat double precision not null check (lat between -90 and 90),
+  lon double precision not null check (lon between -180 and 180),
+  primary key (county, kind, osm_ref));
+revoke all on ryagram_private.perfect_city_places from public, anon, authenticated, service_role;
+
+create table ryagram_private.perfect_city_units (
+  county text not null check (county in ('montgomery_oh', 'greene_oh')),
+  geoid text not null check (geoid ~ '^39[0-9]{10}$'),
+  pop integer not null check (pop >= 0),
+  lat double precision not null check (lat between -90 and 90),
+  lon double precision not null check (lon between -180 and 180),
+  primary key (county, geoid));
+revoke all on ryagram_private.perfect_city_units from public, anon, authenticated, service_role;
+
+-- Great-circle distance in km (haversine, mean Earth radius 6371.0088 km): the same formula as assets/perfect-city-core.js km().
+create function ryagram_private.perfect_city_km(lat1 double precision, lon1 double precision, lat2 double precision, lon2 double precision)
+returns double precision language plpgsql immutable set search_path = '' as $$
+begin
+  return 2 * 6371.0088 * asin(least(1.0, sqrt(power(sin(radians(lat2 - lat1) / 2), 2)
+                                               + cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lon2 - lon1) / 2), 2))));
+end $$;
+revoke execute on function ryagram_private.perfect_city_km(double precision, double precision, double precision, double precision) from public, anon, authenticated;
+
+-- The one check every Perfect City call makes: an owner with the switch, or an app admin; a known county and kind (no supermarkets in Greene); a spot inside
+-- the county's box (from its loaded block groups, 0.05 degrees of margin). Raises in words; returns nothing.
+create function ryagram_private.perfect_city_check(p_owner uuid, p_county text, p_kind text, p_lat double precision, p_lon double precision)
+returns void language plpgsql stable security definer set search_path = '' as $$
+declare box record;
+begin
+  if p_owner is null or not (exists (select 1 from public.app_admins a where a.user_id = p_owner)
+                             or exists (select 1 from public.account_settings s where s.owner_id = p_owner and 'perfectCity' = any (s.switches_on))) then
+    raise exception 'Perfect City is not switched on for this account.' using errcode = '42501';
+  end if;
+  if p_county is null or p_county not in ('montgomery_oh', 'greene_oh') then
+    raise exception 'Choose a county: montgomery_oh or greene_oh.' using errcode = '22023';
+  end if;
+  if p_kind is null or p_kind not in ('fast_food', 'restaurant', 'grocery') or (p_county = 'greene_oh' and p_kind = 'grocery') then
+    raise exception 'Choose a kind this county has: fast_food or restaurant (grocery in montgomery_oh only).' using errcode = '22023';
+  end if;
+  select min(u.lat) - 0.05 as lat0, max(u.lat) + 0.05 as lat1, min(u.lon) - 0.05 as lon0, max(u.lon) + 0.05 as lon1 into box
+    from ryagram_private.perfect_city_units u where u.county = p_county;
+  if box.lat0 is null then
+    raise exception 'The county data is not loaded yet.' using errcode = '22023';
+  end if;
+  if p_lat is null or p_lon is null or p_lat not between box.lat0 and box.lat1 or p_lon not between box.lon0 and box.lon1 then
+    raise exception 'That spot is outside the county. Give a latitude and longitude inside it.' using errcode = '22023';
+  end if;
+end $$;
+revoke execute on function ryagram_private.perfect_city_check(uuid, text, text, double precision, double precision) from public, anon, authenticated;
+
+-- The page's call: the places near ONE spot (within 5 km, plus the nearest five), never a whole county.
+create function public.perfect_city_places(p_county text, p_kind text, p_lat double precision, p_lon double precision) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare me uuid := ryagram_private.require_signed_in();       -- no visitor, no worker account
+begin
+  perform ryagram_private.perfect_city_check(me, p_county, p_kind, p_lat, p_lon);
+  return (select jsonb_build_object('county', p_county, 'kind', p_kind, 'radius_km', 5, 'credit', 'Map data (c) OpenStreetMap contributors (ODbL)',
+                                    'loaded', (select count(*) from ryagram_private.perfect_city_places a where a.county = p_county and a.kind = p_kind),
+                                    'places', coalesce(jsonb_agg(jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon) order by n.km, n.name, n.osm_ref), '[]'::jsonb))
+            from (select p.name, p.lat, p.lon, p.osm_ref, ryagram_private.perfect_city_km(p_lat, p_lon, p.lat, p.lon) as km,
+                         row_number() over (order by ryagram_private.perfect_city_km(p_lat, p_lon, p.lat, p.lon), p.name, p.osm_ref) as rn
+                    from ryagram_private.perfect_city_places p where p.county = p_county and p.kind = p_kind) n
+           where n.km <= 5 or n.rn <= 5);
+end $$;
+revoke all on function public.perfect_city_places(text, text, double precision, double precision) from public, anon, authenticated;
+grant execute on function public.perfect_city_places(text, text, double precision, double precision) to authenticated;
+
+-- For ONE owner (the connector resolves the owner from its token first): the summary for a spot, in CONNECT's shape ryagram.perfect-city-summary/0.
+-- Every number carries its basis word; distances are straight lines; people are the page's own estimate (block groups whose centre is inside the ring).
+create function ryagram_private.perfect_city_summary_for(p_owner uuid, p_county text, p_kind text, p_lat double precision, p_lon double precision)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_lat double precision := round(p_lat::numeric, 4)::double precision;
+  v_lon double precision := round(p_lon::numeric, 4)::double precision;
+  loaded int;
+begin
+  perform ryagram_private.perfect_city_check(p_owner, p_county, p_kind, v_lat, v_lon);
+  select count(*) into loaded from ryagram_private.perfect_city_places p where p.county = p_county and p.kind = p_kind;
+  return jsonb_build_object(
+    'schema', 'ryagram.perfect-city-summary/0',
+    'place', p_county, 'business_type', p_kind,
+    'spot', jsonb_build_object('lat', v_lat, 'lon', v_lon, 'is_default', false),
+    'places_loaded', loaded,
+    'nearest', coalesce((select jsonb_agg(jsonb_build_object('name', n.name, 'km', round(n.km::numeric, 2), 'basis', 'calculated') order by n.km, n.name)
+                           from (select p.name, ryagram_private.perfect_city_km(v_lat, v_lon, p.lat, p.lon) as km
+                                   from ryagram_private.perfect_city_places p where p.county = p_county and p.kind = p_kind
+                                  order by 2, p.name, p.osm_ref limit 5) n), '[]'::jsonb),
+    'rings', (select jsonb_agg(jsonb_build_object(
+                'km', r.km,
+                'places', jsonb_build_object('count', (select count(*) from ryagram_private.perfect_city_places p
+                                                        where p.county = p_county and p.kind = p_kind and ryagram_private.perfect_city_km(v_lat, v_lon, p.lat, p.lon) <= r.km),
+                                             'basis', 'calculated'),
+                'people_about', jsonb_build_object('value', (select (round(coalesce(sum(u.pop), 0) / 100.0) * 100)::int from ryagram_private.perfect_city_units u
+                                                              where u.county = p_county and ryagram_private.perfect_city_km(v_lat, v_lon, u.lat, u.lon) <= r.km),
+                                                   'basis', 'estimated',
+                                                   'method', 'block groups whose centre is inside the ring, counted in full, rounded to the nearest 100'))
+                order by r.km)
+              from (values (1), (2), (5)) r(km)),
+    'not_known', jsonb_build_array(
+      'Distances are straight lines, not drive or walk times.',
+      'The business points come from OpenStreetMap, made by volunteers: a place can be missing, closed or out of date.',
+      'People within a ring are an estimate: a block group counts in full when its centre is inside the ring.',
+      'There is no success score and no prediction. This shows what is there, not whether a business would do well.'),
+    'credits', jsonb_build_array(
+      'U.S. Census Bureau, 2020 Census, table P1 (total population), block groups.',
+      'This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.',
+      'Map data (c) OpenStreetMap contributors (ODbL)'));
+end $$;
+revoke execute on function ryagram_private.perfect_city_summary_for(uuid, text, text, double precision, double precision) from public, anon, authenticated;
+
+select ryagram_private.gate_apply();                       -- like every migration after the waiting list: the gate covers what a signed-in account can run
+
+commit;
