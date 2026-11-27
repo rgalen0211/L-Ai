@@ -352,7 +352,6 @@
     const intakeUi = () => intakeCache || (intakeCache = window.ryagramIntake.create({ h }));
     let waitingCache = null;
     const waitingUi = () => waitingCache || (waitingCache = window.ryagramWaiting.create({ h, data, busy, showError, errorLine }));
-    let focusOrderUntil = 0;                       // after 'Yes, render it' the page rebuilds and the Render button is gone: for 8 seconds, if focus fell to the page, it goes to the new 'Waiting for approval' line (GAMES 21:16, keyboard and screen-reader users keep their place)
     let activeSeen = false;                                                      // 'active' is remembered for this sign-in; anything else is asked again on the next page
     async function waitingGate(gate) {                                           // gate.unknown: my_access failed twice, so the page says it could not check (no list claim), still closed; one object per route() call, never shared
       if (!waitingOn() || !window.ryagramWaiting) return false;
@@ -404,9 +403,8 @@
       } }, h('label', { for: 'np-title' }, 'Name your film'), h('div', { class: 'inline-row' }, input, create), error);
 
       const S = window.ryagramSite;
-      const HOME_FILMS_MAX = 4;      // the newest four; the whole row now shows with no inner scroll box (Ryan 11-26), so a long list would make the page long: 'All my films' holds the rest (GAMES 22:01 LOW)
       const list = projects.length
-        ? h('ul', { class: 'film-grid' }, (myFilmsOn() && window.ryagramFilms ? projects.slice(0, HOME_FILMS_MAX) : projects).map(p => S.filmCard({ h, project: p, data, version: p.latest && p.latest.id,
+        ? h('ul', { class: 'film-grid' }, projects.map(p => S.filmCard({ h, project: p, data, version: p.latest && p.latest.id,
             parts: [p.latest ? `Version ${p.latest.number}` : 'No versions yet', p.latest && p.latest.state ? badge(p.latest.state) : null, p.updated_at && !isNaN(new Date(p.updated_at)) ? `updated ${date(p.updated_at)}` : null], edit: editLink(p.id, 'button secondary small') })))
         : h('p', { class: 'form-intro' }, builderOn() ? 'No films yet. The quickest way to start is the big card above: pick a ready-made film and the first picture is free.' : 'No films yet. Name your first film above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
@@ -493,7 +491,7 @@
       let got = null, problem = '';
       try { got = await data.deliveryUrl(id); } catch (err) { problem = err.message; }
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Your film'),
-        got ? [h('video', { class: 'delivery-video', controls: true, preload: 'metadata', src: got.url }), h('p', {}, h('a', { class: 'button secondary', href: got.url, rel: 'noopener noreferrer', target: '_blank' }, 'Open or download')),
+        got ? [h('video', { controls: true, preload: 'metadata', src: got.url }), h('p', {}, h('a', { class: 'button secondary', href: got.url, rel: 'noopener noreferrer', target: '_blank' }, 'Open or download')),
                h('p', { class: 'form-note' }, `${AI_LABEL}. This film is kept for 30 days, then deleted. This link works for an hour; come back to this page for a new one.`)]
             : h('p', { class: 'app-error', role: 'alert' }, problem)];
     }
@@ -1877,7 +1875,6 @@
           try {
             await data.requestFinalRender(previewJobId, `app-${previewJobId.slice(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
             requested = true;
-            focusOrderUntil = Date.now() + 8000;
             await loadOrders();
             await refresh();
           } catch (err) {
@@ -1905,9 +1902,6 @@
         }
         openOrders = rows.some(o => J.orderOpen(o.state));
         orderBox.replaceChildren(...(shown.length ? [h('ul', { class: 'order-list' }, shown)] : []));      // (replaceChildren(null) would print the word "null")
-        const firstOrder = orderBox.querySelector('li');
-        const here = document.activeElement;
-        if (Date.now() < focusOrderUntil && firstOrder && (!here || here === document.body || here.tagName === 'H1' || !here.isConnected)) { firstOrder.setAttribute('tabindex', '-1'); firstOrder.focus(); }
       }
 
       function syncControls() {
