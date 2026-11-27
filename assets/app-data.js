@@ -630,6 +630,10 @@
       adminConnectAccessList() { return run(client.rpc('admin_connect_access_list'), 'Couldn\u2019t load who can connect an AI.'); },
       // Each tester's computers (NEXT-WEB 187, SQL 20261031000100): admin only on the server.
       adminTesterDevices() { return run(client.rpc('admin_tester_devices'), 'Couldn\u2019t load the testers\u2019 computers.'); },
+      // Owner-only test credits (SQL 20261127000100, live step 78; behind adminTestTopup, off): only accounts on the owner list Ryan keeps in the dashboard. Admin only; the server is the gate and says why in words.
+      adminTestTopup(email, credits, note) { return run(client.rpc('admin_test_topup', { p_email: String(email || '').trim(), p_credits: Number(credits), p_note: String(note || '').trim() }), 'Couldn\u2019t give the test credits.'); },
+      adminTestTopupUndo(id, note) { return run(client.rpc('admin_test_topup_undo', { p_topup_id: Number(id), p_note: String(note || '').trim() }), 'Couldn\u2019t undo that top-up.'); },
+      adminTestTopupList() { return run(client.rpc('admin_test_topup_list'), 'Couldn\u2019t load the test top-ups.'); },
       adminLocalComputeAudit() { return run(client.rpc('admin_local_compute_audit'), 'Couldn’t load the tester history.'); },
       removeComputer(id) { return run(client.rpc('remove_computer', { p_token: id }), 'Couldn\u2019t remove that computer.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
