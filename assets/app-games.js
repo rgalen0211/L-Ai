@@ -173,9 +173,9 @@
 
     (async () => {
       const opts = roomOptions(cfg, s.code);
-      const failed = text => { status.textContent = text; status.setAttribute('role', 'alert'); stage.replaceChildren(h('button', { class: 'button primary', type: 'button', id: 'gh-retry', onclick: () => location.reload() }, 'Try again')); };        // no room code and no Start button when there is no room (WEB polish 11-27)
-      if (!opts) { failed('This page could not open a game room. Reload and try again.'); return; }
-      try { s.conn = await Room.connect(opts); } catch { failed('This page could not open a game room. Check your connection and reload.'); return; }
+      const failed = text => { status.setAttribute('role', 'alert'); status.textContent = text; stage.replaceChildren(h('button', { class: 'button primary', type: 'button', id: 'gh-retry', onclick: () => location.reload() }, 'Try again')); };        // no room code and no Start button when there is no room (WEB polish 11-27)
+      if (!opts) { failed('This page could not open a game room. Try again.'); return; }
+      try { s.conn = await Room.connect(opts); } catch { failed('This page could not open a game room. Check your connection and try again.'); return; }
       if (s.closed) { s.conn.close(); return; }
       s.off = s.conn.onMessage(onMessage);
       status.textContent = `Room ${s.code} is open.`;
