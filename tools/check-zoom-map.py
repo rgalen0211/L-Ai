@@ -4,7 +4,9 @@ counties (loaded only then), click a county, back out (focus to the state list),
 (default 2024; the numbers, caption, map label and legend year follow it, the band edges do not move), a county file that
 fails to load (a clean whole map, then a click, the list and Try again each reload it), DC winning its own tap, and the page staying shut
 without the switch (one plain line). Also: every legend as plain ranges (Ohio, Rhode Island, Connecticut; DC one colour and one line), a state
-switched mid-load (the old one gone at once), and no orange outline left after Back.
+switched mid-load (the old one gone at once), and no orange outline left after Back. zm5: the inside-this-state line by every county legend
+(Texas, Ohio, Connecticut), Connecticut's planning regions in the caption, count and legend, the year said in the live panel on the whole map,
+and the two-stroke hover ring.
 Local only: a server on 127.0.0.1 with its own port, nothing sent anywhere. Screenshots go to --out (outside the repo).
   py -I -B tools/check-zoom-map.py --out D:/Ryagram-scratch/GEO/zoom-shots
 """
@@ -106,6 +108,11 @@ def main():
                 check(p.inner_text('#zm-legend .zm-keys') == b24, 'year 2020: the band edges did not move')
                 check(ohio_tip() == 'Ohio, 2020: 11,798,905 people (estimated)', f'Ohio on the map, 2020 (POPESTIMATE2020 in the CSV): {ohio_tip()}')
                 print(f'       ({sum(a != b for a, b in zip(f24.split(","), fills().split(",")))} of 49 states change colour from 2024 to 2020)')
+                check(p.get_attribute('#zm-detail', 'aria-live') == 'polite' and p.inner_text('#zm-us-year').strip() == 'The whole map shows July 1, 2020 (estimated).',
+                      'year 2020 on the whole map: the live panel says the year (announced)')
+                check(p.get_attribute('#zm-caption', 'aria-live') is None and p.locator('#zm-map [aria-live], #zm-caption[aria-live], #zm-legend[aria-live]').count() == 0,
+                      'one live region for the year: the caption and legend are not a second one')
+                check(p.locator('#zm-compare').count() == 0, 'the whole map: no inside-this-state line')
                 p.screenshot(path=str(out / f'1b-states-2020-{name}.png'), full_page=True)
                 p.select_option('#zm-year', '2024')
                 check(fills() == f24 and ohio_tip().startswith('Ohio, 2024'), 'back to 2024: the same colours as at the start')
@@ -125,6 +132,8 @@ def main():
                 keys = keys_of()
                 check(len(keys) == 5 and keys[0].startswith('under ') and keys[-1].endswith(' and over') and all(' to ' in k for k in keys[1:4])
                       and 'to under' not in lg and 'or more' not in lg and 'one fifth' in lg, f'the legend as plain ranges: under X, X to Y, ..., Z and over ({keys})')
+                check(p.inner_text('#zm-compare').strip() == 'Colours compare counties inside this state only, not with other states.', 'Ohio: the inside-this-state line')
+                check(p.inner_text('#zm-caption').startswith('Ohio, counties:') and p.inner_text('#zm-area-count').startswith('Counties and county equivalents: 88'), 'Ohio: counties in the caption and the count')
                 check(no_scroll(), 'no sideways scroll (Ohio)')
                 p.screenshot(path=str(out / f'2-ohio-{name}.png'), full_page=True)
 
@@ -167,6 +176,9 @@ def main():
                 p.focus('#zm-state')
                 p.select_option('#zm-state', '48')
                 check(counties(254), 'keyboard: Texas from the list, its 254 counties drawn')
+                COMPARE = 'Colours compare counties inside this state only, not with other states.'
+                check(p.inner_text('#zm-compare').strip() == COMPARE and p.locator('#zm-legend #zm-compare').is_visible(), 'Texas: the legend says its colours compare inside this state only')
+                p.locator('#zm-legend').screenshot(path=str(out / f'4b-texas-legend-note-{name}.png'))
                 if name == 'phone':
                     check(p.evaluate("(() => { const r = document.getElementById('zm-svg').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight + 1; })()"), 'after a pick from the list the map is in view')
                 p.focus('#zm-county')
@@ -192,6 +204,13 @@ def main():
                 keys = keys_of()
                 check(len(keys) == 5 and all(plain(k) for k in keys), f'Connecticut legend: plain ranges ({keys})')
                 check('45 figures' in p.inner_text('#zm-bands'), 'Connecticut legend: 45 figures')
+                ct = {k: p.inner_text(s).strip() for k, s in (('caption', '#zm-caption'), ('count', '#zm-area-count'), ('bands', '#zm-bands'), ('compare', '#zm-compare'))}
+                check(ct['caption'] == 'Connecticut, planning regions: population on July 1, 2024 (estimated)', f"Connecticut caption: planning regions ({ct['caption']})")
+                check(ct['count'].startswith('Planning regions: 9'), f"Connecticut panel count: planning regions ({ct['count']})")
+                check('the planning regions of Connecticut only' in ct['bands'] and 'every planning region, every year' in ct['bands'], 'Connecticut legend: planning regions')
+                check(ct['compare'] == 'Colours compare planning regions inside this state only, not with other states.', 'Connecticut: the inside-this-state line says planning regions')
+                check(not re.search(r'count(y|ies)', ' '.join([ct['caption'], ct['bands'], ct['compare'], p.inner_text('#zm-legend-year')]), re.I)
+                      and p.inner_text('label[for="zm-county"]').startswith('Planning region'), 'Connecticut: no "county" in the caption or legend; the list says Planning region')
                 p.screenshot(path=str(out / f'5b-connecticut-{name}.png'), full_page=True)
                 p.locator('#zm-legend').screenshot(path=str(out / f'5b-connecticut-legend-{name}.png'))
                 p.select_option('#zm-state', '44')
@@ -227,11 +246,15 @@ def main():
                 else:
                     az.hover(timeout=5000)
                     check(p.locator('path.zm-hover').count() == 1, 'desktop: a mouse over Arizona outlines it')
+                    ring = p.evaluate("[...document.querySelectorAll('#zm-ring path')].map((x) => [x.getAttribute('class'), getComputedStyle(x).stroke, getComputedStyle(x).pointerEvents])")
+                    check([r[:2] for r in ring] == [['zm-ring-halo', 'rgb(255, 255, 255)'], ['zm-ring-core', 'rgb(0, 0, 0)']] and all(r[2] == 'none' for r in ring),
+                          f'desktop: the ring is a white halo under a black core, on top, taking no pointer ({ring})')
+                    p.screenshot(path=str(out / f'5d-hover-ring-{name}.png'))      # the viewport as it is: a locator shot scrolls, and the ring goes with the pointer
                     az.click(timeout=5000)
                     check(counties(15), 'Arizona: its 15 counties drawn')
                     p.locator('#zm-svg path.zm-county[data-id="04013"]').click(timeout=5000)
                     p.click('#zm-back')
-                check(p.locator('path.zm-hover, path.zm-picked').count() == 0 and orange() == [], f'after Back: no state or county keeps an orange outline ({orange()})')
+                check(p.locator('path.zm-hover, path.zm-picked, #zm-ring path').count() == 0 and orange() == [], f'after Back: no state or county keeps an orange outline ({orange()})')
                 check(view_box() == US_BOX and p.locator('path.zm-dim').count() == 0, 'after Back: the whole map, nothing dimmed')
                 p.screenshot(path=str(out / f'5d-after-back-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')

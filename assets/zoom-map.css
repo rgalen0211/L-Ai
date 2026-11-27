@@ -9,7 +9,12 @@
 .zm-svg path.zm-dim { opacity: 0.3; }
 .zm-svg.zm-zoomed .zm-state { stroke-width: 1.2; }
 .zm-svg path.zm-picked { stroke: #ffd166; stroke-width: 2.5; }
-.zm-svg path.zm-hover { stroke: #ffd166; stroke-width: 1.5; }      /* set by a mouse pointer only (assets/app-zoom-map.js); a :hover sticks after a tap */
+/* The hover ring (a mouse pointer only, assets/app-zoom-map.js; a :hover sticks after a tap): a white halo under a black core, drawn on top of
+   the map. Every band colour has at least 3 to 1 against one of the two (tests/zoom-map.test.mjs computes it); no one colour can against all five. */
+.zm-svg .zm-ring { pointer-events: none; }
+.zm-svg path.zm-ring-halo { fill: none; stroke: #ffffff; stroke-width: 4.5; cursor: default; }
+.zm-svg path.zm-ring-core { fill: none; stroke: #000000; stroke-width: 2; cursor: default; }
+.zm-compare { font-weight: 600; margin: 6px 0; }
 .zm-legend { min-width: 200px; flex: 1 1 200px; }
 .zm-keys { list-style: none; padding: 0; margin: 4px 0; }
 .zm-keys li { display: flex; align-items: center; gap: 8px; margin: 2px 0; }

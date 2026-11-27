@@ -263,10 +263,12 @@ test('the legend reads as plain ranges in every mode: bands, one band per figure
 function fakeDom() {
   const made = [], appendedToHead = [];
   const el = (tag) => {
-    const e = { tagName: String(tag).toUpperCase(), children: [], attrs: {}, className: '', textContent: '', parentElement: null,
+    const e = { tagName: String(tag).toUpperCase(), children: [], attrs: {}, className: '', textContent: '', parentElement: null, listeners: {},
       classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
       setAttribute(k, v) { this.attrs[k] = String(v); if (k === 'id') this.id = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
-      addEventListener() {}, removeEventListener() {}, focus() {}, before() {}, remove() {},
+      addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }, removeEventListener() {}, focus() {}, before() {}, remove() {},
+      fire(type, ev = {}) { for (const fn of this.listeners[type] || []) fn({ target: this, ...ev }); },
+      get firstChild() { return this.children[0] || null; },
       append(...kids) { for (const k of kids) { const c = typeof k === 'string' ? { text: k } : k; if (c && typeof c === 'object') c.parentElement = this; this.children.push(c); } },
       replaceChildren(...kids) { this.children = []; this.append(...kids); },
       get childElementCount() { return this.children.filter((c) => c.tagName).length; },
@@ -289,10 +291,11 @@ function fakeDom() {
   return { document, made, appendedToHead, el };
 }
 
-async function routeLabsMap(on) {
+async function routeLabsMap(on, payload = null) {
   const { document, made, appendedToHead, el } = fakeDom();
   const window = { addEventListener() {}, removeEventListener() {}, ryagramConfig: {},
     ryagramSwitches: { load: async () => {}, featureOn: (n) => n === 'zoomMap' && on } };
+  if (payload) { window.ryagramZoomMapData = { us: payload.us }; window.ryagramZoomMapCounties = payload.counties; }     // already "loaded": the view goes past the script request
   const location = { hash: '#/labs/map', search: '', replace() {} };
   const ctx = { window, document, location, console, setTimeout, clearTimeout, setInterval, clearInterval, MutationObserver: class { observe() {} disconnect() {} }, URLSearchParams };
   vm.runInNewContext(read('assets/app-zoom-map.js'), ctx);           // the real map module: its view() asks for the data file through document.head
@@ -300,7 +303,8 @@ async function routeLabsMap(on) {
   const root = el('main');
   const data = { isAppAdmin: async () => false, serviceStatus: async () => null };
   window.ryagramLibrary.mount(root, data);
-  for (let i = 0; i < 50 && !(on ? appendedToHead.length : root.querySelector('h1')); i++) await new Promise((r) => setTimeout(r, 10));
+  const ready = () => (payload ? made.some((e) => e.attrs.id === 'zm-caption' && e.textContent) : on ? appendedToHead.length : root.querySelector('h1'));
+  for (let i = 0; i < 50 && !ready(); i++) await new Promise((r) => setTimeout(r, 10));
   return { root, made, appendedToHead };
 }
 
@@ -317,4 +321,116 @@ test('the router with a stub featureOn: switch off gives one plain line and load
   const on = await routeLabsMap(true);
   assert.equal(on.appendedToHead.length, 1);
   assert.match(on.appendedToHead[0].src, /^\/assets\/zoom-map\/states\.js\?v=20261127zm\d+$/);
+});
+
+// A tiny invented payload shaped like states.js and st-NN.js (invented names and figures, not Census data). '09' is Connecticut's code, so its
+// areas are planning regions. Bands over all five years of the three states: cut points 400, 500 and 1,000, so Alpha State is band 2 in 2024
+// (500) and band 0 in 2020 (100); Beta State is band 2 in every year.
+const sq = 'M0,0L10,0L10,10L0,10Z';
+const TINY = {
+  us: { version: 'test', width: 100, height: 60, projection: 'invented', value: { name: 'Population', kind: 'estimated', years: [2020, 2021, 2022, 2023, 2024] },
+    sources: { boundaries: 'invented shapes', values: 'invented figures', calculated: 'Invented.' }, leftOut: [],
+    states: [{ id: '01', name: 'Alpha State', d: sq, bbox: [0, 0, 10, 10], counties: 2, pop: [100, 200, 300, 400, 500] },
+      { id: '02', name: 'Beta State', d: 'M20,0L30,0L30,10Z', bbox: [20, 0, 30, 10], counties: 1, pop: [500, 500, 500, 500, 500] },
+      { id: '09', name: 'Delta State', d: 'M40,0L50,0L50,10Z', bbox: [40, 0, 50, 10], counties: 2, pop: [1000, 1000, 1000, 1000, 1000] }] },
+  counties: {
+    '01': { id: '01', counties: [{ id: '01001', name: 'North Alpha County', d: sq, pop: [10, 20, 30, 40, 50] }, { id: '01003', name: 'South Alpha County', d: sq, pop: [60, 70, 80, 90, 100] }] },
+    '09': { id: '09', counties: [{ id: '09110', name: 'Upper Delta Planning Region', d: sq, pop: [10, 20, 30, 40, 50] }, { id: '09120', name: 'Lower Delta Planning Region', d: sq, pop: [60, 70, 80, 90, 100] }] }
+  }
+};
+const textOf = (e) => (e == null ? '' : e.text != null ? e.text : e.children && e.children.length ? e.children.map(textOf).join('') : e.textContent || '');
+const find = (root, id) => { let hit = null; const walk = (n) => { for (const c of n.children || []) { if (c.attrs && c.attrs.id === id) hit = c; walk(c); } }; walk(root); return hit; };
+const paths = (root, cls) => { const out = []; const walk = (n) => { for (const c of n.children || []) { if (c.tagName === 'PATH' && c.attrs.class === cls) out.push(c); walk(c); } }; walk(root); return out; };
+const tick = async (until) => { for (let i = 0; i < 50 && !until(); i++) await new Promise((r) => setTimeout(r, 5)); };
+
+test('the Year list recolours the whole map and updates the caption, the map label and the live panel (vm harness, invented payload)', async () => {
+  const { root, appendedToHead } = await routeLabsMap(true, TINY);
+  const w = {};
+  vm.runInNewContext(read('assets/app-zoom-map.js'), { window: w, document: {} });
+  const { FILL } = w.ryagramZoomMap;
+  assert.equal(appendedToHead.length, 0, 'the payload was there already: no script asked for');
+  const fill = (id) => paths(root, 'zm-state').find((p) => p.attrs['data-id'] === id).attrs.fill;
+  const caption = () => textOf(find(root, 'zm-caption'));
+  assert.equal(caption(), 'The contiguous states: population on July 1, 2024 (estimated)');
+  assert.deepEqual([fill('01'), fill('02'), fill('09')], [FILL[2], FILL[2], FILL[3]]);
+  assert.equal(textOf(find(root, 'zm-us-year')), 'The whole map shows July 1, 2024 (estimated).');
+  assert.equal(find(root, 'zm-detail').attrs['aria-live'], 'polite', 'the year line sits in the live panel');
+  assert.equal(find(root, 'zm-caption').attrs['aria-live'], undefined, 'one live region is enough: the caption is not a second one');
+  find(root, 'zm-year').fire('change', { target: { value: '2020' } });
+  assert.equal(caption(), 'The contiguous states: population on July 1, 2020 (estimated)');
+  assert.equal(fill('01'), FILL[0], 'Alpha State recoloured: 100 people in 2020');
+  assert.equal(fill('02'), FILL[2], 'Beta State kept its colour: the same 500 in every year');
+  assert.equal(textOf(find(root, 'zm-us-year')), 'The whole map shows July 1, 2020 (estimated).', 'the live panel says the new year');
+  assert.match(find(root, 'zm-svg').attrs['aria-label'], /, 2020: states shaded/);
+  assert.equal(textOf(paths(root, 'zm-state').find((p) => p.attrs['data-id'] === '01').children[0]), 'Alpha State, 2020: 100 people (estimated)');
+  find(root, 'zm-year').fire('change', { target: { value: '2024' } });
+  assert.deepEqual([fill('01'), caption()], [FILL[2], 'The contiguous states: population on July 1, 2024 (estimated)'], 'back to 2024');
+});
+
+test('counties shown: the legend says colours compare inside this state only; Connecticut (09) says planning regions in the panel, legend and caption', async () => {
+  const { root } = await routeLabsMap(true, TINY);
+  assert.equal(find(root, 'zm-compare'), null, 'the whole map has no inside-this-state line');
+  paths(root, 'zm-state').find((p) => p.attrs['data-id'] === '01').fire('click');
+  await tick(() => paths(root, 'zm-county').length === 2);
+  assert.equal(textOf(find(root, 'zm-compare')), 'Colours compare counties inside this state only, not with other states.');
+  assert.equal(textOf(find(root, 'zm-caption')), 'Alpha State, counties: population on July 1, 2024 (estimated)');
+  assert.match(textOf(find(root, 'zm-area-count')), /^Counties and county equivalents: 2/);
+  find(root, 'zm-back').fire('click');
+  assert.equal(find(root, 'zm-compare'), null, 'Back: the line goes with the counties');
+  paths(root, 'zm-state').find((p) => p.attrs['data-id'] === '09').fire('click');
+  await tick(() => paths(root, 'zm-county').length === 2);
+  assert.equal(textOf(find(root, 'zm-compare')), 'Colours compare planning regions inside this state only, not with other states.');
+  assert.equal(textOf(find(root, 'zm-caption')), 'Delta State, planning regions: population on July 1, 2024 (estimated)');
+  assert.match(textOf(find(root, 'zm-area-count')), /^Planning regions: 2/);
+  const bands = textOf(find(root, 'zm-bands'));
+  assert.match(bands, /the planning regions of Delta State only/);
+  assert.match(bands, /every planning region, every year/);
+  assert.match(find(root, 'zm-svg').attrs['aria-label'], /2 planning regions shaded/);
+  assert.ok(!/count(y|ies)/i.test(`${bands} ${textOf(find(root, 'zm-caption'))} ${textOf(find(root, 'zm-area-count'))}`), 'no "county" left in the legend bands, caption or count');
+  find(root, 'zm-year').fire('change', { target: { value: '2021' } });
+  assert.equal(textOf(find(root, 'zm-compare')), 'Colours compare planning regions inside this state only, not with other states.', 'a year change keeps the line');
+});
+
+test('the hover ring: a mouse draws a halo and a core over the shape; a touch draws nothing; leaving clears it', async () => {
+  const { root } = await routeLabsMap(true, TINY);
+  const alpha = paths(root, 'zm-state').find((p) => p.attrs['data-id'] === '01');
+  const ring = () => find(root, 'zm-ring').children;
+  alpha.fire('pointerenter', { pointerType: 'touch' });
+  assert.equal(ring().length, 0);
+  alpha.fire('pointerenter', { pointerType: 'mouse' });
+  assert.deepEqual(ring().map((p) => p.attrs.class), ['zm-ring-halo', 'zm-ring-core']);
+  assert.ok(ring().every((p) => p.attrs.d === alpha.attrs.d));
+  alpha.fire('pointerleave');
+  assert.equal(ring().length, 0);
+  alpha.fire('pointerenter', { pointerType: 'mouse' });
+  alpha.fire('click');
+  assert.equal(ring().length, 0, 'a zoom clears the ring');
+});
+
+// WCAG relative luminance and contrast ratio of two #rrggbb colours.
+const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+
+test('the hover ring has at least 3 to 1 against every band colour and the no-figure grey (computed)', () => {
+  const w = {};
+  vm.runInNewContext(read('assets/app-zoom-map.js'), { window: w, document: {} });
+  const { FILL, NO_DATA } = w.ryagramZoomMap;
+  const css = read('assets/zoom-map.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const stroke = (cls) => css.match(new RegExp(`path\\.${cls} \\{[^}]*stroke: (#[0-9a-f]{6});`))[1];
+  const core = stroke('zm-ring-core'), halo = stroke('zm-ring-halo');
+  const ringBest = (bg) => Math.max(contrast(core, bg), contrast(halo, bg));
+  for (const bg of [...FILL, NO_DATA]) assert.ok(ringBest(bg) >= 3, `the ring against ${bg}: ${ringBest(bg).toFixed(2)} to 1`);
+  assert.ok(contrast(core, halo) >= 3, 'the two strokes stand apart from each other');
+  assert.ok(!/zm-hover[^{]*\{[^}]*stroke/.test(css), 'no other hover stroke is drawn');
+  assert.ok(/\.zm-ring \{[^}]*pointer-events: none/.test(css), 'the ring takes no pointer (the shape under it keeps its hover and click)');
+  // must-fail: the old orange ring fails the same computation against the palest band (about 1.15 to 1)
+  assert.ok(contrast('#ffd166', FILL[0]) < 1.2);
+  // and no ONE colour passes against all five blues, which is why the ring has two strokes
+  assert.ok(!['#000000', '#ffffff', '#ffd166', '#14141a'].some((c) => FILL.every((bg) => contrast(c, bg) >= 3)));
+});
+
+test('what the prototype does not do: raw head counts, not per-person rates, and no density', () => {
+  const w = {};
+  vm.runInNewContext(read('assets/app-zoom-map.js'), { window: w, document: {} });
+  assert.ok(w.ryagramZoomMap.WORDS.notDone.includes('Raw head counts, not per-person rates, and no density.'));
 });

@@ -18,15 +18,22 @@
     notDone: ['Five years only: July 1 of 2020 to 2024 (the Census Bureau\'s Vintage 2024 estimates). No earlier years, no forecasts and no animation: pick the year from the list.',
       'One value only: total population. No other measures yet.',
       'Contiguous states and the District of Columbia only. Alaska and Hawaii (insets) and Puerto Rico are not drawn yet.',
+      'Raw head counts, not per-person rates, and no density.',
       'Shapes are simplified for speed, so small islands are left out and borders are approximate.',
       'Colours compare places at the same level only: states with states, and a state\'s counties with each other (each level over all five years).'],
     loadError: 'The map data could not be loaded. Try again later.',
-    countyError: (name) => `The counties of ${name} could not be loaded. You are back on the whole map.`,
+    countyError: (name, many = 'counties') => `The ${many} of ${name} could not be loaded. You are back on the whole map.`,
     smallStates: 'Small states and counties: pick them from the lists.',
     year2020: 'The 2020 figure is the July 1, 2020 estimate (not the April 1, 2020 census count).',
     onePlace: 'One county equivalent: see its numbers below.',
-    connecticut: 'Connecticut\'s nine planning regions (the Census Bureau\'s county equivalents since 2022).'
+    connecticut: 'Connecticut\'s nine planning regions (the Census Bureau\'s county equivalents since 2022).',
+    compareInside: (many) => `Colours compare ${many} inside this state only, not with other states.`,
+    usYear: (y) => `The whole map shows July 1, ${y} (estimated).`
   };
+  // What a state's areas are called: Connecticut's are planning regions (since 2022), every other state's are counties.
+  const areaWords = (fp) => (fp === '09'
+    ? { one: 'planning region', many: 'planning regions', One: 'Planning region', count: 'Planning regions' }
+    : { one: 'county', many: 'counties', One: 'County', count: 'Counties and county equivalents' });
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
 
   // The change from the first year to year index yi, with its sign: '+1,234 (+0.5%)', '-56 (-1.2%)', '0 (0.0%)'; null without both figures.
@@ -125,16 +132,25 @@
     const root = svg('svg', { viewBox: usBox.join(' '), class: 'zm-svg', id: 'zm-svg', role: 'img', 'aria-label': usLabel() });
     const gStates = svg('g', { class: 'zm-states' });
     const gCounties = svg('g', { class: 'zm-counties' });
-    root.append(gStates, gCounties);
+    const gRing = svg('g', { class: 'zm-ring', id: 'zm-ring', 'aria-hidden': 'true' });      // on top of every shape, so no neighbour hides the ring; takes no pointer
+    root.append(gStates, gCounties, gRing);
     const area = (s) => (s.bbox[2] - s.bbox[0]) * (s.bbox[3] - s.bbox[1]);
     // The hover outline is a class set by a MOUSE pointer only (a CSS :hover sticks after a tap on a phone, so a state kept an orange edge
-    // after Back); every reset of the map clears it.
+    // after Back), drawn as the two-stroke ring in gRing; every reset of the map clears it.
+    const ringPath = (p, cls) => svg('path', { d: p.getAttribute('d'), class: cls, 'fill-rule': 'evenodd' });      // colours in assets/zoom-map.css
     const hoverable = (p) => {
-      p.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') p.classList.add('zm-hover'); });
-      p.addEventListener('pointerleave', () => p.classList.remove('zm-hover'));
+      p.addEventListener('pointerenter', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        p.classList.add('zm-hover');
+        gRing.replaceChildren(ringPath(p, 'zm-ring-halo'), ringPath(p, 'zm-ring-core'));
+      });
+      p.addEventListener('pointerleave', () => { p.classList.remove('zm-hover'); gRing.replaceChildren(); });
       return p;
     };
-    const clearHover = () => root.querySelectorAll('.zm-hover, .zm-picked').forEach((p) => p.classList.remove('zm-hover', 'zm-picked'));
+    const clearHover = () => {
+      gRing.replaceChildren();
+      root.querySelectorAll('.zm-hover, .zm-picked').forEach((p) => p.classList.remove('zm-hover', 'zm-picked'));
+    };
     for (const s of [...us.states].sort((a, b) => area(b) - area(a))) {      // biggest first, so a small state (DC, RI, DE) is drawn on top and wins the tap
       const p = hoverable(svg('path', { d: s.d, class: 'zm-state', 'data-id': s.id, 'fill-rule': 'evenodd' }, [svg('title')]));
       p.addEventListener('click', () => { if (state.fp !== s.id) zoomTo(s.id); });
@@ -172,16 +188,18 @@
     const mapBox = h('div', { class: 'zm-map', id: 'zm-map' }, root, legend);
 
     // places: the places of this level (each with five figures); the bands come from all five years of them at once.
-    function drawLegend(places, scope, unit) {
-      state.legend = [places, scope, unit];
+    // compare: for a state's counties, the line that their colours say nothing about other states (a dark Texas county is not a dark Ohio one).
+    function drawLegend(places, scope, unit, compare = null) {
+      state.legend = [places, scope, unit, compare];
       const { n, each, single, labels } = legendKeys(places);
       const keys = labels.map((t, i) => h('li', {}, h('span', { class: 'zm-swatch', 'data-fill': FILL[i] }), ' ', t));
       const how = each ? 'one band per figure' : n === 1 ? 'one band' : `about one fifth of the ${fmt(YEARS.length * places.length)} figures (every ${unit}, every year) in each`;
       const bands = single ? 'Bands (calculated): one colour for the one place on this map, in every year.'
         : `Bands (calculated): ${scope}, over all ${YEARS.length} years (${YEARS[0]} to ${YEARS[YEARS.length - 1]}) at once, ${how}. The bands stay the same for every year, so a change of colour means a change in people.`;
-      legend.replaceChildren(h('p', { class: 'meta', id: 'zm-legend-year' }, `${us.value.name} on July 1, ${year()} (estimated)`), h('ul', { class: 'zm-keys' }, keys),
+      legend.replaceChildren(...[h('p', { class: 'meta', id: 'zm-legend-year' }, `${us.value.name} on July 1, ${year()} (estimated)`), h('ul', { class: 'zm-keys' }, keys),
+        compare ? h('p', { class: 'zm-compare', id: 'zm-compare' }, compare) : null,
         h('p', { class: 'meta', id: 'zm-bands' }, bands),
-        h('p', { class: 'meta' }, 'Grey: no published figure.'));
+        h('p', { class: 'meta' }, 'Grey: no published figure.')].filter(Boolean));      // replaceChildren would write a null as the word "null"
       legend.querySelectorAll('.zm-swatch').forEach((s) => s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: s.getAttribute('data-fill') })])));
     }
 
@@ -194,12 +212,14 @@
     function drawDetail() {
       const y = year();
       const s = state.fp && byId.get(state.fp);
-      if (!s) { detail.replaceChildren(h('p', { class: 'form-intro' }, WORDS.usHint)); return; }
+      // the whole map: the year is said here, in the one live region, so a change of year is announced on this view too
+      if (!s) { detail.replaceChildren(h('p', { class: 'form-intro', id: 'zm-us-year' }, WORDS.usYear(y)), h('p', { class: 'form-intro' }, WORDS.usHint)); return; }
+      const w = areaWords(s.id);
       const out = [h('h2', { id: 'zm-place' }, s.name),
         h('ul', { class: 'zm-facts', id: 'zm-state-facts' },
           h('li', {}, `People in ${y}: ${at(s) == null ? 'no figure' : fmt(at(s))}`, h('span', { class: 'zm-label' }, ` estimated, July 1, ${y}`)),
           changeLine(s, 'zm-state-change'),
-          h('li', {}, `Counties and county equivalents: ${fmt(s.counties)}`, h('span', { class: 'zm-label' }, ' observed, 2024 boundary file')))];
+          h('li', { id: 'zm-area-count' }, `${w.count}: ${fmt(s.counties)}`, h('span', { class: 'zm-label' }, ' observed, 2024 boundary file')))];
       if (s.id === '09') out.push(h('p', { class: 'meta', id: 'zm-ct' }, WORDS.connecticut));
       const c = state.county && state.counties && state.counties.counties.find((x) => x.id === state.county);
       if (c) {
@@ -208,15 +228,15 @@
             h('li', {}, `People in ${y}: ${at(c) == null ? 'no figure' : fmt(at(c))}`, at(c) == null ? null : h('span', { class: 'zm-label' }, ` estimated, July 1, ${y}`)),
             changeLine(c, 'zm-county-change'),
             at(c) != null && at(s) ? h('li', {}, `Share of ${s.name} in ${y}: ${(100 * at(c) / at(s)).toFixed(1)}%`, h('span', { class: 'zm-label' }, ' calculated')) : null,
-            h('li', { class: 'meta' }, `County code (FIPS) ${c.id}`)));
-      } else out.push(h('p', { class: 'meta' }, 'Click a county, or pick it from the list, to see its number.'));
+            h('li', { class: 'meta' }, `${w.One} code (FIPS) ${c.id}`)));
+      } else out.push(h('p', { class: 'meta' }, `Click a ${w.one}, or pick it from the list, to see its number.`));
       if (state.yi === 0) out.push(h('p', { class: 'meta', id: 'zm-2020' }, WORDS.year2020));
       detail.replaceChildren(...out);
     }
 
     function drawCaption() {
       const s = state.fp && state.counties && byId.get(state.fp);      // while a state's counties load, the whole map is on screen and the caption says so
-      caption.textContent = `${s ? `${s.name}, counties` : 'The contiguous states'}: population on July 1, ${year()} (estimated)`;
+      caption.textContent = `${s ? `${s.name}, ${areaWords(s.id).many}` : 'The contiguous states'}: population on July 1, ${year()} (estimated)`;
     }
 
     function setYear(i) {
@@ -225,7 +245,7 @@
       yearSel.value = String(year());
       recolour();
       const s = state.fp && byId.get(state.fp);
-      root.setAttribute('aria-label', s && state.counties ? `Map of ${s.name}, ${year()}: ${state.counties.counties.length} counties shaded by population (estimated, July 1, ${year()})` : usLabel());
+      root.setAttribute('aria-label', s && state.counties ? `Map of ${s.name}, ${year()}: ${state.counties.counties.length} ${areaWords(s.id).many} shaded by population (estimated, July 1, ${year()})` : usLabel());
       if (state.legend) drawLegend(...state.legend);
       drawCaption();
       drawDetail();
@@ -247,12 +267,12 @@
       retry.hidden = true;
       wholeMap();                                     // the last state's counties, zoom, dimming, legend and caption go at once: never the old state over the new name
       back.hidden = false;                            // Back (or the list's All states) cancels a slow load
-      status.textContent = 'Loading the counties...';
+      status.textContent = `Loading the ${areaWords(fp).many}...`;
       let data;
       try { data = await loadCounties(fp); } catch {
         if (state.fp !== fp) return;
         backOut();                                    // a clean whole map, and this state is no longer current, so a click or the list retries
-        status.textContent = WORDS.countyError(s.name);
+        status.textContent = WORDS.countyError(s.name, areaWords(fp).many);
         retry.onclick = () => { stateSel.focus(); zoomTo(fp); };      // the button hides itself, so focus goes to the list
         retry.hidden = false;
         return;
@@ -271,9 +291,10 @@
       root.classList.add('zm-zoomed');
       const csel = h('select', { id: 'zm-county', onchange: (e) => pickCounty(e.target.value) },
         h('option', { value: '' }, `All of ${s.name}`), [...data.counties].sort((a, b) => a.name.localeCompare(b.name)).map((c) => h('option', { value: c.id }, c.name)));
-      countyWrap.replaceChildren(h('label', { class: 'zm-control', for: 'zm-county' }, 'County ', csel));
+      const w = areaWords(fp);
+      countyWrap.replaceChildren(h('label', { class: 'zm-control', for: 'zm-county' }, `${w.One} `, csel));
       back.hidden = false;
-      drawLegend(data.counties, `the counties of ${s.name} only`, 'county');
+      drawLegend(data.counties, `the ${w.many} of ${s.name} only`, w.one, WORDS.compareInside(w.many));
       setYear(state.yi);                              // colours, tooltips, the map's label, caption and panel for the chosen year
       // On a phone the map can sit below the fold after a pick from the list: bring it into view.
       if (fromList && window.matchMedia && window.matchMedia('(max-width: 700px)').matches) root.scrollIntoView({ block: 'nearest' });
@@ -309,5 +330,5 @@
       h('p', { class: 'form-note', role: 'note' }, 'Prototype. Draft wording, not yet approved.')];
   }
 
-  window.ryagramZoomMap = Object.freeze({ view, breaks, levelBreaks, legendKeys, band, change, fitBox, VERSION, WORDS });
+  window.ryagramZoomMap = Object.freeze({ view, breaks, levelBreaks, legendKeys, band, change, fitBox, areaWords, FILL, NO_DATA, VERSION, WORDS });
 })();
