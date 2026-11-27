@@ -1,0 +1,301 @@
+// The Compilations department in the connector (CONNECT 11-27): get_compilation_status and open_compilations_page, against the connector's own code and its in-memory stand-in world.
+// A compilation is built on the PERSON'S OWN computer; these tools only read the request and the small reports that computer sends back. Every refusal has a case that FAILS if its check is removed
+// (the planted faults are in tests/connect_compilations_dept_mutants.mjs).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import Ajv2020 from 'ajv/dist/2020.js';
+import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
+import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
+import { TOOLS, compilationsOpen, runWords, summariseRequest } from '../supabase/functions/connect-core/tools.ts';
+import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
+import { handleMcp } from '../supabase/functions/connect-core/mcp.ts';
+import { LIMITS } from '../supabase/functions/connect-core/types.ts';
+
+const compile = makeCompile(Ajv2020);
+const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
+const B = { tokenHash: 'h-bob', userId: 'u-bob', clientId: 'client-claude' };
+const W = { tokenHash: 'h-wo', userId: 'u-wo', clientId: 'client-wo' };       // write only: no read scope
+const S = { tokenHash: 'h-stranger', userId: 'u-stranger', clientId: 'client-claude' };   // never invited
+
+function world({ open = true } = {}) {
+  const w = new FakeWorld();
+  for (const p of [A, B, W, S]) w.addUser(p.userId, p.userId + '@example.test', 100);
+  w.invite(A.userId, A.clientId); w.invite(B.userId, B.clientId); w.invite(W.userId, W.clientId, ['write']);
+  if (open) for (const p of [A, B, W]) w.users.get(p.userId).switches = ['compilations'];
+  const env = (p) => ({ data: w.data(p.userId), policy: w.policy(), deps: { compile } });
+  const call = (p, name, args) => callTool(name, args, p, env(p));
+  return { w, call, env };
+}
+const asked = async (call, p = A, extra = {}) => {
+  const id = (await call(p, 'create_project', { title: 'Compilation' })).data.project_id;
+  const r = await call(p, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: ['My Videos', 'Holiday'], ...extra });
+  assert.equal(r.isError, undefined, r.text);
+  return id;
+};
+const everything = (r) => r.text + '\n' + JSON.stringify(r.data ?? {});
+
+test('the two tools exist: read scope, read-only, closed schemas, no argument can name a place, no credit or confirm argument', () => {
+  for (const name of ['get_compilation_status', 'open_compilations_page']) {
+    const t = TOOLS.find((x) => x.name === name);
+    assert.ok(t, name);
+    assert.equal(t.scope, 'read');
+    assert.equal(t.readOnly, true);
+    assert.equal(t.inputSchema.additionalProperties, false);
+    for (const bad of ['path', 'file', 'url', 'confirm', 'credits', 'folder', 'transcript']) assert.ok(!(bad in t.inputSchema.properties), name + ' has no ' + bad);
+    assert.match(t.description, /never leave|stay on the person's computer|own computer/, 'it says where the film lives');
+  }
+  assert.deepEqual(TOOLS.find((x) => x.name === 'get_compilation_status').inputSchema.required, ['project_id']);
+  assert.ok(!TOOLS.some((x) => /phrase_matches|find_phrase|compilation_preview/.test(x.name)), 'nothing claims to search clips or make a preview from the server');
+});
+
+test('success: a saved request with no report yet says it is waiting for the app on the person\'s computer, in words and as data; no credit, no job', async () => {
+  const { w, call } = world();
+  const id = await asked(call, A, { song: true, rules: [{ phrase: 'great news', picture: 'cheer.png', seconds: 2, mode: 'full' }], note: 'For Friday.' });
+  const r = await call(A, 'get_compilation_status', { project_id: id });
+  assert.equal(r.isError, undefined, r.text);
+  assert.match(r.text, /great news/);
+  assert.match(r.text, /2 folders \(.*My Videos.*Holiday.*\)/s);
+  assert.match(r.text, /1 picture rule/);
+  assert.match(r.text, /Waiting for the Ryagram app on the person's computer/);
+  assert.match(r.text, /No credit is used/);
+  assert.equal(r.data.has_request, true);
+  assert.equal(r.data.run, null);
+  assert.equal(r.data.credits, 0);
+  assert.equal(r.data.film_stays_on_the_persons_computer, true);
+  assert.deepEqual(r.data.request.folders, ['My Videos', 'Holiday']);
+  assert.match(r.data.request_sha256, /^[0-9a-f]{64}$/);
+  const u = w.users.get(A.userId);
+  assert.deepEqual([u.jobs.length, u.credits, u.held], [0, 100, 0], 'reading starts no job and spends nothing');
+});
+
+test('each state the person\'s computer reports is said in plain words with its numbers', async () => {
+  const { w, call } = world();
+  const id = await asked(call);
+  const say = async (run) => { w.setCompilationRun(A.userId, id, run); return call(A, 'get_compilation_status', { project_id: id }); };
+  assert.match((await say({ state: 'planning', current: true })).text, /is planning the film/);
+  const m = await say({ state: 'matching', matches: 7, current: true });
+  assert.match(m.text, /Matching: found 7 places so far/);
+  assert.equal(m.data.run.matches, 7);
+  assert.match((await say({ state: 'matching', matches: 1, current: true })).text, /found 1 place so far/);
+  assert.match((await say({ state: 'matching', matches: null, current: true })).text, /looking through the person's clips/);
+  assert.match((await say({ state: 'building', clips: 12, current: true })).text, /Building the film on the person's computer: 12 clips so far/);
+  const d = await say({ state: 'done', matches: 12, clips: 12, film_seconds: 84, current: true });
+  assert.match(d.text, /Done: 12 clips, 84 seconds\. The film is on the person's computer: they open the Ryagram app to see it\. It is never sent to Ryagram\./);
+  assert.equal(d.data.run.film_seconds, 84);
+  assert.match((await say({ state: 'failed', error_code: 'no_match', current: true })).text, /Stopped: the phrase was not found in the person's clips\./);
+  assert.match((await say({ state: 'failed', error_code: 'weird_new_code', current: true })).text, /Stopped: the Ryagram app reported a problem it has no plain words for\./);
+  assert.doesNotMatch((await say({ state: 'failed', error_code: 'weird_new_code', current: true })).text, /weird_new_code/, 'an unknown code is not shown as words');
+  assert.match((await say({ state: 'cancelled', current: true })).text, /Stopped: the person stopped it/);
+});
+
+test('a report about an EARLIER version of the request is not shown as the answer: it says waiting, and the data says why', async () => {
+  const { w, call } = world();
+  const id = await asked(call);
+  w.setCompilationRun(A.userId, id, { state: 'done', matches: 9, clips: 9, film_seconds: 60, current: false });
+  const r = await call(A, 'get_compilation_status', { project_id: id });
+  assert.match(r.text, /Waiting for the Ryagram app/);
+  assert.doesNotMatch(r.text, /Done:/);
+  assert.equal(r.data.run, null);
+  assert.equal(r.data.run_is_for_an_earlier_request, true);
+});
+
+test('a report with an invented state is treated as no report; negative or silly numbers are not shown', async () => {
+  const { w, call } = world();
+  const id = await asked(call);
+  w.setCompilationRun(A.userId, id, { state: 'exploded', matches: 5 });
+  const r = await call(A, 'get_compilation_status', { project_id: id });
+  assert.equal(r.data.run, null);
+  w.setCompilationRun(A.userId, id, { state: 'matching', matches: -4, current: true });
+  assert.match((await call(A, 'get_compilation_status', { project_id: id })).text, /looking through the person's clips/);
+  w.setCompilationRun(A.userId, id, { state: 'done', clips: 5e12, film_seconds: 1e9, current: true });
+  const big = await call(A, 'get_compilation_status', { project_id: id });
+  assert.equal(big.data.run.clips, 1_000_000);
+  assert.equal(big.data.run.film_seconds, 86400);
+});
+
+test('REFUSAL not open: with no switch, no working department and no desktop app, both tools refuse in plain words and the database is not asked', async () => {
+  const { w, call, env } = world({ open: false });
+  w.setDesktopApp(A.userId, false);
+  const id = (await call(A, 'create_project', { title: 'x' })).data.project_id;
+  let asks = 0; const data = env(A).data; const orig = data.compilationGet; data.compilationGet = async (p) => { asks++; return orig(p); };
+  for (const [name, args] of [['get_compilation_status', { project_id: id }], ['open_compilations_page', {}]]) {
+    const r = await callTool(name, args, A, { ...env(A), data });
+    assert.equal(r.isError, true, name);
+    assert.equal(r.code, 'not_available');
+    assert.match(r.text, /Compilations are not open for this Ryagram account yet\. Nothing was looked up\./);
+    assert.equal(r.data.looked_up, false);
+    assert.doesNotMatch(everything(r), /#\/d\/compilations/, 'a closed department hands out no page');
+  }
+  assert.equal(asks, 0, 'nothing was read');
+});
+
+test('the department counts as open for a person in exactly three ways, and an unreadable answer is closed', async () => {
+  const ctxFor = (w, p) => ({ principal: p, data: w.data(p.userId), policy: w.policy(), deps: { compile } });
+  let { w } = world({ open: false });
+  w.setDesktopApp(A.userId, false);
+  assert.equal(await compilationsOpen(ctxFor(w, A)), false, 'nothing says yes');
+  w.users.get(A.userId).switches = ['myFilms', 'games'];
+  assert.equal(await compilationsOpen(ctxFor(w, A)), false, 'other switches do not open it');
+  w.users.get(A.userId).switches = ['compilations'];
+  assert.equal(await compilationsOpen(ctxFor(w, A)), true, 'the account switch');
+  w.users.get(A.userId).switches = [];
+  w.users.get(A.userId).departments = w.departments.map((d) => (d.id === 'compilations' ? { ...d, status: 'working' } : d));
+  assert.equal(await compilationsOpen(ctxFor(w, A)), true, 'the departments list says working for this person');
+  w.users.get(A.userId).departments = undefined;
+  w.setDesktopApp(A.userId, true);
+  assert.equal(await compilationsOpen(ctxFor(w, A)), true, 'the account already has the desktop app, as the invited testers do');
+  w.setDesktopApp(A.userId, false);
+  const c = ctxFor(w, A);
+  c.data.switches = async () => { throw new Error('down'); }; c.data.departments = async () => { throw new Error('down'); }; c.data.whoami = async () => { throw new Error('down'); };
+  assert.equal(await compilationsOpen(c), false, 'unreadable = closed');
+  // other people's switches are theirs
+  w.users.get(B.userId).switches = ['compilations']; w.setDesktopApp(A.userId, false);
+  assert.equal(await compilationsOpen(ctxFor(w, A)), false);
+});
+
+test('REFUSAL not signed in or not allowed: a stranger gets the no-grant words, a connection without the read permission is refused, and nothing is looked up', async () => {
+  const { call } = world();
+  const s = await call(S, 'get_compilation_status', { project_id: '00000000-0000-4000-8000-000000000001' });
+  assert.equal(s.code, 'no_grant');
+  const o = await call(W, 'get_compilation_status', { project_id: '00000000-0000-4000-8000-000000000001' });
+  assert.equal(o.code, 'scope');
+  assert.equal((await call(W, 'open_compilations_page', {})).code, 'scope');
+});
+
+test('REFUSAL bad input: a project id that is not an id, a missing id and an extra argument are refused before anything runs', async () => {
+  const { call } = world();
+  for (const args of [{ project_id: 'not-an-id' }, {}, { project_id: '00000000-0000-4000-8000-000000000001', path: 'C:\\clips' }, { project_id: '00000000-0000-4000-8000-000000000001', confirm: true }]) {
+    const r = await call(A, 'get_compilation_status', args);
+    assert.equal(r.code, 'args', JSON.stringify(args));
+  }
+  assert.equal((await call(A, 'open_compilations_page', { path: 'x' })).code, 'args');
+});
+
+test('another person\'s project looks absent, and so does a project that does not exist: never a hint that it is someone else\'s', async () => {
+  const { w, call } = world();
+  const id = await asked(call, A);
+  w.setCompilationRun(A.userId, id, { state: 'done', clips: 3, film_seconds: 10, current: true });
+  const theirs = await call(B, 'get_compilation_status', { project_id: id });
+  const none = await call(B, 'get_compilation_status', { project_id: '00000000-0000-4000-8000-000000000009' });
+  assert.equal(theirs.code, 'not_found');
+  assert.equal(theirs.text, none.text);
+  assert.doesNotMatch(everything(theirs), /great news|My Videos/);
+});
+
+test('a project with no request yet says so and points at set_compilation_request', async () => {
+  const { call } = world();
+  const id = (await call(A, 'create_project', { title: 'Empty' })).data.project_id;
+  const r = await call(A, 'get_compilation_status', { project_id: id });
+  assert.equal(r.isError, undefined);
+  assert.equal(r.data.has_request, false);
+  assert.match(r.text, /no compilation request yet.*set_compilation_request/s);
+});
+
+test('PRIVACY: whatever the database returns, the answer holds no path, no web address, no transcript and no extra field, and every text is cut', async () => {
+  const { w, call } = world();
+  const id = (await call(A, 'create_project', { title: 'P' })).data.project_id;
+  w.users.get(A.userId).requests.set(id, { sha256: 'a'.repeat(64), request: {
+    schema: 'ryagram.compilation-request/0', phrase: 'C:\\Users\\alice\\Videos\\secret.mp4', search: 'every',
+    folders: ['Good Folder', 'D:\\Clips\\Private', '/Users/alice/Movies', '..\\up', 'x'.repeat(300)], song: false, clean_cuts: false,
+    rules: [{ phrase: 'p', picture: 'a.png', seconds: 1, mode: 'full' }], texts: [], note: 'n'.repeat(900),
+    video_path: 'E:\\films\\a.mp4', transcript: 'TRANSCRIPT-SECRET the whole conversation', matches: [{ file: 'f.mp4', text: 'MATCH-CONTEXT-SECRET' }] },
+  });
+  w.setCompilationRun(A.userId, id, { state: 'done', matches: 3, clips: 3, film_seconds: 12, current: true, file: 'E:\\films\\out.mp4', film_path: 'E:\\films\\out.mp4', transcript: 'TRANSCRIPT-SECRET', error_code: 'C:\\oops' });
+  const r = await call(A, 'get_compilation_status', { project_id: id });
+  const all = everything(r);
+  for (const bad of [/[A-Za-z]:\\/, /\/Users\//, /\.\.\\/, /TRANSCRIPT-SECRET/, /MATCH-CONTEXT-SECRET/, /out\.mp4/, /secret\.mp4/, /video_path/, /film_path/, /https?:\/\//, /x{81}/, /n{201}/]) assert.doesNotMatch(all, bad, String(bad));
+  assert.deepEqual(r.data.request.folders, ['Good Folder'], 'only a clean folder NAME survives');
+  assert.equal(r.data.request.phrase, '', 'a phrase that is a place is dropped');
+  assert.deepEqual(Object.keys(r.data.request).sort(), ['cards', 'checklist', 'clean_cuts', 'folders', 'note', 'phrase', 'rules', 'search', 'song', 'texts'].sort());
+  assert.deepEqual(Object.keys(r.data.run).sort(), ['clips', 'error_code', 'film_seconds', 'matches', 'state']);
+  assert.equal(r.data.run.error_code, null);
+  assert.ok(r.text.length < 2000, 'the answer is short');
+  assert.ok(JSON.stringify(r.data).length < 2000);
+});
+
+test('PRIVACY: the note is cut at 200 characters and shown as data to describe, never as an instruction', () => {
+  const s = summariseRequest({ phrase: 'p', folders: ['f'], note: 'a'.repeat(500) });
+  assert.equal(s.note.length, 200);
+  assert.equal(summariseRequest('x'), null);
+  assert.equal(summariseRequest([]), null);
+  assert.equal(summariseRequest(null), null);
+});
+
+test('LIMIT: the hourly bucket of status checks (shared with the page tool) is the one the tool counts in; when it is full the stand-in is told the bucket is full and the answer is the plain refusal, with a retry time as data', async () => {
+  const { w, call, env } = world();
+  const id = await asked(call);
+  const policy = w.policy(); const hit = policy.hit.bind(policy);
+  policy.hit = async (p, bucket, max, win) => (bucket === 'compilation_reads' ? false : hit(p, bucket, max, win));
+  for (const [name, args] of [['get_compilation_status', { project_id: id }], ['open_compilations_page', {}]]) {
+    const r = await callTool(name, args, A, { ...env(A), policy });
+    assert.equal(r.code, 'rate', name);
+    assert.match(r.text, /Do not check again; tell the person/);
+    assert.equal(r.data.retry_after_seconds, 3600);
+  }
+});
+
+test('open_compilations_page: where to go, in words and as data, with no credit and a plain statement that the film is built on the person\'s computer', async () => {
+  const { w, call } = world();
+  const r = await call(A, 'open_compilations_page', {});
+  assert.equal(r.isError, undefined, r.text);
+  assert.equal(r.data.page, '#/d/compilations');
+  assert.equal(r.data.credits, 0);
+  assert.match(r.text, /Compilations page in the Ryagram app/);
+  assert.match(r.text, /never leave their computer, and no credit is used/);
+  assert.doesNotMatch(r.text, /https?:\/\//);
+  assert.equal(w.users.get(A.userId).jobs.length, 0);
+});
+
+test('a database that has no compilation read yet (the migration is not applied) is said plainly and nothing is looked up', async () => {
+  const { call, env } = world();
+  const id = await asked(call);
+  const data = env(A).data; delete data.compilationGet;
+  const r = await callTool('get_compilation_status', { project_id: id }, A, { ...env(A), data });
+  assert.equal(r.code, 'not_available');
+  assert.equal(r.data.looked_up, false);
+});
+
+test('set_compilation_request is exactly as it was: it still works for an account the switch machinery says nothing about (the invited testers keep it)', async () => {
+  const { w, call } = world({ open: false });
+  const id = (await call(A, 'create_project', { title: 'Old way' })).data.project_id;
+  const r = await call(A, 'set_compilation_request', { project_id: id, phrase: 'hello', folders: ['Clips'] });
+  assert.equal(r.isError, undefined, r.text);
+  assert.equal(r.data.saved, true);
+  assert.ok(w.users.get(A.userId).requests.has(id));
+});
+
+test('over MCP both tools are listed with the read-only hint, and a call goes through the same gate', async () => {
+  const { w } = world();
+  const deps = { verifyToken: async (t) => (t === 'tok' ? A : null), dataFor: (_t, p) => w.data(p.userId), policy: w.policy(), deps: { compile }, resourceMetadataUrl: 'https://example.test/m' };
+  const post = (body) => handleMcp(new Request('https://example.test/mcp', { method: 'POST', headers: { authorization: 'Bearer tok', 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, ...body }) }), deps);
+  const list = (await (await post({ method: 'tools/list' })).json()).result.tools;
+  for (const n of ['get_compilation_status', 'open_compilations_page']) {
+    const t = list.find((x) => x.name === n);
+    assert.ok(t, n);
+    assert.equal(t.annotations.readOnlyHint, true);
+    assert.equal(t.annotations.destructiveHint, false);
+  }
+  const call = (await (await post({ method: 'tools/call', params: { name: 'open_compilations_page', arguments: {} } })).json()).result;
+  assert.equal(call.isError, false);
+  assert.equal(call.structuredContent.page, '#/d/compilations');
+});
+
+test('runWords: every state has words and none holds a path or a code', () => {
+  for (const state of ['planning', 'matching', 'building', 'done', 'failed', 'cancelled']) {
+    const t = runWords({ state, matches: 2, clips: 2, film_seconds: 3, error_code: 'engine_error' }, true);
+    assert.ok(t.length > 10 && t.length < 300, state);
+    assert.doesNotMatch(t, /engine_error|[A-Za-z]:\\/);
+  }
+  assert.match(runWords(null, true), /Waiting/);
+});
+
+test('the database layer sends the status read to its own function, the token\'s hash first, and never an owner, a path or a project title', async () => {
+  const { ConnectDb } = await import('../supabase/functions/connect/db.ts');
+  const seen = [];
+  const db = new ConnectDb(async (sql, params) => { seen.push({ sql, params }); return [{ r: null }]; }, 'https://x.example/app/');
+  const data = db.data({ tokenHash: 'h'.repeat(64) });
+  const P = '00000000-0000-4000-8000-0000000000a1';
+  assert.equal(await data.compilationGet(P), null);
+  assert.deepEqual(seen.map((s) => s.sql), ['select public.connect_compilation_get($1::text, $2::uuid) as r']);
+  assert.deepEqual(seen[0].params, ['h'.repeat(64), P]);
+});

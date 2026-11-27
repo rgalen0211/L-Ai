@@ -83,6 +83,8 @@ export class ConnectDb {
         const sha = await self.fn<string | null>("connect_set_compilation_request", ["text", "uuid", "jsonb"], [h, projectId, request]);
         return sha ? { sha256: sha } : null;
       },
+      // supabase/migrations/20261127000400_connect_compilation_status.sql (NOT APPLIED): the token-checked twin of BUILDER's my_compilation_get (null = not the person's project)
+      compilationGet: (projectId) => self.fn("connect_compilation_get", ["text", "uuid"], [h, projectId]),
       askGeo: (q) => self.fn("connect_geo_ask", ["text", "float8", "float8", "int", "text[]"], [h, q.lat, q.lon, q.minutes, q.categories]),
       // the series goes in as the ARRAY it is: `fn` turns every jsonb parameter into JSON text itself, so a pre-stringified series was encoded twice and reached SQL as a JSON string, refused as "not 6 to 120 pairs"
       askForecast: (q) => self.fn("connect_forecast_ask", ["text", "jsonb", "int", "text", "int[]", "text"], [h, q.series, q.horizon, q.method ?? null, q.breaks ?? null, q.unit ?? null]),

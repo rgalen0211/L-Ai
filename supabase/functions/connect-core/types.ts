@@ -102,6 +102,9 @@ export interface Data extends Omit<UserData, "submitJob"> {
   currentVersionId(projectId: string): Promise<string | null>;
   /** Saves (replaces) the compilation request on one of the person's projects. null = the project is not theirs. */
   saveCompilationRequest(projectId: string, request: CompilationRequest): Promise<{ sha256: string } | null>;
+  /** Compilations, department path (CONNECT 11-27; PROPOSED twin of BUILDER's public.my_compilation_get, NOT APPLIED): the person's request for one project and where the build on THEIR OWN computer stands, as the database reports it.
+   *  null = the project is not the person's. `request` is null when the project has no request yet; `run` is null when the person's computer has reported nothing. Data only: no path, no transcript, no video. Optional: a database without the migration has none, and the tool says so. */
+  compilationGet?(projectId: string): Promise<CompilationStatusRead | null>;
   /** NEXT-CONNECT 196: writes a place question for the house computer to answer. The point is rounded to 4 decimals by the database. Asking the same thing twice is one request (repeat: true). */
   askGeo(q: { lat: number; lon: number; minutes: number; categories: string[] }): Promise<{ id: string; state: string; repeat?: boolean }>;
   /** GEO question shapes (migration 20261104000400): compare two places, "will a <category> place at A succeed" (never a yes or no), "where should a <category> place go" (never a place picked). Same rules as askGeo. */
@@ -136,6 +139,14 @@ export interface Data extends Omit<UserData, "submitJob"> {
   askFilmCard?(projectId: string): Promise<{ id: string; state: string; repeat?: boolean }>;
   getFilmCard?(projectId: string): Promise<FilmCardRead | null>;
 }
+
+/** What connect_compilation_get answers (PROPOSED). `request` and `run` are untrusted until the tool has checked them: it keeps only the fields it names and cuts every text. */
+export interface CompilationRunRead {
+  state: string; matches: number | null; clips: number | null; film_seconds: number | null; error_code: string | null; updated_at: string | null;
+  /** true when the run was made for the request as it is saved NOW; false = the request was changed after that run */
+  current?: boolean;
+}
+export interface CompilationStatusRead { request: unknown | null; sha256: string | null; updated_at: string | null; run: CompilationRunRead | null }
 
 /** What connect_film_card_get answers. `card` is whatever the engine stored: it is checked (film_card.ts) before anything shows it. */
 export interface FilmCardRead {
@@ -238,6 +249,7 @@ export const LIMITS = Object.freeze({
   filmCardsPerHourPerUser: 20,           // Editor Step A: asks for a film's look card (reads are the panel's own bucket)
   projectsPerDayPerUser: 20,
   compilationRequestsPerDayPerUser: 50,
+  compilationReadsPerHourPerUser: 120,    // get_compilation_status and open_compilations_page (reads, like geoReadsPerHourPerUser)
   footagePlansPerDayPerUser: 20,
   geoQuestionsPerHourPerUser: 30,
   geoReadsPerHourPerUser: 120,
