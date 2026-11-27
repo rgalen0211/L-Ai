@@ -99,7 +99,7 @@ test('MUST-FAIL: a story cannot name a waiting table, a made-up u_ name, or ANOT
   assert.ok(!sub.isError, sub.text);
   const made = 'u_' + 'a'.repeat(24);
   let r = await call(A, 'set_story', { project_id: pid, story: goodStory(made) });
-  assert.equal(r.isError || r.data?.saved === false || r.refused === true, true, 'a made-up name is refused'); assert.match(r.text, /not in the Ryagram catalog or among your own uploaded data/);
+  assert.equal(r.isError || r.data?.saved === false || r.refused === true, true, 'a made-up name is refused'); assert.match(r.text, /which Ryagram does not have: it is not in the catalog, and not among the person's own uploaded data/);
   const mine = w.acceptPrepared('u-a', w.preparedFor('u-a')[0].id);
   r = await call(A, 'set_story', { project_id: pid, story: goodStory(mine) });
   assert.ok(!r.isError && r.data.saved === true, r.text);
@@ -107,7 +107,7 @@ test('MUST-FAIL: a story cannot name a waiting table, a made-up u_ name, or ANOT
   assert.equal(l.data.datasets.length, 1); assert.equal(l.data.datasets[0].name, mine); assert.equal(l.data.datasets[0].trust_label, 'unverified_user'); assert.equal(l.data.datasets[0].prepared_by_ai, true); assert.equal(l.data.waiting_for_you, 0);
   const pidB = (await call(B, 'create_project', { title: 'Someone else' })).data.project_id;
   const rb = await call(B, 'set_story', { project_id: pidB, story: goodStory(mine) });
-  assert.equal(rb.isError || rb.data?.saved === false || rb.refused === true, true, 'another person cannot name this upload'); assert.match(rb.text, /not in the Ryagram catalog or among your own uploaded data/);
+  assert.equal(rb.isError || rb.data?.saved === false || rb.refused === true, true, 'another person cannot name this upload'); assert.match(rb.text, /which Ryagram does not have: it is not in the catalog, and not among the person's own uploaded data/);
   assert.equal((await call(B, 'list_my_data')).data.datasets.length, 0, 'another person sees none of it');
 });
 

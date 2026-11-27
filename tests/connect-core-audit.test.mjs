@@ -32,7 +32,7 @@ test('a dataset named like a built-in object key (constructor, __proto__) is not
     s.sequence.clips.find((c) => c.kind === 'render').dataset = ds;
     const r = checkStoryStructured(s, compile(storySchema));
     assert.equal(r.ok, false, ds);
-    assert.match(r.plain.join(' '), /not in the Ryagram catalog/, ds);
+    assert.match(r.plain.join(' '), /which Ryagram does not have: it is not in the catalog/, ds);
   }
   const { call } = world();
   const id = (await call('create_project', { title: 'Invented proto film' })).data.project_id;

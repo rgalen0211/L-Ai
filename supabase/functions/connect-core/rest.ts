@@ -8,6 +8,7 @@ import { callTool, type Env } from "./dispatch.ts";
 import { authenticate, bearer, challenge, toolList, unavailable, type McpDeps } from "./mcp.ts";
 import { TOOLS } from "./tools.ts";
 import { LIMITS } from "./types.ts";
+import { SIGNED_OUT, tooBig } from "./words.ts";
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
@@ -57,16 +58,16 @@ export async function handleRest(req: Request, route: string, deps: McpDeps, bas
   const auth = await authenticate(deps, token);
   if ("down" in auth) return unavailable();
   const principal = auth.principal;
-  if (!principal) return json(401, { error: "Sign in to Ryagram to use this." }, challenge(deps.resourceMetadataUrl, token ? "invalid_token" : undefined));
+  if (!principal) return json(401, { error: SIGNED_OUT }, challenge(deps.resourceMetadataUrl, token ? "invalid_token" : undefined));
 
   if (!m[1]) {
     if (req.method !== "GET") return json(405, { error: "Use GET." }, { Allow: "GET" });
     return json(200, { tools: toolList() });
   }
   if (req.method !== "POST") return json(405, { error: "Use POST." }, { Allow: "POST" });
-  if (Number(req.headers.get("content-length") ?? 0) > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
+  if (Number(req.headers.get("content-length") ?? 0) > LIMITS.maxBodyBytes) return json(413, { error: tooBig() });
   const buf = await req.arrayBuffer();
-  if (buf.byteLength > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
+  if (buf.byteLength > LIMITS.maxBodyBytes) return json(413, { error: tooBig() });
   const raw = new TextDecoder().decode(buf);
   let args: unknown = {};
   if (raw.trim()) { try { args = JSON.parse(raw); } catch { return json(400, { error: "The body must be JSON." }); } }

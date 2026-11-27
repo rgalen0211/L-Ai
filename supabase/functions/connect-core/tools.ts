@@ -14,6 +14,7 @@ import { makeEditorTools } from "./editor_tools.ts";
 import { makeGamesTools } from "./games_tools.ts";
 import { homeView } from "./home_panel.ts";
 import { perfectCityTools } from "./perfect_city.ts";
+import { SQL_WORDS } from "./words.ts";
 import { LIMITS, type ChecklistItem, type CompilationRequest, type Data, type GeoRow, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -35,6 +36,7 @@ export function friendlyError(e: unknown): string {
   // PTCAP (the daily credit cap), PTQUE (films already waiting) and PTVEW (a film the machine cannot make) are named, not a pattern: they are plain refusals a retry cannot pass, so the AI must read their words (CONNECT 11-23, BUILDER's ask)
   const own = /^(PT\d{3}|PTCAP|PTQUE|PTVEW|P0002|42501|22023)$/.test(code);
   if (!own || msg.length > 300) return "Ryagram could not do that right now. Nothing was changed. Try again in a moment.";
+  if (Object.hasOwn(SQL_WORDS, msg)) return SQL_WORDS[msg];                // the database's own sentence, in plainer words (words.ts); any other sentence is shown as the database wrote it
   return msg.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]").replace(/\b(sk|ryg|rga|rgr|rgc)[-_][\w-]{8,}/g, "[removed]");
 }
 
@@ -193,7 +195,7 @@ const datasetInfoTool: ToolDef = {
     const d = DATASET_RECORDS.get(id);
     if (!d) {
       const near = [...DATASET_RECORDS.keys()].filter((k) => k.includes(id) || id.includes(k)).slice(0, 8);
-      return refuse(`There is no dataset "${id}" in the engine's records.${near.length ? ` Close ids: ${near.join(", ")}.` : ""} get_story_schema lists the datasets you can draw today. If the person asked for a subject that is not among them, tell them so plainly; do not swap in another dataset without saying so.`, "not_found");
+      return refuse(`Ryagram has no dataset called "${id}".${near.length ? ` Close names: ${near.join(", ")}.` : ""} get_story_schema lists the datasets that can be drawn today. If the person asked for a subject that is not among them, tell them plainly that Ryagram does not have it; do not swap in another dataset without saying so.`, "not_found");
     }
     const usable = Object.prototype.hasOwnProperty.call(DATASETS, id);
     const { text, problems } = datasetInfoText(d, usable);
@@ -239,7 +241,7 @@ const createProject: ToolDef = {
     const existing = (await ctx.data.listProjects()).find((p) => p.title === title);
     if (existing) return ok(`A project with this title already exists: ${existing.id}. Use it.`, { project_id: existing.id, created: false });
     if (!(await ctx.policy.hit(ctx.principal, "projects", LIMITS.projectsPerDayPerUser, 86400))) {
-      return refuse(`You can create ${LIMITS.projectsPerDayPerUser} projects a day through a connection. Try tomorrow, or create it in the app.`, "rate");
+      return refuse(`Today's limit of ${LIMITS.projectsPerDayPerUser} new projects from AIs has been reached, so no project was created. Nothing was lost. Try again tomorrow, or the person can create the project in the Ryagram app.`, "rate");
     }
     const p = await ctx.data.createProject(title);
     return ok(`Created project ${p.id} (version r${p.number}). Next: get_story_schema, then set_story.`, { project_id: p.id, version_id: p.version_id, created: true });
@@ -541,8 +543,8 @@ async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnTyp
   }
   const q = await ctx.data.quote(versionId, jobType);
   if (q.credits > 0) {
-    return refuse(`${label} would cost ${q.credits} credits: the free previews of this project (6) or of the day (15 in any 24 hours) are used up. NOTHING was started. A connection cannot spend credits. ` +
-      (q.available >= q.credits ? `The person has ${q.available} credits and can start it in the Ryagram app.` : `The person has ${q.available} credits, which is not enough, so nothing more can be started right now: tell them so, and do not send them to the Ryagram app for it.`),
+    return refuse(`${label} needs ${q.credits} credit${q.credits === 1 ? "" : "s"}, because the free previews are used up: each project gets 6 free previews, and each person gets 15 free previews in any 24 hours. NOTHING was started, and nothing was lost: the saved story and the contact sheet are untouched. An AI cannot spend credits. ` +
+      (q.available >= q.credits ? `The person has ${q.available} credit${q.available === 1 ? "" : "s"}, so they can start it themselves: they press the button in the Ryagram app.` : `The person has ${q.available} credit${q.available === 1 ? "" : "s"}, which is not enough, so nothing more can be made right now: tell them so plainly, and do not send them to the Ryagram app for it.`),
       "costs_credits", { credits: q.credits, data: { started: false, credits: q.credits } });
   }
   const job = await ctx.data.submitJob(versionId, jobType, params);
@@ -590,8 +592,8 @@ const fullRender: ToolDef = {
   inputSchema: obj({ project_id: uuid, preview_job_id: uuid, confirm: CONFIRM }, ["project_id"]),
   async run() {
     // No lookup, no flag, no ladder: the answer does not depend on anything the caller can influence. (The database refuses it as well.)
-    const reason = "A full render cannot be started from an AI connection. Nothing was started and no credits were used.";
-    const what = "A final film needs credits. If the person has credits they press 'Render final film' in the Ryagram app; if they have none, tell them plainly that a final film is not possible for them right now.";
+    const reason = "An AI cannot start a full film render. Nothing was started and no credits were used.";
+    const what = "A final film needs credits, and only the person can spend them. If they have credits, they press 'Render final film' in the Ryagram app. If they have none, tell them plainly that a final film is not possible for them right now, and do not promise one.";
     return { text: `${reason} ${what}`, refused: true, code: "not_available", data: { ok: false, allowed: false, started: false, credits_used: 0, code: "not_available", reason, what_to_do: what } };
   },
 };
@@ -707,7 +709,7 @@ const filmLink: ToolDef = {
     const pv = await projectVersion(ctx, String(a.project_id));
     if (!pv) return NOT_YOURS("project");
     if (!(await ctx.policy.hit(ctx.principal, "links", LIMITS.linksPerDayPerUser, 86400))) {
-      return refuse("Link limit for today reached (this protects the person's download allowance). Open the project in the Ryagram app.", "rate");
+      return refuse(`Today's limit of ${LIMITS.linksPerDayPerUser} requests for links has been reached. Nothing was lost: the person can open the project in the Ryagram app to see the results.`, "rate");
     }
     const links = await ctx.data.links(pv.versionId, (a.job_id as string | undefined) ?? null);
     if (!links.length) {
@@ -1295,7 +1297,7 @@ const placeQuestion: ToolDef = {
 function showShapeAnswer(row: GeoRow): ToolResult {
   const shape = row.shape as string;
   const rep = readAskAnswer(row.answer, shape);
-  if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Calculated or Estimated, or a line recommended something), so none of it is shown.", "bad_report");
+  if (!rep) return refuse("Ryagram got an answer back but could not trust it, so none of it is shown. Nothing was changed. Tell the person the answer could not be shown; do not guess at it.", "bad_report");
   const pt = (la: number | null | undefined, lo: number | null | undefined) => (la == null || lo == null ? "an unknown place" : `${la.toFixed(4)}, ${lo.toFixed(4)}`);
   const lines: string[] = [];
   if (rep.example) lines.push("EXAMPLE DATA, not a real place: the numbers below come from a made-up county used to test this service.");
@@ -1386,7 +1388,7 @@ const forecastSeries: ToolDef = {
       return refuse("The method is linear, log or moving_average; a unit is a short word; breaks are up to five years. Nothing was asked.", "args");
     }
     if (!(await ctx.policy.hit(ctx.principal, "geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {
-      return refuse(`The limit of ${LIMITS.geoQuestionsPerHourPerUser} place questions an hour is reached. Nothing was asked.`, "rate", { data: { ok: false, looked_up: false, retry_after_seconds: 3600 } });
+      return refuse(`The limit of ${LIMITS.geoQuestionsPerHourPerUser} questions an hour (place questions and forecasts together) has been reached. Nothing was asked. Try again in an hour.`, "rate", { data: { ok: false, looked_up: false, retry_after_seconds: 3600 } });
     }
     const breaks = [...new Set(rawBreaks as number[])].sort((x, y) => x - y);
     const asked = await ctx.data.askForecast({ series, horizon, ...(method ? { method } : {}), ...(breaks.length ? { breaks } : {}), ...(unit ? { unit } : {}) });
@@ -1399,7 +1401,7 @@ const forecastSeries: ToolDef = {
 const FORECAST_FAILED: Record<string, string> = {
   geo_request_rejected: "The computer that makes forecasts did not accept this series.",
   unknown_category: "The computer that makes forecasts did not accept this series.",
-  data_not_allowed: "Forecasts are not switched on for real use yet.",
+  data_not_allowed: "For now, forecasts are not available for real use, so there is no forecast. Asking again will not change that.",
   engine_error: "The computer that makes forecasts had a problem. Nothing is shown.",
   answer_rejected: "The forecast was not one this connection will show.",
 };
@@ -1427,7 +1429,7 @@ const forecastAnswer: ToolDef = {
     }
     const horizon = row.horizon ?? 0;
     const rep = readForecast(row.answer, horizon);
-    if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Estimated, the range did not widen, or the test was missing), so none of it is shown.", "bad_report");
+    if (!rep) return refuse("Ryagram got an answer back but could not trust it, so none of it is shown. Nothing was changed. Tell the person the answer could not be shown; do not guess at it.", "bad_report");
     const fmt = (x: number) => (Math.abs(x) >= 100 ? Math.round(x).toLocaleString("en-US") : String(Math.round(x * 100) / 100));
     const unit = rep.unit ? ` ${rep.unit}` : "";
     const bt = rep.backtest;
@@ -1451,7 +1453,7 @@ const GEO_STOP = " Do not keep checking: every check uses the person's own AI al
 const GEO_FAILED: Record<string, string> = {
   geo_request_rejected: "The computer that answers place questions did not accept the question.",
   unknown_category: "One of the kinds of business is not one this service knows.",
-  data_not_allowed: "Place questions are only answered on example data for now, and this one is not.",
+  data_not_allowed: "For now, place questions are answered only on made-up example data, and this place is not part of it, so there is no answer. Asking again will not change that.",
   engine_error: "The computer that answers place questions had a problem. Nothing is shown.",
   answer_rejected: "The place is outside the area the data covers, or the answer was not one this connection will show.",
 };
@@ -1479,9 +1481,9 @@ const geoAnswer: ToolDef = {
       return refuse(`${words}${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""} Nothing is shown.`, "bad_report", { data: { ok: false, id: row.id, state: "failed", fail_code: row.fail_code, looked_up: false } });
     }
     if (row.shape !== undefined && row.shape !== "within_minutes") return showShapeAnswer(row);
-    if (row.lat === null || row.lon === null || row.minutes === null) return refuse("The answer was not in a shape this connection knows, so none of it is shown.", "bad_report");
+    if (row.lat === null || row.lon === null || row.minutes === null) return refuse("Ryagram got an answer back but could not trust it, so none of it is shown. Nothing was changed. Tell the person the answer could not be shown; do not guess at it.", "bad_report");
     const rep = readGeoAnswer(row.answer, row.minutes, row.categories);
-    if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Estimated), so none of it is shown.", "bad_report");
+    if (!rep) return refuse("Ryagram got an answer back but could not trust it, so none of it is shown. Nothing was changed. Tell the person the answer could not be shown; do not guess at it.", "bad_report");
     const example = /example data/i.test(rep.assumptions);
     const { lat, lon, minutes, categories } = row;
     const lines = [...(example ? ["EXAMPLE DATA, not a real place: the numbers below come from a made-up county used to test this service."] : []),

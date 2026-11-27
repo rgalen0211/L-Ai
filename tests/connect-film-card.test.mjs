@@ -132,7 +132,7 @@ test('the tool is app-only, behind the chat-editor switch, scope read, and says 
   const f = await noRead.film();
   const r = await noRead.call({ p_project: f.id });
   assert.equal(r.isError, true);
-  assert.match(r.content[0].text, /not allowed to do that/);
+  assert.match(r.content[0].text, /was not given permission to see the person's projects, films and credits/);
 });
 
 test('ask, wait, a card from the house computer, then ready: one request however often it is asked, and nobody else sees it', async () => {

@@ -67,7 +67,7 @@ test('authorize sends the browser to the consent page with the request id; error
   const bad = store({ beginAuthorization: async () => { throw dbErr('invalid_redirect_uri', 'PT400'); } });
   const e = await handleOAuth(new Request(BASE + '/authorize?' + q), '/authorize', deps(bad));
   assert.equal(e.status, 400); assert.equal(e.headers.get('location'), null);                       // never redirected to an unvalidated address
-  assert.match(await e.text(), /allowed addresses/);
+  assert.match(await e.text(), /does not recognise where this assistant wants to send you/);
   const notCode = await handleOAuth(new Request(BASE + '/authorize?' + new URLSearchParams({ response_type: 'token', client_id: 'x' })), '/authorize', deps(st));
   assert.equal(notCode.status, 400);
 });
@@ -201,7 +201,7 @@ test('authorize: a resource that is not this server is refused (RFC 8707); an ov
   const q = (extra) => new URLSearchParams({ response_type: 'code', client_id: 'rgc_abc', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', state: 's',
     code_challenge: 'c'.repeat(43), code_challenge_method: 'S256', ...extra });
   const bad = await handleOAuth(new Request(BASE + '/authorize?' + q({ resource: 'https://evil.example/mcp' })), '/authorize', deps(st));
-  assert.equal(bad.status, 400); assert.match(await bad.text(), /invalid_target/);
+  assert.equal(bad.status, 400); assert.match(await bad.text(), /asked to connect to a different service than Ryagram/);
   assert.equal((await handleOAuth(new Request(BASE + '/authorize?' + q({ resource: BASE + '/mcp' })), '/authorize', deps(st))).status, 302);
   assert.equal((await handleOAuth(new Request(BASE + '/authorize?' + q({ state: 's'.repeat(513) })), '/authorize', deps(st))).status, 400);
 });

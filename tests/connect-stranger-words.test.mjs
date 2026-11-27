@@ -32,7 +32,7 @@ test('the compilation and download tools say the desktop app is not open to ever
 test('a final film is never promised to a person who has no credits', () => {
   const t = src('connect-core/tools.ts');
   assert.match(t, /a final film needs credits: if the person has credits they press "Render final film" in the Ryagram app; if they have none, say plainly that a final film is not possible for them right now and do not promise one/);
-  assert.match(t, /If the person has credits they press 'Render final film' in the Ryagram app; if they have none, tell them plainly that a final film is not possible for them right now\./);
+  assert.match(t, /If they have credits, they press 'Render final film' in the Ryagram app\. If they have none, tell them plainly that a final film is not possible for them right now, and do not promise one\./);
   assert.match(t, /enough \? "A connection cannot start it: the person presses 'Render final film' in the Ryagram app\." : "A connection cannot start it, and the person does not have the credits for a final film, so do not promise one\."/);
   assert.match(src('connect-core/mcp.ts'), /a person with no credits cannot start it: say so plainly and do not promise a final film/);
 });

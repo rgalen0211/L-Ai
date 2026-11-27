@@ -110,7 +110,7 @@ test('request_full_render: refused as a RESULT that says what is not allowed, wh
   const r = await call('request_full_render', { project_id: '00000000-0000-4000-8000-000000000001' });
   assert.ok(!r.isError);
   assert.deepEqual({ ok: r.data.ok, allowed: r.data.allowed, started: r.data.started, credits_used: r.data.credits_used, code: r.data.code }, { ok: false, allowed: false, started: false, credits_used: 0, code: 'not_available' });
-  assert.match(r.data.reason, /cannot be started from an AI connection/); assert.match(r.data.what_to_do, /Render final film/);
+  assert.match(r.data.reason, /An AI cannot start a full film render/); assert.match(r.data.what_to_do, /Render final film/);
 });
 
 test('a good story still saves, as a normal result', async () => {

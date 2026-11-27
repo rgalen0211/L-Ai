@@ -84,7 +84,7 @@ test(`MUST FAIL: create_project allows ${LIMITS.projectsPerDayPerUser} new proje
   const { w, call } = world();
   for (let i = 0; i < LIMITS.projectsPerDayPerUser; i++) assert.equal((await call(A, 'create_project', { title: `Film ${i}` })).data.created, true, `project ${i}`);
   const r = await call(A, 'create_project', { title: 'One too many' });
-  assert.equal(r.isError, true); assert.equal(r.code, 'rate'); assert.match(r.text, new RegExp(`${LIMITS.projectsPerDayPerUser} projects a day`));
+  assert.equal(r.isError, true); assert.equal(r.code, 'rate'); assert.match(r.text, new RegExp(`limit of ${LIMITS.projectsPerDayPerUser} new projects`));
   assert.equal(w.users.get(A.userId).projects.length, LIMITS.projectsPerDayPerUser);
   // an existing title is returned, not created, so it is not refused by the limit
   const again = await call(A, 'create_project', { title: 'Film 0' });
@@ -114,7 +114,7 @@ test(`MUST FAIL: get_film_link gives ${LIMITS.linksPerDayPerUser} answers a day,
   const id = (await call(A, 'create_project', { title: 'Links' })).data.project_id;
   for (let i = 0; i < LIMITS.linksPerDayPerUser; i++) assert.equal((await call(A, 'get_film_link', { project_id: id })).isError, undefined, `link ${i}`);
   const r = await call(A, 'get_film_link', { project_id: id });
-  assert.equal(r.isError, true); assert.equal(r.code, 'rate'); assert.match(r.text, /Link limit for today/); assert.equal(r.data, undefined);
+  assert.equal(r.isError, true); assert.equal(r.code, 'rate'); assert.match(r.text, /limit of 50 requests for links/); assert.equal(r.data, undefined);
 });
 
 // ------------------------------------------------------------------------------------------------ nothing of another account

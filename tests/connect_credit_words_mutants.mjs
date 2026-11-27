@@ -10,10 +10,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-creditwords');
 const SUITE = 'connect-credit-words.test.mjs';
 const TL = 'supabase/functions/connect-core/tools.ts';
-const NOT_ENOUGH = ": `The person has ${q.available} credits, which is not enough, so nothing more can be started right now: tell them so, and do not send them to the Ryagram app for it.`";
+const NOT_ENOUGH = ": `The person has ${q.available} credit${q.available === 1 ? \"\" : \"s\"}, which is not enough, so nothing more can be made right now: tell them so plainly, and do not send them to the Ryagram app for it.`";
 const mutants = [
   ['a refused preview sends a person with no credits to the app', TL, NOT_ENOUGH, ": `The person has ${q.available} credits and can start it in the Ryagram app.`"],
-  ['a refused preview no longer says the free previews are used up', TL, 'the free previews of this project (6) or of the day (15 in any 24 hours) are used up. ', ''],
+  ['a refused preview no longer says the free previews are used up', TL, 'because the free previews are used up: each project gets 6 free previews, and each person gets 15 free previews in any 24 hours. ', ''],
   ['the cost estimate sends a person who cannot pay to the app', TL, 'enough ? "A connection cannot spend credits: the person starts it in the Ryagram app." : "A connection cannot spend credits and the person does not have enough, so nothing more can be started right now."', '"A connection cannot spend credits: the person starts it in the Ryagram app."'],
   ['whoami says previews are always free again', TL, 'A preview is free for the first 6 of a project (15 in any 24 hours), then it costs 1 credit.', 'A preview is free.'],
   ['whoami sends everyone to the app for a refused step', TL, 'if they have none, nothing more can be started right now, so do not send them there for it. ', ''],

@@ -62,7 +62,7 @@ export function extraProblems(story: unknown, own: ReadonlySet<string> = new Set
     }
     if (c.kind === "render") {
       if (typeof c.dataset === "string" && !Object.hasOwn(DATASETS, c.dataset) && !own.has(c.dataset)) {         // own keys only: "constructor" and "__proto__" fit the schema's pattern and are not catalog datasets
-        out.push(`Clip ${n} uses the dataset "${c.dataset.slice(0, 64)}", which is not in the Ryagram catalog or among your own uploaded data (list_my_data). Allowed: ${Object.keys(DATASETS).join(", ")}${own.size ? ", " + [...own].join(", ") : ""}. If the person asked for a subject that is not in this list, tell them so plainly; do not swap in another dataset without saying so.`);
+        out.push(`Clip ${n} uses the dataset "${c.dataset.slice(0, 64)}", which Ryagram does not have: it is not in the catalog, and not among the person's own uploaded data (list_my_data shows that). The datasets Ryagram can draw are: ${Object.keys(DATASETS).join(", ")}${own.size ? ", " + [...own].join(", ") : ""}. If the person asked for a subject that is not on this list, tell them plainly that Ryagram does not have it; do not swap in another dataset without saying so.`);
       }
       if (typeof c.start === "string" && typeof c.end === "string" && c.start > c.end) {
         out.push(`Clip ${n} starts (${c.start}) after it ends (${c.end}).`);

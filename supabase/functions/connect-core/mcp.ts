@@ -6,6 +6,7 @@ import { TOOLS } from "./tools.ts";
 import { probeOn, withProbeTools } from "./probe.ts";
 import { LIMITS, type Principal, type ToolDef } from "./types.ts";
 import { HOME_URI } from "./home_panel.ts";
+import { SIGNED_OUT, tooBig } from "./words.ts";
 import { EDITOR_URI, readResource, resourceList, toolUiMeta, UI_TOOL_URIS, type McpAppConfig } from "./mcp_app.ts";
 
 export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
@@ -77,12 +78,12 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
   const auth = await authenticate(deps, token);
   if ("down" in auth) return unavailable();
   const principal = auth.principal;
-  if (!principal) return json(401, { error: "Sign in to Ryagram to use this connection." }, challenge(deps.resourceMetadataUrl, token ? "invalid_token" : undefined));
+  if (!principal) return json(401, { error: SIGNED_OUT }, challenge(deps.resourceMetadataUrl, token ? "invalid_token" : undefined));
 
   const declared = Number(req.headers.get("content-length") ?? 0);
-  if (declared > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
+  if (declared > LIMITS.maxBodyBytes) return json(413, { error: tooBig() });
   const buf = await req.arrayBuffer();
-  if (buf.byteLength > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
+  if (buf.byteLength > LIMITS.maxBodyBytes) return json(413, { error: tooBig() });
   const raw = new TextDecoder().decode(buf);
   let msg: any;
   try { msg = JSON.parse(raw); } catch { return rpcError(null, -32700, "Parse error"); }

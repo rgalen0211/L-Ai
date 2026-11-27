@@ -80,8 +80,9 @@ export const protectedResourceDoc = (base: string, preparedData = false) => ({
 /** The plain words behind an OAuth error code from the database. */
 const WHY: Record<string, string> = {
   invalid_client: "This assistant is not registered with Ryagram. Remove the connection and add it again.",
-  invalid_redirect_uri: "This assistant's return address is not on Ryagram's list of allowed addresses.",
-  invalid_request: "The sign-in request was incomplete or used a method Ryagram does not allow.",
+  invalid_redirect_uri: "Ryagram does not recognise where this assistant wants to send you after you sign in, so it stopped. Nothing was changed. Go back to your assistant and try again.",
+  invalid_request: "The assistant's sign-in request was incomplete, so Ryagram stopped. Nothing was changed. Go back to your assistant and try again.",
+  unavailable: "AI connections to Ryagram are switched off right now, so the sign-in could not start. Nothing was changed. Try again later.",
 };
 const code = (e: unknown) => /^([a-z_]+)/.exec(String((e as Error)?.message ?? ""))?.[1] ?? "";
 const status = (e: unknown) => /^PT(\d{3})$/.test((e as { code?: string })?.code ?? "") ? Number((e as { code: string }).code.slice(2)) : 0;
@@ -155,10 +156,10 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
 
   if (route === "/authorize" && (req.method === "GET" || req.method === "POST")) {
     const u = req.method === "GET" ? new URL(req.url).searchParams : await form(req);
-    if (u.get("response_type") !== "code") return text(400, "Ryagram can only start a sign-in with response_type=code.");
+    if (u.get("response_type") !== "code") return text(400, "Ryagram could not start this sign-in: the assistant asked for it in a way Ryagram does not support. Nothing was changed. Go back to your assistant and try again.");
     const resource = u.get("resource");                                                      // RFC 8707: it must name THIS server
-    if (resource && resource !== `${d.baseUrl}/mcp` && resource !== d.baseUrl) return text(400, "Ryagram could not start this sign-in. The assistant asked for a different server (invalid_target).");
-    if ((u.get("state") ?? "").length > 512) return text(400, "Ryagram could not start this sign-in. The state value is too long.");
+    if (resource && resource !== `${d.baseUrl}/mcp` && resource !== d.baseUrl) return text(400, "Ryagram could not start this sign-in. The assistant asked to connect to a different service than Ryagram. Nothing was changed. Go back to your assistant and try again.");
+    if ((u.get("state") ?? "").length > 512) return text(400, "Ryagram could not start this sign-in. The assistant's request was too long. Nothing was changed. Go back to your assistant and try again.");
     const wantedClient = u.get("client_id") ?? "";
     if (looksLikeCimd(wantedClient)) {                                                        // an https client_id: only an allowlisted address is ever fetched
       const refused = await resolveCimdClient(wantedClient, u.get("redirect_uri") ?? "", d);

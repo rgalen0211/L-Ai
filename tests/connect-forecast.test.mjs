@@ -130,7 +130,7 @@ test('ASK: the geo hourly limit is one bucket shared with the place questions; f
     for (const g of rows(w)) g.state = 'answered';
   }
   const r = await call('forecast_series', ask({ series: SERIES.map(([y, v]) => [y, v + 99]) }));
-  assert.equal(r.code, 'rate'); assert.match(r.text, /30 place questions an hour/);
+  assert.equal(r.code, 'rate'); assert.match(r.text, /30 questions an hour \(place questions and forecasts together\)/);
   const w2 = world({ forecast: switchOn() });
   for (let i = 0; i < 5; i++) assert.equal((await w2.call('forecast_series', ask({ series: SERIES.map(([y, v]) => [y, v + i]) }))).isError, undefined);
   const sixth = await w2.call('forecast_series', ask({ series: SERIES.map(([y, v]) => [y, v + 50]) }));

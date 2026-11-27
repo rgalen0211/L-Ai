@@ -95,7 +95,7 @@ test('set_story: every failed check is listed in plain words and NOTHING is save
   assert.ok(!r.isError); assert.equal(r.refused, true); assert.equal(r.data.ok, false); assert.equal(r.data.saved, false); assert.equal(r.code, 'checks_failed');      // a RESULT, not a tool error (NEXT-CONNECT 157)
   assert.ok(r.failedChecks >= 3, r.text);
   assert.match(r.text, /NOT saved/);
-  assert.match(r.text, /share the id/); assert.match(r.text, /not in the Ryagram catalog/); assert.match(r.text, /starts \(2020\) after it ends \(2010\)/);
+  assert.match(r.text, /share the id/); assert.match(r.text, /which Ryagram does not have: it is not in the catalog/); assert.match(r.text, /starts \(2020\) after it ends \(2010\)/);
   const spec = w.users.get(A.userId).versions[0].story_spec;
   assert.deepEqual(spec, {});
 });
@@ -186,7 +186,7 @@ test('credits: "free" means free - a connection cannot spend, the cost is stated
   const previews = () => u.jobs.filter((j) => j.job_type === 'preview').length;
   u.previewsUsed.set(u.projects[0].id, 3);                    // the free previews are used up: the next one would cost 5
   const ask = await call(A, 'make_preview', { project_id: id });
-  assert.equal(ask.code, 'costs_credits'); assert.match(ask.text, /cost 5 credits/); assert.match(ask.text, /NOTHING was started/); assert.match(ask.text, /cannot spend credits/);
+  assert.equal(ask.code, 'costs_credits'); assert.match(ask.text, /needs 5 credits/); assert.match(ask.text, /NOTHING was started/); assert.match(ask.text, /An AI cannot spend credits/);
   assert.equal(previews(), 0);
   for (const tool of ['make_preview', 'make_contact_sheet']) {                               // confirm=true is not an argument at all, so it cannot be used to push a cost through
     assert.equal((await call(A, tool, { project_id: id, confirm: true })).code, 'args', tool);
