@@ -20,8 +20,12 @@ test('one group for every crawler, Disallow lines only, no wildcards, no Sitemap
 
 test('the working folders are kept out of search', () => {
   for (const p of ['/proposals/X.md', '/docs/A.md', '/supabase/migrations/a.sql', '/tests/a.test.mjs', '/tools/x.py',
-    '/archive/consulting/index.html', '/legal-drafts/terms.html', '/directory-drafts/terms/', '/landing-drafts/song-films/',
+    '/legal-drafts/terms.html', '/directory-drafts/terms/', '/landing-drafts/song-films/',
     '/README.md', '/package.json', '/package-lock.json']) assert.ok(blocked(p), p);
+});
+
+test('no line for the consulting archive: _archive/ is never published by the Pages build, and /archive/ no longer exists', () => {
+  assert.ok(!disallow.some((d) => /archive/.test(d)), disallow.join(' '));
 });
 
 test('MUST STAY OPEN: the home page, the app and every route email links, the connector and shared films use', () => {
