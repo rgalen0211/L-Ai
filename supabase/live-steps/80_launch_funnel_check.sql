@@ -2,11 +2,11 @@
 -- WHAT IT GIVES: #/admin/funnel shows, day by day, how many people reached each step (sign-up asked, account opened, first contact sheet, first preview, first full film asked,
 --   approved, delivered), counted from what the site already records. No new tracking, no cookie. The page needs this function AND the launchFunnel switch on for your account.
 -- ONE read-only SELECT (this file): changes nothing, never errors, prints no address. Its FIRST row says PASS or STOP.
--- ORDER: (1) THIS file: before the change it says STOP (rows 2 to 4 false), as expected. (2) ONCE: paste ALL of supabase/migrations/20261127000200_launch_funnel.sql into the SQL Editor
+-- ORDER: (1) THIS file: before the change it says STOP (rows 2 to 5 false), as expected. (2) ONCE: paste ALL of supabase/migrations/20261127000200_launch_funnel.sql into the SQL Editor
 --   and Run. (3) THIS file again: the FIRST row must say PASS. STOP after the change: paste the undo below and tell CC1.
 -- UNDO (only if CC1 asks): paste supabase/rollbacks/20261127000200_launch_funnel_rollback.sql. It removes the one function. Nothing else changes either way.
 -- NOTE: the sign-up asks are kept only 2 days (the Privacy page), so that column is empty before yesterday. The function counts your own test accounts too (only administrators
---   and workers are left out).
+--   and workers are left out). Delivered means a film was handed over (a render that finished with no film is not counted).
 with c as (
 select 2 as n, 'the funnel function exists, a signed-in person can reach it, anonymous and the service key cannot' as check_name,
        coalesce(to_regprocedure('public.admin_launch_funnel(integer)') is not null
@@ -22,8 +22,10 @@ union all select 4, 'it only reads (stable), returns numbers per day, keeps the 
          and pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%case when ds.d >= today - 1 then%'
          and pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%public.app_admins a where a.user_id = u.id%'
          and pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%public.workers w where w.user_id = u.id%', false)
-union all select 5, 'the tables it reads are still there (jobs, render_stages, join_attempts)',
+union all select 5, 'the tables it reads are still there (jobs, render_stages, render_deliveries, artifacts, join_attempts), and delivered means a real delivery',
        to_regclass('public.jobs') is not null and to_regclass('public.render_stages') is not null and to_regclass('public.join_attempts') is not null
+       and to_regclass('public.render_deliveries') is not null and to_regclass('public.artifacts') is not null
+       and coalesce(pg_get_functiondef(to_regprocedure('public.admin_launch_funnel(integer)')) like '%from public.render_deliveries d where d.owner_id = p.id%', false)
 )
 select 1 as n, case when (select bool_and(ok) from c) then 'PASS: the launch funnel can be read' else 'STOP: a row below is false (before the change this is expected)' end as check_name,
        (select bool_and(ok) from c) as ok

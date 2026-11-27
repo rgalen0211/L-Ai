@@ -40,6 +40,9 @@ test('the page: behind launchFunnel (account, off), the old event funnel stays b
   assert.match(part, /if \(funnelOn\(\)\) await load\(\);/, 'the event funnel still loads only behind funnelTracking');
   assert.match(part, /v === null \|\| v === undefined\) \? 'not kept'/);
   assert.match(part, /rows\.slice\(0, 60\)/);
+  assert.match(part, /launchOut\.querySelector\(`\[data-days="\$\{n\}"\]`\)\?\.focus\(\)/, 'focus goes back to the pressed day button');
+  assert.match(part, /'First contact sheet'/);
+  assert.match(part, /Your own test accounts are counted, so on a quiet day most of these numbers may be you\./);
   assert.doesNotMatch(part, /innerHTML|insertAdjacentHTML|outerHTML/);
   const cfg = read('assets/ryagram-config.js');
   assert.match(cfg, /\n  launchFunnel: 'account',\n/);

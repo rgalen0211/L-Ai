@@ -6,10 +6,11 @@
 --   first_preview   accounts whose FIRST preview was asked for that day (job_type preview)
 --   film_asked      accounts whose FIRST full film was asked for that day (job_type final_render, whatever happened next)
 --   film_approved   accounts whose FIRST full film was let into the line that day: Ryan approved the request (render_stages.admin_decided_at, not declined), or it went straight in (no request: auto_render)
---   film_delivered  accounts whose FIRST full film finished that day (state complete, ended_at)
+--   film_delivered  accounts whose FIRST full film was DELIVERED that day: the order's delivery row (render_deliveries, made only when a final video was handed over; a render that
+--                   finished with no film is refunded and gets none, RENDERER 11-27), or for a direct final (no order) the first final_video file of a complete job
 -- Each column after the first counts an ACCOUNT once, on the day it first reached that step. Days are Eastern (EST5EDT, the same day the existing funnel uses). Administrator and worker accounts are left out of every column.
 -- NO new tracking, no new table, no cookie, no address or account id leaves the database: the function returns numbers per day only. Admin in the app only (require_admin: not through a connected AI, not the service key, not anonymous).
--- Apply AFTER: 20261017000600_pipe1_orders.sql (render_stages, require_admin), 20261104000200_waiting_join.sql (join_attempts), 20261104000100_waiting_accounts.sql (the gate; this file ends with gate_apply()).
+-- Apply AFTER: 20261017000600_pipe1_orders.sql (render_stages, render_deliveries, require_admin), 20261104000200_waiting_join.sql (join_attempts), 20261104000100_waiting_accounts.sql (the gate; this file ends with gate_apply()).
 begin;
 
 create function public.admin_launch_funnel(p_days int default 14)
@@ -35,7 +36,9 @@ begin
               from public.jobs j left join public.render_stages s on s.id = j.stage_id
              where j.owner_id = p.id and j.job_type = 'final_render'
                and (j.stage_id is null or (s.admin_decided_at is not null and s.state <> 'declined'))) as approved,
-           (select min(j.ended_at) from public.jobs j where j.owner_id = p.id and j.job_type = 'final_render' and j.state = 'complete') as delivered
+           least((select min(d.created_at) from public.render_deliveries d where d.owner_id = p.id),
+                 (select min(a.created_at) from public.jobs j join public.artifacts a on a.job_id = j.id and a.kind = 'final_video'
+                   where j.owner_id = p.id and j.job_type = 'final_render' and j.state = 'complete' and j.stage_id is null)) as delivered
       from people p),
   asks as (
     select (a.at at time zone 'EST5EDT')::date as d, count(distinct a.email_hash)::int as c

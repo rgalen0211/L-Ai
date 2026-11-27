@@ -71,6 +71,20 @@ class LaunchFunnel(p1.Orders):
         self.full_film("funnel-0002")
         self.assertEqual(self.totals(self.funnel()), {c: 1 for c in COLS[1:]}, "a second film by the same account counts nothing again")
 
+    def test_a_render_that_finishes_with_no_film_is_asked_and_approved_but_not_delivered(self):
+        oid = self.order("funnel-0009")
+        self.work_through_preview(oid)
+        sid = self.admin("select id from render_stages where order_id = %s and stage = 'final_render'", oid)
+        self.db.as_(RYAN).one("select state from admin_render_decide(%s, true, 'ok')", sid)
+        final = self.claim()
+        self.work(final, ["final_video", "thumbnail", "receipt"])
+        # The delivery step can still fail after the job completes (pipe1 order_advance: the final_video gone, so a refund, the order failed with delivery_failed and NO
+        # render_deliveries row; RENDERER 11-27). The worker cannot report a final without its film, so the end state is made here directly: the job complete, no delivery row.
+        self.admin("delete from render_deliveries where order_id = %s returning 1", oid)
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", final), "complete")
+        t = self.funnel()[self.today()]
+        self.assertEqual((t["film_asked"], t["film_approved"], t["film_delivered"]), (1, 1, 0), "finished is not delivered")
+
     def test_a_declined_film_is_asked_but_never_approved_or_delivered(self):
         self.full_film("funnel-0003", approve=False)
         t = self.funnel()[self.today()]
@@ -92,6 +106,11 @@ class LaunchFunnel(p1.Orders):
         self.assertEqual(f[self.ago(2)]["first_sheet"], 1)
         self.assertEqual(f[self.today()]["first_preview"], 1)
         self.assertEqual((f[self.today()]["film_asked"], f[self.today()]["film_approved"]), (1, 1))
+        self.assertEqual(f[self.today()]["film_delivered"], 0, "a direct final is delivered only once its film exists")
+        self.work(self.claim(), ["final_video", "thumbnail", "receipt"])
+        self.assertEqual(self.funnel()[self.today()]["film_delivered"], 1, "a direct final with its film is delivered")
+        self.admin("update jobs set state = 'failed' where id = %s returning 1", final)
+        self.assertEqual(self.funnel()[self.today()]["film_delivered"], 0, "a film file on a job that did not complete is not a delivery")
 
     # ---------------------------------------------------------------- who counts
     def test_administrators_and_workers_are_left_out_and_another_account_counts_on_its_own(self):
@@ -143,7 +162,7 @@ class LaunchFunnel(p1.Orders):
         self.ddl("revoke execute on function public.admin_launch_funnel(integer) from anon")
         self.ddl(RB.read_text(encoding="utf-8"))
         rows = self.step()
-        self.assertEqual([r[2] for r in rows], [False, False, False, False, True], rows)
+        self.assertEqual([r[2] for r in rows], [False, False, False, False, False], rows)
         self.assertIsNone(self.admin("select to_regprocedure('public.admin_launch_funnel(integer)')"), "the rollback removed it")
 
     def test_step_80_is_one_statement_with_no_semicolon_in_a_string_and_no_address(self):
