@@ -146,7 +146,7 @@ test('queue positions count everyone ahead; submit refuses a second job of the s
   assert.deepEqual([await data.queuePosition(a.id), await data.queuePosition(b.id)], [1, 2]);
   await assert.rejects(data.submitJob(version.id, 'preview', { window_s: [0, 10] }), /already in progress/);
   await assert.rejects(data.submitJob(version.id, 'preview', { cmd: 'x' }), /Unknown parameter/);
-  assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 2), 'Number 2 in line. We make one film at a time. It may be working on another film right now. Yours starts in about 10 minutes and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer.');   // no job type: no number, only the plain line (queue-words-1123 has the contact sheet estimate)
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 2), 'Number 2 in line. We make one film at a time. It may be working on another film right now. Yours starts in about 10 minutes and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer. Your place can move back when we approve a full film someone asked for earlier.');   // no job type: no number, only the plain line (queue-words-1123 has the contact sheet estimate)
   assert.match(J.progressNote({ state: 'queued', attempt: 2 }, 1), /Next in line\. .*This was put back in line after a problem on our side\./);
 });
 
@@ -167,8 +167,8 @@ test('a waiting film says plainly when it waits for a computer, and only when th
   assert.match(J.progressNote(q, 1, { tester: true, computers: 0 }), /^Waiting for your computer\. No computer is signed in .*sign in; the film starts once it is signed in\.$/);
   assert.match(J.progressNote(q, 2, { tester: true, computers: 1 }), /^Waiting for your computer to pick it up\. .*Ryagram app/);   // a computer is signed in: still its own computer, never 'in line'
   assert.match(J.progressNote(q, 2, { tester: true, computers: null }), /^Waiting for your computer to pick it up\./);   // not readable: still its own computer, no claim about sign-in
-  assert.equal(J.progressNote(q, 2, { tester: false, computers: 0 }), 'Number 2 in line. We make one film at a time. It may be working on another film right now. Yours starts in about 10 minutes and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer.');       // not a computer account: the site's own machine, no claim
-  assert.equal(J.progressNote(q, 2), 'Number 2 in line. We make one film at a time. It may be working on another film right now. Yours starts in about 10 minutes and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer.');
+  assert.equal(J.progressNote(q, 2, { tester: false, computers: 0 }), 'Number 2 in line. We make one film at a time. It may be working on another film right now. Yours starts in about 10 minutes and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer. Your place can move back when we approve a full film someone asked for earlier.');       // not a computer account: the site's own machine, no claim
+  assert.equal(J.progressNote(q, 2), 'Number 2 in line. We make one film at a time. It may be working on another film right now. Yours starts in about 10 minutes and takes about 5 more. A full film ahead of yours can take up to half an hour, so it may take longer. Your place can move back when we approve a full film someone asked for earlier.');
   assert.equal(J.progressNote({ state: 'running', progress_note: 'x' }, 0, { tester: true, computers: 0 }), 'x');
   assert.equal(J.progressNote({ state: 'queued', cancel_requested: true }, 0, { tester: true, computers: 0 }), 'Waiting in line. We make one film at a time. At busy times yours may take hours, or more than a day when many people join at once.');   // a cancel in flight: never the computer claim
 });

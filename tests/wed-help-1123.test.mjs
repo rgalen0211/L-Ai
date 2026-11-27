@@ -19,7 +19,7 @@ test('1 Help does not say plain "Get help" attaches a film: only Send this to us
 });
 
 test('2 the queue answer says a full film is checked by a person first, on both Help pages', () => {
-  const S = 'A full film is checked by a person before it starts, and it joins the end of the line when it is approved.';
+  const S = 'A full film is checked by a person before it starts;';
   assert.ok(help.includes(S));
   assert.ok(lib.includes(S));
   assert.match(read('assets/app-jobs.js'), /We approve each one by hand for now/, 'the app says the same hand approval');
@@ -78,7 +78,7 @@ test('the public Help and the in-app Help use the same words for the shared answ
   const AP = String.fromCharCode(0x2019);
   const shared = [
     `Your film is made on our render machine, and it hasn${AP}t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back.`,
-    'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour, so a long line can mean hours, or a day or more when many people join at once, such as a launch day. A full film is checked by a person before it starts, and it joins the end of the line when it is approved. The Render panel shows your place in line. You can have 2 films waiting at once. We do not send an email when a film is ready, so come back to this page to check.',
+    'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. A contact sheet or preview usually takes about 5 minutes and a full film up to about half an hour, so a long line can mean hours, or a day or more when many people join at once, such as a launch day. A full film is checked by a person before it starts; when an earlier one is approved, your place in line can move back. The Render panel shows your place in line. You can have 2 films waiting at once. We do not send an email when a film is ready, so come back to this page to check.',
     'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again.',
     'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.',
     'Public film pages are not open yet.',
