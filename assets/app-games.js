@@ -5,6 +5,9 @@
 // the engine's own rules (assets/game-score.js, proven equal to ryagram/games/guess_line.py by tests/game-score.test.mjs) and sends the answer and the points.
 // The rounds are FIVE made-up rounds made by the real engine over a MADE-UP transcript (assets/game-rounds.js): no real show, person or clip, and no video
 // (the host reads the line aloud). Nothing is stored: no table, no file, no account row; closing the page ends the room. Words are drafts FOR RYAN'S YES.
+// SIGNED (11-27): the room has no server, so this screen checks every join/guess/leave against the key its player id is made from (and a seq above the last one), and signs
+// everything it sends with its own key. The ROOM CODE is made from that key (ryagramGameRoom.codeOf), and a phone pins the host key only when it gives the code typed.
+// Joins are limited to 3 per pid in 10 s; a refused join keeps no seat and no key; names are compared in NFKC lower case and host/ryagram/admin are kept for the game.
 (function () {
   const MAX_PLAYERS = 8, ROUND_SECONDS = 45;
   const local = () => ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
@@ -19,9 +22,13 @@
   }
 
   // Pure helpers (tested in node).
+  // GAMES 11-27: names are compared in NFKC and lower case, so a look-alike (full-width letters, a ligature, other case) counts as the same name; a few names are kept for the game.
+  const RESERVED_NAMES = ['host', 'ryagram', 'admin'];
+  const fold = n => String(n).normalize('NFKC').toLowerCase();
   function nameProblem(name, players) {
     if (!name) return 'Type a name for the scoreboard.';
-    if (players.some(p => p.name.toLowerCase() === name.toLowerCase())) return 'Someone in this room already has that name. Add a letter or pick another.';
+    if (RESERVED_NAMES.includes(fold(name).trim())) return 'That name is kept for the game itself. Pick another name.';
+    if (players.some(p => fold(p.name) === fold(name))) return 'Someone in this room already has that name. Add a letter or pick another.';
     if (players.length >= MAX_PLAYERS) return `This room is full (${MAX_PLAYERS} players).`;
     return null;
   }
@@ -34,14 +41,14 @@
     return players.map(p => {
       const text = guesses.get(p.pid) || '';
       const r = Score.scoreGuess(round, text);
-      const verdict = round.answer.length === 1 && r.marks[0] && r.marks[0].mark === 'near' ? 'close (near form)' : r.verdict;        // one-word answers (Fill the gap): 'a few words' read oddly; the points are the engine's, unchanged
+      const verdict = round.answer.length === 1 && r.marks[0] && r.marks[0].mark === 'near' ? 'close, a near form' : r.verdict;        // one-word answers (Fill the gap): 'a few words' read oddly; the points are the engine's, unchanged
       return { name: p.name, points: r.points, verdict, text, marks: r.marks };
     });
   }
 
   function mount(root, { h, Room, Score, Rounds, GapRounds, cfg, seconds }) {
     const secs = seconds || ROUND_SECONDS;
-    const s = { code: Room.newCode(), conn: null, off: null, players: [], phase: 'lobby', round: -1, guesses: new Map(), totals: new Map(), left: 0, timer: null, results: null, closed: false };
+    const s = { code: '', conn: null, off: null, players: [], phase: 'lobby', round: -1, guesses: new Map(), totals: new Map(), left: 0, timer: null, results: null, closed: false };
     const live = h('p', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite', id: 'gh-live' });
     const stage = h('div', { class: 'gh-stage' });
     const status = h('p', { class: 'form-note', id: 'gh-status', role: 'status' }, 'Opening a room…');
@@ -63,19 +70,70 @@
     const totalsList = () => ranks(s.players.map(p => ({ name: p.name, total: s.totals.get(p.pid) || 0 }))).map(({ name, total }) => ({ name, total }));        // ranked, so every phone lists the same order (GAMES a11y audit 5)
     const active = () => s.players.filter(p => !p.gone);
     const endDot = t => String(t).replace(/[.!?]+$/, '');          // the answer may end with its own full stop: never two (audit 8)
-    const broadcast = () => { if (s.conn) s.conn.send(publicState()).catch(() => { status.textContent = 'A message did not reach the phones. It is sent again every 5 seconds.'; }); };
+    // SIGNED ROOM (11-27): every message this screen sends carries the next seq and this screen's signature, sent one after another so the seq order is the arrival order;
+    // a welcome also carries this screen's public key, which the phone pins. Every join/guess/leave is checked first (checked() below); anything that fails is dropped unanswered.
+    s.seq = 0; s.keys = new Map(); s.outQ = Promise.resolve(); s.inQ = Promise.resolve();
+    const post = msg => {
+      const p = s.outQ.then(async () => { if (!s.conn || !s.pair) throw new Error('closed'); const conn = s.conn; s.seq += 1; await conn.send(await Room.sign(s.pair, s.code, { ...msg, seq: s.seq })); });
+      s.outQ = p.catch(() => {});
+      return p;
+    };
+    const welcome = (pid, ok, problem) => post(problem ? { t: 'welcome', pid, ok, problem, pub: s.pair.pub } : { t: 'welcome', pid, ok, pub: s.pair.pub }).catch(() => {});
+    const broadcast = () => { if (s.conn) post(publicState()).catch(() => { status.textContent = 'A message did not reach the phones. It is sent again every 5 seconds.'; }); };
     const stopTimer = () => { if (s.timer) clearInterval(s.timer); s.timer = null; };
+
+    // A join must carry the key its pid is made from and be signed by it. The key of a player who got IN is remembered (even after a leave, so an old message cannot be
+    // replayed), and every later join/guess/leave from that pid must be signed by the SAME key with a seq above the last one taken. A refused join is remembered nowhere, so
+    // refused or failed joins use up no seat and no memory; at most JOIN_LIMIT good joins per pid in JOIN_WINDOW_MS are taken, and at most KEEP_GONE keys of players who left.
+    const JOIN_LIMIT = 3, JOIN_WINDOW_MS = 10000, KEEP_GONE = 64;
+    s.joinTimes = new Map();
+    const joinAllowed = pid => {
+      const now = Date.now();
+      for (const [p, ts] of s.joinTimes) { const keep = ts.filter(t => now - t < JOIN_WINDOW_MS); if (keep.length) s.joinTimes.set(p, keep); else s.joinTimes.delete(p); }
+      const ts = s.joinTimes.get(pid) || [];
+      if (ts.length >= JOIN_LIMIT) return false;
+      ts.push(now); s.joinTimes.set(pid, ts); return true;
+    };
+    const remember = (pid, pub, seq) => {
+      const k = s.keys.get(pid);
+      if (k) { k.seq = seq; return; }
+      s.keys.set(pid, { pub, seq });
+      const gone = [...s.keys.keys()].filter(p => !s.players.some(x => x.pid === p));
+      while (gone.length > KEEP_GONE) s.keys.delete(gone.shift());
+    };
+    async function checked(m) {
+      if (s.closed || !['join', 'guess', 'leave'].includes(m.t) || !Number.isInteger(m.seq)) return;
+      const known = s.keys.get(m.pid);
+      let pub;
+      if (m.t === 'join') {
+        if (!m.pub || (known && known.pub !== m.pub)) return;
+        if ((await Room.pidOf(m.pub)) !== m.pid) return;
+        pub = m.pub;
+      } else {
+        if (!known) return;
+        pub = known.pub;
+      }
+      if (known && m.seq <= known.seq) return;
+      if (!(await Room.verify(pub, s.code, m))) return;
+      const now = s.keys.get(m.pid);                      // checked again: another message for this pid may have been taken while this one was being verified
+      if (now && (now.pub !== pub || m.seq <= now.seq)) return;
+      if (m.t !== 'join') { now.seq = m.seq; onMessage(m); return; }
+      if (!joinAllowed(m.pid)) return;
+      onMessage(m);
+      if (now || s.players.some(p => p.pid === m.pid)) remember(m.pid, pub, m.seq);          // only a player who got in (or was in) is remembered
+    }
+    const take = m => { s.inQ = s.inQ.then(() => checked(m)).catch(() => {}); };
 
     function onMessage(m) {
       if (s.closed) return;
       if (m.t === 'join') {
         const known = s.players.find(p => p.pid === m.pid);
-        if (known) { known.gone = false; s.conn.send({ t: 'welcome', pid: m.pid, ok: true }).catch(() => {}); broadcast(); return; }
-        if (s.phase !== 'lobby') { s.conn.send({ t: 'welcome', pid: m.pid, ok: false, problem: 'This game has already started. Wait for the next one.' }).catch(() => {}); return; }
+        if (known) { known.gone = false; welcome(m.pid, true); broadcast(); return; }
+        if (s.phase !== 'lobby') { welcome(m.pid, false, 'This game has already started. Wait for the next one.'); return; }
         const problem = nameProblem(m.name, s.players);
-        if (problem) { s.conn.send({ t: 'welcome', pid: m.pid, ok: false, problem }).catch(() => {}); return; }
+        if (problem) { welcome(m.pid, false, problem); return; }
         s.players.push({ pid: m.pid, name: m.name }); s.totals.set(m.pid, 0);
-        s.conn.send({ t: 'welcome', pid: m.pid, ok: true }).catch(() => {});
+        welcome(m.pid, true);
         live.textContent = `${m.name} joined.`;
         refresh(); broadcast(); return;
       }
@@ -91,7 +149,7 @@
         if (s.phase !== 'question' || m.round !== s.round || !s.players.some(p => p.pid === m.pid)) return;
         const back = s.players.find(p => p.pid === m.pid); back.gone = false;
         s.guesses.set(m.pid, m.text);
-        s.conn.send({ t: 'got', pid: m.pid, round: m.round }).catch(() => {});
+        post({ t: 'got', pid: m.pid, round: m.round }).catch(() => {});
         refresh();
         if (active().every(p => s.guesses.has(p.pid))) reveal();
       }
@@ -174,21 +232,26 @@
     window.addEventListener('hashchange', onHash);
 
     (async () => {
+      // the room code is made from this screen's own key (codeOf): a phone pins a host key only when it gives the code the player typed. No signing, no room: never unsigned.
+      // WEB polish 11-27 (web-games-polish-1127 1dcf25a5, folded by GAMES): nothing is drawn until the room is open, and a failure shows its reason with a Try again button.
+      const failed = text => { status.textContent = text; status.setAttribute('role', 'alert');
+        const again = h('button', { class: 'button primary', type: 'button', id: 'gh-retry', onclick: () => location.reload() }, 'Try again');
+        stage.replaceChildren(again); if (again.focus) again.focus(); };
+      try { s.pair = await Room.keyPair(); s.code = await Room.codeOf(s.pair.pub); if (!s.code) throw new Error('no code'); } catch { s.pair = null; failed('This browser cannot sign the game\u2019s messages, so it cannot open a room. Try an up-to-date browser.'); return; }
       const opts = roomOptions(cfg, s.code);
-      if (!opts) { status.textContent = 'This page could not open a game room. Reload and try again.'; return; }
-      try { s.conn = await Room.connect(opts); } catch { status.textContent = 'This page could not open a game room. Check your connection and reload.'; return; }
+      if (!opts) { failed('This page could not open a game room. Press Try again.'); return; }
+      try { s.conn = await Room.connect(opts); } catch { failed('This page could not open a game room. Check your connection and press Try again.'); return; }
       if (s.closed) { s.conn.close(); return; }
-      s.off = s.conn.onMessage(onMessage);
+      s.off = s.conn.onMessage(take);
       status.textContent = `Room ${s.code} is open.`;
       draw(); broadcast();
       s.beat = setInterval(() => { if (!s.closed && s.phase !== 'question') broadcast(); }, 5000);        // the question phase sends every 5 s from its own clock
     })();
 
-    root.replaceChildren(h('p', { class: 'form-note', role: 'note' }, h('strong', {}, 'DRAFT. '), 'Five sample rounds made from a made-up script. Names and guesses pass between this screen and the phones and are not kept.'),
-      status, live, stage);
-    draw();
+    root.replaceChildren(h('p', { class: 'form-note', role: 'note' }, h('strong', {}, 'DRAFT. '), 'Five sample rounds made from a made-up script. Ryagram keeps nothing, but every name and guess goes to everyone in this room, and anyone with the room code can join: it is not a password.'),
+      status, live, stage);        // honest privacy words (CC1 09:33); the stage stays empty until the room is open (WEB polish)
     // the same functions the host's buttons call (tests drive a whole game through them)
-    return { close, state: () => s, start: () => startRound(0), reveal, next: () => (s.round + 1 >= rounds.length ? finish() : startRound(s.round + 1)) };
+    return { close, state: () => s, settled: async () => { for (let i = 0; i < 4; i++) { await s.inQ; await s.outQ; } }, start: () => startRound(0), reveal, next: () => (s.round + 1 >= rounds.length ? finish() : startRound(s.round + 1)) };
   }
 
   window.ryagramGamesHost = Object.freeze({ on, roomOptions, nameProblem, ranks, scoreRound, mount, MAX_PLAYERS, ROUND_SECONDS });

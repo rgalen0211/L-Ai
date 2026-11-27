@@ -49,17 +49,22 @@ class TinyEventSource {
   close() { this.req.destroy(); }
 }
 
-test('MUST FAIL: a room code is 4 letters with no I and no O, made from crypto, forgiving spaces, dashes and lower case', () => {
-  assert.equal(R.CODE_LETTERS, 'ABCDEFGHJKLMNPQRSTUVWXYZ'); assert.equal(R.CODE_LEN, 4); assert.equal(R.MAX_BYTES, 8192);
+test('MUST FAIL: a room code is 6 letters with no I and no O, made from the host key (codeOf, unbiased), forgiving spaces, dashes and lower case', async () => {
+  assert.equal(R.CODE_LETTERS, 'ABCDEFGHJKLMNPQRSTUVWXYZ'); assert.equal(R.CODE_LEN, 6); assert.equal(R.MAX_BYTES, 8192);
   const seen = new Set();
-  for (let i = 0; i < 300; i++) { const c = R.newCode(); assert.match(c, /^[ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$/); seen.add(c); }
-  assert.ok(seen.size > 250, 'codes vary');
-  let calls = 0; const counted = load({ crypto: { getRandomValues: a => { calls++; return webcrypto.getRandomValues(a); } } });
-  counted.newCode(); assert.ok(calls >= 1, 'newCode uses crypto.getRandomValues');
+  for (let i = 0; i < 40; i++) { const k = await R.keyPair(); const c = await R.codeOf(k.pub); assert.match(c, /^[ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/); assert.equal(await R.codeOf(k.pub), c, 'the same key, the same code'); seen.add(c); }
+  assert.ok(seen.size >= 39, 'codes vary with the key');
+  // the mapping by hand: SHA-256 of the raw key, bytes below 240 in order, mod 24
+  const k = await R.keyPair(); const raw = Buffer.from(k.pub, 'base64url');
+  const h = new Uint8Array(await webcrypto.subtle.digest('SHA-256', raw)); let want = '';
+  for (const b of h) if (b < 240 && want.length < 6) want += R.CODE_LETTERS[b % 24];
+  assert.equal(await R.codeOf(k.pub), want);
+  assert.equal(await R.codeOf('not a key'), '');
+  assert.ok(!('newCode' in R), 'no random code: the code is made from the key');
   assert.ok(!/Math\.random/.test(SRC));
-  assert.equal(R.normCode(' ab-cd '), 'ABCD'); assert.equal(R.normCode('w x y z'), 'WXYZ'); assert.equal(R.normCode(null), '');
-  assert.equal(R.channelName('ABCD'), 'ryagram-game-ABCD');
-  assert.ok(Object.isFrozen(R)); assert.deepEqual(Object.keys(R).sort(), ['CODE_LEN', 'CODE_LETTERS', 'MAX_BYTES', 'channelName', 'connect', 'newCode', 'normCode', 'validate']);
+  assert.equal(R.normCode(' ab-cd ef '), 'ABCDEF'); assert.equal(R.normCode('w x y z a b'), 'WXYZAB'); assert.equal(R.normCode(null), '');
+  assert.equal(R.channelName('ABCDEF'), 'ryagram-game-ABCDEF');
+  assert.ok(Object.isFrozen(R)); assert.deepEqual(Object.keys(R).sort(), ['CODE_LEN', 'CODE_LETTERS', 'MAX_BYTES', 'channelName', 'codeOf', 'connect', 'keyPair', 'normCode', 'pidOf', 'sign', 'validate', 'verify']);
 });
 
 test('MUST FAIL: validate accepts each good kind and returns a clean copy with unknown fields dropped', () => {
@@ -166,10 +171,10 @@ const soon = p => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(
 test('MUST FAIL: realtime: the channel is ryagram-game-CODE with self false and no ack; a message reaches the other side only, never its sender; invalid ones are refused and dropped', async () => {
   const bus = fakeBus();
   const hostClient = bus.client(), phoneClient = bus.client(), otherRoom = bus.client();
-  const host = await R.connect({ kind: 'realtime', client: hostClient, code: 'ab-cd' });
-  const phone = await R.connect({ kind: 'realtime', client: phoneClient, code: 'ABCD' });
-  const stranger = await R.connect({ kind: 'realtime', client: otherRoom, code: 'WXYZ' });
-  assert.equal(bus.made[0].name, 'ryagram-game-ABCD'); assert.equal(bus.made[2].name, 'ryagram-game-WXYZ');
+  const host = await R.connect({ kind: 'realtime', client: hostClient, code: 'ab-cd-ef' });
+  const phone = await R.connect({ kind: 'realtime', client: phoneClient, code: 'ABCDEF' });
+  const stranger = await R.connect({ kind: 'realtime', client: otherRoom, code: 'WXYZAB' });
+  assert.equal(bus.made[0].name, 'ryagram-game-ABCDEF'); assert.equal(bus.made[2].name, 'ryagram-game-WXYZAB');
   for (const ch of bus.made) assert.deepEqual(J(ch.cfg), { config: { broadcast: { self: false, ack: false } } });
   for (const ch of bus.made) assert.deepEqual(J(ch.handlers.map(h => [h.type, h.filter])), [['broadcast', { event: 'msg' }]]);
   const got = { host: [], phone: [], stranger: [] };
@@ -209,13 +214,13 @@ test('MUST FAIL: realtime: CHANNEL_ERROR and TIMED_OUT reject in plain words and
   const bus = fakeBus();
   for (const [status, words] of [['CHANNEL_ERROR', /Could not reach the room/], ['TIMED_OUT', /took too long/]]) {
     const c = bus.client({ status });
-    await assert.rejects(R.connect({ kind: 'realtime', client: c, code: 'ABCD' }), err => words.test(err.message));
+    await assert.rejects(R.connect({ kind: 'realtime', client: c, code: 'ABCDEF' }), err => words.test(err.message));
     assert.equal(c.removed.length, 1, `${status}: the channel is removed`);
   }
-  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'AB1D' }), /room code/);
-  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'ABIO' }), /room code/);
-  await assert.rejects(R.connect({ kind: 'realtime', code: 'ABCD' }), /Supabase/);
-  await assert.rejects(R.connect({ kind: 'carrier-pigeon', code: 'ABCD' }), /realtime' or 'relay/);
+  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'AB1DEF' }), /room code/);
+  await assert.rejects(R.connect({ kind: 'realtime', client: bus.client(), code: 'ABIOEF' }), /room code/);
+  await assert.rejects(R.connect({ kind: 'realtime', code: 'ABCDEF' }), /Supabase/);
+  await assert.rejects(R.connect({ kind: 'carrier-pigeon', code: 'ABCDEF' }), /realtime' or 'relay/);
   await assert.rejects(R.connect(null), /options/);
 });
 
@@ -225,10 +230,10 @@ test('MUST FAIL: relay is for this computer only: a page or a relay anywhere els
   const at = host => load({ location: { hostname: host }, EventSource: ES, fetch: () => { opened++; return Promise.resolve({ ok: true }); } });
   for (const [page, base] of [['uselai.com', 'http://127.0.0.1:9000'], ['127.0.0.1', 'https://uselai.com'], ['127.0.0.1', 'http://127.0.0.2:9000'], ['192.168.1.5', 'http://192.168.1.5:9000'],
     ['127.0.0.1', 'http://localhost.evil.test:9000'], ['127.0.0.1', 'http://127.0.0.1.nip.io:9000'], ['localhost', 'not a url'], ['', 'http://127.0.0.1:9000'], ['127.0.0.1', 'file:///C:/x']]) {
-    await assert.rejects(soon(at(page).connect({ kind: 'relay', base, code: 'ABCD' })), err => /this computer|web address/.test(err.message), `${page} ${base}`);
+    await assert.rejects(soon(at(page).connect({ kind: 'relay', base, code: 'ABCDEF' })), err => /this computer|web address/.test(err.message), `${page} ${base}`);
   }
-  await assert.rejects(soon(load({ location: undefined, EventSource: ES }).connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABCD' })), /this computer/);
-  await assert.rejects(soon(at('127.0.0.1').connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABC' })), /room code/);
+  await assert.rejects(soon(load({ location: undefined, EventSource: ES }).connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABCDEF' })), /this computer/);
+  await assert.rejects(soon(at('127.0.0.1').connect({ kind: 'relay', base: 'http://127.0.0.1:9000', code: 'ABCDE' })), /room code/);
   assert.equal(opened, 0, 'no stream opened and nothing sent');
 });
 
@@ -243,9 +248,9 @@ test('MUST FAIL: end to end through tools/game-relay.mjs: two phones in one room
     });
     const base = `http://127.0.0.1:${port}`;
     const ctx = () => load({ location: { hostname: '127.0.0.1' }, EventSource: TinyEventSource, fetch });
-    const ana = await ctx().connect({ kind: 'relay', base, code: 'ab-cd' });
-    const ben = await ctx().connect({ kind: 'relay', base: base + '/', code: 'ABCD' });
-    const cy = await ctx().connect({ kind: 'relay', base, code: 'WXYZ' });
+    const ana = await ctx().connect({ kind: 'relay', base, code: 'ab-cd-ef' });
+    const ben = await ctx().connect({ kind: 'relay', base: base + '/', code: 'ABCDEF' });
+    const cy = await ctx().connect({ kind: 'relay', base, code: 'WXYZAB' });
     const got = { ana: [], ben: [], cy: [] };
     ana.onMessage(m => got.ana.push(J(m))); ben.onMessage(m => got.ben.push(J(m))); cy.onMessage(m => got.cy.push(J(m)));
     await ana.send({ t: 'join', pid: PID_A, name: 'Ana', note: 'dropped' });
@@ -258,17 +263,17 @@ test('MUST FAIL: end to end through tools/game-relay.mjs: two phones in one room
 
     // the relay itself: a raw invalid payload is passed on, and the client drops it
     const post = (path, body, headers = {}) => fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body });
-    assert.equal((await post('/send?room=ABCD&sid=RawSender01', JSON.stringify({ t: 'guess', pid: PID_B, round: 999, text: 'hi' }))).status, 204);
+    assert.equal((await post('/send?room=ABCDEF&sid=RawSender01', JSON.stringify({ t: 'guess', pid: PID_B, round: 999, text: 'hi' }))).status, 204);
     await new Promise(r => setTimeout(r, 150));
     assert.equal(got.ben.length, 1, 'invalid incoming dropped');
     // limits and CORS
-    assert.equal((await post('/send?room=ABCD&sid=RawSender01', JSON.stringify({ pad: 'z'.repeat(9000) }))).status, 413);
-    assert.equal((await post('/send?room=ABCD&sid=RawSender01', '{not json')).status, 400);
-    assert.equal((await post('/send?room=abcd&sid=x', '{}')).status, 400);
-    const okOrigin = await post('/send?room=ABCD&sid=RawSender01', '{}', { origin: 'http://127.0.0.1:5173' });
+    assert.equal((await post('/send?room=ABCDEF&sid=RawSender01', JSON.stringify({ pad: 'z'.repeat(9000) }))).status, 413);
+    assert.equal((await post('/send?room=ABCDEF&sid=RawSender01', '{not json')).status, 400);
+    assert.equal((await post('/send?room=abcdef&sid=x', '{}')).status, 400);
+    const okOrigin = await post('/send?room=ABCDEF&sid=RawSender01', '{}', { origin: 'http://127.0.0.1:5173' });
     assert.equal(okOrigin.headers.get('access-control-allow-origin'), 'http://127.0.0.1:5173');
     for (const o of ['https://uselai.com', 'http://127.0.0.1.evil.test', 'http://localhost:5173']) {
-      const r = await post('/send?room=ABCD&sid=RawSender01', '{}', { origin: o });
+      const r = await post('/send?room=ABCDEF&sid=RawSender01', '{}', { origin: o });
       assert.equal(r.headers.get('access-control-allow-origin'), null, o);
     }
     ana.close(); ben.close(); cy.close();

@@ -193,7 +193,7 @@
       if (gamesHost) { gamesHost.close(); gamesHost = null; }
       const slot = h('div', { class: 'games-host', id: 'games-host' });
       gamesHost = window.ryagramGamesHost.mount(slot, { h, Room: window.ryagramGameRoom, Score: window.ryagramGameScore, Rounds: window.ryagramGameRounds, cfg: window.ryagramConfig });
-      return [h('h1', { tabindex: '-1' }, KNOWN.games.label), h('p', { class: 'form-intro' }, 'Guess the next line: a line is read out and stops, and everyone types on their phone what comes next.'), slot];
+      return [h('h1', { tabindex: '-1' }, KNOWN.games.label), h('p', { class: 'form-intro' }, 'Two word games for a room: Guess the next line, where a line stops and everyone types what comes next, and Fill the gap, where one word is missing.'), slot];
     }
 
     // The picture slots: every frame is hidden until its file loads; the group stays hidden until a frame has, so no file means no empty frame. Text alt only, never a caption of my own.
