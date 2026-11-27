@@ -177,4 +177,7 @@ test('OPENING ROOM: a room that never opens shows no code, Start or Try again; a
   assert.ok(st.log.indexOf('attr:role') < st.log.lastIndexOf('text'), 'role=alert is set before the words so a screen reader announces them');
   assert.ok(!/reload/i.test(st.textContent), 'the words say Try again, not reload');
   assert.match(st.textContent, /try again/i, 'the failure words say Try again');
+test('FAILED ROOM: the status line is an alert BEFORE its words are set, so a screen reader announces the failure (WEB 10:39)', () => {
+  const src = read('assets/app-games.js');
+  assert.match(src, /const failed = text => \{ status\.setAttribute\('role', 'alert'\); status\.textContent = text;/);
 });
