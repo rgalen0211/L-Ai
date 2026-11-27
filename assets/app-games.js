@@ -84,7 +84,7 @@
         live.textContent = `${who.name} left.`;                  // audit 10
         if (s.phase === 'lobby') { s.players = s.players.filter(p => p.pid !== m.pid); s.totals.delete(m.pid); refresh(); broadcast(); return; }
         who.gone = true;                                          // after the start a player keeps their place on this game's scoreboard; Play again drops them (audit 3)
-        if (s.phase === 'question' && active().length && active().every(p => s.guesses.has(p.pid))) reveal(); else refresh();
+        if (s.phase === 'question' && active().length && active().every(p => s.guesses.has(p.pid))) reveal(`${who.name} left.`); else refresh();        // the leave is said WITH the answer, not overwritten by it (verify2 MEDIUM)
         return;
       }
       if (m.t === 'guess') {
@@ -104,13 +104,14 @@
       live.textContent = `Round ${i + 1} of ${rounds.length}.`;
       draw(true); broadcast();
     }
-    function reveal() {
+    function reveal(prefix) {
       if (s.phase !== 'question') return;
+      if (typeof prefix !== 'string') prefix = '';
       stopTimer();
       s.results = scoreRound(Score, rounds[s.round], s.players, s.guesses);
       for (const r of s.results) { const p = s.players.find(x => x.name === r.name); s.totals.set(p.pid, (s.totals.get(p.pid) || 0) + r.points); }
       s.phase = 'reveal';
-      live.textContent = `The answer was: ${endDot(rounds[s.round].answer.map(w => w.word).join(' '))}.`;
+      live.textContent = `${prefix ? prefix + ' ' : ''}The answer was: ${endDot(rounds[s.round].answer.map(w => w.word).join(' '))}.`;
       draw(true); broadcast();
     }
     function finish() { s.phase = 'final'; stopTimer(); const top = ranks(totalsList()).filter(t => t.place === 1).map(t => t.name); live.textContent = `The game is over. ${top.join(' and ')} ${top.length > 1 ? 'share' : 'takes'} first place.`; draw(true); broadcast(); }
