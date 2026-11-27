@@ -36,7 +36,7 @@ const mutants = [
   ['the panel takes the database label', H, `const label = w.label;`, `const label = r.label;`],
   ['the geographic line promises where a business would do well', H, `so it does not say where a business would do well.`, `so it says where a business would do well.`],
   ['a date is promised', H, `No price and no date.`, `No price, due 2027.`],
-  ['the compilations line differs from the site', H, `Say a phrase. Ryagram finds every time it is said in your own footage`, `Say a phrase. Ryagram finds the best time it is said in your own footage`],
+  ['the compilations line differs from the site', H, `Save a request for a phrase in your footage. The film needs`, `Save a request for a phrase in your videos. The film needs`],
   ['the page loads a script from outside', H, `<title>Ryagram home</title>`, `<title>Ryagram home</title><script src=\\"https://x.example/a.js\\"></script>`],
   ['the page builds from markup', H, `root.textContent='';`, `root.innerHTML='';`],
   ['any fragment may be opened', H, `function openPage(page){if(appUrl&&PAGE.test(page||'')){`, `function openPage(page){if(appUrl){`],

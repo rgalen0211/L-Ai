@@ -58,9 +58,16 @@ test('MUST-FAIL: the AI asks through the connector, the engine drafts the edit l
 });
 
 test('MUST-FAIL: what the draft cannot do it says, through the same path: a song is refused; picture rules wait; clean cuts are not made yet', { skip: SKIP }, async () => {
-  const song = draft(await stored({ phrase: 'great news', folders: ['My Videos'], song: true }));
-  assert.equal(song.rc, 2);
-  assert.match(song.err, /needs the song tools/);
+  // A song never reaches the engine: the connector itself refuses it at the door, in words, and saves nothing (a compilation is a phrase only).
+  const w = new FakeWorld();
+  w.addUser(A.userId, 'alice@example.test', 100);
+  w.invite(A.userId, A.clientId);
+  const call = (name, a) => callTool(name, a, A, { data: w.data(A.userId), policy: w.policy(), deps: { compile } });
+  const id = (await call('create_project', { title: 'Friday cut' })).data.project_id;
+  const refused = await call('set_compilation_request', { project_id: id, phrase: 'great news', folders: ['My Videos'], song: true });
+  assert.equal(refused.isError, true, 'a song is refused at the connector');
+  assert.match(refused.text, /"song" is not a field Ryagram accepts here/);
+  assert.equal(w.users.get(A.userId).requests.get(id), undefined, 'nothing was saved');
   const { rc, err, draft: d } = draft(await stored({ phrase: 'great news', folders: ['My Videos', 'Old Clips'], clean_cuts: true,
     rules: [{ phrase: 'great news', picture: 'cheer.png', seconds: 2, mode: 'full' }] }));
   assert.equal(rc, 0, err);

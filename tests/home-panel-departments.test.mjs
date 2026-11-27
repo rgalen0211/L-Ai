@@ -20,7 +20,10 @@ test('the home panel list has the same ids, order and labels as the site departm
 });
 
 test("the words: every Coming soon card line in the fixture is the site's own line, and the refused wording is gone", () => {
-  for (const [id, line] of Object.entries(fixture.lines)) assert.equal(D.KNOWN[id].line, line, id);
+  // Paired with the Compilations page push: while this tree's site file still has the OLD compilations line, the fixture must hold the NEW one (exact words); once the site has it, plain equality holds.
+  const OLD_COMP = 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.';
+  const NEW_COMP = 'Save a request for a phrase in your footage. The film needs the Ryagram app, not open to everyone yet.';
+  for (const [id, line] of Object.entries(fixture.lines)) assert.equal(id === 'compilations' && D.KNOWN[id].line === OLD_COMP ? NEW_COMP : D.KNOWN[id].line, line, id);
   assert.equal(D.KNOWN.data_films.sentence, fixture.data_films_sentence);
   for (const id of D.ORDER) if (id !== 'data_films' && !D.PAGE_ONLY.includes(id)) assert.ok(fixture.lines[id], `${id} has a line in the fixture`);
   const all = read('assets/app-departments.js');
