@@ -163,6 +163,7 @@ export function checkControls({ controls: doc, coreSrc, chatHtml, chatFiles, too
       }
     }
     if (c.inChat === false && c.kind === 'edit') gaps.push(`not-in-chat:${c.id}`);
+    if (c.inChat === true && (c.inChatGate || c.inChatWhy)) bad(`${at}: it says it is in the chat panel AND gives a reason or evidence for hiding it`);
     if (c.inChat === false && (typeof c.inChatWhy !== 'string' || !c.inChatWhy.trim())) bad(`${at}: not in the chat panel: say why (inChatWhy)`);
     if (c.inChatGate && c.inChatGate.notBuilt) {
       if (chatFiles.includes(c.inChatGate.notBuilt)) bad(`${at}: ${c.inChatGate.notBuilt} IS part of the chat page now: the control may be there`);
