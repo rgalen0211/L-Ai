@@ -175,7 +175,7 @@
       const es = new EventSource(`${base}/stream?${q}`);
       const { api, deliver } = wrap(
         async payload => {
-          const r = await fetch(`${base}/send?${q}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+          const r = await fetch(`${base}/send?${q}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true });
           if (!r.ok) throw new Error('The test relay did not take the message.');
         },
         () => { es.close(); },

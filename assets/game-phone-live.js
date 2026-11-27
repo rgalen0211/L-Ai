@@ -107,6 +107,7 @@
     function lobby(players) {
       s.phase = 'lobby';
       show([el('h2', { tabindex: '-1' }, `You are in room ${s.code}`), el('p', {}, `Your name: `, el('strong', {}, s.name)),
+        el('p', { class: 'ph-meta', id: 'ph-lobby-game', 'aria-live': 'polite' }, 'The game: Guess the next line.'),
         el('p', { class: 'ph-meta', id: 'ph-lobby-players', 'aria-live': 'polite' }, players && players.length ? `Players: ${players.join(', ')}` : 'Waiting for the host to start.'),
         el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
     }
@@ -133,13 +134,14 @@
         const p = H.answerProblem(guess.input.value); showErr(guess, p);
         if (p) return guess.input.focus();
         const text = H.clean(guess.input.value);
-        try { await s.conn.send({ t: 'guess', pid: s.pid, round: s.round, text }); } catch { showErr(guess, 'Your guess did not reach the host. Send it again.'); return guess.input.focus(); }
-        s.sentText = text; s.pending = text; sentLine.textContent = 'Sending…';          // 'Sent' only when the host says it has it (audit 13)
+        s.sentText = text; s.pending = text; sentLine.textContent = 'Sending…';          // set BEFORE the send: the host's 'got' can arrive before send() resolves (3-player test race); 'Sent' only on 'got' (audit 13)
+        try { await s.conn.send({ t: 'guess', pid: s.pid, round: s.round, text }); } catch { s.pending = ''; sentLine.textContent = ''; showErr(guess, 'Your guess did not reach the host. Send it again.'); return guess.input.focus(); }
       } }, guess.node, counter, el('button', { type: 'submit', class: 'ph-btn', id: 'ph-send' }, 'Send my guess'), sentLine);
+      const leaveBtn = () => el('button', { type: 'button', class: 'ph-btn ph-ghost ph-leave', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room');        // leave at any time, not only in the lobby (verify H1)
       s.left = m.left_s || 0;
       live.textContent = gap ? `Round ${m.round + 1} of ${m.of}. Fill the gap: one word is missing.` : `Round ${m.round + 1} of ${m.of}. ${m.words_left} word${m.words_left === 1 ? ' is' : 's are'} left to guess.`;
       show([el('h2', { tabindex: '-1' }, gap ? `Round ${m.round + 1} of ${m.of}: fill the gap` : `Round ${m.round + 1} of ${m.of}`), clock,
-        el('p', { class: 'ph-label' }, gap ? 'The line, with one word missing' : 'What was said so far'), el('p', { class: 'ph-heard', id: 'ph-heard' }, gap ? `“${m.heard_text}”` : `“${m.heard_text} …”`), form]);
+        el('p', { class: 'ph-label' }, gap ? 'The line, with one word missing' : 'What was said so far'), el('p', { class: 'ph-heard', id: 'ph-heard' }, gap ? `“${m.heard_text}”` : `“${m.heard_text} …”`), form, leaveBtn()]);
       tick(clock);
     }
 
@@ -150,7 +152,8 @@
       show([el('h2', { tabindex: '-1' }, `Round ${m.round + 1}: the answer`), el('p', { class: 'ph-heard', id: 'ph-answer' }, `“${m.reveal ? m.reveal.answer_text : ''}”`),
         el('p', { id: 'ph-mine' }, mine ? `You: ${mine.points} points (${mine.verdict}).` : 'You sent no guess this round.'),
         el('ul', { class: 'ph-meta' }, (m.reveal && m.reveal.results || []).map(r => el('li', {}, `${r.name}: ${r.points}`))),
-        el('p', { class: 'ph-meta' }, 'The host starts the next round.')]);
+        el('p', { class: 'ph-meta' }, 'The host starts the next round.'),
+        el('button', { type: 'button', class: 'ph-btn ph-ghost ph-leave', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
     }
 
     function final(m) {
@@ -159,7 +162,7 @@
       let place = 0, last = null; const placed = totals.map((t, i) => { if (t.total !== last) { place = i + 1; last = t.total; } return { ...t, place }; });
       const me = placed.find(t => t.name === s.name);
       const nth = n => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
-      live.textContent = me ? `The game is over. You came ${nth(me.place)} with ${me.total}.` : 'The game is over.';
+      live.textContent = me ? `The game is over. You came ${nth(me.place)} with ${me.total} points.` : 'The game is over.';
       show([el('h2', { tabindex: '-1' }, 'The game is over'), me ? el('p', { id: 'ph-place' }, `You came ${nth(me.place)} with ${me.total} points.`) : null,
         el('ul', { id: 'ph-totals', class: 'ph-meta' }, placed.map(t => el('li', {}, `${t.place}. ${t.name}: ${t.total}`))),
         el('button', { type: 'button', class: 'ph-btn ph-ghost', onclick: async () => { await leave(); writeSeat(null); join('You left the room.'); } }, 'Leave the room')]);
@@ -167,19 +170,20 @@
 
     function gotIt(m) {
       if (s.phase !== 'question' || m.round !== s.round) return;
-      const line = stage.querySelector('#ph-sent'); if (line && s.pending) line.textContent = `Sent: “${s.pending}”. You can change it until time is up.`;
+      const line = stage.querySelector('#ph-sent'); if (line && s.pending) line.textContent = `Sent: “${endDot(s.pending)}”. You can change it until time is up.`;
     }
 
     function silent() {
       stopTimer();
       live.textContent = 'The host’s screen stopped answering.';
       show([el('h2', { tabindex: '-1' }, 'The host’s screen stopped answering'), el('p', {}, 'If the host opened a new room, join again with the new code on their screen.'),
-        el('button', { type: 'button', class: 'ph-btn', id: 'ph-again', onclick: async () => { await leave(); join(); } }, 'Join a room')]);
+        el('button', { type: 'button', class: 'ph-btn', id: 'ph-again', onclick: async () => { await leave(); writeSeat(null); join('Type the new code from the host’s screen.'); } }, 'Join a room')]);
     }
 
     function onState(m) {
       if (!s.conn) return;
-      if (m.phase === 'lobby') { if (s.phase === 'lobby' || s.phase === '') { const p = stage.querySelector('#ph-lobby-players'); if (p) p.textContent = m.players.length ? `Players: ${m.players.join(', ')}` : 'Waiting for the host to start.'; else lobby(m.players); } else lobby(m.players); return; }
+      if (m.phase === 'lobby') { if (s.phase === 'lobby' || s.phase === '') { const p = stage.querySelector('#ph-lobby-players'); if (p) p.textContent = m.players.length ? `Players: ${m.players.join(', ')}` : 'Waiting for the host to start.'; else lobby(m.players); } else lobby(m.players);
+        const g = stage.querySelector('#ph-lobby-game'); if (g) g.textContent = m.mode === 'gap' ? 'The game: Fill the gap.' : 'The game: Guess the next line.'; return; }
       if (m.phase === 'question') { if (s.phase !== 'question' || s.round !== m.round) question(m); else s.left = m.left_s || 0; return; }
       if (m.phase === 'reveal') { if (s.phase !== 'reveal' || s.round !== m.round) reveal(m); return; }
       if (m.phase === 'final') { if (s.phase !== 'final') final(m); }

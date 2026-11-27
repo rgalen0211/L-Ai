@@ -50,7 +50,7 @@
     const MODE_ROUNDS = { line: Rounds, gap: GapRounds || (typeof window !== 'undefined' && window.ryagramGameGapRounds) || null };
     s.mode = 'line';
     let rounds = Rounds.rounds;
-    const setMode = m => { if (s.phase !== 'lobby' || !MODE_ROUNDS[m]) return; s.mode = m; rounds = MODE_ROUNDS[m].rounds; draw(); broadcast(); };
+    const setMode = m => { if (s.phase !== 'lobby' || !MODE_ROUNDS[m]) return; s.mode = m; rounds = MODE_ROUNDS[m].rounds; draw(); const r = stage.querySelector && stage.querySelector(`#gh-mode-${m}`); if (r) r.focus(); broadcast(); };        // focus back on the chosen radio (verify M1)
 
     const publicState = () => {
       const base = { t: 'state', mode: s.mode, phase: s.phase, round: Math.max(0, s.round), of: rounds.length, players: s.players.map(p => p.name) };
