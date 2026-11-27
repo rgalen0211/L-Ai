@@ -79,7 +79,7 @@ test('MUST FAIL: the raw token never reaches the database: only its SHA-256, as 
 test('MUST FAIL: the scopes are the database\'s: a read-only token is refused a write tool by the gate, the write function is never asked, and a client cannot claim more', async () => {
   const w = await world({ 'rga_reader': ['read'] });
   const r = await (await handleRequest(rest('rga_reader', 'create_project', { title: 'x' }), w.deps)).json();
-  assert.equal(r.isError, true); assert.match(r.text, /not allowed to do that \(write\)/);
+  assert.equal(r.isError, true); assert.match(r.text, /was not given permission to create projects and change film stories/);
   assert.ok(!toolFns(w.seen).includes('connect_create_project'));
   // a scope named in the request changes nothing: the arguments are checked against a closed schema
   const r2 = await (await handleRequest(rest('rga_reader', 'create_project', { title: 'x', scope: 'write' }), w.deps)).json();
@@ -97,7 +97,7 @@ test('MUST FAIL: a token that expires in the middle of a call gets the plain sig
   const orig = w.deps.mcp.policy.hit;
   w.deps.mcp.policy.hit = async (...a) => { const ok = await orig(...a); if (a[1] === 'calls_acct') await w.kill('rga_dying'); return ok; };
   const r = await (await handleRequest(rest('rga_dying', 'list_projects'), w.deps)).json();
-  assert.equal(r.isError, true); assert.equal(r.text, 'Sign in to Ryagram to use this connection.'); assert.equal(r.data, undefined);
+  assert.equal(r.isError, true); assert.match(r.text, /^This AI is not signed in to Ryagram, or its sign-in has ended\. Nothing was done/); assert.equal(r.data, undefined);
 });
 
 test('MUST FAIL: the token endpoint answers invalid_grant for a refused code or refresh, and never echoes what was sent', async () => {

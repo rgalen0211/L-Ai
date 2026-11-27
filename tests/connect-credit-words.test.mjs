@@ -36,9 +36,9 @@ test('with no credits a refused preview says so and does NOT send the person to 
   const { call, id } = await readyToPreview(0);
   const r = await call(A, 'make_preview', { project_id: id });
   assert.equal(r.code, 'costs_credits');
-  assert.match(r.text, /free previews of this project \(6\) or of the day \(15 in any 24 hours\) are used up/);
+  assert.match(r.text, /each project gets 6 free previews, and each person gets 15 free previews in any 24 hours/);
   assert.match(r.text, /NOTHING was started/);
-  assert.match(r.text, /0 credits, which is not enough, so nothing more can be started right now/);
+  assert.match(r.text, /0 credits, which is not enough, so nothing more can be made right now/);
   assert.match(r.text, /do not send them to the Ryagram app for it/);
   assert.doesNotMatch(r.text, SEND_TO_APP);
 });
@@ -47,8 +47,8 @@ test('with enough credits a refused preview still sends the person to the app', 
   const { call, id } = await readyToPreview(100);
   const r = await call(A, 'make_preview', { project_id: id });
   assert.equal(r.code, 'costs_credits');
-  assert.match(r.text, /has 100 credits and can start it in the Ryagram app/);
-  assert.match(r.text, /cannot spend credits/);
+  assert.match(r.text, /has 100 credits, so they can start it themselves: they press the button in the Ryagram app/);
+  assert.match(r.text, /An AI cannot spend credits/);
 });
 
 test('the cost estimate says nothing more can start when the person cannot pay, and sends them to the app when they can', async () => {

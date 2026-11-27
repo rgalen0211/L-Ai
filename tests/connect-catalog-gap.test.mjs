@@ -70,10 +70,10 @@ test('the standing instructions, the story rules and the refusals for an unknown
   const id = (await c2('create_project', { title: 'Film' })).data.project_id;
   const bad = await c2('set_story', { project_id: id, story: { schema: 1, engine: 'sequence', sequence: { clips: [{ id: 'c1', kind: 'render', dataset: 'census_median_age_state', view: 'map', start: '2010', end: '2019' }] } } });
   const said = JSON.stringify(bad);
-  assert.match(said, /not in the Ryagram catalog/);
-  assert.match(said, /tell them so plainly; do not swap in another dataset without saying so/);
+  assert.match(said, /which Ryagram does not have: it is not in the catalog/);
+  assert.match(said, /tell them plainly that Ryagram does not have it; do not swap in another dataset without saying so/);
   const info = await call('dataset_info', { dataset_id: 'census_median_age_state' });
-  assert.match(JSON.stringify(info), /tell them so plainly; do not swap in another dataset without saying so/);
+  assert.match(JSON.stringify(info), /tell them plainly that Ryagram does not have it; do not swap in another dataset without saying so/);
 });
 
 test('the words are true with the Q634 tool on AND off: they name submit_prepared_data only as "if it is among your tools"', () => {

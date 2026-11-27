@@ -3,13 +3,13 @@
 // Nothing here knows which assistant is calling.
 import { errorCodeOf, friendlyError, TOOL_BY_NAME } from "./tools.ts";
 import { probeTool } from "./probe.ts";
+import { NO_GRANT, noPermission } from "./words.ts";
 import { LIMITS, type CallLog, type Data, type Deps, type Policy, type Principal, type ToolResult } from "./types.ts";
 
 /** chatEditor: the chat editor's tools exist only when this is true (the connector's second switch); otherwise they are "no such tool". */
 /** listedOnly: set by the two FACES (MCP tools/call and REST): a tool that tools/list does not offer is "no such tool" there even when an AI guesses its name (defence in depth, CC1 11-23). request_full_render is the one unlisted tool that stays callable, for its polite refusal. Direct callers (the tools' own tests) leave it unset. */
 export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean; homePanel?: boolean; preparedData?: boolean; probe?: boolean; listedOnly?: boolean }
 
-const NO_GRANT = "This Ryagram account cannot use AI connections right now, or the connection was revoked. The person can open Account, then Connected AIs, in the Ryagram app to reconnect; if Connected AIs is not there, connecting is not open to this account yet and they can write to Ryagram from the Help page to ask for it.";
 
 export async function callTool(name: string, rawArgs: unknown, principal: Principal, env: Env): Promise<ToolResult> {
   const { policy, data, deps } = env;
@@ -33,7 +33,7 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
   try { grant = await policy.grantFor(principal); } catch { return finish({ text: friendlyError(null), isError: true, code: "error" }, "error", "grant_lookup"); }
   if (!grant) return refused(NO_GRANT, "no_grant");
   if (!grant.scopes.includes(tool.scope)) {
-    return refused(`This connection was not allowed to do that (${tool.scope.replace("_", " ")}): it was connected without that permission. There is no switch for it in Ryagram. To add it, the person opens Account, then Connected AIs in Ryagram and presses Disconnect, then connects the AI again from the AI app and keeps the box for this permission ticked on the Ryagram page.`, "scope");
+    return refused(noPermission(tool.scope), "scope");
   }
 
   try {
@@ -58,7 +58,7 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
   const args = rawArgs == null ? {} : rawArgs;
   if (typeof args !== "object" || Array.isArray(args)) return refused("The arguments must be a JSON object.", "args");
   const problems = deps.compile(tool.inputSchema)(args);
-  if (problems.length) return refused(`The call was not understood: ${problems.slice(0, 8).join(" ")}`, "args");
+  if (problems.length) return refused(`Ryagram could not use those details, so nothing was done: ${problems.slice(0, 8).join(" ")}`, "args");
 
   try {
     const r = await tool.run(args as Record<string, unknown>, { principal, data, policy, deps });

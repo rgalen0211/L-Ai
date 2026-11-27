@@ -135,5 +135,5 @@ test('PLAIN WORDS everywhere: every refusal an abusive client can trigger reads 
   await push(A, 'set_compilation_request', { project_id: '00000000-0000-4000-8000-000000000999', phrase: 'C:\\Users\\me', folders: ['x'] });
   w.revoke(A.userId, A.clientId); await push(A, 'whoami_and_credits', {});
   assert.ok(texts.length >= 7, texts.map((t) => t[0]).join(','));
-  for (const [name, t] of texts) assertPlain(t.replace(/^The call was not understood: .*/, 'The call was not understood, so nothing was done. Change the arguments.'), name);
+  for (const [name, t] of texts) assertPlain(t.replace(/^Ryagram could not use those details, so nothing was done: .*/, 'Ryagram could not use those details, so nothing was done. Change the arguments.'), name);
 });

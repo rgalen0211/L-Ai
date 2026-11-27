@@ -155,7 +155,7 @@ test('a connection that was never invited is refused the probe tool like every o
   const s = server(PROBE_ON, { invite: false });
   const r = (await s.rpc('tools/call', { name: 'map_probe', arguments: {} })).result;
   assert.equal(r.isError, true);
-  assert.match(r.content[0].text, /cannot use AI connections right now/);
+  assert.match(r.content[0].text, /cannot use this Ryagram account right now/);
 });
 
 test('the checksum is exact: one changed character, or one missing, is a different checksum', () => {
@@ -360,7 +360,7 @@ test('the probe tools need only the plain read permission (and no more): a read-
   const noRead = server(PROBE_ON, { scopes: ['write', 'render_free'] });
   const r = (await noRead.rpc('tools/call', { name: 'map_probe', arguments: {} })).result;
   assert.equal(r.isError, true);
-  assert.match(r.content[0].text, /not allowed to do that/);
+  assert.match(r.content[0].text, /was not given permission to see the person's projects, films and credits/);
   assert.ok(PROBE_TOOLS.every((t) => t.scope === 'read' && t.readOnly === true));
 });
 

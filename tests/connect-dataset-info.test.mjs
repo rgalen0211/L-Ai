@@ -75,7 +75,7 @@ test('MUST-FAIL: a dataset with no source address is flagged as a known problem,
 test('MUST-FAIL: an unknown id is refused in words with close ids and a pointer, and a bad id is refused before it is looked up', async () => {
   const { call } = world();
   const near = await call('dataset_info', { dataset_id: 'bea_cainc1' });
-  assert.equal(near.isError, true); assert.equal(near.code, 'not_found'); assert.match(near.text, /Close ids: bea_cainc1_county_income_index/); assert.match(near.text, /get_story_schema/);
+  assert.equal(near.isError, true); assert.equal(near.code, 'not_found'); assert.match(near.text, /Close names: bea_cainc1_county_income_index/); assert.match(near.text, /get_story_schema/);
   const far = await call('dataset_info', { dataset_id: 'no_such_thing' });
   assert.equal(far.isError, true); assert.equal(far.code, 'not_found'); assert.doesNotMatch(far.text, /Close ids/);
   for (const bad of ['Bad Id!', '../x', 'A'.repeat(101), '', 7, null]) {

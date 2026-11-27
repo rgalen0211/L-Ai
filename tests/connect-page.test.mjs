@@ -94,11 +94,12 @@ test('the guide is TRUE WHETHER OR NOT connecting is open to everyone (Ryan 11-2
   assert.ok(app.includes('Connected AIs'), 'and the page the guide points to says exactly that');
   assert.ok(read('assets/creator-beta.js').includes('ryagram@uselai.com'), 'the address is the one the site uses');   // creator-beta.js no longer builds the invite mailto (WEB 11-23): the hero button is Create an account
 });
-test('the connector\'s no-grant message is also true in both states (it never says invite-only), and tells the person where to look and how to ask', () => {
-  const d = read('supabase/functions/connect-core/dispatch.ts');
-  const m = /const NO_GRANT = "([^"]*)";/.exec(d);
-  assert.ok(m, 'the message');
-  assert.doesNotMatch(m[1], /invite|Ryan/i);
-  assert.match(m[1], /Connected AIs/);
-  assert.match(m[1], /Help page/);
+test('the connector\'s no-grant message is also true in both states (it never says invite-only), and tells the person where to look and how to ask', async () => {
+  const w = read('supabase/functions/connect-core/words.ts');
+  assert.ok(/export const NO_GRANT = /.test(w), 'the message');
+  assert.ok(read('supabase/functions/connect-core/dispatch.ts').includes('refused(NO_GRANT, "no_grant")'), 'the gate says it');
+  const { NO_GRANT } = await import('../supabase/functions/connect-core/words.ts');
+  assert.doesNotMatch(NO_GRANT, /invite|Ryan/i);
+  assert.match(NO_GRANT, /Connected AIs/);
+  assert.match(NO_GRANT, /Help page/);
 });
