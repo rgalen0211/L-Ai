@@ -291,21 +291,21 @@ function fakeDom() {
   return { document, made, appendedToHead, el };
 }
 
-async function routeLabsMap(on, payload = null) {
+async function routeLabsMap(on, payload = null, src = null) {      // src: a planted copy of the map module, for a must-fail
   const { document, made, appendedToHead, el } = fakeDom();
   const window = { addEventListener() {}, removeEventListener() {}, ryagramConfig: {},
     ryagramSwitches: { load: async () => {}, featureOn: (n) => n === 'zoomMap' && on } };
   if (payload) { window.ryagramZoomMapData = { us: payload.us }; window.ryagramZoomMapCounties = payload.counties; }     // already "loaded": the view goes past the script request
   const location = { hash: '#/labs/map', search: '', replace() {} };
   const ctx = { window, document, location, console, setTimeout, clearTimeout, setInterval, clearInterval, MutationObserver: class { observe() {} disconnect() {} }, URLSearchParams };
-  vm.runInNewContext(read('assets/app-zoom-map.js'), ctx);           // the real map module: its view() asks for the data file through document.head
+  vm.runInNewContext(src ?? read('assets/app-zoom-map.js'), ctx);           // the real map module: its view() asks for the data file through document.head
   vm.runInNewContext(read('assets/app-library.js'), ctx);
   const root = el('main');
   const data = { isAppAdmin: async () => false, serviceStatus: async () => null };
   window.ryagramLibrary.mount(root, data);
   const ready = () => (payload ? made.some((e) => e.attrs.id === 'zm-caption' && e.textContent) : on ? appendedToHead.length : root.querySelector('h1'));
   for (let i = 0; i < 50 && !ready(); i++) await new Promise((r) => setTimeout(r, 10));
-  return { root, made, appendedToHead };
+  return { root, made, appendedToHead, window };
 }
 
 test('the router with a stub featureOn: switch off gives one plain line and loads no map data; switch on asks for the states file', async () => {
@@ -433,4 +433,85 @@ test('what the prototype does not do: raw head counts, not per-person rates, and
   const w = {};
   vm.runInNewContext(read('assets/app-zoom-map.js'), { window: w, document: {} });
   assert.ok(w.ryagramZoomMap.WORDS.notDone.includes('Raw head counts, not per-person rates, and no density.'));
+});
+
+// zm6: an invented one-county-equivalent place ('11', like DC) and one Alpha county with no figure (so the grey line has a reason to show).
+const TINY_DC = {
+  us: { ...TINY.us, states: [...TINY.us.states, { id: '11', name: 'Gamma District', d: 'M60,0L70,0L70,10Z', bbox: [60, 0, 70, 10], counties: 1, pop: [700, 710, 720, 730, 740] }] },
+  counties: { ...TINY.counties,
+    '01': { id: '01', counties: [...TINY.counties['01'].counties, { id: '01005', name: 'East Alpha County', d: sq, pop: [null, null, null, null, null] }] },
+    '11': { id: '11', counties: [{ id: '11001', name: 'Gamma District', d: 'M60,0L70,0L70,10Z', pop: [700, 710, 720, 730, 740] }] } }
+};
+const PICK_HINT = /Click a (county|planning region), or pick it from the list/;
+// Everything wrong with a one-county-equivalent view (an empty list = right). Opens Gamma District on a fresh page from module source src.
+async function oneEquivalentProblems(src = null) {
+  const { root } = await routeLabsMap(true, TINY_DC, src);
+  paths(root, 'zm-state').find((p) => p.attrs['data-id'] === '11').fire('click');
+  await tick(() => paths(root, 'zm-county').length === 1);
+  const bad = [];
+  const caption = textOf(find(root, 'zm-caption'));
+  if (caption !== 'Gamma District (one county equivalent): population on July 1, 2024 (estimated)') bad.push(`caption: ${caption}`);
+  if (/counties/i.test(caption) || /counties/i.test(find(root, 'zm-svg').attrs['aria-label'])) bad.push('says counties');
+  if (find(root, 'zm-compare')) bad.push('the compare-inside-this-state line');
+  const detail = textOf(find(root, 'zm-detail'));
+  if (PICK_HINT.test(detail)) bad.push('the pick hint');
+  const options = (find(root, 'zm-county') || { children: [] }).children.map(textOf);
+  if (options.some((t) => /^All of/.test(t))) bad.push(`the list: ${options.join(' | ')}`);
+  if (find(root, 'zm-grey')) bad.push('the grey line with no grey shape');
+  if (!find(root, 'zm-county-facts')) bad.push('its numbers are not shown');
+  return bad;
+}
+
+test('one county equivalent (DC-like): no "counties", no compare line, no pick hint, no "All of", grey only when a shape is grey; its numbers shown (must-fail)', async () => {
+  assert.deepEqual(await oneEquivalentProblems(), []);
+  // the grey line does show when a shape has no figure (Alpha's East Alpha County), and the county code is an attribute, never words
+  const { root } = await routeLabsMap(true, TINY_DC);
+  assert.equal(find(root, 'zm-grey'), null, 'the whole map: every state has a figure, so no grey line');
+  paths(root, 'zm-state').find((p) => p.attrs['data-id'] === '01').fire('click');
+  await tick(() => paths(root, 'zm-county').length === 3);
+  assert.equal(textOf(find(root, 'zm-grey')), 'Grey: no published figure.');
+  assert.match(textOf(find(root, 'zm-caption')), /^Alpha State, counties:/, 'a state of many counties keeps its words');
+  assert.ok(find(root, 'zm-compare'), 'and its compare line');
+  assert.deepEqual(find(root, 'zm-county').children.map(textOf)[0], 'All of Alpha State');
+  find(root, 'zm-county').fire('change', { target: { value: '01001' } });
+  assert.equal(find(root, 'zm-county-facts').attrs['data-fips'], '01001');
+  assert.ok(!/FIPS|01001/.test(textOf(find(root, 'zm-detail'))), 'no county code in the visible words');
+  // must-fail: each old behaviour, planted back into the module, is caught
+  const real = read('assets/app-zoom-map.js');
+  const plant = (from, to) => { assert.equal(real.split(from).length, 2, `the plant site is there once: ${from}`); return real.replace(from, to); };
+  const mutants = {
+    caption: plant('one ? WORDS.oneEquivalent(s.name) : ', ''),
+    compare: plant('one ? null : WORDS.compareInside(w.many)', 'WORDS.compareInside(w.many)'),
+    allOf: plant("one ? null : h('option', { value: '' }", "h('option', { value: '' }"),
+    grey: plant('places.some((x) => at(x) == null) ? ', 'true ? '),
+    hint: plant('if (one) pickCounty(', 'if (false) pickCounty(').replace('else if (state.counties && state.counties.counties.length > 1)', 'else')
+  };
+  for (const [name, src] of Object.entries(mutants)) assert.notDeepEqual(await oneEquivalentProblems(src), [], `must-fail ${name}: the planted fault is caught`);
+  // must-fail: the old visible code line is seen by the no-code check
+  const fips = await routeLabsMap(true, TINY_DC, plant("id: 'zm-county-facts', 'data-fips': c.id },", "id: 'zm-county-facts' }, h('li', {}, `County code (FIPS) ${c.id}`),"));
+  paths(fips.root, 'zm-state').find((p) => p.attrs['data-id'] === '01').fire('click');
+  await tick(() => paths(fips.root, 'zm-county').length === 3);
+  find(fips.root, 'zm-county').fire('change', { target: { value: '01001' } });
+  assert.ok(/FIPS|01001/.test(textOf(find(fips.root, 'zm-detail'))), 'must-fail fips: the planted code line is seen');
+});
+
+test('while a state\'s counties load: the loading line only, no pick hint; the hint comes with the counties (must-fail)', async () => {
+  const pending = { us: TINY.us, counties: {} };                 // no county file yet: the view asks for one and waits
+  const hintWhileLoading = async (src = null) => {
+    const { root, appendedToHead, window } = await routeLabsMap(true, pending, src);
+    paths(root, 'zm-state').find((p) => p.attrs['data-id'] === '01').fire('click');
+    await tick(() => appendedToHead.length === 1);
+    const loading = { status: find(root, 'zm-status').textContent,      // textContent: the fake DOM keeps the first child under a set textContent
+      hint: PICK_HINT.test(textOf(find(root, 'zm-detail'))) };
+    window.ryagramZoomMapCounties = { '01': TINY.counties['01'] };
+    appendedToHead[0].onload();
+    await tick(() => paths(root, 'zm-county').length === 2);
+    return { ...loading, after: PICK_HINT.test(textOf(find(root, 'zm-detail'))) };
+  };
+  assert.deepEqual(await hintWhileLoading(), { status: 'Loading the counties...', hint: false, after: true });
+  // must-fail: the old rule (a hint whenever no county is picked) shows it mid-load, and this check sees it
+  const real = read('assets/app-zoom-map.js');
+  const from = 'else if (state.counties && state.counties.counties.length > 1)';
+  assert.equal(real.split(from).length, 2);
+  assert.equal((await hintWhileLoading(real.replace(from, 'else'))).hint, true, 'must-fail: the planted mid-load hint is caught');
 });

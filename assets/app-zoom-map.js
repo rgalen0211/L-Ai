@@ -28,6 +28,8 @@
     onePlace: 'One county equivalent: see its numbers below.',
     connecticut: 'Connecticut\'s nine planning regions (the Census Bureau\'s county equivalents since 2022).',
     compareInside: (many) => `Colours compare ${many} inside this state only, not with other states.`,
+    oneEquivalent: (name) => `${name} (one county equivalent)`,
+    noFigure: 'Grey: no published figure.',
     usYear: (y) => `The whole map shows July 1, ${y} (estimated).`
   };
   // What a state's areas are called: Connecticut's are planning regions (since 2022), every other state's are counties.
@@ -199,7 +201,7 @@
       legend.replaceChildren(...[h('p', { class: 'meta', id: 'zm-legend-year' }, `${us.value.name} on July 1, ${year()} (estimated)`), h('ul', { class: 'zm-keys' }, keys),
         compare ? h('p', { class: 'zm-compare', id: 'zm-compare' }, compare) : null,
         h('p', { class: 'meta', id: 'zm-bands' }, bands),
-        h('p', { class: 'meta' }, 'Grey: no published figure.')].filter(Boolean));      // replaceChildren would write a null as the word "null"
+        places.some((x) => at(x) == null) ? h('p', { class: 'meta', id: 'zm-grey' }, WORDS.noFigure) : null].filter(Boolean));      // grey only when a shape is grey this year      // replaceChildren would write a null as the word "null"
       legend.querySelectorAll('.zm-swatch').forEach((s) => s.replaceChildren(svg('svg', { width: 14, height: 14, 'aria-hidden': 'true' }, [svg('rect', { width: 14, height: 14, fill: s.getAttribute('data-fill') })])));
     }
 
@@ -224,19 +226,20 @@
       const c = state.county && state.counties && state.counties.counties.find((x) => x.id === state.county);
       if (c) {
         out.push(h('h3', { id: 'zm-county-name' }, c.name),
-          h('ul', { class: 'zm-facts', id: 'zm-county-facts' },
+          h('ul', { class: 'zm-facts', id: 'zm-county-facts', 'data-fips': c.id },      // the county code stays on the element for tools, not in the words
             h('li', {}, `People in ${y}: ${at(c) == null ? 'no figure' : fmt(at(c))}`, at(c) == null ? null : h('span', { class: 'zm-label' }, ` estimated, July 1, ${y}`)),
             changeLine(c, 'zm-county-change'),
-            at(c) != null && at(s) ? h('li', {}, `Share of ${s.name} in ${y}: ${(100 * at(c) / at(s)).toFixed(1)}%`, h('span', { class: 'zm-label' }, ' calculated')) : null,
-            h('li', { class: 'meta' }, `${w.One} code (FIPS) ${c.id}`)));
-      } else out.push(h('p', { class: 'meta' }, `Click a ${w.one}, or pick it from the list, to see its number.`));
+            at(c) != null && at(s) ? h('li', {}, `Share of ${s.name} in ${y}: ${(100 * at(c) / at(s)).toFixed(1)}%`, h('span', { class: 'zm-label' }, ' calculated')) : null));
+      } else if (state.counties && state.counties.counties.length > 1) out.push(h('p', { class: 'meta', id: 'zm-pick-hint' }, `Click a ${w.one}, or pick it from the list, to see its number.`));
+      // no hint while the counties load (the loading line says what is happening) or for a place of one county equivalent (it is picked already)
       if (state.yi === 0) out.push(h('p', { class: 'meta', id: 'zm-2020' }, WORDS.year2020));
       detail.replaceChildren(...out);
     }
 
     function drawCaption() {
       const s = state.fp && state.counties && byId.get(state.fp);      // while a state's counties load, the whole map is on screen and the caption says so
-      caption.textContent = `${s ? `${s.name}, ${areaWords(s.id).many}` : 'The contiguous states'}: population on July 1, ${year()} (estimated)`;
+      const one = s && state.counties.counties.length === 1;
+      caption.textContent = `${s ? (one ? WORDS.oneEquivalent(s.name) : `${s.name}, ${areaWords(s.id).many}`) : 'The contiguous states'}: population on July 1, ${year()} (estimated)`;
     }
 
     function setYear(i) {
@@ -245,18 +248,25 @@
       yearSel.value = String(year());
       recolour();
       const s = state.fp && byId.get(state.fp);
-      root.setAttribute('aria-label', s && state.counties ? `Map of ${s.name}, ${year()}: ${state.counties.counties.length} ${areaWords(s.id).many} shaded by population (estimated, July 1, ${year()})` : usLabel());
+      root.setAttribute('aria-label', s && state.counties ? `Map of ${s.name}, ${year()}: ${state.counties.counties.length === 1 ? 'one county equivalent' : `${state.counties.counties.length} ${areaWords(s.id).many}`} shaded by population (estimated, July 1, ${year()})` : usLabel());
       if (state.legend) drawLegend(...state.legend);
       drawCaption();
       drawDetail();
     }
 
-    function pickCounty(id) {
+    function pickCounty(id, { byUser = true } = {}) {
       state.county = id || null;
       gCounties.querySelectorAll('path').forEach((p) => p.classList.toggle('zm-picked', p.getAttribute('data-id') === state.county));
       const sel = countyWrap.querySelector('select');
       if (sel) sel.value = state.county || '';
       drawDetail();
+      // On a phone the numbers sit well below the map: bring them into view (no smooth motion if the reader asked for less). Focus stays
+      // where it was (the map or the list), and the live panel announces the numbers.
+      const name = state.county && byUser && detail.querySelector && detail.querySelector('#zm-county-name');
+      if (name && name.scrollIntoView && window.matchMedia && window.matchMedia('(max-width: 700px)').matches) {
+        const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        name.scrollIntoView({ block: 'start', behavior: calm ? 'auto' : 'smooth' });
+      }
     }
 
     async function zoomTo(fp, { fromList = false } = {}) {
@@ -289,13 +299,16 @@
       gStates.querySelectorAll('path').forEach((p) => p.classList.toggle('zm-dim', p.getAttribute('data-id') !== fp));
       root.setAttribute('viewBox', fitBox(s.bbox, us.width, us.height).join(' '));
       root.classList.add('zm-zoomed');
+      // One county equivalent (DC): the list holds just that place, already picked; no "All of", no compare line, no pick hint.
+      const one = data.counties.length === 1;
       const csel = h('select', { id: 'zm-county', onchange: (e) => pickCounty(e.target.value) },
-        h('option', { value: '' }, `All of ${s.name}`), [...data.counties].sort((a, b) => a.name.localeCompare(b.name)).map((c) => h('option', { value: c.id }, c.name)));
+        one ? null : h('option', { value: '' }, `All of ${s.name}`), [...data.counties].sort((a, b) => a.name.localeCompare(b.name)).map((c) => h('option', { value: c.id }, c.name)));
       const w = areaWords(fp);
       countyWrap.replaceChildren(h('label', { class: 'zm-control', for: 'zm-county' }, `${w.One} `, csel));
       back.hidden = false;
-      drawLegend(data.counties, `the ${w.many} of ${s.name} only`, w.one, WORDS.compareInside(w.many));
+      drawLegend(data.counties, `the ${w.many} of ${s.name} only`, w.one, one ? null : WORDS.compareInside(w.many));
       setYear(state.yi);                              // colours, tooltips, the map's label, caption and panel for the chosen year
+      if (one) pickCounty(data.counties[0].id, { byUser: false });
       // On a phone the map can sit below the fold after a pick from the list: bring it into view.
       if (fromList && window.matchMedia && window.matchMedia('(max-width: 700px)').matches) root.scrollIntoView({ block: 'nearest' });
     }

@@ -21,3 +21,6 @@
 .zm-swatch svg { display: block; }
 .zm-facts { padding-left: 1.2em; }
 .zm-label { opacity: 0.75; font-size: 0.9em; }
+/* zm6 spacing: Try again no longer touches the caption under it; the small-states line no longer touches the whole-map year line. */
+#zm-retry { margin-bottom: 12px; }
+#zm-small { margin-bottom: 12px; }

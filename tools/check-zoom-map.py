@@ -6,7 +6,7 @@ fails to load (a clean whole map, then a click, the list and Try again each relo
 without the switch (one plain line). Also: every legend as plain ranges (Ohio, Rhode Island, Connecticut; DC one colour and one line), a state
 switched mid-load (the old one gone at once), and no orange outline left after Back. zm5: the inside-this-state line by every county legend
 (Texas, Ohio, Connecticut), Connecticut's planning regions in the caption, count and legend, the year said in the live panel on the whole map,
-and the two-stroke hover ring.
+and the two-stroke hover ring. zm6: DC as one county equivalent, no county code in the words, and the county numbers scrolled into view on a phone.
 Local only: a server on 127.0.0.1 with its own port, nothing sent anywhere. Screenshots go to --out (outside the repo).
   py -I -B tools/check-zoom-map.py --out D:/Ryagram-scratch/GEO/zoom-shots
 """
@@ -142,6 +142,11 @@ def main():
                 f = p.inner_text('#zm-county-facts') if p.locator('#zm-county-facts').count() else ''
                 check('Franklin County' in p.inner_text('#zm-detail') and 'estimated' in f and 'calculated' in f, 'click a county: its people (estimated) and share of the state (calculated)')
                 check(p.locator('path.zm-county.zm-picked').count() == 1 and p.input_value('#zm-county') == '39049', 'the county is marked on the map and in the list')
+                check('FIPS' not in p.inner_text('#zm-detail') and p.get_attribute('#zm-county-facts', 'data-fips') == '39049', 'zm6: no county code in the words; kept as data-fips')
+                if name == 'phone':      # zm6: the numbers are brought into view (they sat about 1.5 screens below the map)
+                    p.wait_for_timeout(800)
+                    top = p.evaluate("document.querySelector('#zm-county-name').getBoundingClientRect().top")
+                    check(0 <= top < 844, f'phone: the county numbers are scrolled into view (top {top:.0f})')
                 p.screenshot(path=str(out / f'3-county-{name}.png'), full_page=True)
                 fc = lambda: p.inner_text('#zm-county-facts')
                 check('People in 2024: 1,356,303' in fc() and '+31,798 (+2.4%)' in p.inner_text('#zm-county-change') and 'calculated' in p.inner_text('#zm-county-change'),
@@ -225,6 +230,13 @@ def main():
                 keys = keys_of()
                 check(keys == ['One county equivalent: see its numbers below.'] and 'all' not in keys and p.locator('#zm-legend .zm-swatch').count() == 1,
                       f'DC legend: one colour and the one-place line ({keys})')
+                # zm6: one county equivalent, not a state of counties
+                cap = p.inner_text('#zm-caption')
+                dc_opts = p.evaluate("[...document.querySelectorAll('#zm-county option')].map((o) => o.textContent)")
+                check(cap.startswith('District of Columbia (one county equivalent):') and 'counties' not in cap, f'DC caption: one county equivalent ({cap})')
+                check(p.locator('#zm-compare').count() == 0 and 'Click a county' not in p.inner_text('#zm-detail') and p.locator('#zm-county-facts').count() == 1,
+                      'DC: no compare line, no pick hint, its numbers shown')
+                check(not any(o.startswith('All of') for o in dc_opts) and p.locator('#zm-grey').count() == 0, f'DC: no "All of" in the list ({dc_opts}), no grey line')
                 dc_fill = p.evaluate("[...new Set([...document.querySelectorAll('#zm-svg path.zm-county')].map((x) => x.getAttribute('fill')))]")
                 swatch = p.evaluate("document.querySelector('#zm-legend .zm-swatch').getAttribute('data-fill')")
                 p.select_option('#zm-year', '2020')
