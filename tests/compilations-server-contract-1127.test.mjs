@@ -14,7 +14,7 @@ const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8'
 
 // The migration text: a pinned copy under tests/fixtures/ (named with the commit it came from) is what the tests use, so they do not go quiet if the branch is deleted.
 // When the branch is still there it is compared to the pin; a difference is noted in the test output (drift), not silently ignored.
-const PIN = 'tests/fixtures/compilations-server-87675142-20261127000300.sql';
+const PIN = 'tests/fixtures/compilations-server-a20f1a05-20261127000300.sql';
 let SQL = null, SKIP = false, BRANCH_SQL = null;
 try { SQL = read(PIN).replace(/\r/g, ''); } catch (e) { SKIP = `the pinned migration ${PIN} is missing`; }
 try {
@@ -44,7 +44,7 @@ const requestCols = () => read('supabase/migrations/20261026000300_compilation_r
   .split('\n').map(l => l.trim().match(/^([a-z_0-9]+) /)).filter(Boolean).map(m => m[1]);
 
 // ---- the migration's request checks, mirrored in JS (compilation_request_problem). Returns a short reason or null.
-const INVISIBLE = /[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g;
+const INVISIBLE = /[\u0080-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufe00-\ufe0f\ufeff\ufff9-\ufffb\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu;   // the migration's (a20f1a05) wider list
 const SQL_PLACE = /([a-z]:[\\/]|\\\\[a-z0-9]|(^|[^a-z0-9._-])\/(users|home|mnt|volumes|private|tmp|var|media|etc|srv|opt|root)\/|[a-z][a-z0-9+.-]*:\/\/|%2f|%5c|%3a|(^|\s)~[a-z0-9_]*[/\\]|%[a-z_]+%|\$home\b|[\uff0f\uff3c\u2215\uff1a])/i;
 const SQL_KEYS = /"([a-z_]*path[a-z_]*|urls?|uri|href|src|files?|filename|video|audio|dir|directory|location)"\s*:/i;
 const allStrings = (x, out = []) => { if (typeof x === 'string') out.push(x); else if (x && typeof x === 'object') for (const v of Object.values(x)) allStrings(v, out); return out; };
@@ -57,7 +57,7 @@ function serverProblem(p) {
   for (const k of Object.keys(p)) if (!requestKeys().includes(k)) return 'unknown part ' + k;
   if (typeof p.phrase !== 'string' || ![...p.phrase.trim()].length || [...p.phrase].length > 200) return 'phrase';
   if ('search' in p && !['every', 'words'].includes(p.search)) return 'search';
-  if (!Array.isArray(p.folders) || p.folders.length < 1 || p.folders.length > 10) return 'folders count';
+  if (!Array.isArray(p.folders) || p.folders.length < 1 || p.folders.length > 8) return 'folders count';
   for (const e of p.folders) {
     const f = typeof e === 'string' ? e.trim() : null, n = f === null ? 0 : [...e].length;
     if (f === null || ![...f].length || n > 80 || f === '.' || f === '..' || /[\\/:*?"<>|\x00-\x1f\x7f-\x9f]/.test(f)) return 'folder name';
@@ -113,7 +113,7 @@ T('ERRORS: WORDS.errors keys are the migration\'s eleven reasons plus the one do
 T('LIMITS: the page\'s limits equal the numbers in the migration text', () => {
   assert.ok(SQL.includes('> 32768'));
   assert.ok(/char_length\(btrim\(p ->> 'phrase'\)\) < 1 or char_length\(p ->> 'phrase'\) > 200/.test(SQL) && C.LIMITS.phrase === 200);
-  assert.ok(/jsonb_array_length\(p -> 'folders'\) not between 1 and 10/.test(SQL) && C.LIMITS.folders === 8 && C.LIMITS.folders <= 10);      // FACES' engine takes 1 to 8; the server accepts 1 to 10: a smaller page limit is safe
+  assert.ok(/jsonb_array_length\(p -> 'folders'\) not between 1 and 8/.test(SQL) && C.LIMITS.folders === 8 && /Name 1 to 8 folders\./.test(SQL));      // the engine's limit, the server's too (a20f1a05)
   assert.ok(/char_length\(f\) < 1 or char_length\(e #>> '\{\}'\) > 80/.test(SQL));
   assert.ok(/char_length\(p ->> 'note'\) > 500/.test(SQL) && C.LIMITS.note === 500);
   assert.ok(SQL.includes("'schema', 'phrase', 'search', 'mode', 'folders', 'song', 'clean_cuts', 'rules', 'texts', 'cards', 'clip_labels', 'note', 'checklist'"));
@@ -133,7 +133,7 @@ T('SHAPE: a request the page builds passes every mirrored migration check, and u
 T('MIRROR SELF-CHECK: the JS mirror refuses what the migration refuses (a place, a link, a bad name, a song, too many folders)', () => {
   const ok = { schema: 'ryagram.compilation-request/0', phrase: 'x', folders: ['A'] };
   assert.equal(serverProblem(ok), null);
-  for (const bad of [{ ...ok, phrase: 'see http://x' }, { ...ok, phrase: 'C:\\x' }, { ...ok, folders: ['a/b'] }, { ...ok, folders: [] }, { ...ok, folders: Array(11).fill('a') }, { ...ok, song: true }, { ...ok, path: 'x' }, { ...ok, phrase: '' }, { ...ok, extra: 1 }])
+  for (const bad of [{ ...ok, phrase: 'see http://x' }, { ...ok, phrase: 'C:\\x' }, { ...ok, folders: ['a/b'] }, { ...ok, folders: [] }, { ...ok, folders: Array(11).fill('a') }, { ...ok, folders: Array(10).fill('a') }, { ...ok, folders: Array(9).fill('a') }, { ...ok, song: true }, { ...ok, path: 'x' }, { ...ok, phrase: '' }, { ...ok, extra: 1 }])
     assert.ok(serverProblem(bad), JSON.stringify(bad));
 });
 
