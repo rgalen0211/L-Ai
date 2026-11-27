@@ -6,7 +6,6 @@ Disallow: /docs/
 Disallow: /supabase/
 Disallow: /tests/
 Disallow: /tools/
-Disallow: /archive/
 Disallow: /legal-drafts/
 Disallow: /directory-drafts/
 Disallow: /landing-drafts/
