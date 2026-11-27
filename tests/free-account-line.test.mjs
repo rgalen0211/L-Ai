@@ -14,7 +14,7 @@ const CLOSED = WELCOME + ' ' + FREE + ' A full film costs 6 to 10 credits, depen
 const OPEN = WELCOME + ' ' + FREE + ' Credits pay for full films.';
 const load = (cfg, els = []) => {
   const win = { ryagramConfig: cfg };
-  vm.runInNewContext(read('assets/free-account-line.js'), { window: win, document: { querySelectorAll: () => els } });
+  vm.runInNewContext(read('assets/free-account-line.js'), { window: win, document: { querySelectorAll: q => (q === '[data-free-account-line]' ? els : []) } });
   return win.ryagramFreeAccountLine;
 };
 const app = read('app/index.html'), rg = read('ryagram/index.html');
@@ -73,10 +73,10 @@ test('the shipped config (buyingOpen false) gives the closed wording, and every 
   const cfgWin = {}; vm.runInNewContext(read('assets/ryagram-config.js'), { window: cfgWin });
   const el = { textContent: 'stale' };
   const win = { ryagramConfig: cfgWin.ryagramConfig };
-  vm.runInNewContext(read('assets/free-account-line.js'), { window: win, document: { querySelectorAll: () => [el] } });
+  vm.runInNewContext(read('assets/free-account-line.js'), { window: win, document: { querySelectorAll: q => (q === '[data-free-account-line]' ? [el] : []) } });
   assert.equal(el.textContent, CLOSED);
   const open = { textContent: '' };
-  vm.runInNewContext(read('assets/free-account-line.js'), { window: { ryagramConfig: { ...cfgWin.ryagramConfig, buyingOpen: true } }, document: { querySelectorAll: () => [open] } });
+  vm.runInNewContext(read('assets/free-account-line.js'), { window: { ryagramConfig: { ...cfgWin.ryagramConfig, buyingOpen: true } }, document: { querySelectorAll: q => (q === '[data-free-account-line]' ? [open] : []) } });
   assert.equal(open.textContent, OPEN);
 });
 
