@@ -15,7 +15,7 @@
   const KINDS = { fast_food: 'Fast food', restaurant: 'Restaurants', chicken: 'Chicken places', burger: 'Burger places', pizza: 'Pizza places', sandwich: 'Sandwich places', mexican: 'Mexican places', asian: 'Asian places', grocery: 'Supermarkets', bank: 'Bank branches' };      // chicken ... asian: the Ryagram engine's rules (tools/perfect-city/export_perfect_city.py SUBKINDS); bank: FDIC, not OpenStreetMap
   const KIND_ONE = { fast_food: 'fast food place', restaurant: 'restaurant', chicken: 'chicken place', burger: 'burger place', pizza: 'pizza place', sandwich: 'sandwich place', mexican: 'Mexican place', asian: 'Asian place', grocery: 'supermarket', bank: 'bank branch' };      // one of a kind: '1 restaurant', never '1 restaurants' (CC1 09:43)
   const kindLower = (k) => KINDS[k].replace(/^\S+/, (w) => (w === 'Mexican' || w === 'Asian' ? w : w.toLowerCase()));      // 'fast food', 'chicken places', but 'Mexican places'
-  const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : kindLower(kind));
+  const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : kind === 'fast_food' ? 'fast food places' : kindLower(kind));      // a counted phrase: '8 fast food places', never '8 fast food' (GEO 11-27)
   const sourceOf = (kind) => (kind === 'bank' ? 'the FDIC branch list' : 'OpenStreetMap');      // where the business points of this kind come from, in page words
   // What each food sub-kind's sorting rule misses, said under the results (the Ryagram engine's limits, in page words). A place is in one food kind at most:
   // the kinds are checked in the order chicken, burger, pizza, sandwich, Mexican, Asian, and the first that fits wins.
@@ -51,6 +51,8 @@
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
     badTyped: 'Type a latitude (from -90 to 90) and a longitude (from -180 to 180) as numbers, with a point before the decimals (a comma is not accepted), for example 39.7589 and -84.1916.',
     retry: 'Try again',
+    retrying: 'Trying again...',
+    stillFailing: 'Still not working. Try again in a few minutes.',
     looking: 'Looking up the places near this spot...',
     capped: 'There are more places near this spot than one answer carries (the nearest 60), so counts that reach past the 60th place say at least.',
     mapCapped: 'The map shows only the nearest 60 places. The counts within 1, 2 and 5 km are of every place loaded.',
@@ -67,6 +69,7 @@
   const notKnownFor = (kind) => WORDS.notKnown.map((t) => (kind === 'bank' && /OpenStreetMap/.test(t) ? WORDS.notKnownBank : t));
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   const km1 = (x) => (x < 10 ? x.toFixed(2) : x.toFixed(1));
+  const nearAway = (x) => (km1(x) === '0.00' ? 'right at this spot (under 10 m)' : `${km1(x)} km away`);      // never 'the nearest 0.00 km away' (GEO 11-27)
   // The Census top-codes median household income at 250001, meaning "$250,000 or more"; its margin is then not a real figure (WORKER 10:17)
   const TOP_INCOME = 250001;
   const incomeText = (inc) => (!inc ? 'not published for this block group'
@@ -362,7 +365,7 @@
     async function retry() {
       if (state.loading || state.retrying) return;
       state.retrying = true;
-      status.textContent = WORDS.looking;
+      status.textContent = WORDS.retrying;      // the person sees that Try again ran (GEO 11-27)
       try {
         if (state.spot) {
           // only the spot whose ask failed is asked again: each ask counts toward the day's limit (GEO review 10)
@@ -372,7 +375,7 @@
         } else if (!(await checkLoaded())) return;                  // a newer probe, county or spot superseded it: that one draws
       } finally { state.retrying = false; }
       drawAll();
-      status.textContent = state.compare ? statusLine() : (state.placesNote || (state.spot ? summaryLine() : ''));
+      status.textContent = failed() ? WORDS.stillFailing : state.compare ? statusLine() : (state.placesNote || (state.spot ? summaryLine() : ''));
       document.getElementById('pc-retry')?.focus();                  // still failing: the keyboard stays on the button
     }
 
@@ -431,8 +434,8 @@
     // which: 'A' or 'B'. Only the spot that moved is asked about again (each spot is its own server call).
     async function place(pt, which = 'A') {
       if (state.loading) return;
-      latIn.value = pt[1].toFixed(5); lonIn.value = pt[0].toFixed(5);
       const inside = state.census && pc.unitAt(pt, state.census.units);
+      latIn.value = inside ? pt[1].toFixed(5) : ''; lonIn.value = inside ? pt[0].toFixed(5) : '';      // a refused spot leaves no coordinates in the boxes (GEO 11-27)
       if (which === 'B' && state.compare) { state.b.spot = pt; state.b.places = null; } else { state.spot = pt; state.places = null; }
       if (inside && !state.dayLimit) { drawMap(); status.textContent = WORDS.looking; }
       let fresh;
@@ -455,7 +458,7 @@
       if (!pc.unitAt(spot, state.census.units)) return `${name}: outside the county.`;
       if (!places) return `${name}: placed, people and income only.`;
       const r5 = ringCounts(spot, places, within, capKm)[2], n = pc.nearest(spot, places, 1)[0];
-      return `${name}: ${countText(r5)} ${kindWords(state.kind, r5.count)} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}.`;
+      return `${name}: ${countText(r5)} ${kindWords(state.kind, r5.count)} within 5 km${n ? `, the nearest ${nearAway(n.km)}` : ''}.`;
     }
 
     function summaryLine() {
@@ -466,7 +469,7 @@
       if (!u) return WORDS.outside;
       if (!state.places) return 'Spot placed. People and income are below.';
       const r5 = ringCounts(state.spot, state.places, state.within, state.capKm)[2], n = pc.nearest(state.spot, state.places, 1)[0];
-      return `Spot placed: ${countText(r5)} ${kindWords(state.kind, r5.count)} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}. Details are below.`;
+      return `Spot placed: ${countText(r5)} ${kindWords(state.kind, r5.count)} within 5 km${n ? `, the nearest ${nearAway(n.km)}` : ''}. Details are below.`;
     }
 
     // Is anything loaded at all? Asked once per county and kind, at the county's middle, so the note shows before any spot (MEDIUM 6).

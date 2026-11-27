@@ -32,3 +32,10 @@
   .pc-compare th[scope="row"] { min-width: 9em; }
   .pc-compare td { min-width: 7em; }
 }
+/* narrow phones, 360 to 390 px (GEO gallery 2, 11-27): the compare table fits its box, Spot B whole; long words wrap inside a cell */
+@media (max-width: 420px) {
+  .pc-compare { width: 100%; font-size: 13px; }
+  .pc-compare th, .pc-compare td { padding: 3px 6px 3px 0; overflow-wrap: anywhere; word-break: normal; }
+  .pc-compare th[scope="row"] { min-width: 0; width: 40%; }
+  .pc-compare td { min-width: 0; }
+}

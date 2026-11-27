@@ -141,7 +141,7 @@ const CHECKS = {
 // the old line put back, one per check (C has two: the official line and the credits)
 const PLANTS = {
   noNull: [['results.replaceChildren(...out.filter((x) => x != null && x !== false));', 'results.replaceChildren(...out);']],
-  singular: [['const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : kindLower(kind));', 'const kindWords = (kind, n) => kindLower(kind);']],
+  singular: [["const kindWords = (kind, n) => (n === 1 ? KIND_ONE[kind] : kind === 'fast_food'", "const kindWords = (kind, n) => (false ? KIND_ONE[kind] : kind === 'fast_food'"]],
   plainWords: [
     ['const what = OFFICIAL_KIND[state.kind] || k.label.toLowerCase();', 'const what = `${OFFICIAL_KIND[state.kind]} (NAICS ${k.naics})`;'],
     ["${plain.join('; ')}", '${s.boundaries}; ${s.population}; ${s.income}'],

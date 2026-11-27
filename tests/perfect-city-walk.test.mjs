@@ -137,7 +137,7 @@ const CHECKS = {
     let n = p.data.calls;
     await p.click('pc-retry');
     if (p.data.calls !== n + 1) bad.push(`Try again (no spot) asked the server ${p.data.calls - n} times, not once`);
-    if (!p.$('pc-retry') || p.$('pc-status').textContent !== p.words.placesError) bad.push('still failing: the button and the failure line should stay');
+    if (!p.$('pc-retry') || p.$('pc-status').textContent !== p.words.stillFailing) bad.push(`still failing: the button and the still-not-working line should stay (${p.$('pc-status').textContent})`);
     await p.type('39.7589', '-84.1916');
     if (!p.$('pc-retry')) bad.push('no Try again button when the business points fail (after a spot)');
     p.data.fail = false;
@@ -145,6 +145,15 @@ const CHECKS = {
     await p.click('pc-retry');
     if (p.data.calls !== n + 1) bad.push(`Try again (with a spot) asked the server ${p.data.calls - n} times, not once`);
     if (p.$('pc-retry') || !p.$('pc-nearest')) bad.push('after a good answer the button should go and the nearest places show');
+    return bad;
+  },
+  // GEO gallery 2: a spot refused as outside the county leaves no coordinates in the typed boxes
+  async outsideClears(src) {
+    const bad = [], p = await open(src);
+    await p.type('40.5', '-82.5');
+    if (p.$('pc-lat').value !== '' || p.$('pc-lon').value !== '') bad.push(`outside: the boxes still hold ${p.$('pc-lat').value}, ${p.$('pc-lon').value}`);
+    await p.type('39.7589', '-84.1916');
+    if (p.$('pc-lat').value !== '39.75890') bad.push(`inside: the box says ${p.$('pc-lat').value}, not 39.75890`);
     return bad;
   },
   // RENDERER 09:19 (4) and (3): +39.7589, .5 and 39. are numbers; a comma is refused and the message says so, and says which spot is still shown
@@ -308,7 +317,8 @@ const PLANTS = {
   ],
   retryButton: [
     ["...(failed() ? [h('button'", "...(false ? [h('button'"],
-    ['} else if (!(await checkLoaded())) return;', '}']
+    ['} else if (!(await checkLoaded())) return;', '}'],
+    ['status.textContent = failed() ? WORDS.stillFailing : state.compare', 'status.textContent = state.compare']
   ],
   slowCounty: [['if (stale()) return;                                            // a slow county landed', '// a slow county landed']],
   slowProbe: [
@@ -330,6 +340,7 @@ const PLANTS = {
     ['typedAlert.textContent = status.textContent;', ''],
     [".then((drawn) => { if (drawn) document.getElementById('pc-results-head')?.focus(); })", '']
   ],
+  outsideClears: [["latIn.value = inside ? pt[1].toFixed(5) : ''; lonIn.value = inside ? pt[0].toFixed(5) : '';", 'latIn.value = pt[1].toFixed(5); lonIn.value = pt[0].toFixed(5);']],
   retryOneSpot: [['if ((aBad || !bBad) && !(await loadPlaces())) return;', 'if (!(await loadPlaces())) return;']],
   capNote: [["const capNote = state.capKm != null || (two && state.b.capKm != null) ? ', at most the nearest 60' : '';", "const capNote = '';"]]
 };

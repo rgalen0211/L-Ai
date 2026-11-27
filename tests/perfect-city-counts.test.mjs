@@ -74,7 +74,7 @@ test('a dense cluster: 80 places within 2 km, the answer carries 60, and the pag
   assert.ok(!r.cells.some((c) => /at least|60/.test(c)), r.cells.join(' | '));
   assert.match(r.mapCapped, /only the nearest 60 places/);
   assert.equal(r.capped, '', 'with the true counts, no "at least" note');
-  assert.match(r.status, /80 fast food within 5 km/);
+  assert.match(r.status, /80 fast food places within 5 km/);
 });
 
 test('an older server (no within): the page falls back to the places sent and says "at least" past the farthest one', async () => {
@@ -82,7 +82,7 @@ test('an older server (no within): the page falls back to the places sent and sa
   assert.deepEqual(r.cells.slice(1), ['at least 60', 'at least 60']);
   assert.match(r.capped, /say at least/);
   assert.equal(r.mapCapped, '');
-  assert.match(r.status, /at least 60 fast food within 5 km/);
+  assert.match(r.status, /at least 60 fast food places within 5 km/);
 });
 
 test('the spot is rounded to 4 decimals before perfect_city_places is called (like the summary function)', async () => {

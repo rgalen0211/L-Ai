@@ -270,7 +270,7 @@ def main():
                 if rb:
                     p.click('#pc-retry')
                     p.wait_for_timeout(500)
-                check(p.locator('#pc-retry').count() == 1 and 'could not be loaded' in p.inner_text('#pc-status'), 'places fail: Try again, still failing, keeps the button and says so')
+                check(p.locator('#pc-retry').count() == 1 and 'Still not working. Try again in a few minutes.' in p.inner_text('#pc-status'), 'places fail: Try again, still failing, keeps the button and says so')
                 p.screenshot(path=str(out / f'5b-places-error-{name}.png'), full_page=True)
                 check(not errors, f'no page errors ({errors[:2]})')
                 ctx.close()
