@@ -34,6 +34,17 @@
   const PLAIN = 'The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup).';
   const plainPhrase = v => typeof v === 'string' && v.trim().length >= 1 && v.length <= 60 && !/[<>\\/]|https?:|www\./i.test(v);
   const DATA_OPS = ['set_look', 'unset_look'];
+  // LOOK_KEYS_V2 (WEB 11-27, ENGINE's engine-style-keys-1127): the two look keys the engine draws but the server's look-key lists (SQL edit_look_keys, CONNECT's connect-core twins) may not know yet.
+  // The gate is OFF: LOOK_KEYS above does not hold them, so nothing is sent to a server that would refuse it. The mock turns it on with ?lookv2; flip this constant (and add the server twins, see
+  // docs/editor-textlegend-needs-1127.md) only when both server lists hold the keys. Bounds are the engine's: text.scale 0.85 to 1.0; legend position one of two words.
+  const LOOK_KEYS_V2 = false;
+  const TEXT_SCALE_MIN = 0.85, TEXT_SCALE_MAX = 1.0;
+  const LEGEND_POSITIONS = Object.freeze(['bottom_left', 'bottom_right']);
+  const LOOK_KEYS_NEXT = Object.freeze({
+    'text.scale': v => inRange(v, TEXT_SCALE_MIN, TEXT_SCALE_MAX),
+    'layout.legend_position': v => LEGEND_POSITIONS.includes(v)
+  });
+  const lookKeysFor = v2 => (v2 ? Object.freeze({ ...LOOK_KEYS, ...LOOK_KEYS_NEXT }) : LOOK_KEYS);
   // Text from the AI or the person is data: capped, control and bidirectional characters removed, never markup.
   const cleanText = s => String(s).replace(new RegExp('[' + [[0, 31], [127, 127], [0x200e, 0x200f], [0x202a, 0x202e], [0x2066, 0x2069], [60, 60], [62, 62]].map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g'), '').slice(0, MAX_TEXT);
   const clone = x => JSON.parse(JSON.stringify(x));
@@ -345,7 +356,7 @@
     reload(base) { this.base = newState(base); this.state = this.base; this.log = []; this.redo = []; this.undone.clear(); }
   }
 
-  window.ryagramEditor = { isMarked, LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, OPS, DATA_OPS, cleanText, newState, check, apply, snap, Editor, repack };
+  window.ryagramEditor = { isMarked, LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, LOOK_KEYS_V2, LOOK_KEYS_NEXT, lookKeysFor, TEXT_SCALE_MIN, TEXT_SCALE_MAX, LEGEND_POSITIONS, OPS, DATA_OPS, cleanText, newState, check, apply, snap, Editor, repack };
 })();
 
 /* ---- assets/app-editor-progress.js ---- */
@@ -863,7 +874,10 @@
       const realFilm = isData && !!routeProject && !window.ryagramLiveHost && !bundleMode;
       let filmState = 'none', sheet = null, drawnKey = '';                  // filmState: none (no film API), opening, ready, failed; sheet: null (not known), 'none', or { src, kind, note }
       let streamLeft = 0, streamNote = '';                                   // a streamed film: how many chunks are still on their way, and why it stopped if it did
-      const ed = new E.Editor(onPc || bundleMode ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
+      // Text size and Legend position (WEB 11-27): shown only when the look-key gate is on (the core's LOOK_KEYS_V2, or the mock with ?lookv2, read by app-library.js into window.ryagramLookV2). Off, the editor's key list does not hold them and no control is drawn.
+      const LOOKV2 = E.LOOK_KEYS_V2 === true || window.ryagramLookV2 === true;
+      const V2_ROWS = LOOKV2 ? [['text.scale', 'Text size'], ['layout.legend_position', 'Legend position']] : [];
+      const ed = new E.Editor(onPc || bundleMode ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE(), { lookKeys: E.lookKeysFor(LOOKV2) });
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
       // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
       const host = window.ryagramLiveHost || null;
@@ -1217,8 +1231,8 @@
       let locked = false;                                                       // locked: a render is using what was committed
       // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
       function committedWords() {
-        if (bundleMode) { const rows = DD.rowsFor(RL, bundle).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
-        if (isData) { const rows = LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined).concat(realFilm ? [['sequence.theme', 'Theme'], ['state.outline_width', 'Border width'], ['choropleth.low', 'Low colour'], ['choropleth.high', 'High colour']].filter(([k]) => ed.state.look[k] !== undefined) : []); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l} ${ed.state.look[k]}`)] : ['The film’s own look: nothing changed.']; }
+        if (bundleMode) { const rows = DD.rowsFor(RL, bundle).concat(V2_ROWS).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
+        if (isData) { const rows = LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined).concat(realFilm ? [['sequence.theme', 'Theme'], ['state.outline_width', 'Border width'], ['choropleth.low', 'Low colour'], ['choropleth.high', 'High colour']].filter(([k]) => ed.state.look[k] !== undefined) : []).concat(V2_ROWS.filter(([k]) => ed.state.look[k] !== undefined)); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l} ${ed.state.look[k]}`)] : ['The film’s own look: nothing changed.']; }
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
       }
@@ -1372,6 +1386,21 @@
           btn('Use the film’s own colours', 'secondary', async () => { if (await applyMany(set.map(key => ({ op: 'unset_look', key })), true)) say('The film’s own colours are back. Undo takes your colours back.'); }, { 'data-reset-colours': '1', disabled: locked || set.length === 0 })));
         return out;
       }
+      // ---- Text size and Legend position (WEB 11-27, behind LOOKV2): set_look / unset_look on text.scale (0.85 to 1.0) and layout.legend_position (bottom_left | bottom_right). Look only: the data, the numbers and their wording never change.
+      const TEXT_SIZES = [['Smaller', 0.85], ['A little smaller', 0.92], ['Normal', 1]];
+      const LEGEND_CHOICES = [['Bottom left', 'bottom_left'], ['Bottom right', 'bottom_right']];
+      function textLegendTools() {
+        if (!LOOKV2) return [];
+        const sz = ed.state.look['text.scale'], lg = ed.state.look['layout.legend_position'];
+        const choose = (key, value, said) => { if (ed.state.look[key] === value) { say(said + ' is already chosen.'); return; } apply({ op: 'set_look', key, value }); };
+        const own = (key, said) => btn('The film’s own', 'secondary', () => { if (ed.state.look[key] === undefined) { say(said + ' is already the film’s own.'); return; } apply({ op: 'unset_look', key }); }, { 'aria-pressed': ed.state.look[key] === undefined ? 'true' : 'false', 'data-look-own': key, disabled: locked });
+        return [h('div', { class: 'le-group', role: 'group', 'aria-labelledby': 'le-tsize-h' }, h('h3', { id: 'le-tsize-h' }, 'Text size'),
+          h('div', { class: 'le-bgchoices' }, [...TEXT_SIZES.map(([label, v]) => btn(label, 'secondary', () => choose('text.scale', v, 'That text size'), { 'aria-pressed': sz === v ? 'true' : 'false', 'data-text-scale': String(v), disabled: locked })), own('text.scale', 'The text size')]),
+          h('p', { class: 'meta' }, 'Only the size of the words changes. Your data and its numbers do not. The picture here may not show it; the final film does. If the words would not fit, the film says so instead of squeezing them. Undo takes it back.')),
+          h('div', { class: 'le-group', role: 'group', 'aria-labelledby': 'le-legend-h' }, h('h3', { id: 'le-legend-h' }, 'Legend position'),
+          h('div', { class: 'le-bgchoices' }, [...LEGEND_CHOICES.map(([label, v]) => btn(label, 'secondary', () => choose('layout.legend_position', v, 'That legend position'), { 'aria-pressed': lg === v ? 'true' : 'false', 'data-legend': v, disabled: locked })), own('layout.legend_position', 'The legend position')]),
+          h('p', { class: 'meta' }, 'Where the colour key sits, on state and county maps only. The picture here may not show it; the final film does. The key stays on the film. Undo takes it back.'))];
+      }
       function paintBundleLook() {
         const touched = new Set(ed.aiTouched()), look = ed.state.look, dflt = DD.defaults(bundle, look), cur = DD.presetOf(look, bundle);
         const rows = DD.rowsFor(RL, bundle).map(([key, label, kind]) => {
@@ -1404,7 +1433,7 @@
             DD.barsPartial(bundle) ? h('p', { class: 'meta' }, `This preview holds only the first ${Math.round(bundle.frames / bundle.fps * 10) / 10} seconds of the film.`) : null)] : []),
           ...(DD.isBanded(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bands' }, h('p', { class: 'meta' }, DD.hasRamp(bundle) ? 'This film colours its areas in solid bands. The bands follow the low and high colours below; the swatches show the film’s own bands, and the picture shows yours.' : 'This film colours its areas in solid bands, so the low and high colours do not apply. The bands are shown here; changing them waits for the worker, and the moving dots keep their colour.'),
             h('div', { class: 'le-band-row' }, DD.bandColours(bundle).map((c, i) => { const sw = h('span', { class: 'le-swatch', role: 'img', 'aria-label': `Band ${i + 1}: ${c}` }); sw.style.background = c; return sw; })))] : []),
-          ...colourTools(DD.rowsFor(RL, bundle).map(r => r[0])), h('h3', {}, 'Colours'), ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
+          ...colourTools(DD.rowsFor(RL, bundle).map(r => r[0])), ...textLegendTools(), h('h3', {}, 'Colours'), ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
       }
       // The Look rows a person's own film on the website can really change (WEB 11-20, from ENGINE's LOOK-OPTIONS-1120): every row below is a key the shared draft ACCEPTS (edit_look_keys: sequence.theme, state.outline_width,
@@ -1442,7 +1471,7 @@
         if (bundleMode) { paintBundleLook(); return; }
         const touched = new Set(ed.aiTouched());
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
-          ...colourTools(LOOK_ROWS.map(r => r[0])), h('h3', {}, 'Colours'),
+          ...colourTools(LOOK_ROWS.map(r => r[0])), ...textLegendTools(), h('h3', {}, 'Colours'),
           ...LOOK_ROWS.map(([key, label]) => {
             const input = h('input', { type: 'color', value: ed.state.look[key] !== undefined ? ed.state.look[key] : DATA_BASE().look[key], id: `le-look-${key}`, 'aria-label': label, disabled: locked });
             input.addEventListener('input', () => { preview = { [key]: input.value }; paintPreview(); });

@@ -1,0 +1,19 @@
+{
+  "what": "Cases for the two look keys of ENGINE's engine-style-keys-1127, to be merged into tests/edit-op-cases.json (with look_keys) when the SQL edit_look_keys and connect-core LOOK_KEYS twins hold them. See docs/editor-textlegend-needs-1127.md. Checked now against the editor core with the gate on.",
+  "look_keys_to_add": ["layout.legend_position", "text.scale"],
+  "cases": [
+    { "mode": "data", "ok": true, "op": { "op": "set_look", "key": "text.scale", "value": 0.85 } },
+    { "mode": "data", "ok": true, "op": { "op": "set_look", "key": "text.scale", "value": 0.92 } },
+    { "mode": "data", "ok": true, "op": { "op": "set_look", "key": "text.scale", "value": 1 } },
+    { "mode": "data", "ok": true, "op": { "op": "unset_look", "key": "text.scale" } },
+    { "mode": "data", "ok": false, "word": "between", "op": { "op": "set_look", "key": "text.scale", "value": 0.84 } },
+    { "mode": "data", "ok": false, "word": "between", "op": { "op": "set_look", "key": "text.scale", "value": 1.01 } },
+    { "mode": "data", "ok": false, "word": "number", "op": { "op": "set_look", "key": "text.scale", "value": "0.9" } },
+    { "mode": "data", "ok": false, "word": "number", "op": { "op": "set_look", "key": "text.scale", "value": null } },
+    { "mode": "data", "ok": true, "op": { "op": "set_look", "key": "layout.legend_position", "value": "bottom_left" } },
+    { "mode": "data", "ok": true, "op": { "op": "set_look", "key": "layout.legend_position", "value": "bottom_right" } },
+    { "mode": "data", "ok": true, "op": { "op": "unset_look", "key": "layout.legend_position" } },
+    { "mode": "data", "ok": false, "word": "can only be", "op": { "op": "set_look", "key": "layout.legend_position", "value": "top" } },
+    { "mode": "data", "ok": false, "word": "can only be", "op": { "op": "set_look", "key": "layout.legend_position", "value": 1 } }
+  ]
+}

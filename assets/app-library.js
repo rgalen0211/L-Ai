@@ -91,6 +91,8 @@
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
   // BUYING OPEN (ryagram-config.js buyingOpen; Ryan's yes flips it with sign-up at launch): every Buy / Subscribe button and "Buy credits" link is tied to THIS one switch. Mock mode is open (so the
   // checkout checks keep their meaning) unless the address has ?buyingclosed, which shows the closed page there.
+  // The editor's look-key gate for Text size and Legend position (WEB 11-27): on only in mock mode with ?lookv2 (the editor's own constant LOOK_KEYS_V2 is the real switch). Read here, not in the editor, because the chat page forbids location.
+  window.ryagramLookV2 = !!window.ryagramMock && /[?&]lookv2(=|&|$)/.test(location.search || '');
   const buyingOn = () => paymentsOn() && (window.ryagramConfig?.buyingOpen === true || (!!window.ryagramMock && !/[?&]buyingclosed/.test(location.search || '')));
   // DRAFT FOR RYAN: the words shown wherever buying would be, while buyingOn() is false.
   const FREE_PREVIEW_RULE = 'Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A failed free one caused by your story still counts.';      // credits_ledger.sql: free_previews_per_project 6, free_previews_per_24h 15, preview_extra 1; only an infrastructure failure is not counted

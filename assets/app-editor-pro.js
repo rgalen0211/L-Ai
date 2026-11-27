@@ -17,7 +17,7 @@
   function timecode(seconds, fps) { seconds = Number.isFinite(seconds) ? Math.max(0, seconds) : 0; return fps && fps > 10 ? `${mmss(seconds)} · frame ${Math.round(seconds * fps)}` : mmss(seconds); }
   // The look keys in plain words (a person reads the history list, not the story's own key names); a key with no plain name is shown as 'a look setting'.
   const KEY_WORDS = { 'network.color': 'line colour', 'network.base_color': 'base lines colour', 'network.context_color': 'background lines colour', 'state.fill': 'land colour', 'page.background': 'page colour',
-    'choropleth.low': 'low colour', 'choropleth.high': 'high colour', 'state.outline_width': 'border width', 'sequence.theme': 'theme' };
+    'choropleth.low': 'low colour', 'choropleth.high': 'high colour', 'state.outline_width': 'border width', 'sequence.theme': 'theme', 'text.scale': 'text size', 'layout.legend_position': 'legend position' };
   const keyWords = k => (KEY_WORDS[k] ? `the ${KEY_WORDS[k]}` : 'a look setting');
   // One plain sentence for a change in the history list. Values are shown as given (they were checked when they were made).
   function describe(op) {

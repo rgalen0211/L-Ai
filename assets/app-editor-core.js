@@ -31,6 +31,17 @@
   const PLAIN = 'The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup).';
   const plainPhrase = v => typeof v === 'string' && v.trim().length >= 1 && v.length <= 60 && !/[<>\\/]|https?:|www\./i.test(v);
   const DATA_OPS = ['set_look', 'unset_look'];
+  // LOOK_KEYS_V2 (WEB 11-27, ENGINE's engine-style-keys-1127): the two look keys the engine draws but the server's look-key lists (SQL edit_look_keys, CONNECT's connect-core twins) may not know yet.
+  // The gate is OFF: LOOK_KEYS above does not hold them, so nothing is sent to a server that would refuse it. The mock turns it on with ?lookv2; flip this constant (and add the server twins, see
+  // docs/editor-textlegend-needs-1127.md) only when both server lists hold the keys. Bounds are the engine's: text.scale 0.85 to 1.0; legend position one of two words.
+  const LOOK_KEYS_V2 = false;
+  const TEXT_SCALE_MIN = 0.85, TEXT_SCALE_MAX = 1.0;
+  const LEGEND_POSITIONS = Object.freeze(['bottom_left', 'bottom_right']);
+  const LOOK_KEYS_NEXT = Object.freeze({
+    'text.scale': v => inRange(v, TEXT_SCALE_MIN, TEXT_SCALE_MAX),
+    'layout.legend_position': v => LEGEND_POSITIONS.includes(v)
+  });
+  const lookKeysFor = v2 => (v2 ? Object.freeze({ ...LOOK_KEYS, ...LOOK_KEYS_NEXT }) : LOOK_KEYS);
   // Text from the AI or the person is data: capped, control and bidirectional characters removed, never markup.
   const cleanText = s => String(s).replace(new RegExp('[' + [[0, 31], [127, 127], [0x200e, 0x200f], [0x202a, 0x202e], [0x2066, 0x2069], [60, 60], [62, 62]].map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g'), '').slice(0, MAX_TEXT);
   const clone = x => JSON.parse(JSON.stringify(x));
@@ -342,5 +353,5 @@
     reload(base) { this.base = newState(base); this.state = this.base; this.log = []; this.redo = []; this.undone.clear(); }
   }
 
-  window.ryagramEditor = { isMarked, LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, OPS, DATA_OPS, cleanText, newState, check, apply, snap, Editor, repack };
+  window.ryagramEditor = { isMarked, LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, LOOK_KEYS_V2, LOOK_KEYS_NEXT, lookKeysFor, TEXT_SCALE_MIN, TEXT_SCALE_MAX, LEGEND_POSITIONS, OPS, DATA_OPS, cleanText, newState, check, apply, snap, Editor, repack };
 })();
