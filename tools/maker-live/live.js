@@ -548,7 +548,11 @@
         break;
       }
       if (why === null) {
-        if (mine.every(e => done.includes(e))) { dropEntries(mine); return already ? { ok: true, note: 'That change was already undone.' } : { ok: true }; }
+        if (mine.every(e => done.includes(e))) {
+          const here = mine.some(e => editor.log.includes(e));
+          dropEntries(mine);
+          if (!here) return { ok: true, note: 'Nothing to undo here.' };
+          return already ? { ok: true, note: 'That change was already undone.' } : { ok: true }; }
       }
       // failed partway: the ones the server has undone leave the screen too, so screen, draft and server agree
       if (done.length) { dropEntries(done); return { ok: false, partial: true, reason: (why || 'Part of that could not be undone.') + ' The parts that were undone are off the screen.' }; }

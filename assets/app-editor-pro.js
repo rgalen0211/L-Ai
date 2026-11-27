@@ -174,9 +174,11 @@
     let backBusy = false;
     async function undoBack(i) {
       // the same guard as the Undo button: not while an undo runs, not behind 'What will render', not while locked, and one at a time
-      if (backBusy || c.locked() || (c.histBusy && c.histBusy()) || (c.commitOpen && c.commitOpen())) return;
-      backBusy = true; if (c.setHistBusy) c.setHistBusy(true);
+      if (backBusy || (c.histBusy && c.histBusy())) { say('Wait for the last change to finish.'); return; }
+      if (c.locked()) { say('The film is locked, so nothing can be undone now.'); return; }
+      if (c.commitOpen && c.commitOpen()) { say('Close What will render first, then undo.'); return; }
       try {
+        backBusy = true; if (c.setHistBusy) c.setHistBusy(true);
         for (let guard = 0; guard < 60 && ed.log.length > i; guard += 1) {
           const before = ed.log.length;
           const r = c.draft ? await c.draft.undo() : ed.undo();

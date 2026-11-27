@@ -23,5 +23,5 @@ test('an accepted trim, move or reorder says what it did; a refusal still says w
 });
 
 test('the page loads the changed script under its new stamp', () => {
-  assert.match(read('app/index.html'), /app-editor\.js\?v=20261127j1/);
+  assert.match(read('app/index.html'), /app-editor\.js\?v=20261127k1/);
 });
