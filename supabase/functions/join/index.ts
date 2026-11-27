@@ -4,14 +4,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./join.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+import { resolveSiteOrigins, resolveSiteUrl } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();
 const serve = guardedServe(sk);
 const service = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient, { auth: { persistSession: false } });
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
-  siteUrl: "https://uselai.com",
+  allowedOrigins: resolveSiteOrigins(),
+  siteUrl: resolveSiteUrl(),
   async reserve(email, ipHash) {
     const { data, error } = await service.rpc("join_reserve", { p_email: email, p_ip_hash: ipHash });
     if (error) throw new Error(error.message);

@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { presignGet } from "../_shared/r2_presign.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 import { handle, type Release } from "./core.ts";
+import { resolveSiteOrigins } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();
 const serve = guardedServe(sk);
@@ -15,7 +16,7 @@ const secret = (n: string) => Deno.env.get(n) ?? "";
 const account = secret("R2_ACCOUNT_ID"), akid = secret("R2_ACCESS_KEY_ID"), bucket = secret("R2_BUCKET");
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
+  allowedOrigins: resolveSiteOrigins(),
   enabled: () => secret("APP_LINK_ON") === "1",
   configured: () => !!(account && akid && secret("R2_SECRET_ACCESS_KEY") && bucket),
   async sha256Hex(text) {

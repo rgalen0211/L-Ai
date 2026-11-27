@@ -5,6 +5,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./redeem.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+import { resolveSiteOrigins, resolveSiteUrl } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
 const serve = guardedServe(sk);
@@ -19,8 +20,8 @@ async function rpc(name: string, args: Record<string, unknown>) {
 }
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
-  siteUrl: "https://uselai.com",
+  allowedOrigins: resolveSiteOrigins(),
+  siteUrl: resolveSiteUrl(),
   reserve: (code, email, ipHash) => rpc("invite_reserve", { p_code: code, p_email: email, p_ip_hash: ipHash }),
   sent: async (redemption, userId) => { await rpc("invite_sent", { p_redemption: redemption, p_user: userId }); },
   release: async (redemption) => { await rpc("invite_release", { p_redemption: redemption }); },

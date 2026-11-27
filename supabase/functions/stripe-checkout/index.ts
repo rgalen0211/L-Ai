@@ -7,6 +7,7 @@ import { activeGate, verifyActiveUser } from "../_shared/oauth_guard.ts";
 import { formEncode } from "../_shared/stripe.ts";
 import { handle } from "./checkout.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+import { resolveSiteOrigins, resolveSiteUrl } from "../_shared/site_origins.ts";
 
 const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
 const serve = guardedServe(sk);
@@ -22,8 +23,8 @@ async function rpc(name: string, args: Record<string, unknown>) {
 }
 
 serve((req) => handle(req, {
-  allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
-  siteUrl: "https://uselai.com",
+  allowedOrigins: resolveSiteOrigins(),
+  siteUrl: resolveSiteUrl(),
   keyIsTest: /^(sk|rk)_test_/.test(key),
   verifyUser: (jwt) => verifyActiveUser(service.auth, jwt, activeGate(service)),
   context: (owner, code) => rpc("stripe_checkout_context", { p_owner: owner, p_price_code: code }),

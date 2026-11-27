@@ -135,7 +135,7 @@ test('PER-CALLER: the database refusal (429) reaches the form as its own sentenc
 
 test('FUNCTION: index.ts allows only uselai.com, uses the service role through the one database function, and needs no JWT', () => {
   const src = read('supabase/functions/creator-beta/index.ts');
-  assert.match(src, /allowedOrigins: \["https:\/\/uselai\.com", "https:\/\/www\.uselai\.com"\]/);
+  assert.match(src, /allowedOrigins: resolveSiteOrigins\(\)/);                      // the one module (_shared/site_origins.ts): exactly uselai.com and www.uselai.com until a secret ADDS a domain (tests/site-origins-1127.test.mjs)
   assert.match(src, /service\.rpc\("creator_beta_apply"/);
   assert.match(src, /--no-verify-jwt/);
   assert.match(src, /p_caller: a\.caller/);
