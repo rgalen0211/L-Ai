@@ -72,7 +72,7 @@ test('wiring: the strip is built only for the stand-in data editor, follows the 
   assert.match(ed, /seek: v => \{ stopPlay\(\); range\.value = String\(v\); range\.dispatchEvent\(new Event\('input'/);
   assert.match(ed, /scrub, stripHolder, ticks/);
   assert.ok(html.indexOf('app-editor-timeline.js?v=20261113a') > 0 && html.indexOf('app-editor-timeline.js') < html.indexOf('app-editor.js?v='));
-  assert.match(html, /app-editor\.js\?v=20261127i1/);
+  assert.match(html, /app-editor\.js\?v=20261127j1/);
   assert.ok(!/innerHTML/.test(read('assets/app-editor-timeline.js')), 'no HTML from strings');
 });
 

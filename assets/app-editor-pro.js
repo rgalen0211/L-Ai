@@ -171,14 +171,20 @@
       const ok = await c.applyMany([trim, add], true);
       say(ok ? `Split at ${mmss(at)}. Undo takes it back in one step.` : '');
     }
+    let backBusy = false;
     async function undoBack(i) {
-      for (let guard = 0; guard < 60 && ed.log.length > i; guard += 1) {
-        const before = ed.log.length;
-        const r = c.draft ? await c.draft.undo() : ed.undo();
-        if (r && r.ok === false) { say(r.reason || 'That could not be undone.'); break; }
-        if (ed.log.length >= before) { say('That could not be undone.'); break; }
-      }
-      c.markUnsaved(); c.paint();
+      // the same guard as the Undo button: not while an undo runs, not behind 'What will render', not while locked, and one at a time
+      if (backBusy || c.locked() || (c.histBusy && c.histBusy()) || (c.commitOpen && c.commitOpen())) return;
+      backBusy = true; if (c.setHistBusy) c.setHistBusy(true);
+      try {
+        for (let guard = 0; guard < 60 && ed.log.length > i; guard += 1) {
+          const before = ed.log.length;
+          const r = c.draft ? await c.draft.undo() : ed.undo();
+          if (r && r.ok === false) { say(r.reason || 'That could not be undone.'); break; }
+          if (ed.log.length >= before) { say('That could not be undone.'); break; }
+        }
+      } catch (e) { say('Could not undo. Try again.'); }
+      finally { backBusy = false; if (c.setHistBusy) c.setHistBusy(false); c.markUnsaved(); c.paint(); }
     }
     let histSig = null;                                              // null = never painted (an empty history still has to say 'No changes yet.')
     function paintHist() {

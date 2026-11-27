@@ -391,7 +391,7 @@
       const histRun = async fn => { if (histBusy || commitOpen() || locked) return; histBusy = true; paint(); try { stopPlay(); await fn(); saved = false; } catch (e) { say('Could not undo. Try again.'); } finally { histBusy = false; paint(); } };
       const undoBtn = btn('Undo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.undo(); say(r.ok ? (r.note || 'Undone.') : (r.reason || '')); } else { ed.undo(); say('Undone.'); } }));
       const redoBtn = btn('Redo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } }));
-      const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
+      const revertBtn = btn('Revert', 'secondary', () => { if (histBusy || commitOpen()) return; ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say(realFilm ? 'Your changes are already kept in this film’s draft.' : 'Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
       const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) { paintChips(); note.focus(); } }, { class: 'button secondary le-ai-btn' });
       // The shortcuts list (?): only keys that exist. Undo and redo work anywhere on the page except while typing in a field.
@@ -893,7 +893,7 @@
         const empty = onPc && !isData && !ed.state.clips.length;
         emptyNote.hidden = !empty;
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
-        undoBtn.disabled = locked || histBusy || commitOpen() || ed.log.length === 0; redoBtn.disabled = locked || histBusy || commitOpen() || ed.redo.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
+        undoBtn.disabled = locked || histBusy || commitOpen() || ed.log.length === 0; redoBtn.disabled = locked || histBusy || commitOpen() || ed.redo.length === 0; revertBtn.disabled = locked || histBusy || commitOpen() || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
         if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
         else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
@@ -984,7 +984,7 @@
           if (!isData) return { fps: 10, total: () => ed.state.duration, pos: () => position, seek: sec => { range.value = String(Math.round(sec * 10)); range.dispatchEvent(new Event('input', { bubbles: true })); } };
           return null;
         };
-        window.ryagramEditorPro.mount({ h, root, ed, isData, project, transport: proTransport, lanes, rulerHolder, stopPlay, applyMany, draft, paint, selected: () => selected, locked: () => locked,
+        window.ryagramEditorPro.mount({ h, root, ed, isData, project, transport: proTransport, lanes, rulerHolder, stopPlay, applyMany, draft, paint, selected: () => selected, locked: () => locked, histBusy: () => histBusy, commitOpen, setHistBusy: v => { histBusy = v; paint(); },
           markUnsaved: () => { saved = false; }, onPaint: f => { proPaint = f; }, onStop, filmEl: () => (filmEd ? filmEd.el : null) });
       }
       return root;

@@ -522,7 +522,7 @@
       const o = (r.data.ops || []).find(x => x.id === id);
       return o ? o.status : null;
     }
-    // Take these log entries off the screen as undone (newest first, so the oldest ends on top of the redo stack, as editor.undo() leaves it).
+    // Take these log entries off the screen as undone, by identity, so an AI op the poll added meanwhile is never the one dropped (newest first, so the oldest ends on top of the redo stack, as editor.undo() leaves it).
     function dropEntries(list) {
       for (const e of list) { const i = editor.log.lastIndexOf(e); if (i < 0) continue; editor.log.splice(i, 1); editor.redo.push(e); editor.undone.add(JSON.stringify(e.op)); }
       editor.state = editor._replay(editor.log).s;
@@ -548,7 +548,7 @@
         break;
       }
       if (why === null) {
-        if (mine.every(e => done.includes(e))) { editor.undo(); return already ? { ok: true, note: 'That change was already undone.' } : { ok: true }; }
+        if (mine.every(e => done.includes(e))) { dropEntries(mine); return already ? { ok: true, note: 'That change was already undone.' } : { ok: true }; }
       }
       // failed partway: the ones the server has undone leave the screen too, so screen, draft and server agree
       if (done.length) { dropEntries(done); return { ok: false, partial: true, reason: (why || 'Part of that could not be undone.') + ' The parts that were undone are off the screen.' }; }
@@ -1187,7 +1187,7 @@
       const histRun = async fn => { if (histBusy || commitOpen() || locked) return; histBusy = true; paint(); try { stopPlay(); await fn(); saved = false; } catch (e) { say('Could not undo. Try again.'); } finally { histBusy = false; paint(); } };
       const undoBtn = btn('Undo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.undo(); say(r.ok ? (r.note || 'Undone.') : (r.reason || '')); } else { ed.undo(); say('Undone.'); } }));
       const redoBtn = btn('Redo', 'secondary', () => histRun(async () => { if (draft) { const r = await draft.redo(); say(r.ok ? 'Redone.' : (r.reason || '')); } else { const r = ed.redoStep(); say(r.ok ? 'Redone.' : (r.reason || '')); } }));
-      const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
+      const revertBtn = btn('Revert', 'secondary', () => { if (histBusy || commitOpen()) return; ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say(realFilm ? 'Your changes are already kept in this film’s draft.' : 'Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
       const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) { paintChips(); note.focus(); } }, { class: 'button secondary le-ai-btn' });
       // The shortcuts list (?): only keys that exist. Undo and redo work anywhere on the page except while typing in a field.
@@ -1689,7 +1689,7 @@
         const empty = onPc && !isData && !ed.state.clips.length;
         emptyNote.hidden = !empty;
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
-        undoBtn.disabled = locked || histBusy || commitOpen() || ed.log.length === 0; redoBtn.disabled = locked || histBusy || commitOpen() || ed.redo.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
+        undoBtn.disabled = locked || histBusy || commitOpen() || ed.log.length === 0; redoBtn.disabled = locked || histBusy || commitOpen() || ed.redo.length === 0; revertBtn.disabled = locked || histBusy || commitOpen() || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
         if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
         else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
@@ -1780,7 +1780,7 @@
           if (!isData) return { fps: 10, total: () => ed.state.duration, pos: () => position, seek: sec => { range.value = String(Math.round(sec * 10)); range.dispatchEvent(new Event('input', { bubbles: true })); } };
           return null;
         };
-        window.ryagramEditorPro.mount({ h, root, ed, isData, project, transport: proTransport, lanes, rulerHolder, stopPlay, applyMany, draft, paint, selected: () => selected, locked: () => locked,
+        window.ryagramEditorPro.mount({ h, root, ed, isData, project, transport: proTransport, lanes, rulerHolder, stopPlay, applyMany, draft, paint, selected: () => selected, locked: () => locked, histBusy: () => histBusy, commitOpen, setHistBusy: v => { histBusy = v; paint(); },
           markUnsaved: () => { saved = false; }, onPaint: f => { proPaint = f; }, onStop, filmEl: () => (filmEd ? filmEd.el : null) });
       }
       return root;

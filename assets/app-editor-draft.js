@@ -97,7 +97,7 @@
       const o = (r.data.ops || []).find(x => x.id === id);
       return o ? o.status : null;
     }
-    // Take these log entries off the screen as undone (newest first, so the oldest ends on top of the redo stack, as editor.undo() leaves it).
+    // Take these log entries off the screen as undone, by identity, so an AI op the poll added meanwhile is never the one dropped (newest first, so the oldest ends on top of the redo stack, as editor.undo() leaves it).
     function dropEntries(list) {
       for (const e of list) { const i = editor.log.lastIndexOf(e); if (i < 0) continue; editor.log.splice(i, 1); editor.redo.push(e); editor.undone.add(JSON.stringify(e.op)); }
       editor.state = editor._replay(editor.log).s;
@@ -123,7 +123,7 @@
         break;
       }
       if (why === null) {
-        if (mine.every(e => done.includes(e))) { editor.undo(); return already ? { ok: true, note: 'That change was already undone.' } : { ok: true }; }
+        if (mine.every(e => done.includes(e))) { dropEntries(mine); return already ? { ok: true, note: 'That change was already undone.' } : { ok: true }; }
       }
       // failed partway: the ones the server has undone leave the screen too, so screen, draft and server agree
       if (done.length) { dropEntries(done); return { ok: false, partial: true, reason: (why || 'Part of that could not be undone.') + ' The parts that were undone are off the screen.' }; }
