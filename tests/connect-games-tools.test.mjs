@@ -136,7 +136,7 @@ test('PRIVACY: the answers hold no email, address, key, token, code, file or oth
   }
   const d = (await call(A, 'open_games_page')).data;
   assert.deepEqual(Object.keys(d).sort(), ['ai_can', 'ai_cannot', 'facts', 'notes', 'ok', 'page_path', 'players_page_path', 'steps']);
-  assert.deepEqual(Object.keys(d.facts).sort(), ['players_max', 'players_min', 'rounds_per_game', 'seconds_per_round']);         // numbers only, nothing about a room
+  assert.deepEqual(Object.keys(d.facts).sort(), ['idle_close_minutes', 'players_max', 'players_min', 'rounds_per_game', 'seconds_per_round']);         // numbers only, nothing about a room
   const l = (await call(A, 'list_games')).data;
   assert.deepEqual(Object.keys(l).sort(), ['games', 'ok']); for (const g of l.games) assert.deepEqual(Object.keys(g).sort(), ['id', 'label', 'line']);
 });
@@ -176,16 +176,18 @@ test('the numbers the AI is told are the numbers on the page; the paths are the 
   const steps = HOW_A_ROUND_GOES.join('\n');
   assert.match(steps, /Up to 8 players/); assert.match(steps, /45 seconds/); assert.match(steps, /five rounds/); assert.match(steps, /room code, made of letters and no numbers/); assert.match(steps, /at most 16 letters/);
   assert.match(steps, /No sign-in is needed on a phone/); assert.equal(FACTS.phone_needs_sign_in, false);
+  assert.match(steps, /A player whose phone page reloads in the same browser tab can join again as the same player and keep their score/); assert.equal(FACTS.phone_rejoins_after_reload_in_the_same_tab, true);
 });
 
 test('the steps come in the order the page runs: the code shows, the host picks a game, players join, the host starts, the answer and scores, the final', () => {
   const at = (re) => HOW_A_ROUND_GOES.findIndex((s) => re.test(s));
-  const order = [at(/room code, made of letters/), at(/Which game\?/), at(/players' page/), at(/"Start the game"/), at(/shows the answer, each player's points/)];
-  assert.deepEqual(order, [0, 1, 2, 3, 4]);
-  assert.match(HOW_A_ROUND_GOES[4], /final scores/); assert.match(HOW_A_ROUND_GOES[4], /"Play again with the same players"/);
+  const order = [at(/room code, made of letters/), at(/Which game\?/), at(/players' page/), at(/^The host has these controls/), at(/"Start the game"/), at(/shows the answer, each player's points/)];
+  assert.deepEqual(order, [0, 1, 2, 3, 4, 5]);
+  assert.match(HOW_A_ROUND_GOES[5], /final scores/); assert.match(HOW_A_ROUND_GOES[5], /"Play again with the same players"/);
+  assert.match(HOW_A_ROUND_GOES[0], /Once the room has opened/); assert.ok(!/straight away/.test(HOW_A_ROUND_GOES[0]), 'the code shows after the room opens, not before');
 });
 
-test('the words state no room code LENGTH (GAMES is lengthening the code): a number of letters anywhere in the answer would go stale', async () => {
+test('the words state no room code LENGTH (it is 8 on the final head, but GAMES moves the page onto server rooms right after launch): a number of letters anywhere in the answer would go stale', async () => {
   const { A, call } = world();
   const all = [everything(await call(A, 'open_games_page')), everything(await call(A, 'list_games')), ...TOOLS.filter((t) => NAMES.includes(t.name)).map((t) => t.description)].join(' | ');
   const LEN = /\b(four|five|six|seven|eight|nine|ten|[4-9]|1[0-2])[- ](letter|character|digit)s?\b/i;
@@ -196,13 +198,24 @@ test('the words state no room code LENGTH (GAMES is lengthening the code): a num
   assert.equal(FACTS.code_has_digits, false); assert.ok(!/[0-9]/.test(FACTS.code_alphabet));
 });
 
-test('the host controls the page has are said, and only those: remove a player and lock the room while waiting (no kick mid-game, no idle timer promised)', () => {
-  const steps = HOW_A_ROUND_GOES.join(' | ');
-  assert.match(steps, /"Remove" beside a player's name/); assert.match(steps, /"Lock the room"/); assert.match(steps, /While the room is waiting/);
-  assert.equal(FACTS.host_can_remove_a_player_in_the_lobby, true); assert.equal(FACTS.host_can_lock_the_room, true);
+test('the host controls the page has are said, and only those: Remove any time (with a confirm and an undo, a courtesy not a ban), Lock and New room code while waiting, the room locks itself at the start, and the idle close is named (15 minutes) and nothing else about timers or limits', () => {
+  const controls = HOW_A_ROUND_GOES.find((s) => /^The host has these controls/.test(s));
+  assert.ok(controls, 'the controls step exists');
+  assert.match(controls, /"Remove" beside a player's name takes that player out, at any time/); assert.match(controls, /asks the host to confirm first/); assert.match(controls, /"Allow again"/);
+  assert.match(controls, /While the room is waiting, "Lock the room" stops anyone new joining/); assert.match(controls, /"Unlock the room"/); assert.match(controls, /players who are already in can still rejoin/);
+  assert.match(controls, /"New room code" closes the room and opens a new one with a new code and empty seats/);
+  assert.match(controls, /The room also locks itself when the game starts/); assert.match(controls, /courtesy, not a ban/); assert.match(controls, /come back from a new browser/);
+  assert.ok(!/While the room is waiting, the host can press "Remove"/.test(HOW_A_ROUND_GOES.join(' ')), 'the old claim that Remove works only while waiting');
+  for (const k of ['host_can_remove_a_player_any_time', 'remove_asks_to_confirm', 'remove_is_a_courtesy_not_a_ban', 'host_can_lock_the_room', 'lock_button_only_while_waiting', 'room_locks_itself_when_the_game_starts', 'new_room_code_only_while_waiting', 'idle_never_closes_a_running_round', 'closing_or_leaving_the_games_page_ends_the_room']) assert.equal(FACTS[k], true, k);
+  // the idle close IS real on the page now: it is said with its page number, in the notes
+  assert.equal(GAMES_FACTS.idle_close_minutes, FACTS.idle_close_minutes); assert.equal(FACTS.idle_close_minutes, 15); assert.equal(FACTS.idle_warning_minutes_before, 2);
+  const notes = ABOUT_THE_GAMES.join(' | ');
+  assert.match(notes, /A room closes itself after 15 minutes with nothing happening/); assert.match(notes, /warns two minutes before/); assert.match(notes, /"Keep the room open"/); assert.match(notes, /a round that is running never counts as idle/); assert.match(notes, /The phones are told the room has closed/);
+  assert.match(notes, /Closing the host's page, or leaving the Games page, ends the room/);
   const all = [...HOW_A_ROUND_GOES, ...ABOUT_THE_GAMES].join(' | ');
-  const TIMER = /\b(idle|minutes?|closes itself|times out|rate limit|too many)\b/i;
-  assert.ok(!TIMER.test(all), 'a timer or a limit the page code does not have yet: ' + all.match(TIMER));
+  const LIMIT = /\b(rate limit|too many|per minute|a minute|per second|every \d+ seconds|30 seconds|seconds? wait|throttle|strike)/i;                // the join and guess limits are tuning, not a promise: no number of them in the words
+  assert.ok(!LIMIT.test(all), 'a limit number the words should not carry: ' + all.match(LIMIT));
+  assert.ok(!/\bminutes?\b/i.test(HOW_A_ROUND_GOES.join(' ')), 'the only minutes in the words are the idle close in the notes');
 });
 
 test('every button or heading the steps put in quotes is a real one on the page', () => {
@@ -218,7 +231,7 @@ test('the notes say what the page says of itself: a draft with sample rounds, no
   const r = await call(A, 'open_games_page');
   assert.deepEqual(r.data.notes, [...ABOUT_THE_GAMES]); assert.deepEqual(r.data.facts, { ...GAMES_FACTS });
   const n = ABOUT_THE_GAMES.join('\n');
-  assert.match(n, /draft/); assert.match(n, /made-up script/); assert.match(n, /no video/); assert.match(n, /saves nothing to an account or a file/); assert.match(n, /every name and guess goes to everyone in the room/); assert.match(n, /a phone whose host screen stops answering says so/); assert.match(n, /Anyone who has the room code can join while the room is open/);
+  assert.match(n, /draft/); assert.match(n, /made-up script/); assert.match(n, /no video/); assert.match(n, /saves nothing to an account or a file/); assert.match(n, /every name and guess goes to everyone in the room/); assert.match(n, /a phone whose host screen stops answering says so/); assert.match(n, /Anyone who has the room code can join while the room is open/); assert.match(n, /The code does not protect the room from anyone who has it, and a room is a public channel/);
   assert.ok(!/not kept|only lock/.test(n), 'the old wording (GAMES 10:45: names and guesses are said to everyone, the code is not the only lock)');
   for (const line of ABOUT_THE_GAMES) assert.ok(!/\$|\bfree\b|\bcosts?\b|\b20\d\d\b|\bsoon\b|\bkey\b|\btoken\b/i.test(line), line);
   assert.ok(ABOUT_THE_GAMES.every((line) => r.text.includes(line)), 'every note reaches the AI in the answer text');
@@ -235,7 +248,7 @@ test('a closed account is told nothing about the page: no game name, no button, 
 
 test('when GAMES\' own files are in the checkout, the page itself says what the tools say (skips nothing: with no page files it only notes so)', async (t) => {
   const fs = await import('node:fs');
-  if (!fs.existsSync('assets/app-games.js')) { t.diagnostic('GAMES\' page files are not in this checkout (they land with games-live-1127): only the copied facts were checked.'); return; }
+  if (!fs.existsSync('assets/app-games.js')) { t.diagnostic('GAMES\' page files are not in this checkout (they are on games-on-push1-1127 89dfedb9): only the copied facts were checked; run this from a git archive copy of that head to read the page.'); return; }
   const host = fs.readFileSync('assets/app-games.js', 'utf8');
   assert.match(host, new RegExp(`MAX_PLAYERS = ${GAMES_FACTS.players_max}\\b`)); assert.match(host, new RegExp(`ROUND_SECONDS = ${GAMES_FACTS.seconds_per_round}\\b`));
   for (const g of GAMES_OFFERED) assert.ok(host.includes(`'${g.label}'`), g.label);
@@ -247,7 +260,33 @@ test('when GAMES\' own files are in the checkout, the page itself says what the 
   assert.ok(Number(len[1]) >= 4 && Number(len[1]) <= 16);
   assert.match(room, /A room code is \$\{CODE_LEN\} letters with no I, no O and no numbers/);                                      // the page's own words for it
   assert.ok(host.includes("'Remove'") && host.includes("'Lock the room'") && host.includes('Waiting for players'));                    // the host controls the steps name
-  assert.match(host, /if \(s\.phase !== 'lobby'\) return false;/);                                                                  // a player can be removed only while waiting
+  // REMOVE: at any time. kick() has no phase check (it used to be lobby-only), and the players panel with its Remove buttons is drawn in every phase; the confirm and the undo exist
+  const kick = host.slice(host.indexOf('function kick(pid)'), host.indexOf('function allow(pid)'));
+  assert.ok(kick.includes('function kick(pid)') && kick.includes('s.banned.add(pid)') && !/phase !== 'lobby'/.test(kick), 'kick has no lobby-only check');
+  assert.equal((host.match(/\.\.\.panel\(\)/g) || []).length, 4, 'the lobby, question, reveal and final screens all draw the players panel with its Remove buttons');
+  assert.ok(host.includes("class: 'button secondary gh-remove'") && host.includes('Remove ${p.name} from the game?') && host.includes("'Allow again'"), 'the confirm and the undo');
+  assert.match(host, /const COURTESY_TEXT = 'Remove is a courtesy, not a ban: someone removed can come back from a new browser\. Lock the room or start a new room code to keep them out\.'/);
+  // LOCK and NEW ROOM CODE: the buttons only while waiting; the room locks itself at the start
+  assert.match(host, /lobby \? h\('p', \{ class: 'gh-lock-line' \}, h\('button'[^\n]*id: 'gh-lock'/); assert.match(host, /lobby \? h\('button', \{ class: 'button secondary', type: 'button', id: 'gh-newcode'/);
+  assert.match(host, /if \(s\.closed \|\| s\.phase !== 'lobby'\) return Promise\.resolve\(\);\r?\n\s+return closeRoom\('newcode'\)/);
+  assert.match(host, /if \(s\.phase === 'lobby'\) \{ s\.lockedByHost = s\.locked; s\.locked = true;/); assert.ok(host.includes("const AUTO_LOCK_TEXT = 'The room locked when the game started.'"));
+  assert.ok(host.includes("'Locked: nobody new can join. Players already in can still rejoin.'"), 'a locked room lets players already in come back');
+  // IDLE CLOSE: 15 minutes, warned 2 minutes before, never while a question round runs, signed 'closed' to the phones; and leaving the Games page closes the room
+  assert.match(host, /IDLE_MS = 15 \* 60000, WARN_MS = 2 \* 60000/); assert.equal(GAMES_FACTS.idle_close_minutes * 60000, 15 * 60000);
+  assert.match(host, /if \(s\.closed \|\| s\.phase === 'question'\) return;\r?\n\s+s\.warnT = later\(showIdleWarn/); assert.match(host, /if \(s\.closed \|\| s\.phase === 'question'\) return Promise\.resolve\(\);\r?\n\s+const done = closeRoom\('idle'\)/);
+  assert.ok(host.includes("'Keep the room open'") && host.includes('This room closes in 2 minutes because nothing has happened.'));
+  assert.ok(host.includes("The room closed after 15 minutes with nothing happening.") && host.includes("phase: 'closed', why"));
+  assert.match(host, /const onHash = \(\) => \{ if \(location\.hash !== '#\/d\/games'\) close\(\); \};/);
+  // the player cap is one number in the host and the room library; the draft banner on the page says what the notes say
+  assert.match(room, /MAX_PLAYERS = 8\b/);
+  assert.ok(host.includes("'Five sample rounds made from a made-up script. The game saves nothing to an account or a file, but every name and guess goes to everyone in this room, and anyone with the room code can join: it is not a password.'"), 'the draft banner');
+  assert.ok(host.includes('A room is a public channel: it is not stranger-proof.'));
+  // the PHONE: no sign-in for a player, rejoin by tab after a reload, the idle words, a silent host says so
+  const phone = fs.readFileSync('assets/game-phone-live.js', 'utf8');
+  assert.ok(phone.includes("const SEAT_KEY = 'ryagram-game-seat';") && phone.includes('sessionStorage.setItem(SEAT_KEY'), 'the seat is kept for this browser tab only');
+  assert.ok(phone.includes('closed because nothing happened for 15 minutes.') && /const SILENT_MS = 16000;/.test(phone));
+  assert.equal(FACTS.phone_needs_sign_in, false); assert.ok(!/ryagramSession|signIn|getSession|auth\./.test(phone), 'the phone page asks for no sign-in');
+  assert.ok(!/\bfetch\(|\.rpc\(|\.from\(/.test(phone), 'the phone page makes no server call either');
   const load = (file, key) => { const w = {}; new Function('window', fs.readFileSync(file, 'utf8'))(w); return w[key]; };
   assert.equal(load('assets/game-rounds.js', 'ryagramGameRounds').rounds.length, GAMES_FACTS.rounds_per_game);
   assert.equal(load('assets/game-gap-rounds.js', 'ryagramGameGapRounds').rounds.length, GAMES_FACTS.rounds_per_game);

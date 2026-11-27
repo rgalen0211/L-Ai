@@ -1,7 +1,8 @@
 // GAMES for the person's AI (CONNECT, 2026-11-27, the "turn the other departments on" order). Contract and reasons: Ryagram-logs/proposals/CONNECT-DEPT-GAMES-1127.md (its UPDATE block says what GAMES had when this was aligned).
-// WHAT IS REAL TODAY (read from GAMES' newest code, branch games-alert-order-1127 4d95fc2b = games-live-1127 95c9cad7 + one commit, 11-27 11:5x; GAMES' launch holds (longer code, seats, idle close) are still being built on games-hold-* branches and are NOT in it): a game lives ONLY in the host's browser and in Supabase Realtime between the host screen and the players' phones:
+// WHAT IS REAL TODAY (re-read 11-27 13:2x from GAMES' final launch head, branch games-on-push1-1127 89dfedb9 = push 1 e964c0b7 + one commit; its game files are byte-identical to games-launch-1127 89c5d741; it has no supabase/ file, so no server call and no rooms migration): a game lives ONLY in the host's browser and in Supabase Realtime between the host screen and the players' phones:
 // no table, no SQL, no server call. The host screen (assets/app-games.js) is the Games page for an account whose switch list names `games`; the players' page is /game-phone/ (assets/game-phone-live.js).
-// TWO games on the page, picked by the host in the lobby under "Which game?": "Guess the next line" and "Fill the gap". Five rounds each, 45 seconds a round, 1 to 8 players, a room code made of letters only (its LENGTH is kept out of the words on purpose: it is 6 on 4d95fc2b and GAMES is lengthening it; the fixture holds the length the page has).
+// TWO games on the page, picked by the host in the lobby under "Which game?": "Guess the next line" and "Fill the gap". Five rounds each, 45 seconds a round, 1 to 8 players, a room code made of letters only (its LENGTH is kept out of the words on purpose: it is 8 on 89dfedb9 but GAMES moves the page onto server rooms after launch ("Games v2"); the fixture holds the length the page has).
+// HOST CONTROLS on that head, all in the page: Remove (any time, with a confirm, an Allow again undo; a courtesy, not a ban), Lock/Unlock the room (waiting only; the room also locks itself when the game starts), New room code (waiting only), and an IDLE CLOSE (15 minutes with nothing happening, a warning 2 minutes before with "Keep the room open").
 // So nothing about a game exists on the server for the AI to start, read or end, and these tools do not pretend otherwise. Two read-only tools, neither makes a server call of its own:
 //   list_games        the games the Games page offers                    <- opening the Games page and looking at "Which game?"
 //   open_games_page   where Games is and how a game is run, in words    <- finding Games in the top bar
@@ -20,10 +21,10 @@ const refuse = (text: string, code: string, data?: Record<string, unknown>): Too
 export const GAMES_PAGE_PATH = "/app/#/d/games";
 export const PLAYERS_PAGE_PATH = "/game-phone/";
 
-/** The numbers on GAMES' page today, each read from its code: MAX_PLAYERS 8 and ROUND_SECONDS 45 (app-games.js), five rounds in each pack (game-rounds.js, game-gap-rounds.js).
- *  The host's Start button stays off until one player has joined, so the least is 1. The room code's length is NOT here and not in any word below: GAMES is changing it (6 letters now, longer soon), so the tools say only "letters, no numbers".
- *  If GAMES changes one of these numbers the page is right and this changes in the same step. */
-export const GAMES_FACTS = Object.freeze({ players_min: 1, players_max: 8, rounds_per_game: 5, seconds_per_round: 45 });
+/** The numbers on GAMES' page today, each read from its code: MAX_PLAYERS 8 and ROUND_SECONDS 45 and IDLE_MS 15 minutes (app-games.js), five rounds in each pack (game-rounds.js, game-gap-rounds.js).
+ *  The host's Start button stays off until one player has joined, so the least is 1. The room code's length is NOT here and not in any word below: GAMES moves the page onto server rooms after launch, so the tools say only "letters, no numbers".
+ *  No rate or join-limit number is here either (they are tuning, not a promise). If GAMES changes one of these numbers the page is right and this changes in the same step. */
+export const GAMES_FACTS = Object.freeze({ players_min: 1, players_max: 8, rounds_per_game: 5, seconds_per_round: 45, idle_close_minutes: 15 });
 
 const num = (n: number) => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"][n] ?? String(n);
 export interface GameListed { id: string; label: string; line: string }
@@ -35,9 +36,10 @@ export const GAMES_OFFERED: readonly GameListed[] = Object.freeze([
 
 /** The steps, in the person's words. They follow the Games page as GAMES builds it (its own button and heading names in quotes): if the page looks different, the page is right. */
 export const HOW_A_ROUND_GOES: readonly string[] = Object.freeze([
-  `Open Games from the top bar in Ryagram, signed in (the page is at ${GAMES_PAGE_PATH}). Under "Waiting for players" the screen shows a room code, made of letters and no numbers, straight away.`,
+  `Open Games from the top bar in Ryagram, signed in (the page is at ${GAMES_PAGE_PATH}). Once the room has opened, under "Waiting for players" the screen shows a room code, made of letters and no numbers.`,
   'Under "Which game?" the host picks Guess the next line or Fill the gap.',
-  `Players open the players' page on their phones (${PLAYERS_PAGE_PATH}) and type the room code and a name for the scoreboard (at most 16 letters). No sign-in is needed on a phone. Up to ${GAMES_FACTS.players_max} players can join, a name can be used once in a room, and no new player can join after the game has started. While the room is waiting, the host can press "Remove" beside a player's name to take that player out, or "Lock the room" so no one new can join.`,
+  `Players open the players' page on their phones (${PLAYERS_PAGE_PATH}) and type the room code and a name for the scoreboard (at most 16 letters). No sign-in is needed on a phone. Up to ${GAMES_FACTS.players_max} players can join, a name can be used once in a room, and no new player can join after the game has started. A player whose phone page reloads in the same browser tab can join again as the same player and keep their score.`,
+  'The host has these controls on the page. "Remove" beside a player\'s name takes that player out, at any time (the page asks the host to confirm first, and "Allow again" lets that player back in). While the room is waiting, "Lock the room" stops anyone new joining (it then reads "Unlock the room"; players who are already in can still rejoin) and "New room code" closes the room and opens a new one with a new code and empty seats. The room also locks itself when the game starts. Remove is a courtesy, not a ban: someone removed can come back from a new browser, so locking the room or starting a new room code is what keeps people out.',
   `The host presses "Start the game" (it works once at least one player has joined). A game is ${num(GAMES_FACTS.rounds_per_game)} rounds. In each round the host reads the line aloud and the players type on their phones, for up to ${GAMES_FACTS.seconds_per_round} seconds or until everyone has sent.`,
   `Then the host's screen shows the answer, each player's points and which words they got, and each phone shows the answer and its own points. After round ${num(GAMES_FACTS.rounds_per_game)} the final scores show on the screen and on the phones, and "Play again with the same players" starts over.`,
 ]);
@@ -46,8 +48,9 @@ export const HOW_A_ROUND_GOES: readonly string[] = Object.freeze([
 export const ABOUT_THE_GAMES: readonly string[] = Object.freeze([
   `The page marks this as a draft: the ${num(GAMES_FACTS.rounds_per_game)} rounds are the same sample rounds each time, made from a made-up script, and there is no video, so the host reads the line aloud.`,
   "Points follow one rule in both games: exact words score the most, near forms (such as a plural) and a one-letter typo in a long word earn part, and word order matters.",
-  "The game saves nothing to an account or a file, but every name and guess goes to everyone in the room. Closing the host's page ends the room, and a phone whose host screen stops answering says so.",
-  "Anyone who has the room code can join while the room is open, so the host should share it only with the people who are playing.",
+  "The game saves nothing to an account or a file, but every name and guess goes to everyone in the room. Closing the host's page, or leaving the Games page, ends the room, and a phone whose host screen stops answering says so.",
+  `A room closes itself after ${GAMES_FACTS.idle_close_minutes} minutes with nothing happening (the host's screen warns two minutes before, and "Keep the room open" keeps it going; a round that is running never counts as idle). The phones are told the room has closed.`,
+  "Anyone who has the room code can join while the room is open, so the host should share it only with the people who are playing. The code does not protect the room from anyone who has it, and a room is a public channel: nobody should type anything private.",
 ]);
 
 export function makeGamesTools(): ToolDef[] {
