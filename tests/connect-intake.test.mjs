@@ -95,7 +95,7 @@ test('a picture that does not fit the scale is not accepted: a county film canno
   assert.equal(nextStep({ scale: 'state', place: 'Ohio', dataset: 'r', years: '2010', picture: 'paired' }).step, 'confirm_and_build');
 });
 
-test('a compilation: the Windows desktop app first, then folder NAMES, then a phrase or a song, then the request is written', () => {
+test('a compilation: the Windows desktop app first, then folder NAMES, then the phrase (a song is not offered), then the request is written', () => {
   const k = { kind: 'compilation' };
   assert.equal(nextStep(k).asking, 'have_app'); assert.match(nextStep(k).ask, /desktop app for Windows/);
   k.have_app = false;
@@ -105,20 +105,53 @@ test('a compilation: the Windows desktop app first, then folder NAMES, then a ph
   const f = nextStep(k);
   assert.equal(f.asking, 'folders_named'); assert.match(f.ask, /NAMES/); assert.match(f.ask, /not where they are/);
   k.folders_named = true;
-  assert.equal(nextStep(k).asking, 'chose');
-  k.chose = 'song';
+  const q = nextStep(k);
+  assert.equal(q.asking, 'chose'); assert.equal(q.step, 'phrase');
+  assert.deepEqual(q.options, ['a phrase: every time it is said']);                                           // the phrase is the only choice
+  assert.doesNotMatch(q.ask + q.say + q.then + q.options.join(' '), /song|sung|tune/i);
+  k.chose = 'phrase';
   const w = nextStep(k);
   assert.equal(w.step, 'write_request'); assert.match(w.then, /set_compilation_request/); assert.match(w.then, /desktop app/);
+  assert.doesNotMatch(w.then, /song/i);                                                                       // the AI is never told to send song (the request tool refuses it)
 });
 
-test('"make a song from my videos in these folders" is read as a compilation and the folders are not asked for again', () => {
-  const s = nextStep({ chose: 'song', folders_named: true });
-  assert.equal(s.kind, 'compilation'); assert.equal(s.asking, 'have_app');                                  // only the app is still unknown
-  assert.deepEqual(s.known.sort(), ['chose', 'folders_named']);
+test('the old "song" answer is not offered: said plainly, the phrase is offered, nothing crashes, nothing is echoed', () => {
+  for (const old of ['song', 'SONG', 'a song', '', 'x'.repeat(20)]) {
+    const s = nextStep({ kind: 'compilation', have_app: true, folders_named: true, chose: old });
+    if (old === '') { assert.equal(s.step, 'phrase'); continue; }                                              // an empty answer is "not known"
+    assert.equal(s.step, 'phrase_only', old); assert.equal(s.asking, 'chose'); assert.equal(s.reask, true);
+    assert.match(s.say, /song is not/); assert.deepEqual(s.options, ['a phrase: every time it is said']);
+    assert.match(s.then, /phrase/); assert.doesNotMatch(s.then, /write|set_compilation_request/);
+  }
+  assert.ok(!JSON.stringify(nextStep({ kind: 'compilation', have_app: true, folders_named: true, chose: 'zzqzzqzzq' })).includes('zzqzzqzzq'), 'what was passed is not echoed');
+  assert.equal(nextStep({ kind: 'compilation', have_app: true, folders_named: true, chose: 'phrase' }).step, 'write_request');
+});
+
+test('the old "song" answer through the real dispatch: not an error, never leads to a request, the other compilation steps still come first', async () => {
+  const r = await ask({ kind: 'compilation', have_app: true, folders_named: true, chose: 'song' });
+  assert.ok(!r.isError, r.text);
+  assert.equal(r.data.step, 'phrase_only'); assert.equal(r.data.reask, true); assert.deepEqual(r.data.options, ['a phrase: every time it is said']);
+  assert.match(r.text, /a song is not/); assert.doesNotMatch(r.text, /set_compilation_request/);
+  assert.equal((await ask({ kind: 'compilation', chose: 'song' })).data.asking, 'have_app');                   // the app and the folders are still asked first
+  assert.equal((await ask({ chose: 'song', folders_named: true })).data.kind, 'compilation');                  // an old "song from my videos in these folders" is still read as a compilation
+  assert.equal((await ask({ kind: 'compilation', have_app: true, folders_named: true, chose: 'phrase' })).data.step, 'write_request');
+  assert.equal((await ask({ chose: 'x'.repeat(21) })).isError, true);                                          // still length-limited
+});
+
+test('NO SONG anywhere the AI reads for a compilation: the intake steps, the tool words and its schema never offer or name a song', async () => {
+  const words = [];
+  for (const have_app of [undefined, true, false]) for (const folders_named of [undefined, true]) for (const chose of [undefined, 'phrase']) {
+    const s = nextStep({ kind: 'compilation', have_app, folders_named, chose });
+    words.push(s.ask, s.say, s.then, ...s.options);
+  }
+  assert.doesNotMatch(words.filter(Boolean).join('\n'), /song|sung|tune/i);
+  const t = toolList().find((x) => x.name === 'suggest_next_step');
+  assert.doesNotMatch(JSON.stringify(t), /song|sung|tune/i);
+  assert.deepEqual([...CHOSE], ['phrase']);
 });
 
 test('SWEEP: over every combination of what is known, the tool never asks for a field it was told (except a stated "not drawn" re-ask)', () => {
-  const fields = { scale: SCALES, place: ['Ohio'], dataset: ['rent'], years: ['2010'], picture: PICTURES, have_app: [true, false], folders_named: [true], chose: CHOSE, department: ['globe'], kind: KINDS };
+  const fields = { scale: SCALES, place: ['Ohio'], dataset: ['rent'], years: ['2010'], picture: PICTURES, have_app: [true, false], folders_named: [true], chose: [...CHOSE, 'song'], department: ['globe'], kind: KINDS };
   const names = Object.keys(fields);
   let checked = 0;
   const walk = (i, acc) => {
