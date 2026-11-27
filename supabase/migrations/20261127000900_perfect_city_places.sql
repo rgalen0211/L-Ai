@@ -5,7 +5,8 @@
 --   * ryagram_private.perfect_city_units: the Census block groups' centres and populations (public domain), loaded from
 --     supabase/live-steps/perfect_city_units_seed.sql (live step PC2b), generated from the page's own data so the server's numbers match the page's.
 --   * public.perfect_city_places(county, kind, lat, lon): for ONE spot, the places within 5 km of it plus the nearest five (never a whole county in one
---     call: RENDERER 08:24, the licence question), with how many are loaded and the OpenStreetMap credit; never the osm_ref. Signed in only, and only for
+--     call: RENDERER 08:24, the licence question), with how many are loaded, the true counts within 1, 2 and 5 km ('within', counted before the 60 cap),
+--     and the OpenStreetMap credit; never the osm_ref. Signed in only, and only for
 --     an account whose per-account switch list names 'perfectCity', an app admin, or everyone once the department is 'working' (the public flip); else 42501. Unknown county or kind, or a spot outside the county: 22023.
 --   * ryagram_private.perfect_city_summary_for(owner, county, kind, lat, lon): the AI tool's summary (CONNECT wraps it with its token check), the same gate
 --     for that owner, schema ryagram.perfect-city-summary/0 (proposals/CONNECT-DEPT-PERFECT-CITY-1127.md part B).
@@ -102,13 +103,16 @@ language plpgsql volatile security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_signed_in();       -- no visitor, no worker account
 begin
   perform ryagram_private.perfect_city_check(me, p_county, p_kind, p_lat, p_lon);
+  -- 'within': the TRUE counts within 1, 2 and 5 km, over every loaded place of this county and kind, counted BEFORE the 60-place cap (RENDERER 09:12: the page
+  -- undercounted a dense cluster from the capped list). Only 'places' is capped, by its aggregate filter; the counts see every row of n.
   return (select jsonb_build_object('county', p_county, 'kind', p_kind, 'radius_km', 5, 'max_places', 60, 'credit', 'Map data (c) OpenStreetMap contributors (ODbL)',
                                     'loaded', (select count(*) from ryagram_private.perfect_city_places a where a.county = p_county and a.kind = p_kind),
-                                    'places', coalesce(jsonb_agg(jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon) order by n.km, n.name, n.osm_ref), '[]'::jsonb))
+                                    'within', jsonb_build_object('1', count(*) filter (where n.km <= 1), '2', count(*) filter (where n.km <= 2), '5', count(*) filter (where n.km <= 5)),
+                                    'places', coalesce(jsonb_agg(jsonb_build_object('name', n.name, 'lat', n.lat, 'lon', n.lon) order by n.km, n.name, n.osm_ref)
+                                                         filter (where (n.km <= 5 or n.rn <= 5) and n.rn <= 60), '[]'::jsonb))      -- never more than 60 places in one answer
             from (select p.name, p.lat, p.lon, p.osm_ref, ryagram_private.perfect_city_km(p_lat, p_lon, p.lat, p.lon) as km,
                          row_number() over (order by ryagram_private.perfect_city_km(p_lat, p_lon, p.lat, p.lon), p.name, p.osm_ref) as rn
-                    from ryagram_private.perfect_city_places p where p.county = p_county and p.kind = p_kind) n
-           where (n.km <= 5 or n.rn <= 5) and n.rn <= 60);                       -- never more than 60 places in one answer
+                    from ryagram_private.perfect_city_places p where p.county = p_county and p.kind = p_kind) n);
 end $$;
 revoke all on function public.perfect_city_places(text, text, double precision, double precision) from public, anon, authenticated;
 grant execute on function public.perfect_city_places(text, text, double precision, double precision) to authenticated;
@@ -146,7 +150,7 @@ begin
                     jsonb_build_object('value', (select (round(coalesce(sum(u.pop), 0) / 100.0) * 100)::int from ryagram_private.perfect_city_units u
                                                   where u.county = p_county and ryagram_private.perfect_city_km(v_lat, v_lon, u.lat, u.lon) <= r.km),
                                        'basis', 'estimated',
-                                       'method', 'block groups whose centre is inside the ring, counted in full, rounded to the nearest 100; typically within about 10 percent at 5 km')
+                                       'method', 'block groups whose centre is inside the ring, counted in full, rounded to the nearest 100; off by a median of about 8 percent at 5 km, up to 40 percent at the edges')
                   else jsonb_build_object('value', null, 'basis', 'estimated',
                                           'note', 'not given for rings under 5 km: too rough from block-group centres; the Perfect City page shows an area-weighted figure')
                   end)

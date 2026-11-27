@@ -24,13 +24,14 @@
       "People within a ring are an estimate: each block group's people are shared by the part of its area inside the ring, as if they were spread evenly.",
       'Median income is a survey estimate with a margin of error, for the whole block group.',
       'There is no success score and no prediction. This shows what is there, not whether a business would do well.',
-      'The map shows the places near your spot only: within 5 km, and the nearest five.',
+      'The map shows the places near your spot only: within 5 km, and the nearest five, at most the nearest 60.',
       'One county at a time: places and people across the county line are not counted, even inside a ring.'],
     noPlaces: 'The business points are not loaded yet, so the map shows people and income only.',
     placesError: 'The business points could not be loaded. The map shows people and income only. Try again in a few minutes.',
     badTyped: 'Type a latitude and a longitude as numbers, for example 39.7589 and -84.1916.',
     looking: 'Looking up the places near this spot...',
     capped: 'There are more places near this spot than one answer carries (the nearest 60), so counts that reach past the 60th place say at least.',
+    mapCapped: 'The map shows only the nearest 60 places. The counts within 1, 2 and 5 km are of every place loaded.',
     pickSpot: 'Click the map, or type a latitude and longitude, to put a spot on it.',
     outside: 'That spot is outside the county. Put it inside the shaded area.',
     compareAdd: 'Compare with a second spot',
@@ -42,6 +43,8 @@
   };
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   const km1 = (x) => (x < 10 ? x.toFixed(2) : x.toFixed(1));
+  // the spot sent to the server: 4 decimals (about 11 m), like perfect_city_summary_for; half away from zero, as Postgres round() does
+  const r4 = (x) => Math.sign(x) * Math.round(Math.abs(x) * 1e4) / 1e4;
 
   function loadCensus(county) {
     const have = () => window.ryagramPerfectCityData && window.ryagramPerfectCityData[county];
@@ -65,7 +68,7 @@
   async function view({ h, data }) {
     const pc = window.ryagramPerfectCity;
     // spot A is state.spot (with its places); compare mode adds spot B (state.b), asked of the server ON ITS OWN, so the 60-place cap and the daily count apply per spot
-    const state = { county: COUNTIES[0].id, kind: 'fast_food', shade: 'density', spot: null, census: null, places: null, loaded: null, placesNote: '', credit: '',
+    const state = { county: COUNTIES[0].id, kind: 'fast_food', shade: 'density', spot: null, census: null, places: null, within: null, capKm: null, loaded: null, placesNote: '', credit: '',
       compare: false, target: 'A', b: { spot: null, places: null, note: '', credit: '' } };
     const noB = () => ({ spot: null, places: null, note: '', credit: '' });
     const select = (id, label, options, value, onchange) => {
@@ -105,17 +108,24 @@
     // Each spot has its own request token: an older answer that arrives late is dropped, and an answer is used only if it is
     // still for the county, kind and spot it was asked for. A spot outside the county is not asked about at all (no use of the day's count).
     const asked = { A: 0, B: 0 };
+    // the server's true ring counts {1: n, 2: n, 5: n}, or null when it sent none (an older server) or any is not a whole number
+    const withinOf = (r) => {
+      const w = r && r.within, out = {};
+      if (!w || typeof w !== 'object') return null;
+      for (const k of pc.RINGS_KM) { const n = w[String(k)]; if (!Number.isInteger(n) || n < 0) return null; out[k] = n; }
+      return out;
+    };
     const spotOf = (which) => (which === 'B' ? (state.compare ? state.b.spot : null) : state.spot);
     const keyOf = (spot) => (spot ? [state.county, state.kind, spot[0], spot[1]].join('|') : '');
     async function fetchPlaces(which) {
-      const spot = spotOf(which), got = { places: null, note: '', credit: '', loaded: null, capKm: null };
+      const spot = spotOf(which), got = { places: null, note: '', credit: '', loaded: null, capKm: null, within: null };
       const mine = ++asked[which];
       if (!spot || !state.census || !pc.unitAt(spot, state.census.units)) return got;      // outside the county: no server call
       if (state.dayLimit) { got.note = state.dayLimit; return got; }                       // the day's limit was reached: ask nothing more today
       const key = keyOf(spot);
       const stale = () => mine !== asked[which] || key !== keyOf(spotOf(which));
       try {
-        const r = await data.perfectCityPlaces(state.county, state.kind, spot[1], spot[0]);
+        const r = await data.perfectCityPlaces(state.county, state.kind, r4(spot[1]), r4(spot[0]));
         if (stale()) return null;
         got.loaded = r && Number.isFinite(r.loaded) ? r.loaded : null;
         if (!r || !(r.loaded > 0)) { got.note = WORDS.noPlaces; return got; }
@@ -123,6 +133,7 @@
         got.credit = typeof r.credit === 'string' ? r.credit : '';
         // at the cap the answer holds only the nearest N: counts are exact only for rings inside the farthest place sent
         if (got.places.length >= (Number.isFinite(r.max_places) ? r.max_places : 60)) got.capKm = Math.max(...got.places.map((q) => pc.km(spot, [q.lon, q.lat])));
+        got.within = withinOf(r);
       } catch (e) {
         if (stale()) return null;
         if (/today.s limit/i.test(String(e && e.message))) { state.dayLimit = String(e.message); got.note = state.dayLimit; }
@@ -134,7 +145,7 @@
     async function loadPlaces() {
       const r = await fetchPlaces('A');
       if (!r) return false;
-      state.places = r.places; state.placesNote = r.note; state.credit = r.credit; state.loaded = r.loaded; state.capKm = r.capKm;
+      state.places = r.places; state.placesNote = r.note; state.credit = r.credit; state.loaded = r.loaded; state.capKm = r.capKm; state.within = r.within;
       return true;
     }
     async function loadPlacesB() {
@@ -221,12 +232,12 @@
     // Compare mode: one table, a row per figure, a column per spot. No 'better' column and no score (the page's rule: no success score).
     function drawCompare() {
       const c = state.census, kind = KINDS[state.kind];
-      const col = (spot, places) => {
+      const col = (spot, places, within, capKm) => {
         const u = spot ? pc.unitAt(spot, c.units) : null;
         return { spot, u, places, people: u ? pc.peopleWithinArea(spot, c.units) : null,
-          counts: u && places ? pc.countsWithin(spot, places) : null, near: u && places ? pc.nearest(spot, places, 1)[0] : null };
+          counts: u && places ? ringCounts(spot, places, within, capKm) : null, near: u && places ? pc.nearest(spot, places, 1)[0] : null };
       };
-      const cols = [{ ...col(state.spot, state.places), capKm: state.capKm }, { ...col(state.b.spot, state.b.places), capKm: state.b.capKm }];
+      const cols = [col(state.spot, state.places, state.within, state.capKm), col(state.b.spot, state.b.places, state.b.within, state.b.capKm)];
       // every cell says why when there is no figure: not placed yet, outside the county, or the business points not loaded
       const cell = (k, f) => (!k.spot ? 'not placed yet' : !k.u ? 'outside the county' : f(k));
       const placesCell = (k, f) => cell(k, (x) => (x.places ? f(x) : 'business points not loaded'));
@@ -238,7 +249,7 @@
         row('People per square kilometre in the block group', 'calculated', (k) => cell(k, (x) => (x.u.density == null ? 'not available' : fmt(x.u.density)))),
         row('Median household income in the block group', 'estimated, American Community Survey 2019 to 2023', (k) => cell(k, (x) => (x.u.income ? '$' + fmt(x.u.income[0]) + (x.u.income[1] ? ` (plus or minus $${fmt(x.u.income[1])}, the survey's 90% margin of error)` : '') : 'not published for this block group'))),
         row(`Nearest ${kind.toLowerCase()}`, 'calculated, straight line', (k) => placesCell(k, (x) => (x.near ? `${km1(x.near.km)} km (${x.near.name || 'no name in the map data'})` : 'none found'))),
-        ...pc.RINGS_KM.map((r, i) => row(`${kind} within ${r} km`, 'calculated', (k) => placesCell(k, (x) => countText(x.counts[i], x.capKm)))),
+        ...pc.RINGS_KM.map((r, i) => row(`${kind} within ${r} km`, 'calculated', (k) => placesCell(k, (x) => countText(x.counts[i])))),
         ...pc.RINGS_KM.map((r, i) => row(`People within ${r} km`, 'estimated', (k) => cell(k, (x) => peopleCell(x.people[i]))))
       ];
       results.replaceChildren(h('h2', {}, 'Two spots side by side'),
@@ -246,10 +257,18 @@
           h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Figure'), h('th', { scope: 'col' }, 'Spot A'), h('th', { scope: 'col' }, 'Spot B'))),
           h('tbody', {}, rows))),
         h('p', { class: 'meta' }, WORDS.compareNote),
+        ...[[state.capKm, state.within], [state.b.capKm, state.b.within]].filter(([k]) => k != null).map(([, w]) => (w ? WORDS.mapCapped : WORDS.capped))
+          .filter((t, i, all) => all.indexOf(t) === i).map((t) => h('p', { class: 'form-note' }, t)),
         h('p', { class: 'meta' }, 'People within a ring: ' + pc.peopleWithinArea(state.spot, []).at(0).method + ', rounded to the nearest 100.'));
     }
 
-    const countText = (cnt, capKm) => (capKm != null && cnt.km > capKm ? `at least ${fmt(cnt.count)}` : fmt(cnt.count));
+    // The places within 1, 2 and 5 km. The server sends the TRUE counts (within, counted before the 60-place cap: RENDERER 09:12); the page uses them when they are there.
+    // Without them (an older server) it counts the places it was sent, and a ring that reaches past the farthest one sent says 'at least'.
+    function ringCounts(spot, places, within, capKm) {
+      return pc.countsWithin(spot, places).map((c) => (within ? { ...c, count: within[c.km], exact: true }
+        : { ...c, exact: !(capKm != null && c.km > capKm) }));
+    }
+    const countText = (cnt) => (cnt.exact ? fmt(cnt.count) : `at least ${fmt(cnt.count)}`);
 
     function drawCompareBar() {
       if (!state.spot) { compareBar.replaceChildren(); targetWrap.replaceChildren(); return; }
@@ -290,13 +309,13 @@
           h('li', { class: 'meta' }, `Census block group ${u.id}`))];
       const people = pc.peopleWithinArea(state.spot, c.units);
       if (state.places) {
-        const near = pc.nearest(state.spot, state.places, 5), counts = pc.countsWithin(state.spot, state.places);
+        const near = pc.nearest(state.spot, state.places, 5), counts = ringCounts(state.spot, state.places, state.within, state.capKm);
         out.push(h('h3', {}, `Nearest ${KINDS[state.kind].toLowerCase()}`),
           h('ol', { class: 'pc-facts', id: 'pc-nearest' }, near.map((p) => h('li', {}, `${p.name || '(no name in the map data)'}: ${km1(p.km)} km`, h('span', { class: 'pc-label' }, ' calculated, straight line')))));
         out.push(h('h3', {}, 'Within 1, 2 and 5 km'),
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, KINDS[state.kind] + ' (calculated)'), h('th', { scope: 'col' }, 'People (estimated)'))),
-            h('tbody', {}, counts.map((cnt, i) => h('tr', {}, h('th', { scope: 'row' }, `${cnt.km} km`), h('td', {}, countText(cnt, state.capKm)), h('td', {}, peopleCell(people[i])))))),
-          state.capKm != null ? h('p', { class: 'form-note', id: 'pc-capped' }, WORDS.capped) : null);
+            h('tbody', {}, counts.map((cnt, i) => h('tr', {}, h('th', { scope: 'row' }, `${cnt.km} km`), h('td', {}, countText(cnt)), h('td', {}, peopleCell(people[i])))))),
+          state.capKm == null ? null : state.within ? h('p', { class: 'form-note', id: 'pc-map-capped' }, WORDS.mapCapped) : h('p', { class: 'form-note', id: 'pc-capped' }, WORDS.capped));
       } else {
         out.push(h('h3', {}, 'Within 1, 2 and 5 km'),
           h('table', { class: 'pc-table', id: 'pc-rings' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Ring'), h('th', { scope: 'col' }, 'People (estimated)'))),
@@ -338,22 +357,22 @@
     }
 
     // one spot in words, for the status line in compare mode
-    function spotWords(name, spot, places) {
+    function spotWords(name, spot, places, within, capKm) {
       if (!spot) return `${name}: not placed yet.`;
       if (!pc.unitAt(spot, state.census.units)) return `${name}: outside the county.`;
       if (!places) return `${name}: placed, people and income only.`;
-      const c5 = pc.countsWithin(spot, places)[2].count, n = pc.nearest(spot, places, 1)[0];
+      const c5 = countText(ringCounts(spot, places, within, capKm)[2]), n = pc.nearest(spot, places, 1)[0];
       return `${name}: ${c5} ${KINDS[state.kind].toLowerCase()} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}.`;
     }
 
     function summaryLine() {
       if (state.compare && state.census) {
-        return `Comparing two spots. ${spotWords('Spot A', state.spot, state.places)} ${spotWords('Spot B', state.b.spot, state.b.places)} ${state.b.spot ? 'The table below shows them side by side.' : WORDS.pickB}`;
+        return `Comparing two spots. ${spotWords('Spot A', state.spot, state.places, state.within, state.capKm)} ${spotWords('Spot B', state.b.spot, state.b.places, state.b.within, state.b.capKm)} ${state.b.spot ? 'The table below shows them side by side.' : WORDS.pickB}`;
       }
       const u = state.census && state.spot ? pc.unitAt(state.spot, state.census.units) : null;
       if (!u) return WORDS.outside;
       if (!state.places) return 'Spot placed. People and income are below.';
-      const c5 = pc.countsWithin(state.spot, state.places)[2].count, n = pc.nearest(state.spot, state.places, 1)[0];
+      const c5 = countText(ringCounts(state.spot, state.places, state.within, state.capKm)[2]), n = pc.nearest(state.spot, state.places, 1)[0];
       return `Spot placed: ${c5} ${KINDS[state.kind].toLowerCase()} within 5 km${n ? `, the nearest ${km1(n.km)} km away` : ''}. Details are below.`;
     }
 
@@ -363,7 +382,7 @@
       if (state.dayLimit) { state.placesNote = state.dayLimit; return; }
       const [x0, y0, x1, y1] = state.census.bbox;
       try {
-        const r = await data.perfectCityPlaces(state.county, state.kind, (y0 + y1) / 2, (x0 + x1) / 2);
+        const r = await data.perfectCityPlaces(state.county, state.kind, r4((y0 + y1) / 2), r4((x0 + x1) / 2));
         state.loaded = r && Number.isFinite(r.loaded) ? r.loaded : null;
         state.placesNote = r && r.loaded > 0 ? '' : WORDS.noPlaces;
       } catch (e) {

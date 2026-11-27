@@ -4,11 +4,13 @@ GEO 2026-11-27. Run from the repo root with TEMP/TMP on D: (the storage rule):
     pgvenv/Scripts/python -m unittest supabase/tests/test_perfect_city_places.py -v
 
 What this proves: a signed-in account WITHOUT the perfectCity switch is refused (42501), and so are a visitor and a caller with no account; WITH the switch, or as an app admin, the caller gets
-the places of exactly one county and one kind, sorted by name then osm_ref, with the OpenStreetMap credit and never the osm_ref; a county or kind outside the lists is refused (22023);
+the places of exactly one county and one kind, sorted by name then osm_ref, with the OpenStreetMap credit and never the osm_ref; at most 60 places, but 'within' counts every place within 1, 2 and 5 km, before the cap (80 in a
+dense cluster, not 60); a county or kind outside the lists is refused (22023);
 the table is closed to every API role; the function is security definer with an empty search_path (and the check of that catches a planted mutant); the migration ends with the gate and
 the gate guarded the function; the rollback removes exactly the two new objects (every other function and table is as it was before the migration).
 Every place here is INVENTED (Test Place n, near 39.75,-84.2): no map data is in the repo.
 """
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -44,6 +46,13 @@ SNAPSHOT_FUNCS = ("select n.nspname || '.' || p.oid::regprocedure::text, md5(p.p
                   "from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\\_%%' order by 1")
 SNAPSHOT_TABLES = ("select n.nspname || '.' || c.relname, c.relkind::text, coalesce(c.relacl::text, '') from pg_class c join pg_namespace n on n.oid = c.relnamespace "
                    "where c.relkind in ('r', 'p', 'v', 'm') and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\\_%%' order by 1")
+
+
+def km(lat1, lon1, lat2, lon2):
+    """The haversine distance in km, the same formula as ryagram_private.perfect_city_km and assets/perfect-city-core.js km()."""
+    r = math.radians
+    s = math.sin(r(lat2 - lat1) / 2) ** 2 + math.cos(r(lat1)) * math.cos(r(lat2)) * math.sin(r(lon2 - lon1) / 2) ** 2
+    return 2 * 6371.0088 * math.asin(min(1.0, math.sqrt(s)))
 
 
 def definer_ok(c, sig):
@@ -106,8 +115,9 @@ class PerfectCityPlaces(core.Base):
     def test_with_the_switch_the_caller_gets_one_county_and_kind_sorted_with_the_credit_and_no_osm_ref(self):
         self.switch_on(OTHER)
         got = self.get(OTHER)
-        self.assertEqual(set(got), {"county", "kind", "radius_km", "max_places", "credit", "loaded", "places"})
+        self.assertEqual(set(got), {"county", "kind", "radius_km", "max_places", "credit", "loaded", "within", "places"})
         self.assertEqual((got["radius_km"], got["loaded"]), (5, 4))
+        self.assertEqual(got["within"], {"1": 4, "2": 4, "5": 4})                                 # all four within 0.81 km
         self.assertEqual((got["county"], got["kind"], got["credit"]), ("montgomery_oh", "fast_food", CREDIT))
         self.assertEqual(got["places"], [
             {"name": "Test Place 1", "lat": 39.7502, "lon": -84.2004},
@@ -116,19 +126,29 @@ class PerfectCityPlaces(core.Base):
             {"name": "Test Place 3", "lat": 39.7531, "lon": -84.1912}])
         for p in got["places"]:
             self.assertEqual(set(p), {"name", "lat", "lon"}, "never the osm_ref")
-        self.assertEqual([p["name"] for p in self.get(OTHER, kind="grocery")["places"]], ["Test Place 9"])
+        grocery = self.get(OTHER, kind="grocery")
+        self.assertEqual([p["name"] for p in grocery["places"]], ["Test Place 9"])
+        self.assertEqual(grocery["within"], {"1": 0, "2": 1, "5": 1})                              # 1.10 km away: one county and one kind only
         self.assertEqual([p["name"] for p in self.get(OTHER, county="greene_oh")["places"]], ["Test Place 0"])
         empty = self.get(OTHER, county="greene_oh", kind="restaurant")
-        self.assertEqual((empty["places"], empty["credit"], empty["loaded"]), ([], CREDIT, 0))
+        self.assertEqual((empty["places"], empty["credit"], empty["loaded"], empty["within"]), ([], CREDIT, 0, {"1": 0, "2": 0, "5": 0}))
         self.assertNotIn("n10", str(got), "no osm_ref anywhere in the answer")
 
-    def test_never_more_than_60_places_in_one_answer(self):
+    def test_never_more_than_60_places_in_one_answer_but_within_counts_every_place(self):
         self.switch_on(OTHER)
-        for i in range(80):                                                                # 80 invented places within 2 km of the spot
-            self.owner("insert into ryagram_private.perfect_city_places (county, kind, osm_ref, name, lat, lon) values ('montgomery_oh', 'restaurant', %s, %s, %s, %s)",
-                       f"r{i}", f"Test Place R{i}", 39.7505 + (i % 9) * 0.002, -84.2000 + (i // 9) * 0.002)
+        lat0, lon0 = SPOT["montgomery_oh"]
+        dense = [(f"r{i}", f"Test Place R{i}", lat0 + (i % 9) * 0.0015, lon0 + (i // 9) * 0.0015) for i in range(80)]     # 80 invented places, all within 1.7 km
+        far = [("f1", "Test Place F1", lat0 + 0.027, lon0), ("f2", "Test Place F2", lat0 - 0.027, lon0),                 # about 3 km: inside 5 km only
+               ("f3", "Test Place F3", lat0 + 0.09, lon0)]                                                                 # about 10 km: outside every ring
+        for r in dense + far:
+            self.owner("insert into ryagram_private.perfect_city_places (county, kind, osm_ref, name, lat, lon) values ('montgomery_oh', 'restaurant', %s, %s, %s, %s)", *r)
+        self.assertTrue(all(km(lat0, lon0, la, lo) <= 2 for _, _, la, lo in dense), "the dense cluster is inside 2 km")
         got = self.get(OTHER, kind="restaurant")
-        self.assertEqual((got["loaded"], len(got["places"]), got["max_places"]), (80, 60, 60))
+        self.assertEqual((got["loaded"], len(got["places"]), got["max_places"]), (83, 60, 60))
+        # the TRUE counts, counted before the cap (RENDERER 09:12): 80 within 2 km, not the 60 the answer carries
+        within_1 = sum(1 for _, _, la, lo in dense + far if km(lat0, lon0, la, lo) <= 1)
+        self.assertGreater(within_1, 0)
+        self.assertEqual(got["within"], {"1": within_1, "2": 80, "5": 82})
 
     def test_a_daily_count_refuses_in_words_past_the_cap_and_a_refused_call_counts(self):
         self.switch_on(OTHER)
