@@ -14,7 +14,7 @@
   const chars = s => [...s].length;
   // A code as typed on a phone: lower case, spaces or a dash in the middle are all fine.
   const normCode = s => String(s ?? '').toUpperCase().replace(/[\s-]/g, '');
-  // GAMES 11-27: the SAMPLE room (live mode off) keeps its 4-letter code GAME; the LIVE room passes its own length (6, assets/game-room.js CODE_LEN).
+  // GAMES 11-27: the SAMPLE room (live mode off) keeps its 4-letter code GAME; the LIVE room passes its own length (8, assets/game-room.js CODE_LEN).
   function codeProblem(s, len = CODE_LEN) {
     const c = normCode(s), sample = len === CODE_LEN;
     if (!c) return sample ? 'Type the room code from the TV.' : 'Type the room code from the host' + "'" + 's screen.';
