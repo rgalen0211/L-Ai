@@ -19,11 +19,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/ryagram.css?v=20261127h1">
-<noscript><style>.waitlist-fields,.creator-fields{display:none}</style></noscript>
+
 </head>
-<body class="ryagram-page">
-<a class="skip-link" href="#waitlist">Skip to the sign-up</a>
-<header class="rg-top"><div class="rg-wrap rg-nav"><a class="rg-brand" href="/" aria-label="Ryagram home"><span class="rg-wordmark" aria-hidden="true">Ryagram</span></a><a class="rg-navlink" href="#creators" hidden>Creator beta</a><a class="rg-btn rg-btn-small" href="/app/#/create-account">Create an account</a></div></header>
+<body class="ryagram-page rg-home">
+<a class="skip-link" href="#start">Skip to the sign-up</a>
+<header class="rg-top"><div class="rg-wrap rg-nav"><a class="rg-brand" href="/" aria-label="Ryagram home"><span class="rg-wordmark" aria-hidden="true">Ryagram</span></a><a class="rg-btn rg-btn-small" href="/app/#/create-account">Create an account</a></div></header>
 <main>
   <section class="rg-wrap rg-hero" aria-labelledby="hero-title">
     <div class="rg-hero-copy">
@@ -43,7 +43,7 @@
       <h2 id="depts-title">What Ryagram makes</h2>
       <ul class="rg-depts">
         <li class="rg-dept rg-dept-live"><p class="rg-tag rg-tag-live">Open now</p><h3><a href="#films">Data films</a></h3><p>Questions answered with public data, drawn as a short animated film, with every source shown.</p></li>
-        <li class="rg-dept"><p class="rg-tag">Coming soon</p><h3><a href="#compilation">Compilations</a></h3><p>Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.</p></li>
+        <li class="rg-dept"><p class="rg-tag">Coming soon</p><h3>Compilations</h3><p>Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.</p></li>
         <li class="rg-dept"><p class="rg-tag">Coming soon</p><h3>Perfect City</h3><p>Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.</p></li>
         <li class="rg-dept"><p class="rg-tag">Coming soon</p><h3>Games</h3><p>Play with your own data and footage in small games you can share.</p></li>
         <li class="rg-dept"><p class="rg-tag">Coming soon</p><h3>Animation Studio</h3><p>Simple cartoons you direct, with mouths that move to your voice.</p></li>
@@ -66,20 +66,6 @@
           <h3>Did Fast Food Grow With Obesity?</h3>
           <a href="https://youtu.be/h32_9Gd8cOg" target="_blank" rel="noopener">Watch the full film</a>
         </article>
-        <article class="rg-film">
-          <img class="rg-loop" src="/assets/ryagram-film-construction-mix.jpg" width="960" height="540" loading="lazy" alt="A chart of new US housing permits since 1990 with the headline 23.5% to 29.9% of new homes in buildings with 5 or more units, 1990 to 2024.">
-          <p class="rg-tag">Coming soon</p>
-          <h3>America's Housing Permits: The Construction Mix (1990&ndash;2024)</h3>
-          <p class="rg-film-line">In 1990, 23.5% of the new homes America authorized were in buildings with 5 or more units. By 2024 it was 29.9%.</p>
-          <p class="rg-film-credit">Data: U.S. Census Bureau, Building Permits Survey.</p>
-        </article>
-        <article class="rg-film">
-          <img class="rg-loop" src="/assets/ryagram-film-interstate.jpg" width="960" height="540" loading="lazy" alt="A map of the contiguous United States with the Interstate Highway System drawn in blue, from the film's final frame: 1993, 39,279 Interstate miles constructed.">
-          <h3>Rise of the Interstate Highway, 1956&ndash;1993</h3>
-          <p class="rg-film-line">The Interstate Highway System, contiguous United States: 39,279 miles constructed, 1956&ndash;1993.</p>
-          <a href="https://youtu.be/UC4j77KYVQ8" target="_blank" rel="noopener">Watch the full film</a>
-          <p class="rg-film-credit">Data: Brooks &amp; Liscow (2023), CC BY 4.0, transformed by Ryagram.</p>
-        </article>
       </div>
     </div>
   </section>
@@ -93,93 +79,15 @@
         <li><span class="rg-num" aria-hidden="true">2</span><h3>We draw it</h3><p>Ryagram builds an animated film from public data, with every source listed.</p></li>
         <li><span class="rg-num" aria-hidden="true">3</span><h3>You get it, checked</h3><p>Each film is checked against its data before you get it.</p></li>
       </ol>
-      <p class="rg-checks">Every film is checked against its data before you get it: honest axes, every number traced, uncertainty stated.</p>
-      <p class="rg-release">Anyone 18 or older can <a href="/app/#/create-account">create a free account</a>. Already have one? <a href="/app/">Sign in</a>.</p>
     </div>
   </section>
 
-  <section id="creators" class="rg-section" aria-labelledby="creators-title" hidden>
-    <div class="rg-wrap rg-waitlist">
-      <div>
-        <h2 id="creators-title">Creator beta</h2>
-        <p class="rg-sub">For YouTubers, podcasters, newsletter writers, journalists, teachers and researchers who have a question that data can answer. Tell us who you are and the question, and we may invite you to make a film with it.</p>
-        <p class="rg-terms"><strong>Beta credits are free, in exchange for your feedback.</strong> If you talk about or promote Ryagram, or a film you made with it, you disclose that your credits were free. Applying doesn't guarantee a place; we reply by email.</p>
-        <p class="rg-note">Not a creator? <a href="/app/#/create-account">Create an account</a> instead.</p>
-      </div>
-      <form id="creator-form" class="rg-form">
-        <div class="creator-fields">
-          <label for="cb-name">Your name <span>(required)</span></label>
-          <input id="cb-name" name="name" type="text" autocomplete="name" maxlength="100" required>
-          <label for="cb-email">Email <span>(required)</span></label>
-          <input id="cb-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="200" required>
-          <label for="cb-kind">I am a <span>(required)</span></label>
-          <select id="cb-kind" name="kind" required>
-            <option value="">Choose one</option>
-            <option value="youtuber">YouTuber</option>
-            <option value="podcaster">Podcaster</option>
-            <option value="newsletter">Newsletter writer</option>
-            <option value="journalist">Journalist</option>
-            <option value="teacher">Teacher</option>
-            <option value="researcher">Researcher</option>
-            <option value="other">Something else</option>
-          </select>
-          <label for="cb-makes">What you make <span>(required)</span></label>
-          <input id="cb-makes" name="makes" type="text" maxlength="200" placeholder="For example: weekly explainer videos on housing" required>
-          <label for="cb-link">Link to your channel or site <span>(required)</span></label>
-          <input id="cb-link" name="link" type="url" inputmode="url" autocomplete="url" maxlength="300" placeholder="https://" required>
-          <label for="cb-question">The question you'd answer with data <span>(required)</span></label>
-          <textarea id="cb-question" name="question" rows="4" maxlength="1000" placeholder="For example: Did cities that added bike lanes see fewer cyclist deaths?" required></textarea>
-          <div class="hp" aria-hidden="true"><label for="cb-website">Website</label><input id="cb-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
-          <button class="rg-btn" type="submit">Apply for the creator beta</button>
-          <p class="rg-note">We will only use this to contact you about the beta. See our <a href="/privacy-policy.html">Privacy Policy</a>.</p>
-        </div>
-        <p id="creator-status" class="rg-note waitlist-status" role="status" tabindex="-1" hidden></p>
-        <noscript><p class="rg-note">To apply without JavaScript, email <a href="mailto:ryagram@uselai.com?subject=Ryagram%20creator%20beta">ryagram@uselai.com</a> with your link and your question.</p></noscript>
-      </form>
-    </div>
-  </section>
-
-  <section id="waitlist" class="rg-section rg-cta" aria-labelledby="wait-title">
-    <div class="rg-wrap rg-waitlist">
-      <div>
-        <h2 id="wait-title">Want to make one?</h2>
-        <p class="rg-sub">Ryagram is open to anyone 18 or older: create a free account and try it. Not ready yet? Leave your email and we will keep you posted about Ryagram.</p>
-      </div>
-      <form id="waitlist-form" class="rg-form">
-        <div class="waitlist-fields">
-          <label for="wl-email">Email <span>(required)</span></label>
-          <input id="wl-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" required>
-          <label for="wl-use">What do you do? <span>(optional)</span></label>
-          <input id="wl-use" name="use_case" type="text" maxlength="140" autocomplete="organization-title" placeholder="For example: teacher, analyst, journalist">
-          <div class="hp" aria-hidden="true"><label for="wl-website">Website</label><input id="wl-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
-          <button class="rg-btn" type="submit">Keep me posted</button>
-          <p class="rg-note">We will only use this to contact you about Ryagram. See our <a href="/privacy-policy.html">Privacy Policy</a>.</p>
-        </div>
-        <p id="wl-create" class="rg-note" hidden>Or start now: <a href="/app/#/create-account">Create an account</a>. We email you a link to confirm your address and choose a password, and then you can start.</p>
-        <p id="wl-free" class="rg-note" data-free-account-line hidden>When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead. A free account can make free contact sheets. Each project gets 6 free previews (15 across all projects in any 24 hours); then 1 credit each. A full film costs 6 to 10 credits, depending on the film type: 16 covers two map or line films, or one bars film and one line film. Buying credits is not open yet.</p>
-        <p id="waitlist-status" class="rg-note waitlist-status" role="status" tabindex="-1" hidden></p>
-        <noscript><p class="rg-note">To get news about Ryagram without JavaScript, email <a href="mailto:ryagram@uselai.com?subject=Ryagram%20updates">ryagram@uselai.com</a>.</p></noscript>
-      </form>
-    </div>
-  </section>
-
-  <section id="compilation" class="rg-section" aria-labelledby="comp-title">
-    <div class="rg-wrap rg-comp">
-      <div>
-        <p class="rg-tag">Coming soon</p>
-        <h2 id="comp-title">Compilation Maker</h2>
-        <p class="rg-sub">Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.</p>
-      </div>
-      <figure class="rg-demo" aria-labelledby="demo-cap">
-        <div class="rg-demo-phrase"><span class="rg-demo-label">Phrase</span> <q>of the people, by the people</q></div>
-        <ol class="rg-demo-hits" aria-label="Moments found in the example recording">
-          <li><span class="rg-time">0:41</span> <span class="rg-hit"><mark>of the people, by the people</mark>, for the people</span></li>
-          <li><span class="rg-time">3:17</span> <span class="rg-hit">a government <mark>of the people, by the people</mark></span></li>
-          <li><span class="rg-time">6:02</span> <span class="rg-hit">...that it is <mark>of the people, by the people</mark>...</span></li>
-        </ol>
-        <div class="rg-strip" role="img" aria-label="Three short moments joined into one clip"><span class="w1"></span><span class="w2"></span><span class="w3"></span></div>
-        <figcaption id="demo-cap">An illustration with public-domain words (Lincoln, 1863) and made-up timestamps, not a screenshot.</figcaption>
-      </figure>
+  <section id="start" class="rg-section rg-cta" aria-labelledby="start-title">
+    <div class="rg-wrap rg-start">
+      <h2 id="start-title">Make one</h2>
+      <p class="rg-sub">Ryagram is open to anyone 18 or older.</p>
+      <div class="rg-hero-cta"><a class="rg-btn" href="/app/#/create-account">Start free, 16 credits</a> <a class="rg-hero-signin" href="/app/">Sign in</a></div>
+      <p id="wl-free" class="rg-note" data-free-account-line>When you confirm your email you get 16 welcome credits, once for each email address. If you sign up with an invite code, you get the credits that code gives instead.</p>
     </div>
   </section>
 </main>
@@ -190,7 +98,6 @@
 <script src="/assets/free-account-line.js?v=20261126w1" defer></script>
 <script src="/assets/funnel.js" defer></script>
 <script src="/assets/ryagram.js?v=20261122b" defer></script>
-<script src="/assets/creator-beta.js?v=20261123a" defer></script>
 <script src="/assets/ryagram-loops.js" defer></script>
 </body>
 </html>
