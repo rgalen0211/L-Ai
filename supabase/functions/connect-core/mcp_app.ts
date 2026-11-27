@@ -57,7 +57,6 @@ const CARD_STYLE = [
   "body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#f2f2ef}",
   ".card{background:#1b1b23;border:1px solid #3a3a44;border-radius:12px;padding:14px 16px;max-width:560px;min-width:0}",
   ".top{display:flex;align-items:center;gap:10px;margin:0 0 10px}",
-  ".mark{flex:none;background:#0e0e13;color:#6fd1bd;border:1px solid #3a3a44;border-radius:8px;padding:3px 8px;font-weight:700;letter-spacing:.02em}",
   "h1{margin:0;font-size:16px;font-weight:650;color:#f2f2ef}",
   ".row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid #2c2c36}",
   ".k{color:#b6b5ae}",

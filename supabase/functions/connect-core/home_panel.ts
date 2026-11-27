@@ -72,7 +72,6 @@ const STYLE = [
   "body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#f2f2ef}",
   ".home{background:#1b1b23;border:1px solid #3a3a44;border-radius:12px;padding:14px 16px;max-width:640px;min-width:0}",
   ".top{display:flex;align-items:center;gap:10px;margin:0 0 10px}",
-  ".mark{flex:none;background:#0e0e13;color:#6fd1bd;border:1px solid #3a3a44;border-radius:8px;padding:3px 8px;font-weight:700;letter-spacing:.02em}",
   "h1{margin:0;font-size:16px;font-weight:650}", "h2{margin:14px 0 4px;font-size:13px;font-weight:650;color:#b6b5ae;text-transform:none}",
   ".dept{border-top:1px solid #2c2c36;padding:9px 0}", ".dept h3{margin:0 0 2px;font-size:15px;font-weight:650;display:flex;gap:8px;align-items:center}",
   ".tag{font-size:11px;font-weight:600;color:#b6b5ae;border:1px solid #3a3a44;border-radius:6px;padding:1px 6px}",
