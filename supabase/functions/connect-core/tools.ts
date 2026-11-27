@@ -9,7 +9,7 @@ import { checkStoryStructured } from "./story_check.ts";
 import { describeMeasured, measure, parseCsv, PREPARED_LIMITS } from "./prepared.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
 import { BLOCKED_VIEWS } from "../_shared/blocked_views.ts";
-import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
+import { KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
 import { makeGamesTools } from "./games_tools.ts";
 import { homeView } from "./home_panel.ts";
@@ -879,7 +879,7 @@ const suggestNextStep: ToolDef = {
     picture: { type: "string", enum: [...PICTURES], description: "The picture they asked for. globe is accepted only so you can be told it is coming soon." },
     have_app: { type: "boolean", description: "Compilation: whether they have the Ryagram desktop app for Windows." },
     folders_named: { type: "boolean", description: "Compilation: true once they have told you the NAMES of their video folders." },
-    chose: { type: "string", enum: [...CHOSE], description: "Compilation: phrase (every time it is said) or song." },
+    chose: { type: "string", maxLength: 20, description: "Compilation: pass phrase once the person has given you the phrase to look for (every time it is said in their videos). Anything else is not offered and you are asked again." },
     department: { type: "string", maxLength: 60, description: "A part of Ryagram they asked for that you do not see a tool for." },
   }),
   async run(a, ctx) {
