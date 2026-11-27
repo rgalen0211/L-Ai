@@ -273,7 +273,7 @@ export class FakeWorld {
         if (!(user.switches ?? []).includes("calibrate")) throw err("Calibrate is not switched on for this account.", "42501");
         this.calibrationCalls.push(userId);
         if (this.calibrationAnswer) return JSON.parse(JSON.stringify(this.calibrationAnswer(userId)));
-        return { schema: "ryagram.calibration-status/0", open: true, eligible: true, consent_given: true, tasks_per_round: 5, daily_cap: 50, earned_today: 0, remaining_today: 50, earned_total: 0, page_path: "/app/#/d/calibrate" };
+        return { schema: "ryagram.calibration-status/0", open: true, eligible: true, consent_given: true, tasks_per_round: 5, daily_cap: 50, earned_today: 0, remaining_today: 50, earned_total: 0, page_path: "#/calibrate" };
       },
       // mirrors connect_perfect_city_summary + GEO's helper: 42501 unless the person's own switch list names perfectCity, 22023 for an unknown county or kind (grocery is in montgomery_oh only) or a spot outside the county's box, the spot rounded to 4 decimals
       perfectCitySummary: async (q) => {

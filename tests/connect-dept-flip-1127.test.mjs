@@ -42,7 +42,7 @@ const DEPTS = {
     tools: [['open_calibration', () => ({})], ['calibration_status', () => ({})]],
     switchOnly: true,                       // Calibrate has no department row: the account's switch is the only key (and the server function refuses 42501 without it), so a 'working' row for any department never opens it
     // what a closed answer must never carry: the page, the numbers, what a round is
-    secrets: ['/app/#/d/calibrate', 'tasks_per_round', 'daily_cap', 'earned_today', 'earned_total', 'remaining_today', 'a round', 'opt in', 'answers_by_person_only'],
+    secrets: ['#/calibrate', 'tasks_per_round', 'daily_cap', 'earned_today', 'earned_total', 'remaining_today', 'a round', 'opt in', 'answers_by_person_only'],
   },
 };
 const ALL = Object.entries(DEPTS).flatMap(([dept, d]) => d.tools.map(([name, args]) => ({ dept, d, name, args })));

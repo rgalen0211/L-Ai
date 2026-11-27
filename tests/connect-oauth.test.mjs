@@ -154,7 +154,11 @@ test('every SQL function the server names exists in the migration, and none take
     connect_my_departments: 'supabase/migrations/20261113000200_connect_departments.sql', connect_my_switches: 'supabase/migrations/20261113000200_connect_departments.sql', connect_compilation_get: 'supabase/migrations/20261127000400_connect_compilation_status.sql', connect_perfect_city_summary: 'supabase/migrations/20261127000500_connect_perfect_city_summary.sql',
     connect_submit_prepared_data: 'supabase/migrations/20261120000500_prepared_data.sql', connect_list_my_data: 'supabase/migrations/20261120000500_prepared_data.sql' };       // the person's departments for the AI's home panel (CONNECT 11-13)
   const later = Object.fromEntries(Object.entries(LATER).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
-  for (const fn of new Set(used)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);
+  // PROPOSED, no migration written yet (CONNECT-CALIBRATE-1127.md: the contract for BUILDER to adopt or rename). The allowance EXPIRES: once any migration creates the function this test fails until the name is taken off this list and the function is listed in LATER above.
+  const PROPOSED = new Set(['connect_calibration_status']);
+  const allMigrations = fs.readdirSync('supabase/migrations').map((f) => fs.readFileSync('supabase/migrations/' + f, 'utf8')).join('\n');
+  for (const fn of PROPOSED) assert.doesNotMatch(allMigrations, new RegExp(`create (or replace )?function public\\.${fn}\\(`), `${fn} now exists in a migration: take it off PROPOSED and add it to LATER`);
+  for (const fn of new Set(used)) if (!PROPOSED.has(fn)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);
   for (const text of [mig, ...Object.values(later)]) for (const m of text.matchAll(/create function public\.(connect_[a-z_]+)\(([^)]*)\)/g)) assert.doesNotMatch(m[2], /owner|user/i, m[1]);
   assert.match(later.connect_set_compilation_request, /grant execute on function public\.connect_set_compilation_request\(text, uuid, jsonb\) to connect_runner/);
   assert.match(later.connect_film_card_ask, /grant execute on function public\.connect_film_card_ask\(text, uuid\), public\.connect_film_card_get\(text, uuid\) to connect_runner/);

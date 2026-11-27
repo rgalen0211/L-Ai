@@ -10,7 +10,8 @@
 //
 // ONE SERVER CALL, read-only, named in the paper for BUILDER to adopt or rename: public.connect_calibration_status(p_token_hash text) returns jsonb (schema ryagram.calibration-status/0). The shape is CLOSED: a key not in the list below makes
 // the whole answer refused (a server that ever starts to carry content here is caught loudly, and nothing of it is passed on). Every number is the server's, shown as returned: nothing is added up or worked out here.
-//   { schema, open: boolean, eligible: boolean, consent_given: boolean, tasks_per_round: int, daily_cap: int, earned_today: int, remaining_today: int, earned_total: int, credits_per_task?: int|null, page_path: text }
+//   { schema, open: boolean, eligible: boolean, consent_given: boolean, tasks_per_round: int, daily_cap: int, earned_today: int, remaining_today: int, earned_total: int, page_path: text }
+// No rate of earning (credits for so many answers) is in the shape on purpose: BUILDER's rules are a proposal for Ryan's yes and the page shows them; the AI says no earn rate it was not given.
 // THE GATE: the per-account switch `calibrate` (account_settings.switches_on, read through World.switches()), and ONLY that. A list that cannot be read is "not available just now", never "on". All words here are DRAFTS for Ryan's yes. Pure TypeScript, no network.
 import type { ToolCtx, ToolDef, ToolResult } from "./types.ts";
 import { LIMITS } from "./types.ts";
@@ -20,7 +21,7 @@ export const CALIBRATION_SCHEMA = "ryagram.calibration-status/0";
 /** The Ryagram site's own address form for a page ("#/..." or "/app/#/..."): never an address with a host, a key or a query in it. WEB names the page; the server reports it; the connector only checks its shape. */
 export const CALIBRATION_PAGE_RE = /^(\/app\/)?#\/[a-z0-9_]+(\/[a-z0-9_-]+){0,3}$/;
 /** The keys the server's answer may carry, and no others. */
-export const CALIBRATION_KEYS: readonly string[] = Object.freeze(["schema", "open", "eligible", "consent_given", "tasks_per_round", "daily_cap", "earned_today", "remaining_today", "earned_total", "credits_per_task", "page_path"]);
+export const CALIBRATION_KEYS: readonly string[] = Object.freeze(["schema", "open", "eligible", "consent_given", "tasks_per_round", "daily_cap", "earned_today", "remaining_today", "earned_total", "page_path"]);
 const MAX_COUNT = 1_000_000;
 
 const obj = (properties: Record<string, unknown> = {}, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
@@ -36,7 +37,7 @@ const RULES_FOR_THE_AI = "You cannot see any question, clip or answer, you canno
 const CONSENT_RULE = "Tell the person that their answers are used to improve Ryagram only if they opt in on the page, and that the page shows the full wording and asks them first. Do not summarise or reword the terms yourself.";
 
 export interface CalibrationRead {
-  open: boolean; eligible: boolean; consentGiven: boolean; tasksPerRound: number; dailyCap: number; earnedToday: number; remainingToday: number; earnedTotal: number; creditsPerTask: number | null; pagePath: string;
+  open: boolean; eligible: boolean; consentGiven: boolean; tasksPerRound: number; dailyCap: number; earnedToday: number; remainingToday: number; earnedTotal: number; pagePath: string;
 }
 
 /** The server's answer, checked. null = not in the closed shape (so nothing of it is shown). Numbers are kept exactly; none is computed. */
@@ -49,10 +50,8 @@ export function readCalibration(doc: unknown): CalibrationRead | null {
   if (tasksPerRound === null || dailyCap === null || earnedToday === null || remainingToday === null || earnedTotal === null) return null;
   if (remainingToday > dailyCap) return null;                                  // more left than the limit cannot be
   if (earnedToday > earnedTotal) return null;                                  // today is part of the total
-  const cpt = doc.credits_per_task === undefined || doc.credits_per_task === null ? null : count(doc.credits_per_task);
-  if (doc.credits_per_task !== undefined && doc.credits_per_task !== null && cpt === null) return null;
   if (typeof doc.page_path !== "string" || !CALIBRATION_PAGE_RE.test(doc.page_path)) return null;
-  return { open: doc.open, eligible: doc.eligible, consentGiven: doc.consent_given, tasksPerRound, dailyCap, earnedToday, remainingToday, earnedTotal, creditsPerTask: cpt, pagePath: doc.page_path };
+  return { open: doc.open, eligible: doc.eligible, consentGiven: doc.consent_given, tasksPerRound, dailyCap, earnedToday, remainingToday, earnedTotal, pagePath: doc.page_path };
 }
 
 type Gate = { on: true } | { on: false; result: ToolResult };
@@ -109,15 +108,15 @@ export function makeCalibrationTools(): ToolDef[] {
       if (!s.open) return closedNow();
       const lines = [
         "Calibrate is open for this account. It is a page in Ryagram where the person helps tune Ryagram by answering short questions with their own clicks. A round is a set of those questions"
-        + ` (${sayNumber(s.tasksPerRound, "question", "questions")} in a round). Ryagram adds credits for the answers it accepts${s.creditsPerTask === null ? "" : `, ${sayNumber(s.creditsPerTask, "credit", "credits")} for each accepted answer`}, up to a daily limit; it decides what it accepts, and a hurried or random answer may earn nothing.`,
-        `Where it is: ${s.pagePath} (the person has to be signed in). The person opens the page and answers there; nothing is started from here.`,
+        + ` (${sayNumber(s.tasksPerRound, "question", "questions")} in a round). Ryagram adds credits for the answers it accepts, up to a daily limit; Ryagram decides what it accepts, and the page says how it works.`,
+        `Where it is: the Ryagram page ${s.pagePath} (the person has to be signed in). The person opens the page and answers there; nothing is started from here.`,
       ];
       if (!s.eligible) lines.push("Ryagram says this account cannot earn credits from Calibrate yet. The page explains why; do not guess a reason and do not promise a date.");
       lines.push(`The person's numbers, as Ryagram gives them: ${sayNumber(s.earnedToday, "credit", "credits")} earned today, ${s.remainingToday} more can be earned today (the daily limit is ${s.dailyCap}), ${sayNumber(s.earnedTotal, "credit", "credits")} earned in all.`);
       lines.push(s.consentGiven ? "The person has already chosen to take part on the page." : "The person has not yet chosen to take part: that choice is made on the page.");
       lines.push(CONSENT_RULE, RULES_FOR_THE_AI);
       return ok(lines.join("\n"), {
-        ok: true, looked_up: true, open: true, eligible: s.eligible, consent_given: s.consentGiven, tasks_per_round: s.tasksPerRound, ...(s.creditsPerTask === null ? {} : { credits_per_task: s.creditsPerTask }),
+        ok: true, looked_up: true, open: true, eligible: s.eligible, consent_given: s.consentGiven, tasks_per_round: s.tasksPerRound,
         daily_cap: s.dailyCap, earned_today: s.earnedToday, remaining_today: s.remainingToday, earned_total: s.earnedTotal, page_path: s.pagePath,
         answers_by_person_only: true, ai_can: [...AI_CAN], ai_cannot: [...AI_CANNOT],
       });
@@ -127,7 +126,7 @@ export function makeCalibrationTools(): ToolDef[] {
   const calibrationStatus: ToolDef = {
     name: "calibration_status", title: "Your Calibrate totals", scope: "read", readOnly: true, idempotent: true,
     description: "Reads the person's own Calibrate totals from Ryagram: credits earned today, how many more can be earned today, the daily limit and the total earned so far. Numbers only, each exactly as Ryagram returned it; nothing is worked out here. "
-      + "Read-only: it changes nothing and cannot add or take back a credit. It shows no question, clip or answer. You cannot answer for the person or earn credits for them, and you must not suggest which answer to pick. "
+      + "Read-only: it changes nothing and cannot add or take back a credit. It shows no question, clip or answer. You cannot answer for the person or earn credits for them, and should never suggest which answer to pick. "
       + "It only works for an account that has Calibrate switched on, and says so plainly when it is not.",
     inputSchema: obj(),
     async run(_a, ctx) {
