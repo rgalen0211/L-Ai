@@ -14,6 +14,8 @@ const M = C + 'mcp.ts', A = C + 'mcp_app.ts';
 const SUITES = ['connect-mcp-app.test.mjs'];
 const mutants = [
   // the switch: OFF must be the connector as it was
+  ['the card button goes back to teal', A, 'border:1px solid #ff8a3d;background:#ff8a3d;color:#14141a;font:inherit;font-weight:800', 'border:1px solid #6fd1bd;background:#0e0e13;color:#8fe0cf;font:inherit;font-weight:800'],
+  ['the card heading is plain sans again', A, 'font:400 24px/1 Georgia,Times New Roman,serif', 'font-size:16px;font-weight:650'],
   ['resources/list answers when the switch is OFF', M, 'case "resources/list": {\n      if (!deps.mcpApp?.enabled) return', 'case "resources/list": {\n      if (false) return'],
   ['resources/read answers when the switch is OFF', M, 'case "resources/read": {\n      if (!deps.mcpApp?.enabled) return', 'case "resources/read": {\n      if (false) return'],
   ['the server claims resources when the switch is OFF', M, '...(deps.mcpApp?.enabled ? { resources: {} } : {})', 'resources: {}'],

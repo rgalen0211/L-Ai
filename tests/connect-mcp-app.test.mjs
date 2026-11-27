@@ -283,3 +283,11 @@ test('every message the page sends is JSON-RPC 2.0 to its host window, and none 
   const wire = JSON.stringify(p.sent.map((s) => s.m));
   assert.ok(!wire.includes('secret-label') && !wire.includes('secret-title') && !wire.includes('p1'));
 });
+
+test('LOOK: the card wears the home page look: orange pill button, the serif wordmark heading, no teal, no L’Ai chip', () => {
+  const html = cardHtml('https://uselai.com/app/');
+  assert.ok(html.includes('border-radius:999px;border:1px solid #ff8a3d;background:#ff8a3d;color:#14141a'), 'the button is the home page orange pill');
+  assert.ok(html.includes('font:400 24px/1 Georgia,Times New Roman,serif'), 'the heading is the serif wordmark');
+  assert.ok(!/#6fd1bd|#8fe0cf/.test(html), 'no teal is left');
+  assert.ok(!html.includes("L'Ai"), 'no L’Ai chip');
+});
