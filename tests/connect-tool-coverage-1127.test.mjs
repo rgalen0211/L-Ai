@@ -243,6 +243,8 @@ test('(g) A STRANGER\'S PROJECT, every tool that takes a project: Bob naming Ali
     const r = await call(B, t.name, base);
     assert.notEqual(r.code, 'args', `${t.name}: the call must get past the schema for this to mean anything (${r.text.slice(0, 120)})`);
     assert.ok(r.isError === true || r.refused === true, `${t.name} must refuse Bob`);
+    // the plain answer is "that project is not yours / not found" (not a crash that happens to be an error): the chat panel's own five calls speak the database's PT404, the full render is refused for everyone
+    assert.equal(r.code, t.name === 'request_full_render' ? 'not_available' : ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'].includes(t.name) ? 'PT404' : 'not_found', `${t.name} answers as if the project did not exist`);
     assert.doesNotMatch(everything(r), /ALICE-PRIVATE-TITLE|alice@example|u-alice/, t.name);
   }
   assert.equal(aliceRows(), rowsBefore, 'Alice\'s rows are untouched');
@@ -303,4 +305,77 @@ test('(c) PINNED: every tool\'s scope and read-only flag are exactly the table (
   assert.deepEqual(TOOLS.map((t) => t.name).sort(), Object.keys(PINNED).sort(), 'a tool was added or removed: add it to PINNED with its scope, and to the matrix in proposals/CONNECT-TOOL-COVERAGE-1127.md');
   for (const t of TOOLS) assert.deepEqual([t.scope, t.readOnly === true], PINNED[t.name], t.name);
   assert.ok(!TOOLS.some((t) => t.scope === 'render_final'), 'no tool can start a paid full render');
+});
+
+test('(d) THE SWITCHES: a tool that belongs to the chat editor, the home panel or the AI-prepared-data switch is "no such tool" while its switch is off, for a connection that holds the scope, and nothing is done; with the switch on the same call is not "unknown_tool"', async () => {
+  const { w, env } = world();
+  const before = snap(w);
+  const gated = TOOLS.filter((t) => t.chatEditor || t.homePanel || t.preparedData);
+  assert.ok(gated.length >= 8, `${gated.length} gated tools`);
+  for (const t of gated) {
+    const off = await callTool(t.name, sample(t.inputSchema) ?? {}, A, { ...env(A), chatEditor: false, homePanel: false, preparedData: false });
+    assert.equal(off.isError, true, t.name); assert.equal(off.code, 'unknown_tool', `${t.name} is hidden while its switch is off`);
+  }
+  assert.equal(snap(w), before, 'a hidden tool did nothing');
+  for (const t of gated) {
+    const on = await callTool(t.name, sample(t.inputSchema) ?? {}, A, env(A));
+    assert.notEqual(on.code, 'unknown_tool', `${t.name} exists with its switch on`);
+  }
+});
+
+test('(f) get_film_link: the daily limit on link requests ends in "rate" in plain words with nothing handed out, only for the person who used it up', async () => {
+  const { w, env } = world();
+  const mine = (await callTool('create_project', { title: 'Links' }, A, env(A))).data.project_id;
+  const bobs = (await callTool('create_project', { title: 'Links' }, B, env(B))).data.project_id;
+  w.counters.set('u-alice|links', LIMITS.linksPerDayPerUser);
+  const r = await callTool('get_film_link', { project_id: mine }, A, env(A));
+  assert.equal(r.isError, true); assert.equal(r.code, 'rate');
+  assert.match(r.text, new RegExp(String(LIMITS.linksPerDayPerUser)));
+  assert.doesNotMatch(r.text, /https?:\/\//);
+  assert.notEqual((await callTool('get_film_link', { project_id: bobs }, B, env(B))).code, 'rate', 'another person is not limited by Alice\'s count');
+  w.counters.set('u-alice|links', LIMITS.linksPerDayPerUser - 1);
+  assert.notEqual((await callTool('get_film_link', { project_id: mine }, A, env(A))).code, 'rate', 'one below the limit still answers');
+});
+
+test('whoami_and_credits tells the truth about what a connection cannot do: a full render can never be started, and the answer says so as words and as data', async () => {
+  const { call } = world();
+  const r = await call(A, 'whoami_and_credits', {});
+  assert.equal(r.isError, undefined);
+  assert.equal(r.data.full_render_enabled, false);
+  assert.match(r.text, /can never be started from a connection/);
+});
+
+test('(a) SUCCESS, the plain read tools: each answers the signed-in person in words and as data, and list_projects shows only that person\'s own projects, without times', async () => {
+  const { call } = world();
+  await call(A, 'create_project', { title: 'Alice one' }); await call(A, 'create_project', { title: 'Alice two' });
+  await call(B, 'create_project', { title: 'BOB-PRIVATE-TITLE' });
+  const list = await call(A, 'list_projects', {});
+  assert.equal(list.isError, undefined, list.text);
+  assert.match(list.text, /Alice one/); assert.match(list.text, /Alice two/); assert.doesNotMatch(everything(list), /BOB-PRIVATE/);
+  assert.equal(list.data.projects.length, 2);
+  assert.ok(list.data.projects.every((p) => !('created_at' in p) && !('updated_at' in p)), 'no timestamps (the directory rule)');
+  const schema = await call(A, 'get_story_schema', {});
+  assert.equal(schema.isError, undefined, schema.text);
+  assert.match(schema.text, /Engine rules/); assert.match(schema.text, /Dataset catalog/);
+  for (const [name, args] of [['whoami_and_credits', {}], ['list_my_downloads', {}], ['suggest_next_step', {}]]) {
+    const r = await call(A, name, args);
+    assert.equal(r.isError, undefined, `${name}: ${r.text}`); assert.ok(r.text.length > 10, name);
+  }
+});
+
+test('(f/spend) NO TOOL SPENDS: a connection holding every scope calls every tool with a valid-looking call, twice: credits and holds never move, no answer reports credits used, and no full-render job exists afterwards', async () => {
+  const { w, call } = world();
+  const id = (await call(A, 'create_project', { title: 'Spend probe' })).data.project_id;
+  const u = w.users.get(A.userId);
+  const [credits, held] = [u.credits, u.held];
+  for (let round = 0; round < 2; round++) {
+    for (const t of TOOLS) {
+      const base = { ...(sample(t.inputSchema) ?? {}), ...(HAND[t.name] ?? {}) };
+      for (const k of ['project_id', 'p_project']) if (k in base) base[k] = id;
+      const r = await call(A, t.name, base);
+      assert.ok(!r.credits, `${t.name} reports credits used`);
+    }
+  }
+  assert.deepEqual([u.credits, u.held], [credits, held], 'credits and holds are where they were');
+  assert.ok(!u.jobs.some((j) => /final|full/i.test(JSON.stringify(j))), 'no full-render job was made');
 });
