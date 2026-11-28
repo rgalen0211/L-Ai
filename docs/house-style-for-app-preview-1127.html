@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>House style for the app page: preview (sample)</title>
+<link rel="stylesheet" href="./house-style-for-app-1127.css"></head>
+<body><main>
+<p class="banner mock" role="note" id="mock">Mock mode (sample): nothing real is made or sent.</p>
+<p class="banner" role="note" style="margin-top:12px">Sample banner: runs on this computer only.</p>
+<h1>Sample page title</h1>
+<p class="intro">Sample introduction text, in the lede style. Everything on this page is a placeholder.</p>
+
+<h2>Buttons</h2>
+<div class="actions">
+  <button type="button" class="button primary" id="b-primary">Sample primary</button>
+  <button type="button" class="button secondary">Sample secondary</button>
+  <button type="button" class="button small">Sample small</button>
+  <button type="button" class="button quiet">Sample quiet</button>
+  <button type="button" class="button danger">Sample danger</button>
+</div>
+<div class="actions">
+  <button type="button" class="button primary" disabled>Sample primary off</button>
+  <button type="button" class="button secondary" disabled>Sample secondary off</button>
+  <button type="button" class="button danger" disabled>Sample danger off</button>
+  <a class="button secondary" href="#mock">Sample link button</a>
+</div>
+<p class="note">Sample note text. Hover or tab to a button to see the sheen and the focus ring.</p>
+<p><span class="badge">sample</span> <span class="badge ok">sample ok</span> <span class="badge warn">sample warn</span> <span class="badge soon">sample soon</span></p>
+
+<h2>Card, as "What your AI asked for"</h2>
+<section class="logbox" aria-labelledby="h-airq"><h2 id="h-airq">Sample card heading</h2>
+<p class="note">Sample card text. These lines stand in for notes written by a connected helper; nothing here is real.</p>
+<ul id="airq-list"><li>Sample note one</li><li>Sample note two</li></ul>
+<p class="ok" role="status">Sample status: all good.</p>
+<p class="warn">Sample warning: check this first.</p>
+<p class="problems" role="alert">Sample problem: this needs fixing.</p>
+</section>
+
+<h2>Form fields</h2>
+<section class="card">
+<label for="f-sel">Sample select</label><select id="f-sel"><option>Sample option one</option><option>Sample option two</option></select>
+<label for="f-in">Sample text field</label><input id="f-in" type="text" placeholder="Sample placeholder">
+<label for="f-in2">Sample disabled field</label><input id="f-in2" type="text" value="Sample value" disabled>
+<label for="f-ta">Sample text area</label><textarea id="f-ta" rows="3">sample line one
+sample line two</textarea>
+<label class="logswitch" for="f-c1"><input id="f-c1" type="checkbox" checked> Sample checkbox, on</label>
+<label class="logswitch" for="f-c2"><input id="f-c2" type="checkbox"> Sample checkbox, off</label>
+<div class="slot"><h3>Sample file slot</h3><p class="note">Sample: no file yet.</p><div class="row"><button type="button" class="button secondary small">Sample choose</button></div></div>
+</section>
+
+<h2>Progress and spinner</h2>
+<section class="card">
+<p class="note">Sample progress, native element, 45%</p>
+<progress id="p-native" max="100" value="45" aria-label="Sample progress"></progress>
+<p class="note">Sample progress, div form, 45%</p>
+<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="45" aria-label="Sample progress"><div class="progress__bar" style="width:45%"></div></div>
+<p><span class="spinner" role="status" aria-label="Sample working"></span> Sample working&hellip;</p>
+</section>
+
+<h2>Collapsible</h2>
+<details class="paste" open><summary>Sample: make a film by hand (advanced)</summary>
+<label for="f-paste">Sample label</label>
+<textarea id="f-paste" rows="3" spellcheck="false">sample bind line</textarea>
+<button type="button" class="button secondary" style="margin-top:12px">Sample use these</button></details>
+<details class="paste"><summary>Sample closed section</summary><p class="note">Sample hidden text.</p></details>
+</main></body></html>
