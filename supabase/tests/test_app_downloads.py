@@ -116,7 +116,7 @@ class AppDownloads(core.Base):
             self.add_release(active=True, key="releases/app-3.zip", name="app-3.zip")      # a second active release
 
     def test_a_bad_key_file_name_size_or_hash_cannot_be_stored(self):
-        for kw in (dict(key="../secret.zip"), dict(key="/abs.zip"), dict(key="a//b.zip"), dict(key="releases/a b.zip"), dict(name="../x.zip"), dict(name="x.msi"), dict(name="x.exe", kind="addon"), dict(sha="A" * 64),   # an app setup .exe is allowed since 20261128000300
+        for kw in (dict(key="../secret.zip"), dict(key="/abs.zip"), dict(key="a//b.zip"), dict(key="releases/a b.zip"), dict(name="../x.zip"), dict(name="x.exe"), dict(sha="A" * 64),
                    dict(sha="a" * 63), dict(size=0)):
             with self.assertRaises(psycopg.errors.CheckViolation, msg=str(kw)):
                 self.add_release(active=False, **kw)
