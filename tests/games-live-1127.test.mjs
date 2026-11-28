@@ -795,3 +795,13 @@ for (const mu of HOST_MUTANTS) {
 test('plain ASCII in the host script, its stylesheet and this test (no invisible or typographic characters typed in; escapes only)', () => {
   for (const f of [HOST_SRC, 'tests/games-live-1127.test.mjs', 'assets/app-games.css']) assert.ok(!/[^\x00-\x7f]/.test(read(f)), f);
 });
+
+test('HOST ROOM-CODE LABEL (Ryan 22:34): the words "Room code" are about half the code size (1.3rem to 2.6rem; 1.1rem to 2.2rem under 480 px, 16 px or more), the code drops to its own line on a phone, and the stylesheet stamp is past g12', () => {
+  const css = read('assets/app-games.css'), px = r => parseFloat(r) * 16;
+  const code = /\.games-host \.gh-code\{font-size:([\d.]+rem)/.exec(css)[1];
+  const label = /\.games-host \.gh-code-line\{font-size:([\d.]+rem);line-height:1\.6/.exec(css)[1];
+  assert.ok(px(label) >= 16 && px(label) / px(code) >= 0.45 && px(label) / px(code) <= 0.55, `${label} vs ${code}`);
+  const m = /@media \(max-width:480px\)\{\.games-host \.gh-code-line\{font-size:([\d.]+rem)\}\.games-host \.gh-code-line \.gh-code\{display:block;[^}]*font-size:([\d.]+rem)/.exec(css);
+  assert.ok(m, 'narrow rule'); assert.ok(px(m[1]) >= 16 && Math.abs(px(m[1]) / px(m[2]) - 0.5) <= 0.05);
+  assert.match(read('app/index.html'), /app-games\.css\?v=20261127g13"/);
+});
