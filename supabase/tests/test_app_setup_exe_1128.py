@@ -42,8 +42,8 @@ class SetupExe(dl.AppDownloads):
     def check_def(self):
         return self.admin("select string_agg(pg_get_constraintdef(oid), ' | ') from pg_constraint where conrelid = 'public.app_releases'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%%file_name%%'")
 
-    def exe_release(self, active=False, name=EXE, kind="app"):
-        return self.add_release(active=active, key=f"releases/{name}", name=name, size=290000000, kind=kind)
+    def exe_release(self, active=False, name=EXE, kind="app", key=None):
+        return self.add_release(active=active, key=key or f"releases/{name}", name=name, size=290000000, kind=kind)
 
     def switch_to(self, rid):
         """the release sheet's switch: two updates in one transaction (the one-active index is checked row by row)"""
@@ -65,8 +65,8 @@ class SetupExe(dl.AppDownloads):
             with self.assertRaises(psycopg.errors.CheckViolation, msg=kind):
                 self.exe_release(name="forge-addon.exe", kind=kind)
         for bad in ("../x.exe", "a b.exe", "setup.msi", "setup.exe.bat", "x" * 121 + ".exe", ".exe", "Setup.EXE", "setup.exe/"):
-            with self.assertRaises(psycopg.Error, msg=bad):
-                self.exe_release(name=bad)
+            with self.assertRaises(psycopg.errors.CheckViolation, msg=bad):
+                self.exe_release(name=bad, key="releases/safe-key.exe")   # a safe key: only the NAME rule can refuse it
         self.assertIsNotNone(self.exe_release(name="x" * 120 + ".exe"), "the longest allowed name")
 
     def test_switching_the_active_app_from_the_zip_to_the_exe_and_back(self):
