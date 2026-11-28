@@ -398,6 +398,9 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     job = STATE["job"]
     if job and job["proc"].poll() is None:
         raise Problem("Something is already running here. Cancel it or wait for it to finish.")
+    rr = STATE.get("runner")
+    if rr is not None and rr.busy():
+        raise Problem("A request from your AI is being worked on here. Cancel it or wait for it to finish.")
     room = clip_room_problem()                      # NEXT-WORKER 76: a site film on the graphics card and too little room for both
     if room:
         raise Problem(room)
@@ -1027,7 +1030,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "ai-requests", "ai-checklist", "links", "links-upload", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "ai-requests", "ai-checklist", "links", "links-upload", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel", "request-run", "request-folder", "request-plan", "request-build", "request-cancel")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -1172,7 +1175,11 @@ PAGE = """<!doctype html>
 <label class="logswitch" for="node-on"><input id="node-on" type="checkbox"> Let this computer make my site films</label>
 <p id="node-state" class="note" role="status"></p><ul id="node-uploads"></ul></section>
 <section class="logbox" id="airq" aria-labelledby="h-airq" hidden><h2 id="h-airq">What your AI asked for</h2>
-<p class="note">These were written down by your connected AI. They are only notes: nothing was started and nothing was sent. Use them to set up your film here, from your own videos, on this computer.</p>
+<p class="note">These were written down by your connected AI. They are only notes until you press Plan on one: then this computer looks through the folders you choose, and only how far it got (counts, never a file, a folder or a word) is told to Ryagram. Your videos and your film never leave this computer.</p>
+<div id="airq-model" hidden><p class="note" id="airq-model-note"></p>
+<div class="row"><button id="airq-model-go" type="button" class="button primary small">Download the listening model</button><button id="airq-model-stop" type="button" class="button secondary small" hidden>Cancel</button><button id="airq-model-pick" type="button" class="button quiet small">Choose a different listening model</button></div>
+<progress id="airq-model-bar" max="100" value="0" hidden aria-label="Download progress"></progress>
+<p class="note" id="airq-model-status" role="status"></p></div>
 <ul id="airq-list"></ul><p id="airq-msg" class="note" role="status"></p></section>
 <section class="logbox" id="links" aria-labelledby="h-links" hidden><h2 id="h-links">A private link to your finished film</h2>
 <p id="links-what" class="note">Your film stays on this computer. If you press the button, this one finished film is sent to Ryagram and kept for 30 days, private: only you can open it. Your original videos are never sent.</p>
@@ -1181,6 +1188,8 @@ PAGE = """<!doctype html>
 <label class="logswitch" for="links-rights"><input id="links-rights" type="checkbox"> I have the right to share what is in this film</label>
 <p><button type="button" id="links-go" class="button primary" disabled>Get a private link</button></p>
 <p id="links-msg" class="note" role="status"></p><ul id="links-list"></ul></section>
+<details class="advanced" id="manual"><summary>Make a film by hand (advanced)</summary>
+<p class="note">You do not need this for a request from your AI: press Plan on the request above. This is for making a film yourself, from a recipe and your own files.</p>
 <p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
 <label for="recipe">Recipe</label><select id="recipe"></select>
@@ -1208,28 +1217,155 @@ PAGE = """<!doctype html>
 <div id="job-out"></div>
 <div id="sound-out"></div>
 <div id="results"></div></section>
+</details>
 <!--V2-->
 </main><script src="/maker.js"></script></body></html>
 """
 
-CSS = """:root{--ink:#1f2a2a;--muted:#4a5656;--line:#cfd6d3;--brand:#175c52;--paper:#fff;--bg:#fbfaf7;--bad:#9b2c2c;--soft:#f1f4f2}
-@media(prefers-color-scheme:dark){:root{--ink:#e8eeec;--muted:#b4c0bc;--line:#3b4744;--brand:#6fd1bd;--paper:#1b2321;--bg:#121817;--bad:#ff9b9b;--soft:#222c2a}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,Segoe UI,Arial,sans-serif}
-main{max-width:860px;margin:0 auto;padding:16px 20px 60px}h1{margin:.4em 0 .2em}h2{margin:1.4em 0 .4em;font-size:1.15rem}
-.banner{background:#fff3cd;color:#5a4500;border:1px solid #e3c766;border-radius:8px;padding:8px 12px;margin:0}.intro,.note{color:var(--muted)}.note{margin:.3em 0;font-size:.92rem}
-label{display:block;font-weight:700;margin:.8em 0 .25em}select,textarea,input{width:100%;max-width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);min-height:44px}
-textarea{font-family:ui-monospace,Consolas,monospace;font-size:.9rem}
-.button{font:inherit;font-weight:700;min-height:44px;padding:8px 22px;border-radius:999px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer}
-.button.primary{background:var(--brand);color:var(--paper)}.button:disabled{opacity:.5;cursor:not-allowed}.button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
-.slot{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}.slot h3{margin:0 0 4px;font-size:1rem}.slot ul{margin:6px 0;padding-left:20px}.slot li{margin:2px 0;word-break:break-all}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
-video{width:100%;max-height:60vh;background:#000;border-radius:10px}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}.question textarea{min-height:76px}.warn{border:1px solid #d4a017;background:rgba(212,160,23,.12);border-radius:10px;padding:10px 14px;margin:10px 0}.slot.drop-over{outline:3px dashed var(--brand);outline-offset:3px;background:var(--soft)}.drop-note{margin:6px 0}.drop-note ul{list-style:none;padding:0}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
-.panel dt{font-weight:700}.panel dd{margin:0 0 6px}.log{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:8px 10px;max-height:240px;overflow:auto}
-.logbox{border:1px solid var(--line);border-radius:12px;padding:4px 16px 10px;margin:12px 0;background:var(--paper)}.logbox h2{margin:.6em 0 .2em}.logswitch{display:flex;align-items:center;gap:10px;font-weight:400;min-height:44px}.logswitch input{width:auto;min-height:0;margin:0}
-.paste{margin:14px 0}.paste summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}code{background:var(--soft);padding:1px 5px;border-radius:5px}
-a{color:var(--brand);text-underline-offset:.15em}
-.code{display:inline-block;font:700 1.6rem/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;background:var(--soft);border:1px solid var(--line);padding:.35em .6em;border-radius:8px;margin:.2em 0}
-@media(max-width:600px){main{padding:12px}}
+CSS = """/* RYAGRAM HOUSE STYLE FOR THE DESKTOP APP PAGE (WEB, 2026-11-27).
+   One self-contained file: no imports, no external URLs, no images, no font files (system fonts only).
+   Taken from the live site's assets/ryagram-ds.css (origin/main 079350f8); the doc docs/house-style-for-app-1127.md lists the file:line of every token.
+   Unlike the site sheet it is NOT scoped under body.ryagram-ds.ryagram-look: it styles plain elements and the app page's existing class names,
+   so the app page only has to replace its stylesheet (and drop the old green rules). Dark only, like the site. */
+
+:root{
+  color-scheme:dark;
+  /* colour (site: ryagram-ds.css 11-17) */
+  --bg:#0b0c11;--bg-2:#10121a;--paper:#12141c;--soft:#1a1c26;
+  --ink:#f4f3ef;--ink-2:#c9c8c2;--muted:#9a99a3;--faint:#85858f;
+  --line:rgba(255,255,255,.09);--line-2:rgba(255,255,255,.16);--line-strong:rgba(255,255,255,.28);
+  --accent:#ff8a3d;--accent-2:#ffb27a;--accent-ink:#1a1008;--glow:rgba(255,138,61,.28);
+  --link:#9cc0f2;--ok:#8fe3cf;--warn:#f0c05a;--bad:#ffb4a8;
+  /* spacing, 8 pt scale (site line 19) */
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;--s8:64px;
+  /* type (site 23-25): the site's serif for headings, system sans for text */
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  --t-h1:clamp(2rem,4.2vw,3rem);--t-h2:clamp(1.5rem,2.6vw,2rem);--t-h3:1.25rem;--t-body:1rem;--t-small:.875rem;--t-caption:.75rem;
+  /* surfaces (site 27-32) */
+  --radius:20px;--radius-sm:12px;--radius-xs:8px;
+  --shadow-1:0 1px 0 rgba(255,255,255,.05) inset,0 8px 24px rgba(0,0,0,.35);
+  --shadow-2:0 1px 0 rgba(255,255,255,.08) inset,0 24px 64px rgba(0,0,0,.5);
+  --surface:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+  --surface-2:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.03));
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;color:var(--ink);font:400 var(--t-body)/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:clip;
+  background:radial-gradient(1200px 600px at 20% -10%,rgba(255,138,61,.08),transparent 60%),radial-gradient(900px 500px at 100% 0,rgba(120,150,255,.07),transparent 55%),var(--bg)}
+main{max-width:860px;margin:0 auto;padding:var(--s5) var(--s5) var(--s8)}
+img,video{max-width:100%}
+video{width:100%;max-height:60vh;background:#000;border-radius:var(--radius-sm)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+::placeholder{color:var(--faint)}
+a{color:var(--link);text-underline-offset:.15em}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ---- type */
+h1{font:600 var(--t-h1)/1.1 var(--serif);letter-spacing:-.02em;margin:var(--s3) 0 var(--s4)}
+h2{font:600 var(--t-h2)/1.2 var(--serif);letter-spacing:-.015em;margin:var(--s6) 0 var(--s3)}
+h3{font:650 var(--t-h3)/1.3 var(--sans);letter-spacing:-.01em;margin:0 0 var(--s2)}
+.intro,.lede{font-size:1.125rem;line-height:1.6;color:var(--ink-2);max-width:42em}
+.note,.small,.meta{font-size:var(--t-small);color:var(--muted);margin:var(--s2) 0}
+.eyebrow{font-size:var(--t-caption);letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2);margin:0 0 var(--s3);font-weight:600}
+code{font-family:var(--mono);font-size:.9em;background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px}
+
+/* ---- buttons (site 100-110): pill, glossy; primary = orange gradient + the soft glow */
+.button{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:48px;padding:0 var(--s5);border-radius:999px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);font:600 var(--t-small)/1 var(--sans);text-decoration:none;cursor:pointer;box-shadow:var(--shadow-1);transition:transform .25s var(--ease),border-color .25s var(--ease),box-shadow .25s var(--ease)}
+.button::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.22) 48%,transparent 66%);transform:translateX(-120%);transition:transform .7s var(--ease);pointer-events:none}
+.button:hover{transform:translateY(-1px);border-color:var(--line-strong);text-decoration:none}
+.button:hover::after{transform:translateX(120%)}
+.button.primary{background-color:#ff8a3c;background-image:linear-gradient(180deg,#ffa05c,#ff7a26);border-color:rgba(255,200,150,.55);color:var(--accent-ink);box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 10px 30px var(--glow)}
+.button.primary:hover{filter:brightness(1.06)}
+.button.secondary{background:var(--surface-2);border-color:var(--line-2);color:var(--ink)}
+.button.small{min-height:44px;padding:0 var(--s4)}
+.button.quiet{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.button.danger{background:linear-gradient(180deg,#c24a4a,#a83a3a);border-color:rgba(255,160,160,.4);color:#fff}
+.button:disabled,.button[disabled],.button[aria-disabled=true]{opacity:.55;cursor:not-allowed;transform:none;filter:none}
+.button:disabled::after,.button[disabled]::after{display:none}
+.row{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center}
+.actions{display:flex;gap:var(--s4);flex-wrap:wrap;margin:var(--s3) 0}
+
+/* ---- cards and panels (site 115): .logbox is the app page's current card; .slot is a file slot */
+.card,.logbox,.slot,.panel{position:relative;padding:var(--s5);border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow-1);margin:var(--s4) 0}
+.logbox h2,.card h2{margin-top:0}
+.slot{border-radius:var(--radius-sm);padding:var(--s4) var(--s5)}
+.slot h3{font-size:1rem;margin:0 0 var(--s1)}
+.slot ul{margin:var(--s2) 0;padding-left:20px}.slot li{margin:2px 0;word-break:break-all}
+.slot.drop-over{outline:3px dashed var(--accent);outline-offset:3px;background:var(--surface-2)}
+.panel dt{font-weight:700}.panel dd{margin:0 0 var(--s2);color:var(--ink-2)}
+.log{font:.85rem/1.5 var(--mono);white-space:pre-wrap;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:var(--radius-xs);padding:var(--s2) var(--s3);max-height:240px;overflow:auto;color:var(--ink-2)}
+.code{display:inline-block;font:700 1.6rem/1.2 var(--mono);letter-spacing:.12em;background:rgba(0,0,0,.28);border:1px solid var(--line-2);padding:.35em .6em;border-radius:var(--radius-xs);margin:.2em 0}
+
+/* ---- form fields (site 137): 48 px tall, dark well, orange focus ring */
+label{display:block;font-weight:650;margin:var(--s4) 0 var(--s2);color:var(--ink)}
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),textarea,select{width:100%;max-width:100%;min-height:48px;padding:var(--s3) var(--s4);border-radius:var(--radius-sm);border:1px solid var(--line-2);background:rgba(0,0,0,.28);color:var(--ink);font:inherit}
+select{appearance:auto}
+select option{background:var(--bg-2);color:var(--ink)}
+textarea{font-family:var(--mono);font-size:.9rem;min-height:96px}
+.question textarea{min-height:76px}
+input:not([type=checkbox]):not([type=radio]):focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-color:var(--accent)}
+input:disabled,textarea:disabled,select:disabled{opacity:.55;cursor:not-allowed}
+/* checkboxes: a 24 px box in the accent colour inside a 44 px-high row */
+.logswitch,.check{display:flex;align-items:center;gap:var(--s3);min-height:44px;font-weight:400;margin:var(--s1) 0;cursor:pointer}
+input[type=checkbox],input[type=radio]{appearance:auto;accent-color:var(--accent);width:24px;height:24px;min-height:0;margin:0;flex:0 0 auto;cursor:pointer}
+
+/* ---- status and alert text (never colour alone: keep the words) */
+.ok{color:var(--ok)}
+.problems{color:var(--bad);margin:var(--s2) 0}
+.warn{border:1px solid rgba(240,192,90,.35);background:rgba(240,192,90,.1);color:var(--warn);border-radius:var(--radius-sm);padding:var(--s3) var(--s4);margin:var(--s3) 0}
+.badge{display:inline-flex;align-items:center;gap:var(--s2);height:28px;padding:0 var(--s3);border-radius:999px;font-size:var(--t-caption);font-weight:650;letter-spacing:.04em;background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--ink-2)}
+.badge.ok{color:var(--ok);background:rgba(143,227,207,.1);border-color:rgba(143,227,207,.25)}
+.badge.warn{color:var(--warn);background:rgba(240,192,90,.1);border-color:rgba(240,192,90,.25)}
+.badge.soon{color:var(--accent-2);background:rgba(255,138,61,.1);border-color:rgba(255,138,61,.28)}
+
+/* ---- banners: .banner is the quiet "runs on this computer" note; .banner.mock is the mock-mode one */
+.banner{background:rgba(255,255,255,.06);color:var(--ink-2);border:1px solid var(--line-2);border-radius:var(--radius-sm);padding:var(--s3) var(--s4);margin:0;font-size:var(--t-small)}
+.banner.mock{background:rgba(255,138,61,.12);color:var(--accent-2);border:1px dashed rgba(255,138,61,.55);font-weight:600}
+
+/* ---- progress bar: native <progress> and the div form (.progress > .progress__bar[style=width:45%]) */
+progress{appearance:none;-webkit-appearance:none;display:block;width:100%;height:12px;border:1px solid var(--line-2);border-radius:999px;background:rgba(0,0,0,.35);overflow:hidden;accent-color:var(--accent)}
+progress::-webkit-progress-bar{background:rgba(0,0,0,.35);border-radius:999px}
+progress::-webkit-progress-value{background:linear-gradient(180deg,#ffa05c,#ff7a26);border-radius:999px;box-shadow:0 0 12px var(--glow)}
+progress::-moz-progress-bar{background:linear-gradient(180deg,#ffa05c,#ff7a26);border-radius:999px}
+.progress{height:12px;border:1px solid var(--line-2);border-radius:999px;background:rgba(0,0,0,.35);overflow:hidden}
+.progress__bar{height:100%;width:0;border-radius:999px;background:linear-gradient(180deg,#ffa05c,#ff7a26);box-shadow:0 0 12px var(--glow);transition:width .4s var(--ease)}
+
+/* ---- spinner: a ring in house colours; with reduced motion it stops and shows as a still ring (the words beside it carry the meaning) */
+.spinner{display:inline-block;width:20px;height:20px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:var(--accent);vertical-align:-4px;animation:house-spin .9s linear infinite}
+@keyframes house-spin{to{transform:rotate(360deg)}}
+
+/* ---- collapsible: <details class="paste"> ("Make a film by hand (advanced)") */
+details.paste,details.advanced{margin:var(--s4) 0;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);padding:0 var(--s4)}
+details.paste summary,details.advanced summary{display:flex;align-items:center;gap:var(--s2);min-height:48px;cursor:pointer;font-weight:650;color:var(--ink);list-style:none}
+details.paste summary::-webkit-details-marker,details.advanced summary::-webkit-details-marker{display:none}
+details.paste summary::before,details.advanced summary::before{content:"";width:8px;height:8px;border-right:2px solid var(--accent-2);border-bottom:2px solid var(--accent-2);transform:rotate(-45deg);transition:transform .2s var(--ease);flex:0 0 auto}
+details.paste[open] summary::before,details.advanced[open] summary::before{transform:rotate(45deg)}
+details.paste[open],details.advanced[open]{padding-bottom:var(--s4)}
+details.paste[open] summary,details.advanced[open] summary{border-bottom:1px solid var(--line);margin-bottom:var(--s2)}
+
+@media (max-width:600px){main{padding:var(--s4) var(--s3) var(--s7)}.card,.logbox{padding:var(--s4)}.button{width:100%}.row .button,.actions .button{flex:1 1 auto}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:.01ms!important;scroll-behavior:auto!important}
+  .spinner{animation:none;border-color:var(--accent);border-style:dotted}
+  .button:hover{transform:none}.button::after{display:none}
+  .progress__bar{transition:none}
+}
+/* ---- kept from the old sheet (classes the page script draws) */
+.drop-note{margin:6px 0}.drop-note ul{list-style:none;padding:0}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}
+/* ---- FACES v9: the request card (progress, the listening-model block, its buttons), on the same tokens */
+#airq-list{list-style:none;margin:var(--s3) 0;padding:0}
+#airq-list>li{padding:var(--s4) var(--s5);margin:var(--s3) 0;border:1px solid var(--line);border-radius:var(--radius-sm);background:rgba(0,0,0,.2)}
+#airq-list .runreq{margin-top:var(--s3)}#airq-list .runreq ul{padding-left:20px}#airq-list .runreq li{margin:var(--s2) 0}
+.runreq .button{min-width:44px}.runreq .actions{margin:var(--s3) 0}
+.progress-card{margin:var(--s3) 0;padding:var(--s4) var(--s5);border:1px solid var(--line-2);border-radius:var(--radius-sm);background:rgba(255,138,61,.06)}
+.progress-card .row{gap:var(--s3);margin-bottom:var(--s3)}.progress-card progress{margin:var(--s2) 0}
+#airq-model{margin:var(--s3) 0;padding:var(--s4) var(--s5);border:1px solid rgba(255,138,61,.35);border-radius:var(--radius-sm);background:rgba(255,138,61,.06)}
+#airq-model .row{margin:var(--s2) 0}
+.advanced>:not(summary){max-width:100%}
 """
 
 JS = r"""(function () {
@@ -1240,7 +1376,8 @@ JS = r"""(function () {
   if ($('song-link')) $('song-link').href = '/song?t=' + encodeURIComponent(T);
   if ($('edit-link')) $('edit-link').href = '/edit?t=' + encodeURIComponent(T);
   if ($('live-link')) $('live-link').href = '/live?t=' + encodeURIComponent(T) + '&mode=compilation&project=local';
-  if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // the advanced paste box; a first-time person never needs it
+  if (new URLSearchParams(location.search).get('advanced') === '1') { document.querySelector('details.paste').hidden = false; $('manual').open = true; }
+  if (location.hash === '#manual') $('manual').open = true;      // the advanced paste box; a first-time person never needs it
   const el = (tag, attrs, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c != null) n.append(c); return n; };
   async function api(path, body) {
     const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'X-Maker-Token': T, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -1346,9 +1483,60 @@ JS = r"""(function () {
           return el('li', {}, box, el('label', { for: 'ck-' + c.key }, ' ' + parts.join(' \u2014 ')));
         })));
       }
+      if (x.project_id && (x.folders || []).length) kids.push(runBlock(x));
       return el('li', {}, ...kids);
     }));
     $('airq-msg').textContent = (r && r.message) || '';
+  }
+  // PROGRESS while Plan and Build run: a moving ring, what it is doing now, how far. This computer's page only: the file name is shown here and is never reported.
+  // The block is built once and updated in place, so the ring keeps turning between the page's questions.
+  function progressView() {
+    const spin = el('span', { class: 'spinner', 'aria-hidden': 'true' });
+    const head = el('strong', { class: 'progress-head' });
+    const bar = el('progress', { max: '100', value: '0', 'aria-label': 'Overall progress' });
+    const detail = el('p', { class: 'note' });
+    const node = el('div', { class: 'progress-card', role: 'group', 'aria-label': 'How far it has got' }, el('div', { class: 'row' }, spin, head), bar, detail);
+    node.hidden = true;
+    return {
+      node,
+      show(p, fallback) {
+        const has = !!(p && p.headline), known = has && typeof p.overall === 'number';
+        head.textContent = has ? p.headline : fallback;
+        detail.textContent = has ? (p.detail || '') : '';
+        bar.hidden = !known; if (known) bar.value = p.overall;
+        node.hidden = false;
+      },
+      hide() { node.hidden = true; },
+    };
+  }
+  // Plan and Build on a request (FACES 11-27, gap G1): the person chooses a real folder for each folder NAME; the paths stay on this computer
+  function runBlock(x) {
+    const box = el('div', { class: 'runreq' });
+    const msg = el('p', { class: 'note', role: 'status' });
+    const top = el('div', {}), pv = progressView();
+    box.replaceChildren(top, pv.node);
+    let timer = null, drawn = false, fails = 0;
+    async function draw() {
+      clearTimeout(timer);
+      if (drawn && !box.isConnected) return;       // the list was redrawn: this block is gone, and it must not keep telling the app the page is open
+      drawn = true;
+      let r; try { r = await api('/api/request-run?project=' + encodeURIComponent(x.project_id)); if (fails) msg.textContent = ''; fails = 0; } catch (e) { msg.textContent = e.message; fails += 1; timer = setTimeout(draw, Math.min(60000, 2000 * Math.pow(2, Math.min(fails, 5)))); return; }      // one failed question does not end the asking: it is tried again after 4 s, 8 s ... at most a minute
+      const run = r.run || {}, mine = run.project_id === x.project_id, st = mine ? run.state : 'none', busy = st === 'planning' || st === 'building', waiting = st === 'drafted';
+      const rows = (r.folders || []).map(f => el('li', {}, '\u201c' + f.name + '\u201d: ' + (f.chosen ? 'chosen on this computer ' : 'not chosen yet '),
+        el('button', { type: 'button', class: 'button secondary small', onclick: async ev2 => { ev2.currentTarget.disabled = true; try { const a = await api('/api/request-folder', { project_id: x.project_id, name: f.name }); msg.textContent = a.chosen ? a.message : ''; } catch (e) { msg.textContent = e.message; } draw(); } }, f.chosen ? 'Choose again' : 'Choose where it is')));
+      const plan = el('button', { type: 'button', class: 'button ' + (waiting ? 'secondary' : 'primary'), disabled: busy, onclick: async () => { try { await api('/api/request-plan', { project_id: x.project_id }); } catch (e) { msg.textContent = e.message; } draw(); } }, 'Plan');
+      const build = el('button', { type: 'button', class: 'button ' + (waiting ? 'primary' : 'secondary'), disabled: st !== 'drafted', onclick: async () => { try { await api('/api/request-build', { project_id: x.project_id }); } catch (e) { msg.textContent = e.message; } draw(); } }, 'Build');
+      const cancel = el('button', { type: 'button', class: 'button secondary', disabled: !(busy || waiting), onclick: async () => { try { await api('/api/request-cancel', {}); } catch (e) { msg.textContent = e.message; } draw(); } }, 'Cancel');
+      const unsent = mine && run.reports_not_sent > 0 ? 'Ryagram could not be told how far this got (' + run.reports_not_sent + ' update' + (run.reports_not_sent > 1 ? 's' : '') + ' not sent). Your film is not affected.' : '';
+      const said = mine ? (run.site_words || run.app_words || '') : '';      // the site's refusal of an update, as one of our own fixed sentences
+      const words = (mine && run.words ? [run.words, run.next].filter(Boolean).join(' ') : '') + (said ? ' ' + said : (unsent ? ' ' + unsent : ''));
+      top.replaceChildren(el('p', { class: 'note' }, 'Choose where each folder is. Ryagram only ever sees the name.'), el('ul', {}, ...rows), el('div', { class: 'actions' }, plan, build, cancel), el('p', { class: 'note' }, words), msg);
+      if (busy) pv.show(run.progress, st === 'planning' ? 'Looking through your videos on this computer...' : 'Building your film on this computer...'); else pv.hide();
+      if (busy) timer = setTimeout(draw, 2000);
+      else if (waiting) timer = setTimeout(draw, 10000);      // a plan waiting for Build is held open on Ryagram only while this page keeps asking
+    }
+    draw();
+    return box;
   }
   // the live editor card (NEXT-CONNECT 142): the film's Ryagram project and the person's two switches; nothing is sent until one is on
   async function drawLive() {
@@ -1437,14 +1625,18 @@ JS = r"""(function () {
     const c = modelChoices.find(x => x.name === $('model').value);
     const running = d.state === 'running';
     const show = d.can && c && (c.ready === false || running || d.state === 'failed');
-    $('model-dl').hidden = !show;
+    $('model-dl').hidden = !show; $('airq-model').hidden = !show;       // the request card shows the same download (Plan needs the model), so nobody has to open the hand-made section
     if (!show) return;
-    $('model-dl-note').textContent = `This downloads the ${c.label} listening model once (about ${c.mb} MB) from ${d.host}. Nothing of yours is sent, and every file is checked before it is kept.`;
-    $('model-dl-go').disabled = running; $('model-dl-stop').hidden = !running; $('model-dl-bar').hidden = !running;
+    const what = `This downloads the ${c.label} listening model once (about ${c.mb} MB) from ${d.host}. Nothing of yours is sent, and every file is checked before it is kept.`;
+    $('model-dl-note').textContent = what; $('airq-model-note').textContent = 'Plan needs a listening model, and it is not on this computer yet. ' + what;
+    for (const p of ['model-dl', 'airq-model']) { $(p + '-go').disabled = running; $(p + '-stop').hidden = !running; $(p + '-bar').hidden = !running; }
+    let said = '';
     if (running) {
-      $('model-dl-bar').value = d.total ? Math.round(100 * d.done / d.total) : 0;
-      $('model-dl-status').textContent = `${Math.round(d.done / 1048576)} of ${Math.round(d.total / 1048576)} MB`;
-    } else { $('model-dl-status').textContent = d.state === 'failed' || d.state === 'cancelled' ? d.message : ''; }
+      const pct = d.total ? Math.round(100 * d.done / d.total) : 0;
+      $('model-dl-bar').value = pct; $('airq-model-bar').value = pct;
+      said = `${Math.round(d.done / 1048576)} of ${Math.round(d.total / 1048576)} MB`;
+    } else { said = d.state === 'failed' || d.state === 'cancelled' ? d.message : ''; }
+    $('model-dl-status').textContent = said; $('airq-model-status').textContent = said;
   }
   async function dlPoll(was) {
     clearTimeout(dlTimer);
@@ -1455,11 +1647,14 @@ JS = r"""(function () {
       if (d.state === 'running') dlTimer = setTimeout(() => dlPoll('running'), 700);
     } catch (e) { /* the card keeps what it had */ }
   }
-  $('model-dl-go').addEventListener('click', async () => {
-    $('model-dl-go').disabled = true;
-    try { drawDl(await api('/api/model-download', { model: $('model').value })); dlPoll('running'); } catch (e) { $('model-dl-status').textContent = e.message; $('model-dl-go').disabled = false; }
-  });
-  $('model-dl-stop').addEventListener('click', async () => { try { await api('/api/model-cancel', {}); } catch (e) { /* the next poll shows the end */ } });
+  async function startModelDl() {
+    $('model-dl-go').disabled = true; $('airq-model-go').disabled = true;
+    try { drawDl(await api('/api/model-download', { model: $('model').value })); dlPoll('running'); } catch (e) { $('model-dl-status').textContent = e.message; $('airq-model-status').textContent = e.message; $('model-dl-go').disabled = false; $('airq-model-go').disabled = false; }
+  }
+  async function stopModelDl() { try { await api('/api/model-cancel', {}); } catch (e) { /* the next poll shows the end */ } }
+  $('model-dl-go').addEventListener('click', startModelDl); $('airq-model-go').addEventListener('click', startModelDl);
+  $('model-dl-stop').addEventListener('click', stopModelDl); $('airq-model-stop').addEventListener('click', stopModelDl);
+  $('airq-model-pick').addEventListener('click', () => { $('manual').open = true; $('model').scrollIntoView({ block: 'center' }); $('model').focus(); });
   async function loadModels() {
     try {
       const r = await api('/api/models');
@@ -1838,6 +2033,12 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/ai-requests":
             if self._auth():
                 self._json(200, ai_requests_status())
+        elif path == "/api/request-run":
+            if self._auth():
+                try:
+                    self._json(200, request_run_status((parse_qs(urlparse(self.path).query).get("project") or [""])[0]))
+                except Problem as e:
+                    self._json(400, {"error": str(e)})
         elif path == "/api/downloads":
             if self._auth():
                 self._json(200, downloads_get())
@@ -2017,6 +2218,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"on": STATE["activity"].enabled, "path": str(STATE["activity"].path)})
             elif path == "/api/ai-checklist":
                 self._json(200, ai_checklist_tick(body))
+            elif path == "/api/request-folder":
+                self._json(200, request_folder_choose(body))
+            elif path == "/api/request-plan":
+                self._json(200, request_plan(body))
+            elif path == "/api/request-build":
+                self._json(200, request_build(body))
+            elif path == "/api/request-cancel":
+                self._json(200, _runner().cancel())
             elif path == "/api/event":
                 name = CLIENT_EVENTS.get(str(body.get("name")))
                 if not name:
@@ -2317,6 +2526,90 @@ def ai_requests_status() -> dict:
     return r
 
 
+def _runner():
+    r = STATE.get("runner")
+    if r is None:
+        raise Problem("Sign this computer in to Ryagram first (the Sign in card).")
+    return r
+
+
+def _run_call(fn, *a):
+    """The run half of ryagram_requests: its plain refusals are shown as Problems."""
+    try:
+        return fn(*a)
+    except _requests_mod().RunRefused as e:
+        raise Problem(str(e)) from None
+
+
+def _run_project(body: dict) -> str:
+    pid = body.get("project_id")
+    if not isinstance(pid, str) or not re.match(r"^[0-9a-f-]{36}$", pid, re.IGNORECASE):
+        raise Problem("Bad request.")
+    return pid
+
+
+def request_run_status(project_id: str) -> dict:
+    """The folder names of a request with whether each has a folder chosen here (never the path), and how the run on this computer stands. Asking is also how the app knows the page is open."""
+    r = _runner()
+    r.touch()
+    return {**r.listing(project_id), "run": r.status()}
+
+
+def request_folder_choose(body: dict) -> dict:
+    """The person picks the real folder for one folder NAME of a request. The name must be one the request holds; the path is kept in a file on this computer and goes nowhere."""
+    r, pid = _runner(), _run_project(body)
+    name = body.get("name")
+    if name not in [f["name"] for f in r.listing(pid)["folders"]]:
+        raise Problem("That folder is not in the request.")
+    got = pick_folder_path()
+    if not got:
+        return {"chosen": False}
+    info = folder_answer(got)                                   # the engine's own rule: an unreadable or empty folder is refused in its words
+    r.folders.set(pid, name, got)
+    act("files_picked", multiple=True, count=0)
+    return {"chosen": True, "used": info["used"], "message": info["message"]}
+
+
+def _request_may_start(r) -> None:
+    """The same door as the maker's own Plan and Build (start_job): nothing else running here, and room for it beside a site film on the graphics card."""
+    job = STATE.get("job")
+    if job and job["proc"].poll() is None:
+        raise Problem("Something is already running here. Cancel it or wait for it to finish.")
+    if r.busy():
+        raise Problem("A request from your AI is being worked on here. Cancel it or wait for it to finish.")
+    room = clip_room_problem()
+    if room:
+        raise Problem(room)
+
+
+def _request_model_problem(model: str) -> str | None:
+    """The listening model's precheck, as precheck() does it for the maker's own Plan: offered by the engine, on this computer, and the speech add-on installed."""
+    if model not in offered_models():
+        return "Pick one of the choices in the listening list on the page."
+    mroot = os.environ.get("RYAGRAM_MODEL_DIR")
+    if mroot and model not in models_present(mroot):
+        return missing_model_sentence(model)
+    if faster_whisper_missing():
+        return 'The speech add-on is not installed on this PC. Type this in a PowerShell window, then press Plan again:  python -m pip install faster-whisper "av<19"'
+    return None
+
+
+def request_plan(body: dict) -> dict:
+    r, pid = _runner(), _run_project(body)
+    _request_may_start(r)
+    model = body.get("model") or default_model()
+    problem = _request_model_problem(model)
+    if problem:
+        raise Problem(problem)
+    return _run_call(r.plan, pid, model)
+
+
+def request_build(body: dict) -> dict:
+    r, pid = _runner(), _run_project(body)
+    _request_may_start(r)
+    return _run_call(r.build, pid)
+
+
 def ai_checklist_tick(body: dict) -> dict:
     """The person ticks (or unticks) a checklist item by hand. Only the item's key and a yes or no are taken; the answer is the new state."""
     key, done = body.get("key"), body.get("done") is True
@@ -2466,12 +2759,17 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
     STATE["links"] = None
     STATE["node"] = None
     STATE["airq"] = None
+    STATE["runner"] = None
     if STATE.get("signin") is not None:              # r9 M4: "this computer renders my site films". OFF until the person switches it on; no renderer yet = it takes no jobs.
         STATE["node"] = _node_mod().NodeLoop(STATE["signin"], STATE["work"], renderer=node_renderer, datasets=node_datasets, validate=node_validate, engine_commit=node_engine_commit,
                                                 cannot_render_reason=node_cannot_render, log=lambda ev: act(ev))
     if STATE.get("signin") is not None:              # NEXT-CONNECT 120: a private link to a finished film. A card only if the flag file in this folder says on; nothing is sent unless the person presses the button.
         STATE["links"] = _links_mod().PrivateLinks(STATE["signin"], STATE["work"], films_dir=STATE["out"], log=lambda ev: act(ev))
         STATE["airq"] = _requests_mod().AiRequests(STATE["signin"])      # NEXT-CONNECT 131b: shows what the person's AI asked for; read-only, starts and uploads nothing
+        _rq = _requests_mod()                                            # FACES 11-27 (G1): Plan and Build on a request, here; reports only counts and a closed code, folders stay in a file on this computer
+        STATE["runner"] = _rq.RequestRunner(STATE["airq"], STATE["signin"], _rq.FolderMap(Path(STATE["work"]) / "request-folders.json"), engine_dir=STATE["engine"], work_dir=STATE["work"], out_dir=STATE["out"],
+                                            kill=lambda p: _plat().kill_tree(p), state_file=Path(STATE["work"]) / _rq.OPEN_NAME)
+        STATE["runner"].recover()                                        # a run an earlier session left open on the site (a plan never built) is closed as cancelled, off this thread
     srv = LocalServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
     act("session_start", maker=MAKER_REVISION, python=f"{sys.version_info.major}.{sys.version_info.minor}", os=platform.system())

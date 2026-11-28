@@ -105,7 +105,7 @@ def main(stub=None, label=''):
             page.on('pageerror', lambda e: errors.append(str(e)))
 
             def fresh_page():
-                page.goto(f'{base}/?t=tok', wait_until='load')
+                page.goto(f'{base}/?t=tok', wait_until='load'); page.evaluate("document.getElementById('manual').open = true")
                 page.wait_for_selector('#recipe option', state='attached', timeout=10000)
                 page.get_by_role('button', name='Choose a file for Your footage').click()
                 page.wait_for_selector('.slot li')
@@ -167,7 +167,7 @@ def main(stub=None, label=''):
             run_plan('the baby')
             check(page.locator('#skipped-note').count() == 0 and page.locator('#build').is_enabled(), 'words that are all said plan exactly as before, with no note')
             print('the every-time recipe explains itself')
-            page.goto(f'{base}/?t=tok', wait_until='load')
+            page.goto(f'{base}/?t=tok', wait_until='load'); page.evaluate("document.getElementById('manual').open = true")
             page.wait_for_selector('#recipe option', state='attached', timeout=10000)
             plain = page.inner_text('#words-note')
             if 'Every time a word is said' in page.locator('#recipe option').all_inner_texts():
@@ -177,7 +177,7 @@ def main(stub=None, label=''):
                 check(page.inner_text('#words-note') == plain, 'and choosing the other recipe puts the original hint back')
                 if 'ENGINE 21' in label:
                     for label_, want in (('any words', 0), ('Every time a word is said', 1)):
-                        page.goto(f'{base}/?t=tok', wait_until='load')
+                        page.goto(f'{base}/?t=tok', wait_until='load'); page.evaluate("document.getElementById('manual').open = true")
                         page.wait_for_selector('#recipe option', state='attached', timeout=10000)
                         page.select_option('#recipe', label=label_)
                         page.get_by_role('button', name='Choose a file for Your footage').click()
@@ -191,7 +191,7 @@ def main(stub=None, label=''):
                             page.wait_for_selector('#job-out:has-text("Your film:")', timeout=40000)
                             check(page.locator('#cut-off-built').count() == 1 and '5 more are not in it' in page.inner_text('#cut-off-built'), 'MUST-FAIL: the finished film says the same')
                 for label_, want in (('any words', 1), ('Every time a word is said', 0)):
-                    page.goto(f'{base}/?t=tok', wait_until='load')
+                    page.goto(f'{base}/?t=tok', wait_until='load'); page.evaluate("document.getElementById('manual').open = true")
                     page.wait_for_selector('#recipe option', state='attached', timeout=10000)
                     page.select_option('#recipe', label=label_)
                     page.get_by_role('button', name='Choose a file for Your footage').click()

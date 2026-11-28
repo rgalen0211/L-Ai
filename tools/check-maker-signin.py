@@ -109,7 +109,7 @@ def main():
             page.on('pageerror', lambda e: errors.append(str(e)))
 
             def load(base):
-                page.goto(f'{base}/?t=tok', wait_until='load')
+                page.goto(f'{base}/?t=tok', wait_until='load'); page.evaluate("document.getElementById('manual').open = true")
                 page.wait_for_selector('#recipe option', state='attached', timeout=10000)
                 page.wait_for_timeout(300)
 
@@ -131,7 +131,7 @@ def main():
                     opts = dict(viewport={'width': 1280, 'height': 900}) if size == 'desktop' else dict(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True)
                     ctx = b.new_context(color_scheme=scheme, **opts)
                     pg = ctx.new_page()
-                    pg.goto(f'{base}/?t=tok', wait_until='load')
+                    pg.goto(f'{base}/?t=tok', wait_until='load'); pg.evaluate("document.getElementById('manual').open = true")
                     pg.wait_for_selector('#signin-body > *', timeout=10000)
                     pg.wait_for_timeout(300)
                     r = pg.evaluate(aa.SCAN)

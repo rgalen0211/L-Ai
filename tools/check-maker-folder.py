@@ -134,7 +134,7 @@ def main():
                 p = ctx.new_page()
                 p.on('pageerror', lambda e: errs.append(str(e)))
                 p.on('console', lambda m: errs.append(m.text) if m.type == 'error' else None)
-                p.goto(f'{base}/?t=testtoken', wait_until='load')
+                p.goto(f'{base}/?t=testtoken', wait_until='load'); p.evaluate("document.getElementById('manual').open = true")
                 p.wait_for_selector('#slots .slot', timeout=20000)
                 picks['folder'] = str(folder)
                 btns = p.get_by_role('button', name=re.compile('Choose a whole folder of videos'))

@@ -61,7 +61,7 @@ try:
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.on("request", lambda r: outside.append(r.url) if not re.match(r"^(http://127\.0\.0\.1:\d+/|data:|blob:)", r.url) else None)
-        pg.goto(f"http://127.0.0.1:{port}/?t={token}", wait_until="load")
+        pg.goto(f"http://127.0.0.1:{port}/?t={token}", wait_until="load"); pg.evaluate("document.getElementById('manual').open = true")
         # waits read the page through locators, never a JS string: the maker's CSP (script-src 'self') rightly refuses
         # eval, and Edge enforces that on Playwright's string evaluation (WORKER Edge rehearsal 2026-11-06)
         pg.locator("#recipe option").nth(1).wait_for(state="attached", timeout=20000)
