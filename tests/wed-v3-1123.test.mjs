@@ -173,11 +173,11 @@ test('contact sheet words: a failed sheet says a new contact sheet, a sheet time
   assert.match(read('assets/app-library.js'), /window\.ryagramJobs\.STATE_LABELS\[j\.state\] \|\| STATE_LABELS\[j\.state\] \|\| j\.state/);
 });
 
-test('get-app: the Windows download page is noindex and no stranger-visible page links to it (only the invite email does); the card in Account is tester-only', () => {
+test('get-app: the Windows download page is noindex and no stranger-visible page links to it (only the invite email does); the card in Account is for testers and Compilations accounts (WEB 11-28)', () => {
   assert.match(read('get-app/index.html'), /<meta name="robots" content="noindex, nofollow">/);
   for (const p of ['app/index.html', 'ryagram/index.html', 'help/index.html', 'index.html', 'terms/index.html', 'privacy-policy.html', 'report/index.html', 'ai-content/index.html', 'connect-ai/index.html']) {
     assert.doesNotMatch(read(p), /href="[^"]*get-app/, p);
   }
   for (const f of ['assets/app-library.js', 'assets/app-device.js', 'assets/app-start.js', 'assets/app-connect.js']) assert.doesNotMatch(read(f), /href: ['"`][^'"`]*\/get-app/, f);
-  assert.match(read('assets/app-device.js'), /if \(!tester\) return null;\s+\/\/ only an account with the tester flag sees the card/);
+  assert.match(read('assets/app-device.js'), /if \(!access\.show\) return null;\s+\/\/ neither a tester nor a Compilations account: no card/);
 });
