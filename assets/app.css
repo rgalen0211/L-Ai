@@ -274,3 +274,6 @@ body.ryagram-app.ryagram-ds.ryagram-look .flip-tabs,body.ryagram-app.ryagram-ds 
 .comp-link{display:inline-block;padding:12px 0;margin:-12px 0}
 /* A long unbroken phrase or title wraps inside its row, never pushes a phone sideways (CC1 09:58) */
 .comp-rows,.comp-rows li,.comp-rows strong,.comp-rows .meta,.comp-run,.comp-noapp{overflow-wrap:anywhere;min-width:0;max-width:100%}
+/* The Save button's glow (Ryan 11-27 22:41): the Start tab sits flat in a flip panel that clips at its edge, so the house glow (0 10px 30px) was cut square on the left and bottom. Room for it, the same 32px the other tabs' panels have; the button keeps the house primary shadow untouched */
+.flip-panel>.comp-start{padding:0 32px 44px}
+@media(max-width:640px){.flip-panel>.comp-start{padding:0 24px 44px}}
