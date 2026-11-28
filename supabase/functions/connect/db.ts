@@ -84,6 +84,8 @@ export class ConnectDb {
         return sha ? { sha256: sha } : null;
       },
       // supabase/migrations/20261127000400_connect_compilation_status.sql (NOT APPLIED): the token-checked twin of BUILDER's my_compilation_get (null = not the person's project)
+      // supabase/migrations/20261128000200_connect_compilation_progress.sql (NOT APPLIED; needs BUILDER's 20261128000100 first) adds step_done, step_total and percent to the run (whole numbers or null, only while it runs). The answer is passed on as it
+      // comes: the tool (cleanProgress in connect-core/tools.ts) checks every one again, and an older database that answers without them gives none, so nothing else changes here.
       // Deploy order: the migration is applied BEFORE this function is deployed. If it is not (the database has no such function: SQLSTATE 42883, or PGRST202 through PostgREST), the call becomes the code
       // "unavailable" and nothing else: no database text goes on, and the tool answers "not available just now, nothing was looked up".
       async compilationGet(projectId) {

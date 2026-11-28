@@ -256,7 +256,14 @@ export class FakeWorld {
         const user = u();
         if (!user.projects.some((p) => p.id === pid)) return null;
         const row = user.requests.get(pid);
-        const run = this.compilationRuns.get(userId + "|" + pid) ?? null;
+        let run = this.compilationRuns.get(userId + "|" + pid) ?? null;
+        // mirrors migration 20261128000200: the run always carries step_done, step_total, percent: whole numbers in range (step_done only with a step_total, never above it), else null, and null unless the state is planning, matching or building
+        if (run && typeof run === "object" && !Array.isArray(run)) {
+          const r = run as Record<string, unknown>, running = r.state === "planning" || r.state === "matching" || r.state === "building";
+          const whole = (v: unknown, max: number) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max ? v : null);
+          const st = running ? whole(r.step_total, 1000) : null;
+          run = { ...r, step_done: st === null ? null : whole(r.step_done, st), step_total: st, percent: running ? whole(r.percent, 100) : null };
+        }
         return JSON.parse(JSON.stringify({ request: row ? row.request : null, sha256: row ? row.sha256 : null, updated_at: row ? "2026-11-27T08:00:00Z" : null, run: row ? run : null }));
       },
       currentVersionId: async (pid) => {

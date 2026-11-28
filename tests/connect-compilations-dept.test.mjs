@@ -235,7 +235,7 @@ test('PRIVACY: whatever the database returns, the answer holds no path, no web a
   assert.deepEqual(r.data.request.folders, ['Good Folder'], 'only a clean folder NAME survives');
   assert.equal(r.data.request.phrase, '', 'a phrase that is a place is dropped');
   assert.deepEqual(Object.keys(r.data.request).sort(), ['cards', 'checklist', 'clean_cuts', 'folders', 'phrase', 'rules', 'search', 'song', 'texts'].sort());
-  assert.deepEqual(Object.keys(r.data.run).sort(), ['clips', 'error_code', 'film_seconds', 'matches', 'state']);
+  assert.deepEqual(Object.keys(r.data.run).sort(), ['clips', 'error_code', 'film_seconds', 'matches', 'percent', 'state', 'step_done', 'step_total']);      // the three progress keys (whole numbers or null; tests/connect-compilation-progress.test.mjs)
   assert.equal(r.data.run.error_code, null);
   assert.ok(r.text.length < 2000, 'the answer is short');
   assert.ok(JSON.stringify(r.data).length < 2000);

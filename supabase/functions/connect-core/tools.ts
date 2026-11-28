@@ -423,16 +423,42 @@ export function summariseRequest(req: unknown): CompilationSummary | null {
     rules: count(r.rules), texts: count(r.texts), cards: count(r.cards), checklist: count(r.checklist), note: safe(plainText(r.note, 200)) };
 }
 
+/** Progress, three whole numbers and nothing else (BUILDER's contract 11-27): while planning and matching step_done of step_total is a VIDEO, while building a CLIP; percent is the whole build. Each may be null. */
+export interface RunProgress { step_done: number | null; step_total: number | null; percent: number | null }
+const RUNNING_STATES = new Set(["planning", "matching", "building"]);
+/** A value counts only when it is a JSON number that is a whole number from 0 to max; anything else (text, a name, 2.5, -1, too big, NaN) is null: never clamped into range, never kept as it came. */
+const wholeIn = (v: unknown, max: number): number | null => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max ? v : null);
+/** The three progress numbers of a run, checked: only while the state is planning, matching or building (an end state or an unknown one has none); step_total 0 to 1000; step_done 0 to step_total and only with a step_total; percent 0 to 100. */
+export function cleanProgress(state: string, r: { step_done?: unknown; step_total?: unknown; percent?: unknown } | null | undefined): RunProgress {
+  if (!r || !RUNNING_STATES.has(state)) return { step_done: null, step_total: null, percent: null };
+  const step_total = wholeIn(r.step_total, 1000);
+  return { step_done: step_total === null ? null : wholeIn(r.step_done, step_total), step_total, percent: wholeIn(r.percent, 100) };
+}
+/** The closed wording of the progress, built ONLY from the three integers and the state: "Planning: video 2 of 3, about 45% overall." / "Finding the matches: video 2 of 3, ..." / "Building: clip 3 of 4, ...".
+ *  null when the state is not running or there is nothing usable to say (the caller then keeps its older line). step_done 0 says "getting started"; a pair alone and a percent alone are each said alone. */
+export function progressWords(state: string, p: Partial<RunProgress>): string | null {
+  const lead = state === "planning" ? "Planning" : state === "matching" ? "Finding the matches" : state === "building" ? "Building" : null;
+  if (lead === null) return null;
+  const c = cleanProgress(state, p), unit = state === "building" ? "clip" : "video";
+  const pair = c.step_total !== null && c.step_total >= 1 && c.step_done !== null ? (c.step_done === 0 ? "getting started" : `${unit} ${c.step_done} of ${c.step_total}`) : null;
+  const parts = [pair, c.percent === null ? null : `about ${c.percent}% overall`].filter((x): x is string => x !== null);
+  return parts.length ? `${lead}: ${parts.join(", ")}.` : null;
+}
+
 /** The state of the build on the person's own computer, in plain words. Counts only; the film itself is on that computer. */
-export function runWords(run: { state: string; matches: number | null; clips: number | null; film_seconds: number | null; error_code: string | null } | null, current: boolean): string {
+export function runWords(run: { state: string; matches: number | null; clips: number | null; film_seconds: number | null; error_code: string | null; step_done?: number | null; step_total?: number | null; percent?: number | null } | null, current: boolean): string {
   if (!run || !RUN_STATES.has(run.state)) return "Waiting for the Ryagram app on the person's computer to pick it up. Nothing is searched or built on Ryagram's side.";
   // a report that was made for an earlier version of the request (the request was saved again after it) is not the answer for this one: say so, instead of a bare "waiting" that hides that a film may already exist for the old version (FACES 11-27: no "earlier version" line)
   if (!current) return "The last report from the person's computer was for an earlier version of this request, so it is not shown. Waiting for the Ryagram app on the person's computer to pick up this version. Nothing is searched or built on Ryagram's side.";
   const n = (v: number | null, one: string, many: string) => (v === null ? "" : `${v} ${v === 1 ? one : many}`);
   switch (run.state) {
-    case "planning": return "The Ryagram app on the person's computer has the request and is planning the film.";
-    case "matching": return run.matches === null ? "Matching: the app is looking through the person's clips." : `Matching: found ${n(run.matches, "place", "places")} so far.`;
-    case "building": return `Building the film on the person's computer${run.clips === null ? "" : ": " + n(run.clips, "clip", "clips") + " so far"}.`;
+    case "planning": return progressWords("planning", run) ?? "The Ryagram app on the person's computer has the request and is planning the film.";
+    case "matching": {
+      const pw = progressWords("matching", run);
+      return pw !== null ? pw + (run.matches === null ? "" : ` Found ${n(run.matches, "place", "places")} so far.`)
+        : run.matches === null ? "Matching: the app is looking through the person's clips." : `Matching: found ${n(run.matches, "place", "places")} so far.`;
+    }
+    case "building": return progressWords("building", run) ?? `Building the film on the person's computer${run.clips === null ? "" : ": " + n(run.clips, "clip", "clips") + " so far"}.`;
     case "done": return `Done${run.clips === null && run.film_seconds === null ? "" : ": " + [n(run.clips, "clip", "clips"), run.film_seconds === null ? "" : `${run.film_seconds} seconds`].filter(Boolean).join(", ")}. The film is on the person's computer: they open the Ryagram app to see it. It is never sent to Ryagram.`;
     case "cancelled": return "Stopped: the person stopped it on their computer.";
     default: return `Stopped: ${(run.error_code !== null && Object.hasOwn(COMPILATION_STOPPED, run.error_code) ? COMPILATION_STOPPED[run.error_code] : null) ?? "the Ryagram app reported a problem it has no plain words for"}.`;
@@ -442,7 +468,7 @@ export function runWords(run: { state: string; matches: number | null; clips: nu
 const getCompilationStatus: ToolDef = {
   name: "get_compilation_status", title: "Where a compilation stands", scope: "read", readOnly: true, idempotent: true,
   description: "Reads where one compilation stands, for one of the person's OWN projects: the request saved on it (the words to find, the folder NAMES, how many overlays it has) and what the Ryagram app on the person's own computer last reported "
-    + "(waiting, matching with a count of places found, building, done with the number of clips and seconds, or stopped with a plain reason). It changes nothing, costs nothing and starts nothing. "
+    + "(waiting, matching with a count of places found, building, done with the number of clips and seconds, or stopped with a plain reason; while it runs, also which video or clip it is on, like 'video 2 of 3', and about how far along the whole build is, as a percent). It changes nothing, costs nothing and starts nothing. "
     + "It cannot show the matches themselves, any words from the person's videos, a file name or path, or the film: the clips and the film stay on the person's computer, and only the person can open them in the Ryagram app. "
     + "To ask for a compilation, use set_compilation_request first. If Compilations is not open for the account it says so and nothing is looked up.",
   inputSchema: obj({ project_id: uuid }, ["project_id"]),
@@ -461,13 +487,13 @@ const getCompilationStatus: ToolDef = {
     if (!summary) return ok("This project has no compilation request yet. Use set_compilation_request to write one; the person then builds the film in the Ryagram app on their own computer.", { project_id: String(a.project_id), has_request: false, credits: 0, looked_up: true });
     const rr = row.run && typeof row.run === "object" ? row.run : null;
     const state = rr && RUN_STATES.has(String(rr.state)) ? String(rr.state) : null;
-    const run = rr && state ? { state, matches: cleanCount(rr.matches), clips: cleanCount(rr.clips), film_seconds: cleanCount(rr.film_seconds, 86_400), error_code: typeof rr.error_code === "string" && /^[a-z0-9_]{1,40}$/.test(rr.error_code) ? rr.error_code : null } : null;
+    const run = rr && state ? { state, matches: cleanCount(rr.matches), clips: cleanCount(rr.clips), film_seconds: cleanCount(rr.film_seconds, 86_400), error_code: typeof rr.error_code === "string" && /^[a-z0-9_]{1,40}$/.test(rr.error_code) ? rr.error_code : null, ...cleanProgress(state, rr) } : null;      // progress: three whole numbers or null, only while it runs
     const current = rr?.current === true;                  // a run whose 'current' is null (no stored request hash) is NOT shown as current (security review 11-27 L2)
     const head = `Compilation request: ${untrusted("phrase", summary.phrase || "(no words)")}${summary.search ? `, ${summary.search === "every" ? "every time it is said" : "the words in this order"}` : ""}; ${summary.folders.length} folder${summary.folders.length === 1 ? "" : "s"}${summary.folders.length ? " (" + summary.folders.map((f) => untrusted("folder-name", f)).join(", ") + ")" : ""}; ${summary.rules} picture rule${summary.rules === 1 ? "" : "s"}, ${summary.texts} text${summary.texts === 1 ? "" : "s"}, ${summary.cards} card${summary.cards === 1 ? "" : "s"}.`;
     const note = summary.note ? ` Note on the request: ${untrusted("request-note", summary.note)}` : "";
     return ok(`${head}${note}\nWhere it stands: ${runWords(run, current)}\nNo credit is used for a compilation.`,
       { project_id: String(a.project_id), has_request: true, request: (({ note: _note, ...rest }) => rest)(summary), request_text_is_untrusted: true, request_sha256: typeof row.sha256 === "string" && /^[0-9a-f]{64}$/.test(row.sha256) ? row.sha256 : null,
-        run: run && current ? { state: run.state, matches: run.matches, clips: run.clips, film_seconds: run.film_seconds, error_code: run.error_code } : null,
+        run: run && current ? { state: run.state, matches: run.matches, clips: run.clips, film_seconds: run.film_seconds, error_code: run.error_code, step_done: run.step_done, step_total: run.step_total, percent: run.percent } : null,
         run_is_for_an_earlier_request: !!run && !current, film_stays_on_the_persons_computer: true, credits: 0, looked_up: true });
   },
 };

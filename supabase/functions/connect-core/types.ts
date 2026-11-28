@@ -145,6 +145,9 @@ export interface CompilationRunRead {
   state: string; matches: number | null; clips: number | null; film_seconds: number | null; error_code: string | null; updated_at: string | null;
   /** true when the run was made for the request as it is saved NOW; false = the request was changed after that run */
   current?: boolean;
+  /** Progress, three optional whole numbers (BUILDER's contract 11-27, migration 20261128000100; CONNECT's 20261128000200 returns them): while planning and matching step_done of step_total is a VIDEO, while building a CLIP, percent is the whole build.
+   *  null or absent = not known. Untrusted until the tool has checked them (whole numbers in range, else ignored): they are never shown raw. */
+  step_done?: number | null; step_total?: number | null; percent?: number | null;
 }
 export interface CompilationStatusRead { request: unknown | null; sha256: string | null; updated_at: string | null; run: CompilationRunRead | null }
 

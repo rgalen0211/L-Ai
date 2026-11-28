@@ -64,6 +64,8 @@ const SCRIPT = [
   "function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}",
   "function row(k,v){var r=el('div','row');r.appendChild(el('span','k',k));r.appendChild(el('span','v',v));return r;}",
   "function int(v,max){return typeof v==='number'&&isFinite(v)&&v>=0?Math.min(Math.round(v),max):null;}",
+  // progress: a value counts only when it is a number that is a whole number from 0 to max; anything else is null (never clamped, never drawn as it came)
+  "function whole(v,max){return typeof v==='number'&&isFinite(v)&&Math.floor(v)===v&&v>=0&&v<=max?v:null;}",
   "function many(n,one,more){return n+' '+(n===1?one:more);}",
   "var Q1=String.fromCharCode(8220),Q2=String.fromCharCode(8221);",
   // what the tool returned, checked: null = not something this panel can draw ('Status not available')
@@ -79,17 +81,22 @@ const SCRIPT = [
   " if(r!==null&&r!==undefined){",
   "  if(typeof r!=='object'||Array.isArray(r)||typeof r.state!=='string'||!STATES.hasOwnProperty(r.state))return null;",
   "  v.run={state:r.state,matches:int(r.matches,1000000),clips:int(r.clips,1000000),secs:int(r.film_seconds,86400),code:typeof r.error_code==='string'&&/^[a-z0-9_]{1,40}$/.test(r.error_code)?r.error_code:''};",
+  // the three progress numbers: only while it runs; step_total 0 to 1000, step_done 0 to step_total and only with a step_total, percent 0 to 100
+  "  v.run.st=null;v.run.sd=null;v.run.pc=null;",
+  "  if(r.state==='planning'||r.state==='matching'||r.state==='building'){var t=whole(r.step_total,1000);v.run.st=t;v.run.sd=t===null?null:whole(r.step_done,t);v.run.pc=whole(r.percent,100);}",
   "  if(sc.run_is_for_an_earlier_request===true)v.run=null;",
   " }",
   " return v;",
   "}",
+  // the closed wording of the progress, from the three whole numbers only: 'Planning: video 2 of 3, about 45% overall.' (null when there is nothing usable; step_done 0 = getting started)
+  "function progress(r,lead,unit){var p=[];if(r.st!==null&&r.st>=1&&r.sd!==null)p.push(r.sd===0?'getting started':unit+' '+r.sd+' of '+r.st);if(r.pc!==null)p.push('about '+r.pc+'% overall');return p.length?lead+': '+p.join(', ')+'.':null;}",
   // the step line and the strip position (0..4; -1 = stopped) for the run state
   "function words(r){",
   " if(!r)return {step:0,text:'Waiting for the Ryagram app on your computer to pick it up.'};",
   " switch(r.state){",
-  "  case 'planning':return {step:1,text:'Planning: the Ryagram app on your computer has the request and is planning the film.'};",
-  "  case 'matching':return {step:2,text:r.matches===null?'Matching: the app is looking through your clips.':'Matching: found '+many(r.matches,'place','places')+' so far.'};",
-  "  case 'building':return {step:3,text:r.clips===null?'Building: the film is being made on your computer.':'Building: '+many(r.clips,'clip','clips')+' so far.'};",
+  "  case 'planning':return {step:1,text:progress(r,'Planning','video')||'Planning: the Ryagram app on your computer has the request and is planning the film.'};",
+  "  case 'matching':{var pm=progress(r,'Finding the matches','video');return {step:2,text:pm?pm+(r.matches===null?'':' Found '+many(r.matches,'place','places')+' so far.'):r.matches===null?'Matching: the app is looking through your clips.':'Matching: found '+many(r.matches,'place','places')+' so far.'};}",
+  "  case 'building':return {step:3,text:progress(r,'Building','clip')||(r.clips===null?'Building: the film is being made on your computer.':'Building: '+many(r.clips,'clip','clips')+' so far.')};",
   "  case 'done':{var p=[];if(r.clips!==null)p.push(many(r.clips,'clip','clips'));if(r.secs!==null)p.push(many(r.secs,'second','seconds'));return {step:4,text:'Done'+(p.length?': '+p.join(', '):'')+'. The film is on your computer: open the Ryagram app to see it.'};}",
   "  case 'cancelled':return {step:-1,text:'Stopped: you stopped it on your computer.'};",
   "  default:return {step:-1,text:'Stopped: '+(WHY.hasOwnProperty(r.code)?WHY[r.code]:OTHER)+'.'};",
