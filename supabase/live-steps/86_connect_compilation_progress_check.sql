@@ -23,7 +23,7 @@ union all select 'ONLY the connector login can run it (grants unchanged): not si
                    and not exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) x where p.oid = to_regprocedure('public.connect_compilation_get(text, uuid)') and x.grantee = 0 and x.privilege_type = 'EXECUTE')
                  where to_regprocedure('public.connect_compilation_get(text, uuid)') is not null), false)
 union all select 'the run carries the three keys (step_done, step_total, percent), read as keys of the row''s own jsonb so a missing column is a null, and always present in the answer',
-       coalesce((select p.prosrc like '%to_jsonb(c) -> ''step_done''%' and p.prosrc like '%to_jsonb(c) -> ''step_total''%' and p.prosrc like '%to_jsonb(c) -> ''percent''%'
+       coalesce((select p.prosrc like '%to_jsonb(c) -> ''''step_done''''%' and p.prosrc like '%to_jsonb(c) -> ''''step_total''''%' and p.prosrc like '%to_jsonb(c) -> ''''percent''''%'
                    and p.prosrc like '%jsonb_build_object(''step_done'', sd, ''step_total'', st, ''percent'', pc)%'
                  from pg_proc p where p.oid = to_regprocedure('public.connect_compilation_get(text, uuid)')), false)
 union all select 'only a JSON number written as a whole number counts (text, a name, a path, 2.5, -3 are null), with the ranges: step_total 0 to 1000, step_done 0 to step_total only with a step_total, percent 0 to 100',

@@ -55,11 +55,11 @@ begin
     if run ->> 'state' in ('planning', 'matching', 'building') then      -- only while it runs; any other state shows none
       -- only a JSON NUMBER written as a plain whole number counts (so text, a name, a path, 2.5 and -3 are all null); then the ranges
       st_text := case when jsonb_typeof(prog -> 'step_total') = 'number' then prog ->> 'step_total' end;
-      if case when st_text ~ '^[0-9]{1,4}$' then st_text::int <= 1000 else false end then st := st_text::int; end if;       -- CASE, not AND: the cast must never run on text that is not a whole number
+      if (case when st_text ~ '^[0-9]{1,4}$' then st_text::int <= 1000 else false end) then st := st_text::int; end if;       -- CASE, not AND: the cast must never run on text that is not a whole number
       sd_text := case when jsonb_typeof(prog -> 'step_done') = 'number' then prog ->> 'step_done' end;
-      if case when st is not null and sd_text ~ '^[0-9]{1,4}$' then sd_text::int <= st else false end then sd := sd_text::int; end if;       -- step_done only together with a valid step_total, never above it
+      if (case when st is not null and sd_text ~ '^[0-9]{1,4}$' then sd_text::int <= st else false end) then sd := sd_text::int; end if;       -- step_done only together with a valid step_total, never above it
       pc_text := case when jsonb_typeof(prog -> 'percent') = 'number' then prog ->> 'percent' end;
-      if case when pc_text ~ '^[0-9]{1,3}$' then pc_text::int <= 100 else false end then pc := pc_text::int; end if;
+      if (case when pc_text ~ '^[0-9]{1,3}$' then pc_text::int <= 100 else false end) then pc := pc_text::int; end if;
     end if;
     run := run || jsonb_build_object('step_done', sd, 'step_total', st, 'percent', pc);
   end if;

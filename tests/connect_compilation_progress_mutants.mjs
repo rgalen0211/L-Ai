@@ -64,7 +64,7 @@ const mutants = [
   ['the stand-in keeps the numbers in an end state', F, 'const st = running ? whole(r.step_total, 1000) : null;', 'const st = whole(r.step_total, 1000);'],
   ['the stand-in keeps the percent in an end state', F, 'percent: running ? whole(r.percent, 100) : null', 'percent: whole(r.percent, 100)'],
   // ---- the SQL text
-  ['the SQL casts text behind an AND (a cast may run first)', MIG, "if case when st_text ~ '^[0-9]{1,4}$' then st_text::int <= 1000 else false end then", "if st_text ~ '^[0-9]{1,4}$' and st_text::int <= 1000 then"],
+  ['the SQL casts text behind an AND (a cast may run first)', MIG, "if (case when st_text ~ '^[0-9]{1,4}$' then st_text::int <= 1000 else false end) then", "if st_text ~ '^[0-9]{1,4}$' and st_text::int <= 1000 then"],
   ['the SQL allows a step_total up to 10000', MIG, 'st_text::int <= 1000', 'st_text::int <= 10000'],
   ['the SQL allows a percent up to 1000', MIG, 'pc_text::int <= 100', 'pc_text::int <= 1000'],
   ['the SQL allows step_done above step_total', MIG, 'then sd_text::int <= st else false', 'then sd_text::int <= 1000 else false'],
