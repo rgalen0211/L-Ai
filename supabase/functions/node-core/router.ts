@@ -41,7 +41,7 @@ const COMPILATION_ROUTES = ["/node/compilation/status", "/node/compilation/start
 // POST /node/compilation-report (BUILDER 11-27, migrations/20261127000300): how a build on the person's own computer goes. ALWAYS ON (it carries no file). Counts only.
 const REPORT_ROUTE = "/node/compilation-report";
 const RUN_STATES = ["planning", "matching", "building", "done", "failed", "cancelled"];
-const REPORT_KEYS = ["project_id", "request_sha256", "state", "matches", "clips", "film_seconds", "error_code"];
+const REPORT_KEYS = ["project_id", "request_sha256", "state", "matches", "clips", "film_seconds", "error_code", "step_done", "step_total", "percent"];   // progress: three whole numbers only (BUILDER 11-27 23:12)
 /** The closed list of reasons the app may report for a failed build (the same eleven as the SQL, the page and the connector; 'stale' is set by the server only). */
 const REPORT_CODES = ["request_invalid", "song_request", "folder_not_chosen", "folder_missing", "folder_empty", "folders_overlap", "no_speech", "not_said", "edit_failed", "build_failed", "crash"];
 const FILE_KEYS = /^(path|paths|url|urls|file|files|filename|video|audio)$/i;
@@ -254,10 +254,17 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
       if (reason !== null && !REPORT_CODES.includes(reason)) return fail(400, "invalid_request", "That is not a reason Ryagram knows for a build to stop.");
       if (b.state === "failed" && reason === null) return fail(400, "invalid_request", "A failed build needs its reason.");
       if (b.state !== "failed" && reason !== null) return fail(400, "invalid_request", "Only a failed build has a reason.");
+      // PROGRESS (migrations/20261128000100): step_total 0 to 1000, step_done 0 to step_total and only with it, percent 0 to 100; only while a build runs
+      const has = (v: unknown) => v !== undefined && v !== null;
+      if (!intIn(b.step_total, 1000) || !intIn(b.percent, 100) || !intIn(b.step_done, 1000)) return bad();
+      if (has(b.step_done) && (!has(b.step_total) || (b.step_done as number) > (b.step_total as number))) return bad();
+      const progress = has(b.step_done) || has(b.step_total) || has(b.percent);
+      if (progress && !["planning", "matching", "building"].includes(b.state)) return fail(400, "invalid_request", "Progress is only sent while a build is running.");
       const who = await caller(req, d.salt);
       if (!(await d.db.hit(who, "compilation_report_ip", 120, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
       const n = (v: unknown) => (typeof v === "number" ? v : null);
-      const id = await d.db.compilationReport(h, b.project_id, b.request_sha256, b.state, n(b.matches), n(b.clips), n(b.film_seconds), typeof b.error_code === "string" ? b.error_code : null);
+      const id = await d.db.compilationReport(h, b.project_id, b.request_sha256, b.state, n(b.matches), n(b.clips), n(b.film_seconds), typeof b.error_code === "string" ? b.error_code : null,
+                                              progress ? { stepDone: n(b.step_done), stepTotal: n(b.step_total), percent: n(b.percent) } : null);
       return reply(200, { run_id: Number(id) });
     }
     if (route === "/node/download-update") {                                               // the app tells the STATE of one plan; a receipt only with 'done'

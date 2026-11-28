@@ -30,6 +30,7 @@ THIRD = "55555555-5555-5555-5555-555555555555"
 MIG = core.ROOT / "migrations" / "20261127000300_compilations_for_everyone.sql"
 RB = core.ROOT / "rollbacks" / "20261127000300_compilations_for_everyone_rollback.sql"
 STEP = core.ROOT / "live-steps" / "81_compilations_check.sql"
+RB_PROGRESS = core.ROOT / "rollbacks" / "20261128000100_compilation_progress_rollback.sql"   # a later migration on top of this one (counts-only progress)
 REQ = {"schema": "ryagram.compilation-request/0", "phrase": "great news", "search": "every", "mode": "phrase", "folders": ["Holiday 2025"], "note": "short ones first"}
 setUpModule = credits.setUpModule
 
@@ -52,6 +53,11 @@ class Compilations(unittest.TestCase):
 
     def d(self):
         return self.db.as_(None).c
+
+    def undo_progress(self):
+        """The two tests of 000300's exact shape (12 columns; its own undo) first undo 20261128000100 when it is applied: the undo order is 0100, then 0300."""
+        if self.admin("select to_regclass('public.compilation_runs') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'compilation_runs' and column_name = 'percent')"):
+            self.d().execute(RB_PROGRESS.read_text(encoding="utf-8"))
 
     def ledger_rows(self):
         return self.admin("select count(*) from public.credit_ledger")
@@ -233,6 +239,7 @@ class Compilations(unittest.TestCase):
         self.assertTrue(self.report(tok, a, sa, "planning"), "a day later it is open again")
 
     def test_the_runs_hold_no_path_no_transcript_no_video_and_a_person_reads_only_their_own(self):
+        self.undo_progress()
         cols = {r[0] for r in self.db.as_(None).all("select column_name from information_schema.columns where table_schema = 'public' and table_name = 'compilation_runs'")}
         self.assertEqual(cols, {"id", "owner_id", "project_id", "request_sha256", "state", "matches", "clips", "film_seconds", "error_code", "started_at", "updated_at", "ended_at"})
         self.switch_on(OTHER); self.switch_on(THIRD)
@@ -597,6 +604,7 @@ class Compilations(unittest.TestCase):
 
     # ------------------------------------------------------------------ live step 81 and the rollback
     def test_step_81_pass_after_stop_before_and_the_rollback_restores_device_decide(self):
+        self.undo_progress()
         rows = self.d().execute(STEP.read_text(encoding="utf-8")).fetchall()
         self.assertTrue(rows[0][1].startswith("PASS") and all(r[2] for r in rows), rows)
         self.d().execute(RB.read_text(encoding="utf-8"))

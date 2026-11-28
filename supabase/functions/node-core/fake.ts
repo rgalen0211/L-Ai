@@ -176,8 +176,10 @@ export class FakeNodeWorld implements NodeDb {
   /** compilation build reports (migrations/20261127000300): the accounts with compilations on, and the runs (the SQL is the authority and has its own suite) */
   compilationsOn = new Set<string>();
   runs: { id: number; owner: string; project_id: string; sha: string; state: string; matches: number | null; clips: number | null; film_seconds: number | null; error_code: string | null; started: number }[] = [];
-  async compilationReport(accessHash: string, projectId: string, sha: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null): Promise<number> {
+  async compilationReport(accessHash: string, projectId: string, sha: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null,
+                          progress: { stepDone: number | null; stepTotal: number | null; percent: number | null } | null = null): Promise<number> {
     this.calls.push("node_compilation_report");
+    this.lastProgress = progress;
     const { owner } = this.actor(accessHash);
     if (!this.compilationsOn.has(owner)) throw err("42501", "Compilations are not open for this account yet.");
     if (!["planning", "matching", "building", "done", "failed", "cancelled"].includes(state)) throw err("22023", "That is not a compilation state.");
@@ -196,6 +198,8 @@ export class FakeNodeWorld implements NodeDb {
     active.error_code = state === "failed" ? errorCode : null;
     return active.id;
   }
+  /** the progress the route passed on with the last report (null = none: the 8-argument call) */
+  lastProgress: { stepDone: number | null; stepTotal: number | null; percent: number | null } | null = null;
   /** download plans by owner (the tests fill it), and what the app told about them */
   dlPlans: { owner: string; id: string; request: Record<string, unknown>; state: string; receipt: Record<string, unknown> | null }[] = [];
   async downloadPlans(accessHash: string): Promise<DownloadPlanRow[]> {

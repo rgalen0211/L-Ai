@@ -183,3 +183,69 @@ test('the report route never signs or names an upload (finished compilations sta
   assert.ok(block.length > 500);
   assert.doesNotMatch(block, /signUpload|storage|upload_url/);
 });
+
+// ---- PROGRESS, COUNTS ONLY (migrations/20261128000100, BUILDER 11-27 23:12): step_done, step_total, percent; three whole numbers, only while a build runs
+test('progress: three whole numbers in range reach the database as one set; a report without them makes the 8-argument call', async () => {
+  const { world, signIn, report } = setup();
+  world.addRequest(ALICE, P(1), 'film', REQ);
+  const a = await signIn(ALICE);
+  assert.equal((await report(a, R('planning'))).status, 200);
+  assert.equal(world.lastProgress, null, 'no numbers sent: no progress passed on');
+  assert.equal((await report(a, R('planning', { step_done: 2, step_total: 3, percent: 45 }))).status, 200);
+  assert.deepEqual(world.lastProgress, { stepDone: 2, stepTotal: 3, percent: 45 });
+  assert.equal((await report(a, R('matching', { percent: 60 }))).status, 200, 'percent alone is fine');
+  assert.deepEqual(world.lastProgress, { stepDone: null, stepTotal: null, percent: 60 });
+  assert.equal((await report(a, R('building', { step_done: 0, step_total: 0, percent: 0 }))).status, 200, 'zeros are numbers too');
+  assert.deepEqual(world.lastProgress, { stepDone: 0, stepTotal: 0, percent: 0 });
+  assert.equal((await report(a, R('building', { step_done: 1000, step_total: 1000, percent: 100 }))).status, 200, 'the top of each range');
+});
+
+test('progress: out of range, not whole, a string, step_done without step_total or above it are refused before the database', async () => {
+  const { world, signIn, report } = setup();
+  world.addRequest(ALICE, P(1), 'film', REQ);
+  const a = await signIn(ALICE);
+  assert.equal((await report(a, R('planning'))).status, 200);
+  for (const more of [{ percent: 101 }, { percent: -1 }, { percent: 4.5 }, { percent: '45' }, { step_total: 1001 }, { step_total: -1 }, { step_total: 2.5 },
+                      { step_done: 1 }, { step_done: 4, step_total: 3 }, { step_done: -1, step_total: 3 }, { step_done: 1.5, step_total: 3 }, { step_done: '1', step_total: 3 },
+                      { step_total: true }, { percent: [1] }]) {
+    world.calls.length = 0;
+    const r = await report(a, R('planning', more));
+    assert.equal(r.status, 400, JSON.stringify(more));
+    assert.equal(r.json.error, 'invalid_request');
+    assert.deepEqual(world.calls.filter((c) => c === 'node_compilation_report'), [], 'never reaches the database: ' + JSON.stringify(more));
+  }
+});
+
+test('progress: an end state that carries numbers is refused in words; the same end state without them goes through', async () => {
+  const { world, signIn, report } = setup();
+  world.addRequest(ALICE, P(1), 'film', REQ);
+  const a = await signIn(ALICE);
+  assert.equal((await report(a, R('planning', { step_done: 1, step_total: 2 }))).status, 200);
+  for (const [state, more] of [['done', { percent: 100 }], ['failed', { error_code: 'crash', step_done: 1, step_total: 2 }], ['cancelled', { step_total: 2 }]]) {
+    const r = await report(a, R(state, more));
+    assert.equal(r.status, 400, state);
+    assert.equal(r.json.message, 'Progress is only sent while a build is running.');
+  }
+  assert.equal((await report(a, R('done', { clips: 3 }))).status, 200);
+});
+
+test('progress: a file, a path or a name is still refused; no new key beyond the three', async () => {
+  const { world, signIn, report } = setup();
+  world.addRequest(ALICE, P(1), 'film', REQ);
+  const a = await signIn(ALICE);
+  for (const more of [{ step_name: 'Episode 2.mkv' }, { video: 'x' }, { file_name: 'a' }, { current_file: 'C:/v.mkv' }, { percent_video: 10 }]) {
+    assert.equal((await report(a, R('planning', more))).status, 400, JSON.stringify(more));
+  }
+});
+
+test('the real database layer: with progress the 11-argument call, without it the 8-argument call', async () => {
+  const { NodeSql } = await import('../supabase/functions/node/db.ts');
+  const seen = [];
+  const sql = new NodeSql(async (text, params) => { seen.push([text, params]); return [{ r: 7 }]; });
+  assert.equal(await sql.compilationReport('h'.repeat(64), P(1), SHA, 'planning', null, null, null, null, { stepDone: 2, stepTotal: 3, percent: 45 }), 7);
+  assert.equal(await sql.compilationReport('h'.repeat(64), P(1), SHA, 'planning', null, null, null, null, null), 7);
+  assert.deepEqual(seen, [
+    ['select public.node_compilation_report($1::text, $2::uuid, $3::text, $4::text, $5::int, $6::int, $7::numeric, $8::text, $9::int, $10::int, $11::int) as r', ['h'.repeat(64), P(1), SHA, 'planning', null, null, null, null, 2, 3, 45]],
+    ['select public.node_compilation_report($1::text, $2::uuid, $3::text, $4::text, $5::int, $6::int, $7::numeric, $8::text) as r', ['h'.repeat(64), P(1), SHA, 'planning', null, null, null, null]],
+  ]);
+});

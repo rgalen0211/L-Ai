@@ -40,7 +40,8 @@ export interface NodeDb {
   compilationRequests(accessHash: string): Promise<CompilationRequestRow[]>;
   /** node_compilation_report (BUILDER 11-27, migrations/20261127000300): the person's own computer reports how a compilation build goes, DATA ONLY (a state, counts, seconds, an error code;
    *  never a path, a transcript or a video). For the project's CURRENT request only; one active build per person; returns the run id. Touches no credit. */
-  compilationReport(accessHash: string, projectId: string, requestSha256: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null): Promise<number>;
+  compilationReport(accessHash: string, projectId: string, requestSha256: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null,
+                    progress?: CompilationProgress | null): Promise<number>;
   /** node_compilation_cancel: an upload that failed or was given up. */
   compilationCancel(accessHash: string, id: string): Promise<boolean>;
   /** node_download_plans (NEXT-CONNECT 152): the download plans the person's AI wrote that still wait or run, for THIS computer's person (at most 5, newest first). Data only: reading starts nothing. */
@@ -54,6 +55,8 @@ export interface NodeDb {
 }
 
 /** One saved request, as the database returns it. The router passes on only these five fields. */
+/** Counts-only progress of a running build (migrations/20261128000100): which video or clip of how many, and the overall percent. Never a name, a folder or a path. */
+export interface CompilationProgress { stepDone: number | null; stepTotal: number | null; percent: number | null }
 export interface CompilationRequestRow { project_id: string; title: string; request: Record<string, unknown>; sha256: string; updated_at: string }
 
 /** One download plan, as the database returns it: no owner, no account detail. */

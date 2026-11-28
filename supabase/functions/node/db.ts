@@ -1,7 +1,7 @@
 // The real database layer: every call is a node_* function, run as the role node_runner, which can execute NOTHING else (WORKER's r9_node_draft.sql).
 // No function takes an owner id; the person is resolved inside the database from the token's SHA-256 hash, on every call. The query function is injected
 // (index.ts wires npm:postgres), so this mapping is plain TypeScript and unit-testable. The function names marked REQUESTED are not in the 49033a5 draft yet.
-import type { CompilationRequestRow, CompilationStatus, DownloadPlanRow, EditPendingRow, EditSummaryResult, ExchangeResult, NodeAccount, NodeDb, NodeJob } from "../node-core/types.ts";
+import type { CompilationProgress, CompilationRequestRow, CompilationStatus, DownloadPlanRow, EditPendingRow, EditSummaryResult, ExchangeResult, NodeAccount, NodeDb, NodeJob } from "../node-core/types.ts";
 
 export type Query = (sql: string, params: unknown[]) => Promise<Record<string, unknown>[]>;
 
@@ -38,7 +38,13 @@ export class NodeSql implements NodeDb {
   async retry(accessHash: string, jobId: string, errorCode: string, errorDetail: string | null) { return String(await this.scalar("node_retry", ["text", "uuid", "text", "text"], [accessHash, jobId, errorCode, errorDetail])); }
   compilationRequests(accessHash: string) { return this.scalar<CompilationRequestRow[]>("node_compilation_requests", ["text"], [accessHash]); }
   // migrations/20261127000300_compilations_for_everyone.sql (NOT APPLIED until Ryan applies it, live step 81)
-  async compilationReport(accessHash: string, projectId: string, requestSha256: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null) {
+  // with progress: the 11-argument form (migrations/20261128000100); without: the 8-argument form, so a report with no progress works before and after that migration
+  async compilationReport(accessHash: string, projectId: string, requestSha256: string, state: string, matches: number | null, clips: number | null, filmSeconds: number | null, errorCode: string | null,
+                          progress?: CompilationProgress | null) {
+    if (progress) {
+      return Number(await this.scalar("node_compilation_report", ["text", "uuid", "text", "text", "int", "int", "numeric", "text", "int", "int", "int"],
+                                      [accessHash, projectId, requestSha256, state, matches, clips, filmSeconds, errorCode, progress.stepDone, progress.stepTotal, progress.percent]));
+    }
     return Number(await this.scalar("node_compilation_report", ["text", "uuid", "text", "text", "int", "int", "numeric", "text"], [accessHash, projectId, requestSha256, state, matches, clips, filmSeconds, errorCode]));
   }
   // migrations/20261027000500_download_plans.sql (NOT APPLIED until Ryan applies it)

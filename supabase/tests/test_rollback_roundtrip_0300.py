@@ -62,8 +62,8 @@ def setUpModule():
     """One throwaway server (core.start_pg removes it however the module ends). pre = stub + every migration but this one; first = pre + this one."""
     global _server
     _server = core.start_pg("ryagram-rt-")
-    others = [p for p in core.MIGRATIONS if p.name != MIG.name]
-    assert len(others) == len(core.MIGRATIONS) - 1, "the migration under test is in migrations/"
+    assert MIG in core.MIGRATIONS, "the migration under test is in migrations/"
+    others = core.MIGRATIONS[:core.MIGRATIONS.index(MIG)]   # only the ones BEFORE it: a later migration (20261128000100) builds on it and has its own round trip
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("create database rt_pre")
     with psycopg.connect(_server.get_uri(database="rt_pre"), autocommit=True) as c:

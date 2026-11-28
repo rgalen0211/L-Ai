@@ -36,7 +36,8 @@ union all select 4, 'the computer''s report exists and only the node role (the c
          and not has_function_privilege('service_role', to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text)'), 'execute'), false)
 union all select 5, 'the run reports hold counts only (no path, transcript or video column), a person reads only their own, nobody writes them but the report',
        coalesce(to_regclass('public.compilation_runs') is not null
-         and (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'compilation_runs') = 12
+         and (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'compilation_runs'
+                and column_name not in ('step_done', 'step_total', 'percent')) = 12   -- 20261128000100 adds only these three whole numbers
          and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'compilation_runs' and column_name ~ '(path|url|text|transcript|video|file)')
          and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'compilation_runs' and policyname = 'compilation_runs_owner_read')
          and not has_table_privilege('authenticated', 'public.compilation_runs', 'insert') and not has_table_privilege('anon', 'public.compilation_runs', 'select'), false)
@@ -48,9 +49,11 @@ union all select 7, 'a request keeps the connector''s own rules: only its known 
          and pg_get_functiondef(to_regprocedure('ryagram_private.compilation_request_problem(jsonb)')) like '%Songs are not open in compilations yet%'
          and pg_get_functiondef(to_regprocedure('ryagram_private.compilation_request_problem(jsonb)')) like '%Name 1 to 8 folders.%', false)
 union all select 8, 'a failed build gives one reason from the closed list of eleven, and only Ryagram itself sets stale',
-       coalesce(pg_get_functiondef(to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text)'))
+       coalesce(pg_get_functiondef(coalesce(to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text,integer,integer,integer)'),
+                                              to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text)')))   -- the full form (11 arguments once 20261128000100 is in)
                 like '%codes constant text[] := array[''request_invalid'', ''song_request'', ''folder_not_chosen'', ''folder_missing'', ''folder_empty'', ''folders_overlap'', ''no_speech'', ''not_said'', ''edit_failed'', ''build_failed'', ''crash'']%'
-         and pg_get_functiondef(to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text)')) like '%p_error_code = ''stale'' then%', false)
+         and pg_get_functiondef(coalesce(to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text,integer,integer,integer)'),
+                                       to_regprocedure('public.node_compilation_report(text,uuid,text,text,integer,integer,numeric,text)'))) like '%p_error_code = ''stale'' then%', false)
 union all select 9, 'the desktop app can be given to an account with compilations on (as to a tester or an administrator)',
        coalesce(to_regprocedure('public.request_app_download(uuid,text)') is not null
          and replace(pg_get_functiondef(to_regprocedure('public.request_app_download(uuid,text)')), chr(13), '') like '%or ryagram_private.compilations_on(p_owner)) then%', false)
