@@ -72,8 +72,29 @@
     if (Number.isFinite(Number(run.matches)) && run.matches !== null && run.matches !== undefined) bits.push(`${Number(run.matches)} match${Number(run.matches) === 1 ? '' : 'es'}`);
     if (Number.isFinite(Number(run.clips)) && run.clips !== null && run.clips !== undefined) bits.push(`${Number(run.clips)} clip${Number(run.clips) === 1 ? '' : 's'}`);
     if (run.state === 'done' && Number.isFinite(Number(run.film_seconds)) && run.film_seconds !== null) { const sec = Math.round(Number(run.film_seconds)); bits.push(`${sec} second${sec === 1 ? '' : 's'} long`); };
+    const prog = progressOf(run);
+    if (prog) {      // planning / matching / building with the app's own counts: the step is a video (planning, matching) or a clip (building); only the valid parts are said
+      const parts = [];
+      if (prog.total !== null) parts.push(prog.done === 0 ? 'getting started' : `${W.progress.unit[run.state]} ${prog.done} of ${prog.total}`);
+      if (prog.percent !== null) parts.push(`about ${prog.percent}% overall`);
+      if (parts.length) return `${W.progress.lead[run.state]}: ${parts.join(', ')}.${bits.length ? ` ${bits.join(', ')}, counted on your computer.` : ''}`;
+    }
     return bits.length ? `${base} ${bits.join(', ')}, counted on your computer.` : base;
   }
+
+  // FOR RYAN'S YES: progress is COUNTS ONLY (step_done of step_total, percent): whole numbers the app reported, never a name, a folder or a word; each part is shown only when it is a whole number in range, otherwise it is ignored.
+  // Only while a run is planning / matching / building and belongs to the current request: done, failed, cancelled, stale, unknown states and "no run" never show progress.
+  // The server columns arrive with BUILDER's migration 20261128000100; until then every run has none of the three and the lines are unchanged.
+  const whole = (v, lo, hi) => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
+  function progressOf(rep) {
+    if (!rep || typeof rep.state !== 'string' || !['planning', 'matching', 'building'].includes(rep.state) || rep.current === false) return null;
+    const total = whole(rep.step_total, 1, 1000) ? rep.step_total : null;      // a total of 0 says nothing to count, so no pair
+    const done = total !== null && whole(rep.step_done, 0, total) ? rep.step_done : null;
+    const percent = whole(rep.percent, 0, 100) ? rep.percent : null;
+    if (done === null && percent === null) return null;      // no step without its number: a total alone is not a step
+    return { done, total: done === null ? null : total, percent };
+  }
+  const progressPercent = run => { const p = progressOf(run); return p && p.percent !== null ? p.percent : null; };
 
   const WORDS = {
     // FOR RYAN'S YES: intro, local (last sentence), waiting, saved, noApp, folderAsk, folderNote, songRow, song_request, stale, door are new honest-launch words.
@@ -86,6 +107,8 @@
     songRow: 'This request asks for a song; Compilations do not make songs. Save a new one without the song.',
     door: 'Compilations are not open for this account yet. Nothing was saved.',
     earlier: 'This is for an earlier version of your request. Save again to start over.',
+    // FOR RYAN'S YES: the progress words (counts only); the lead is the state's own sentence without its full stop
+    progress: { lead: { planning: 'The Ryagram app is planning your film', matching: 'The Ryagram app is finding the matches', building: 'The Ryagram app is making your film' }, unit: { planning: 'video', matching: 'video', building: 'clip' }, bar: 'How far the Ryagram app has got with your film, as a percent of the whole' },
     states: { planning: 'The Ryagram app is planning your film.', matching: 'The Ryagram app is finding the matches on your computer.', building: 'The Ryagram app is making your film on your computer.', done: 'Done. Your film is on your computer.', failed: 'It did not finish.', cancelled: 'Stopped.' },
     // the closed list of reasons the app can report (FACES 08:16, docs/COMPILATION-REPORT-1127.md); anything else reads as the generic line
     errors: { request_invalid: 'The request could not be read. Save it again, or ask your AI to write it again.', song_request: 'Compilations do not make songs. Save a new request without the song.', folder_not_chosen: 'A folder in your request is not chosen on your computer yet. Open the Ryagram app and choose where that folder is.', folder_missing: 'A folder you chose is not there any more. Open the Ryagram app and choose it again.', folder_empty: 'A folder you chose has no videos in it. Choose the folder that holds your videos.', folders_overlap: 'Two of your folders hold the same videos. Choose folders that do not overlap.', no_speech: 'No speech was found in your videos. Try videos where people talk.', not_said: 'Your videos do not say these words. Try other words, or add more folders.', edit_failed: 'The matches could not be turned into a film. Try again; if it happens twice, use Contact at the bottom of the page.', build_failed: 'The film could not be built. Nothing left your computer. Try again in the Ryagram app.', stale: 'The build stopped reporting.', crash: 'Something went wrong on your computer. Nothing left it. Close the app, open it and try again.' },
@@ -163,7 +186,8 @@
           haveApp === false && !rows.some(r => r && r.run && typeof r.run.state === 'string') ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp) : null,      // no get-app link: that page is for invited testers only (FACES 11-27)
           rows.length ? h('ul', { class: 'project-list comp-rows' }, rows.map(r => h('li', {},
             h('strong', {}, cut(r.title || 'A compilation', 120)), h('span', { class: 'meta' }, ` ${requestLine(r, date)}`),
-            h('p', { class: 'form-note comp-run', role: 'status' }, isSong(r) ? WORDS.songRow : runLine(r.run, WORDS))))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
+            h('p', { class: 'form-note comp-run', role: 'status' }, isSong(r) ? WORDS.songRow : runLine(r.run, WORDS)),
+            isSong(r) || progressPercent(r.run) === null ? null : h('progress', { class: 'comp-progress', max: 100, value: progressPercent(r.run), 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': progressPercent(r.run), 'aria-label': WORDS.progress.bar })))) : h('p', { class: 'form-note' }, 'No compilation requests yet. Start one on the first tab.')].filter(Boolean));
       }
       await drawRequests();
 
@@ -176,5 +200,5 @@
     return { pageView };
   }
 
-  window.ryagramCompilations = { NAME, PLACE, isPlace, LIMITS, WORDS, folderList, buildRequest, requestLine, runLine, isSong, doorRefusal, create };
+  window.ryagramCompilations = { progressOf, NAME, PLACE, isPlace, LIMITS, WORDS, folderList, buildRequest, requestLine, runLine, isSong, doorRefusal, create };
 })();

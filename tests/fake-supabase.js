@@ -781,8 +781,16 @@
       my_compilation_get({ p_project }) {
         const r = db.compilation_requests.find(x => x.project_id === p_project);
         if (!r) return { data: null, error: null };
-        const st = typeof location !== 'undefined' ? (/[?&]comprun=([a-z]+)/.exec(location.search || '') || [])[1] : null;
-        return { data: { request: r.request, sha256: r.request_sha256, updated_at: r.updated_at, run: st ? { state: st, matches: st === 'planning' ? null : 7, clips: st === 'done' ? 7 : null, film_seconds: st === 'done' ? 41 : null, error_code: st === 'failed' ? ((/[?&]compcode=([a-z_]+)/.exec(location.search || '') || [])[1] || 'not_said') : null } : null }, error: null };
+        let st = typeof location !== 'undefined' ? (/[?&]comprun=([a-z]+)/.exec(location.search || '') || [])[1] : null;
+        // ?compstep=<done>:<total>:<percent> (a field may be empty or null), or <state>:<done>:<total>:<percent> to set the state too; ?compstep=bad|over|dec|neg|big are bad-value variants. Mock of the progress BUILDER's migration 20261128000100 will add.
+        let steps = {};
+        const cs = typeof location !== 'undefined' ? (/[?&]compstep=([A-Za-z0-9_:.-]+)/.exec(location.search || '') || [])[1] : null;
+        if (cs) {
+          const bad = { bad: { step_done: 'two', step_total: '3', percent: '45%' }, over: { step_done: 5, step_total: 3, percent: 120 }, dec: { step_done: 2.5, step_total: 3, percent: 45.5 }, neg: { step_done: -1, step_total: 3, percent: -5 }, big: { step_done: 1, step_total: 5000, percent: 101 } };
+          if (bad[cs]) steps = bad[cs];
+          else { const f = cs.split(':'); if (f.length === 4) st = f.shift(); const num = v => (v === undefined || v === '' || v === 'null' ? null : Number(v)); steps = { step_done: num(f[0]), step_total: num(f[1]), percent: num(f[2]) }; }
+        }
+        return { data: { request: r.request, sha256: r.request_sha256, updated_at: r.updated_at, run: st ? { ...steps, state: st, matches: st === 'planning' ? null : 7, clips: st === 'done' ? 7 : null, film_seconds: st === 'done' ? 41 : null, error_code: st === 'failed' ? ((/[?&]compcode=([a-z_]+)/.exec(location.search || '') || [])[1] || 'not_said') : null } : null }, error: null };
       },
       request_final_render({ p_preview_job, p_idempotency_key }) {
         if (!/^[A-Za-z0-9_-]{8,100}$/.test(p_idempotency_key || '')) return fail('The idempotency key must be 8 to 100 letters, digits, - or _.');

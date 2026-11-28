@@ -14,6 +14,12 @@ CODES = {'request_invalid': 'could not be read', 'song_request': 'do not make so
          'folders_overlap': 'same videos', 'no_speech': 'No speech', 'not_said': 'do not say these words', 'edit_failed': 'turned into a film', 'build_failed': 'Nothing left your computer', 'crash': 'went wrong'}
 RUNS = [('waiting', None, 'Nothing is made until the Ryagram app opens for you'), ('planning', 'planning', 'planning your film'), ('matching', 'matching', '7 matches'), ('building', 'building', 'making your film'),
         ('done', 'done', '7 matches, 7 clips, 41 seconds long'), ('cancelled', 'cancelled', 'Stopped')] + [('failed-' + c, 'failed&compcode=' + c, w) for c, w in CODES.items()]
+# (Ryan 11-27) progress, counts only: the line says the step and the percent, a progress bar sits under it; bad values show today's line and no bar; finished and failed runs show none
+PROG = [('prog-planning', 'planning&compstep=2:3:45', 'planning your film: video 2 of 3, about 45% overall', 45), ('prog-matching', 'matching&compstep=2:3:45', 'finding the matches: video 2 of 3, about 45% overall', 45),
+        ('prog-building', 'building&compstep=3:4:80', 'making your film: clip 3 of 4, about 80% overall', 80), ('prog-start', 'building&compstep=0:4:0', 'getting started, about 0% overall', 0),
+        ('prog-pair', 'planning&compstep=1:3:', 'video 1 of 3.', None), ('prog-pct', 'matching&compstep=::60', 'about 60% overall', 60),
+        ('prog-bad', 'planning&compstep=bad', 'planning your film.', None), ('prog-over', 'building&compstep=over', 'making your film on your computer.', None),
+        ('prog-done', 'done&compstep=2:3:45', 'Done. Your film is on your computer.', None), ('prog-failed', 'failed&compstep=2:3:45', 'It did not finish.', None), ('prog-cancelled', 'cancelled&compstep=2:3:45', 'Stopped.', None)]
 PATHISH = re.compile('[A-Za-z]:[' + BS + BS + '/]')
 
 
@@ -109,6 +115,23 @@ with sync_playwright() as pw:
             check(p.evaluate("document.querySelector('.comp-run').getAttribute('role')") == 'status', f'{w} {name}: run line is a live status')
             width_ok(p, name)
             p.screenshot(path=str(OUT / f'run-{name}-{w}.png')); check(not errs, f'{w} {name}: no page errors'); c.close()
+        for name, q, words, pct in PROG:
+            c, p, errs = open_page(b, w, f'&compon&comprun={q}')
+            save(p); p.wait_for_timeout(1500)
+            if not p.is_visible('.comp-run'):
+                p.locator('button.flip-tab').nth(1).click(); p.wait_for_timeout(300)
+            text = p.inner_text('.comp-run')
+            check(words.lower() in text.lower(), f'{w} {name}: says "{words}" -> {text[:90]!r}')
+            check(not re.search('NaN|undefined|null|bad|two|%%', text.replace('%', '')) and not PATHISH.search(text), f'{w} {name}: no raw or broken value, no path')
+            bars = p.evaluate("[...document.querySelectorAll('.comp-rows progress')].map(e=>[e.getAttribute('aria-valuenow'),e.getAttribute('aria-valuemin'),e.getAttribute('aria-valuemax'),!!e.getAttribute('aria-label'),e.max,e.value])")
+            if pct is None: check(not bars, f'{w} {name}: no progress bar {bars}')
+            else: check(len(bars) == 1 and bars[0] == [str(pct), '0', '100', True, 100, pct], f'{w} {name}: one accessible bar at {pct}% {bars}')
+            check(p.evaluate("!document.querySelector('.comp-run progress') && !document.querySelector('[aria-live=assertive]')"), f'{w} {name}: bar is not inside the live status line, nothing assertive')
+            over = p.evaluate("(()=>{const card=document.querySelector('.comp-rows li').getBoundingClientRect();return [...document.querySelectorAll('.comp-rows li > *')].filter(e=>e.offsetParent).map(e=>{const r=e.getBoundingClientRect();return Math.round(Math.max(card.left-r.left,r.right-card.right))}).filter(d=>d>1)})()")
+            check(not over, f'{w} {name}: line and bar stay inside the row card {over}')
+            check(p.evaluate('document.documentElement.scrollWidth') <= w, f'{w} {name}: no sideways scroll')
+            small = p.evaluate(SMALL); check(not small, f'{w} {name}: controls still 44 px {small}')
+            p.screenshot(path=str(OUT / f'{name}-{w}.png')); check(not errs, f'{w} {name}: no page errors'); c.close()
         c, p, errs = open_page(b, w, '')
         check('coming soon' in p.inner_text('body').lower(), f'{w} switch off: Coming soon'); width_ok(p, 'switch off')
         p.screenshot(path=str(OUT / f'off-{w}.png')); c.close()

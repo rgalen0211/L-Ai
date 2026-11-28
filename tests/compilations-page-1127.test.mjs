@@ -126,3 +126,68 @@ test('WEB fold3 (FACES honest launch words; WORKER 11:49): no promise of a film,
   assert.match(C.buildRequest({ phrase: 'x', folders: 'a,b,c,d,e,f,g,h,i' }).error, /at most 8/);
   assert.ok(pg.includes('title: title.value'));
 });
+test('PROGRESS (Ryan 11-27, counts only): planning / matching / building say video or clip N of M and a percent; partial values say only what is valid; bad values are ignored', () => {
+  const W = C.WORDS, run = o => C.runLine(o, W);
+  assert.equal(run({ state: 'planning', step_done: 2, step_total: 3, percent: 45 }), 'The Ryagram app is planning your film: video 2 of 3, about 45% overall.');
+  assert.equal(run({ state: 'matching', step_done: 2, step_total: 3, percent: 45 }), 'The Ryagram app is finding the matches: video 2 of 3, about 45% overall.');
+  assert.equal(run({ state: 'building', step_done: 3, step_total: 4, percent: 80 }), 'The Ryagram app is making your film: clip 3 of 4, about 80% overall.');
+  // the pair alone, the percent alone, neither
+  assert.equal(run({ state: 'planning', step_done: 1, step_total: 3 }), 'The Ryagram app is planning your film: video 1 of 3.');
+  assert.equal(run({ state: 'building', percent: 80 }), 'The Ryagram app is making your film: about 80% overall.');
+  assert.equal(run({ state: 'planning', step_done: null, step_total: null, percent: null }), W.states.planning);
+  assert.equal(run({ state: 'matching' }), W.states.matching);
+  // step_done 0 says getting started, never "video 0 of M"
+  assert.equal(run({ state: 'planning', step_done: 0, step_total: 3, percent: 0 }), 'The Ryagram app is planning your film: getting started, about 0% overall.');
+  assert.ok(!/video 0|clip 0/.test(run({ state: 'building', step_done: 0, step_total: 4 })));
+  // the last step and the edges are valid
+  assert.match(run({ state: 'building', step_done: 4, step_total: 4, percent: 100 }), /clip 4 of 4, about 100% overall\.$/);
+  assert.match(run({ state: 'planning', step_done: 0, step_total: 1000, percent: 0 }), /getting started/);
+  // counts that were already shown stay, after the progress
+  assert.equal(run({ state: 'matching', matches: 7, step_done: 2, step_total: 3, percent: 45 }), 'The Ryagram app is finding the matches: video 2 of 3, about 45% overall. 7 matches, counted on your computer.');
+  // bad values are ignored field by field: strings, decimals, negatives, > 100, done > total, total 0 or > 1000, booleans, NaN, objects
+  const bad = [{ step_done: '2', step_total: '3', percent: '45' }, { step_done: 2.5, step_total: 3, percent: 45.5 }, { step_done: -1, step_total: 3, percent: -5 }, { step_done: 5, step_total: 3, percent: 101 },
+    { step_done: 1, step_total: 0, percent: 1000 }, { step_done: 1, step_total: 1001, percent: NaN }, { step_done: true, step_total: true, percent: true }, { step_done: {}, step_total: [], percent: Infinity }, { step_done: 1 }];
+  for (const b of bad) {
+    const line = run({ state: 'planning', ...b });
+    assert.equal(line, W.states.planning, JSON.stringify(b));
+    assert.ok(!/NaN|undefined|null|Infinity|object/.test(line));
+  }
+  assert.equal(run({ state: 'planning', step_done: 5, step_total: 3, percent: 45 }), 'The Ryagram app is planning your film: about 45% overall.');      // done > total: the pair goes, the valid percent stays
+  assert.equal(run({ state: 'building', step_done: 2, step_total: 4, percent: 150 }), 'The Ryagram app is making your film: clip 2 of 4.');
+  assert.equal(run({ state: 'planning', step_total: 3, percent: 10 }), 'The Ryagram app is planning your film: about 10% overall.');      // a total with no done is not a step
+});
+test('PROGRESS: never for done / failed / cancelled / stale / unknown states, an earlier run, or no run; the progress bar needs a valid percent', () => {
+  const W = C.WORDS, full = { step_done: 2, step_total: 3, percent: 45 };
+  for (const state of ['done', 'failed', 'cancelled', 'stale', 'zzz', 'Planning', '']) {
+    const line = C.runLine({ state, error_code: 'not_said', ...full }, W);
+    assert.ok(!/of 3|45%|overall|getting started/.test(line), state + ': ' + line);
+    assert.equal(C.progressOf({ state, ...full }), null, state);
+  }
+  assert.equal(C.runLine({ state: 'planning', current: false, ...full }, W), W.earlier);
+  assert.equal(C.progressOf({ state: 'planning', current: false, ...full }), null);
+  for (const none of [null, undefined, {}, { state: 5, ...full }]) { assert.equal(C.runLine(none, W), W.waiting); assert.equal(C.progressOf(none), null); }
+  assert.deepEqual(JSON.parse(JSON.stringify(C.progressOf({ state: 'building', ...full }))), { done: 2, total: 3, percent: 45 });
+  assert.equal(C.progressOf({ state: 'building', step_done: 1, step_total: 3 }).percent, null);
+  const pg = read('assets/app-compilations.js');
+  assert.ok(pg.includes("h('progress', { class: 'comp-progress', max: 100, value: progressPercent(r.run)") && pg.includes("'aria-label': WORDS.progress.bar") && pg.includes("'aria-valuenow'"));
+  assert.ok(pg.includes("isSong(r) || progressPercent(r.run) === null ? null : h('progress'"), 'the bar shows only for a valid percent');
+  assert.ok(!/aria-live['"]?\s*[:=]\s*['"]assertive/.test(pg));
+});
+test('PROGRESS: counts only: no file name, folder, path or word from the run ever reaches a line, even if the app sent extras', () => {
+  const W = C.WORDS, BS = String.fromCharCode(92);
+  const extras = { current_file: 'Secret Interview.mp4', folder: 'Interviews', word: 'people', path: 'C:' + BS + 'Users' + BS + 'me', title: 'x', step_name: 'cutting Secret Interview.mp4' };
+  for (const state of ['planning', 'matching', 'building']) {
+    const line = C.runLine({ state, step_done: 2, step_total: 3, percent: 45, ...extras }, W);
+    assert.ok(!/Secret|Interview|\.mp4|people|Users|cutting|:[\\/]/.test(line), line);
+    assert.match(line, /^The Ryagram app is (planning your film|finding the matches|making your film): (video|clip) 2 of 3, about 45% overall\.$/);
+  }
+  assert.ok(!/upload|queued|spinner|minutes|soon/i.test(JSON.stringify(W.progress)));
+});
+test('PROGRESS: the mock, the stamp pair and the note: the progress columns are not in the current server migration (FOR RYAN YES)', () => {
+  const m = read('tests/fake-supabase.js');
+  assert.ok(m.includes('compstep'));
+  const doc = read('docs/compilations-progress-page-1127.md');
+  assert.ok(doc.includes("FOR RYAN'S YES") && doc.includes('20261128000100') && doc.includes('step_done') && doc.includes('step_total') && doc.includes('percent'));
+  const html = read('app/index.html');
+  assert.match(html, /app-compilations\.js\?v=20261127r1l/);
+});
