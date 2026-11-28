@@ -68,9 +68,15 @@ test('MUST FAIL: the code never reads the answer or anyone\'s guess, asks for no
 test('the page: noindex, hidden unless gamePhone is on, the scripts in order, no inline script, no outside script, no connections allowed', () => {
   const html = read('game-phone/index.html');
   assert.match(html, /<meta name="robots" content="noindex, nofollow">/); assert.match(html, /<section id="not-available" aria-labelledby="not-available-title">\s*<h1 id="not-available-title">This page is not available yet\.<\/h1>/);   // GAMES 11-19: the off state has a heading and the 404 page's help list (tests/game-offstate-1119.test.mjs) assert.match(html, /<div id="game-phone" hidden><\/div>/);
-  assert.match(html, /connect-src 'none'/); assert.match(html, /form-action 'none'/);
-  const at = n => html.indexOf(`src="/assets/${n}`); assert.ok(at('ryagram-config.js') > 0 && at('ryagram-config.js') < at('game-tv-sample.js') && at('game-tv-sample.js') < at('game-phone.js'));
-  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(html) && !/<script[^>]*src="https?:/.test(html)); assert.match(html, /<a href="\/ai-content\/">AI content<\/a>/);
+  // GAMES 11-27: the live room (switch `games`) reaches ONLY the project's own Supabase (https + wss, for Realtime broadcast); no other connection, no other outside script.
+  assert.match(html, /form-action 'none'/);
+  const csp = /Content-Security-Policy" content="([^"]*)"/.exec(html)[1];
+  assert.deepEqual(/connect-src ([^;]*)/.exec(csp)[1].trim().split(/\s+/), ['https://jxtkfishqfxuptwjzczz.supabase.co', 'wss://jxtkfishqfxuptwjzczz.supabase.co']);
+  const at = n => html.indexOf(`src="/assets/${n}`); assert.ok(at('ryagram-config.js') > 0 && at('ryagram-config.js') < at('game-tv-sample.js') && at('game-tv-sample.js') < at('game-room.js') && at('game-room.js') < at('game-phone-live.js') && at('game-phone-live.js') < at('game-phone.js'));
+  const outside = [...html.matchAll(/<script[^>]*src="(https?:[^"]*)"[^>]*>/g)];
+  assert.equal(outside.length, 1, 'one outside script only: the pinned supabase-js');
+  assert.equal(outside[0][1], 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js'); assert.match(outside[0][0], /integrity="sha384-[A-Za-z0-9+/=]+" crossorigin="anonymous"/);
+  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(html)); assert.match(html, /<a href="\/ai-content\/">AI content<\/a>/);
   assert.match(html, /game-phone\.css\?v=/); assert.match(read('assets/game-phone.css'), /font-size:16px/, 'inputs are 16 px so a phone does not zoom');
 });
 

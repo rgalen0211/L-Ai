@@ -204,20 +204,21 @@ body:has(.home-films) footer{margin-top:8px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-card-body .meta{margin:0 0 6px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head{margin:0 0 8px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .site-section-head a{min-height:44px}
-:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .scroll-panel{max-height:min(22vh,176px)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .scroll-panel{max-height:none;overflow:visible;padding-right:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-thumb img{object-fit:contain;object-position:center}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .scroll-panel{max-height:min(26vh,208px)}
-:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:repeat(auto-fill,minmax(min(420px,100%),1fr))}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-cards h2{display:none}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card:first-child{min-height:0;padding:24px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card-list{gap:12px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .dept-card{padding:24px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-more .credit-balance{margin:0}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-more .home-links{margin:12px 0 0}
-@media(max-width:700px){:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .copy{padding-block:8px 64px}:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .lede{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .card{padding:24px 24px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .inner{gap:14px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .meta{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:1fr}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .scroll-panel,:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .scroll-panel{max-height:min(24vh,200px)}}
+@media(max-width:700px){:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .copy{padding-block:8px 64px}:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .lede{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .card{padding:24px 24px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .inner{gap:14px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .meta{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:1fr}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .scroll-panel{max-height:min(24vh,200px)}}
 #library .home-films .site-section-head h2,#library .home-more h2{margin-top:0}
 /* Version page (Ryan 11-20 amendment 2): a short band, slim key facts, the template picker and the own-data pointer on one row, tight step cards; every section within 1.4 screens (desktop) and 1.8 (phone) */
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero{padding:8px 28px 12px;margin-bottom:10px}
-:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:32px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:40px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero h1{margin:0}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .meta{margin:0}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{margin-bottom:10px;gap:12px}

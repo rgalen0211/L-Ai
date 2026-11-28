@@ -170,7 +170,7 @@ with sync_playwright() as pw:
             if name == 'Home':
                 check(p.locator('.flip-tab').count() == 3, f'{name} {kind}: the home page is three sections ({p.locator(".flip-tab").count()})')
                 check(p.evaluate("(() => { const b = document.querySelector('.hero .button.primary'), r = b.getBoundingClientRect(); const s = document.querySelector('#start-new .button.primary'), q = s.getBoundingClientRect(); const f = document.querySelector('.flip-bar').getBoundingClientRect(); return r.bottom <= innerHeight && q.bottom <= innerHeight && f.top < innerHeight })()"), f'{name} {kind}: the primary button, Start a new film and the tab row are on the first screen')
-                check(p.evaluate("getComputedStyle(document.querySelector('.home-films .scroll-panel')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: Your films scrolls in its own panel')
+                check(p.evaluate("(() => { const s = document.querySelector('.home-films .scroll-panel'); return getComputedStyle(s).overflowY === 'visible' && s.scrollHeight <= s.clientHeight + 1 })()"), f'{name} {kind}: Your films shows whole tiles with no inner scroll box (Ryan 11-26)')
                 check(p.evaluate("document.querySelector('.hero').getBoundingClientRect().height") <= h_ * 0.4, f'{name} {kind}: the parallax hero is short')
                 check(p.locator('.hero [data-parallax]').count() >= 1, f'{name} {kind}: the parallax layers are still there')
                 for i in range(3):
