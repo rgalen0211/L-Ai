@@ -1156,6 +1156,7 @@ def recipe_stem(body: dict) -> str:
 
 # ---------------------------------------------------------------------------------------------------- the page
 
+# TODO(FACES, Ryan finding 1): the manual maker (sections 1-3 below) stays as is here; whether to collapse it behind "Make a film by hand (advanced)" (class="paste"/"advanced" in the kit) is FACES' decision.
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Desktop maker</title><link rel="stylesheet" href="/maker.css"></head>
@@ -1212,24 +1213,140 @@ PAGE = """<!doctype html>
 </main><script src="/maker.js"></script></body></html>
 """
 
-CSS = """:root{--ink:#1f2a2a;--muted:#4a5656;--line:#cfd6d3;--brand:#175c52;--paper:#fff;--bg:#fbfaf7;--bad:#9b2c2c;--soft:#f1f4f2}
-@media(prefers-color-scheme:dark){:root{--ink:#e8eeec;--muted:#b4c0bc;--line:#3b4744;--brand:#6fd1bd;--paper:#1b2321;--bg:#121817;--bad:#ff9b9b;--soft:#222c2a}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,Segoe UI,Arial,sans-serif}
-main{max-width:860px;margin:0 auto;padding:16px 20px 60px}h1{margin:.4em 0 .2em}h2{margin:1.4em 0 .4em;font-size:1.15rem}
-.banner{background:#fff3cd;color:#5a4500;border:1px solid #e3c766;border-radius:8px;padding:8px 12px;margin:0}.intro,.note{color:var(--muted)}.note{margin:.3em 0;font-size:.92rem}
-label{display:block;font-weight:700;margin:.8em 0 .25em}select,textarea,input{width:100%;max-width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);min-height:44px}
-textarea{font-family:ui-monospace,Consolas,monospace;font-size:.9rem}
-.button{font:inherit;font-weight:700;min-height:44px;padding:8px 22px;border-radius:999px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer}
-.button.primary{background:var(--brand);color:var(--paper)}.button:disabled{opacity:.5;cursor:not-allowed}.button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
-.slot{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}.slot h3{margin:0 0 4px;font-size:1rem}.slot ul{margin:6px 0;padding-left:20px}.slot li{margin:2px 0;word-break:break-all}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
-video{width:100%;max-height:60vh;background:#000;border-radius:10px}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}.question textarea{min-height:76px}.warn{border:1px solid #d4a017;background:rgba(212,160,23,.12);border-radius:10px;padding:10px 14px;margin:10px 0}.slot.drop-over{outline:3px dashed var(--brand);outline-offset:3px;background:var(--soft)}.drop-note{margin:6px 0}.drop-note ul{list-style:none;padding:0}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
-.panel dt{font-weight:700}.panel dd{margin:0 0 6px}.log{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:8px 10px;max-height:240px;overflow:auto}
-.logbox{border:1px solid var(--line);border-radius:12px;padding:4px 16px 10px;margin:12px 0;background:var(--paper)}.logbox h2{margin:.6em 0 .2em}.logswitch{display:flex;align-items:center;gap:10px;font-weight:400;min-height:44px}.logswitch input{width:auto;min-height:0;margin:0}
-.paste{margin:14px 0}.paste summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}code{background:var(--soft);padding:1px 5px;border-radius:5px}
-a{color:var(--brand);text-underline-offset:.15em}
-.code{display:inline-block;font:700 1.6rem/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;background:var(--soft);border:1px solid var(--line);padding:.35em .6em;border-radius:8px;margin:.2em 0}
-@media(max-width:600px){main{padding:12px}}
+CSS = """/* RYAGRAM HOUSE STYLE FOR THE DESKTOP APP PAGE (WEB, 2026-11-27).
+   One self-contained file: no imports, no external URLs, no images, no font files (system fonts only).
+   Taken from the live site's assets/ryagram-ds.css (origin/main 079350f8); the doc docs/house-style-for-app-1127.md lists the file:line of every token.
+   Unlike the site sheet it is NOT scoped under body.ryagram-ds.ryagram-look: it styles plain elements and the app page's existing class names,
+   so the app page only has to replace its stylesheet (and drop the old green rules). Dark only, like the site. */
+
+:root{
+  color-scheme:dark;
+  /* colour (site: ryagram-ds.css 11-17) */
+  --bg:#0b0c11;--bg-2:#10121a;--paper:#12141c;--soft:#1a1c26;
+  --ink:#f4f3ef;--ink-2:#c9c8c2;--muted:#9a99a3;--faint:#85858f;
+  --line:rgba(255,255,255,.09);--line-2:rgba(255,255,255,.16);--line-strong:rgba(255,255,255,.28);
+  --accent:#ff8a3d;--accent-2:#ffb27a;--accent-ink:#1a1008;--glow:rgba(255,138,61,.28);
+  --link:#9cc0f2;--ok:#8fe3cf;--warn:#f0c05a;--bad:#ffb4a8;
+  /* spacing, 8 pt scale (site line 19) */
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;--s8:64px;
+  /* type (site 23-25): the site's serif for headings, system sans for text */
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  --t-h1:clamp(2rem,4.2vw,3rem);--t-h2:clamp(1.5rem,2.6vw,2rem);--t-h3:1.25rem;--t-body:1rem;--t-small:.875rem;--t-caption:.75rem;
+  /* surfaces (site 27-32) */
+  --radius:20px;--radius-sm:12px;--radius-xs:8px;
+  --shadow-1:0 1px 0 rgba(255,255,255,.05) inset,0 8px 24px rgba(0,0,0,.35);
+  --shadow-2:0 1px 0 rgba(255,255,255,.08) inset,0 24px 64px rgba(0,0,0,.5);
+  --surface:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+  --surface-2:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.03));
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;color:var(--ink);font:400 var(--t-body)/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:clip;
+  background:radial-gradient(1200px 600px at 20% -10%,rgba(255,138,61,.08),transparent 60%),radial-gradient(900px 500px at 100% 0,rgba(120,150,255,.07),transparent 55%),var(--bg)}
+main{max-width:860px;margin:0 auto;padding:var(--s5) var(--s5) var(--s8)}
+img,video{max-width:100%}
+video{width:100%;max-height:60vh;background:#000;border-radius:var(--radius-sm)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+::placeholder{color:var(--faint)}
+a{color:var(--link);text-underline-offset:.15em}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ---- type */
+h1{font:600 var(--t-h1)/1.1 var(--serif);letter-spacing:-.02em;margin:var(--s3) 0 var(--s4)}
+h2{font:600 var(--t-h2)/1.2 var(--serif);letter-spacing:-.015em;margin:var(--s6) 0 var(--s3)}
+h3{font:650 var(--t-h3)/1.3 var(--sans);letter-spacing:-.01em;margin:0 0 var(--s2)}
+.intro,.lede{font-size:1.125rem;line-height:1.6;color:var(--ink-2);max-width:42em}
+.note,.small,.meta{font-size:var(--t-small);color:var(--muted);margin:var(--s2) 0}
+.eyebrow{font-size:var(--t-caption);letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2);margin:0 0 var(--s3);font-weight:600}
+code{font-family:var(--mono);font-size:.9em;background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px}
+
+/* ---- buttons (site 100-110): pill, glossy; primary = orange gradient + the soft glow */
+.button{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:48px;padding:0 var(--s5);border-radius:999px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);font:600 var(--t-small)/1 var(--sans);text-decoration:none;cursor:pointer;box-shadow:var(--shadow-1);transition:transform .25s var(--ease),border-color .25s var(--ease),box-shadow .25s var(--ease)}
+.button::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.22) 48%,transparent 66%);transform:translateX(-120%);transition:transform .7s var(--ease);pointer-events:none}
+.button:hover{transform:translateY(-1px);border-color:var(--line-strong);text-decoration:none}
+.button:hover::after{transform:translateX(120%)}
+.button.primary{background-color:#ff8a3c;background-image:linear-gradient(180deg,#ffa05c,#ff7a26);border-color:rgba(255,200,150,.55);color:var(--accent-ink);box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 10px 30px var(--glow)}
+.button.primary:hover{filter:brightness(1.06)}
+.button.secondary{background:var(--surface-2);border-color:var(--line-2);color:var(--ink)}
+.button.small{min-height:44px;padding:0 var(--s4)}
+.button.quiet{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.button.danger{background:linear-gradient(180deg,#c24a4a,#a83a3a);border-color:rgba(255,160,160,.4);color:#fff}
+.button:disabled,.button[disabled],.button[aria-disabled=true]{opacity:.55;cursor:not-allowed;transform:none;filter:none}
+.button:disabled::after,.button[disabled]::after{display:none}
+.row{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center}
+.actions{display:flex;gap:var(--s4);flex-wrap:wrap;margin:var(--s3) 0}
+
+/* ---- cards and panels (site 115): .logbox is the app page's current card; .slot is a file slot */
+.card,.logbox,.slot,.panel{position:relative;padding:var(--s5);border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow-1);margin:var(--s4) 0}
+.logbox h2,.card h2{margin-top:0}
+.slot{border-radius:var(--radius-sm);padding:var(--s4) var(--s5)}
+.slot h3{font-size:1rem;margin:0 0 var(--s1)}
+.slot ul{margin:var(--s2) 0;padding-left:20px}.slot li{margin:2px 0;word-break:break-all}
+.slot.drop-over{outline:3px dashed var(--accent);outline-offset:3px;background:var(--surface-2)}
+.panel dt{font-weight:700}.panel dd{margin:0 0 var(--s2);color:var(--ink-2)}
+.log{font:.85rem/1.5 var(--mono);white-space:pre-wrap;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:var(--radius-xs);padding:var(--s2) var(--s3);max-height:240px;overflow:auto;color:var(--ink-2)}
+.code{display:inline-block;font:700 1.6rem/1.2 var(--mono);letter-spacing:.12em;background:rgba(0,0,0,.28);border:1px solid var(--line-2);padding:.35em .6em;border-radius:var(--radius-xs);margin:.2em 0}
+
+/* ---- form fields (site 137): 48 px tall, dark well, orange focus ring */
+label{display:block;font-weight:650;margin:var(--s4) 0 var(--s2);color:var(--ink)}
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),textarea,select{width:100%;max-width:100%;min-height:48px;padding:var(--s3) var(--s4);border-radius:var(--radius-sm);border:1px solid var(--line-2);background:rgba(0,0,0,.28);color:var(--ink);font:inherit}
+select{appearance:auto}
+select option{background:var(--bg-2);color:var(--ink)}
+textarea{font-family:var(--mono);font-size:.9rem;min-height:96px}
+.question textarea{min-height:76px}
+input:not([type=checkbox]):not([type=radio]):focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-color:var(--accent)}
+input:disabled,textarea:disabled,select:disabled{opacity:.55;cursor:not-allowed}
+/* checkboxes: a 24 px box in the accent colour inside a 44 px-high row */
+.logswitch,.check{display:flex;align-items:center;gap:var(--s3);min-height:44px;font-weight:400;margin:var(--s1) 0;cursor:pointer}
+input[type=checkbox],input[type=radio]{appearance:auto;accent-color:var(--accent);width:24px;height:24px;min-height:0;margin:0;flex:0 0 auto;cursor:pointer}
+
+/* ---- status and alert text (never colour alone: keep the words) */
+.ok{color:var(--ok)}
+.problems{color:var(--bad);margin:var(--s2) 0}
+.warn{border:1px solid rgba(240,192,90,.35);background:rgba(240,192,90,.1);color:var(--warn);border-radius:var(--radius-sm);padding:var(--s3) var(--s4);margin:var(--s3) 0}
+.badge{display:inline-flex;align-items:center;gap:var(--s2);height:28px;padding:0 var(--s3);border-radius:999px;font-size:var(--t-caption);font-weight:650;letter-spacing:.04em;background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--ink-2)}
+.badge.ok{color:var(--ok);background:rgba(143,227,207,.1);border-color:rgba(143,227,207,.25)}
+.badge.warn{color:var(--warn);background:rgba(240,192,90,.1);border-color:rgba(240,192,90,.25)}
+.badge.soon{color:var(--accent-2);background:rgba(255,138,61,.1);border-color:rgba(255,138,61,.28)}
+
+/* ---- banners: .banner is the quiet "runs on this computer" note; .banner.mock is the mock-mode one */
+.banner{background:rgba(255,255,255,.06);color:var(--ink-2);border:1px solid var(--line-2);border-radius:var(--radius-sm);padding:var(--s3) var(--s4);margin:0;font-size:var(--t-small)}
+.banner.mock{background:rgba(255,138,61,.12);color:var(--accent-2);border:1px dashed rgba(255,138,61,.55);font-weight:600}
+
+/* ---- progress bar: native <progress> and the div form (.progress > .progress__bar[style=width:45%]) */
+progress{appearance:none;-webkit-appearance:none;display:block;width:100%;height:12px;border:1px solid var(--line-2);border-radius:999px;background:rgba(0,0,0,.35);overflow:hidden;accent-color:var(--accent)}
+progress::-webkit-progress-bar{background:rgba(0,0,0,.35);border-radius:999px}
+progress::-webkit-progress-value{background:linear-gradient(180deg,#ffa05c,#ff7a26);border-radius:999px;box-shadow:0 0 12px var(--glow)}
+progress::-moz-progress-bar{background:linear-gradient(180deg,#ffa05c,#ff7a26);border-radius:999px}
+.progress{height:12px;border:1px solid var(--line-2);border-radius:999px;background:rgba(0,0,0,.35);overflow:hidden}
+.progress__bar{height:100%;width:0;border-radius:999px;background:linear-gradient(180deg,#ffa05c,#ff7a26);box-shadow:0 0 12px var(--glow);transition:width .4s var(--ease)}
+
+/* ---- spinner: a ring in house colours; with reduced motion it stops and shows as a still ring (the words beside it carry the meaning) */
+.spinner{display:inline-block;width:20px;height:20px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:var(--accent);vertical-align:-4px;animation:house-spin .9s linear infinite}
+@keyframes house-spin{to{transform:rotate(360deg)}}
+
+/* ---- collapsible: <details class="paste"> ("Make a film by hand (advanced)") */
+details.paste,details.advanced{margin:var(--s4) 0;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);padding:0 var(--s4)}
+details.paste summary,details.advanced summary{display:flex;align-items:center;gap:var(--s2);min-height:48px;cursor:pointer;font-weight:650;color:var(--ink);list-style:none}
+details.paste summary::-webkit-details-marker,details.advanced summary::-webkit-details-marker{display:none}
+details.paste summary::before,details.advanced summary::before{content:"";width:8px;height:8px;border-right:2px solid var(--accent-2);border-bottom:2px solid var(--accent-2);transform:rotate(-45deg);transition:transform .2s var(--ease);flex:0 0 auto}
+details.paste[open] summary::before,details.advanced[open] summary::before{transform:rotate(45deg)}
+details.paste[open],details.advanced[open]{padding-bottom:var(--s4)}
+details.paste[open] summary,details.advanced[open] summary{border-bottom:1px solid var(--line);margin-bottom:var(--s2)}
+
+@media (max-width:600px){main{padding:var(--s4) var(--s3) var(--s7)}.card,.logbox{padding:var(--s4)}.button{width:100%}.row .button,.actions .button{flex:1 1 auto}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:.01ms!important;scroll-behavior:auto!important}
+  .spinner{animation:none;border-color:var(--accent);border-style:dotted}
+  .button:hover{transform:none}.button::after{display:none}
+  .progress__bar{transition:none}
+}
+/* ---- kept from the old sheet (classes the page script draws) */
+.drop-note{margin:6px 0}.drop-note ul{list-style:none;padding:0}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}
 """
 
 JS = r"""(function () {
