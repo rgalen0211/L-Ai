@@ -17,10 +17,10 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '
 // The switches Ryan has turned ON (each with his recorded yes in the config's comment or the commit that turned it on). Anything else must be false.
 const ON_BY_RYAN = ['visitCounting', 'credits', 'payments', 'stripeTestMode', 'accountTools', 'passwordReset', 'inviteSignup', 'opsTools', 'filmRequests', 'guidedBuilder',
   'lookEditor', 'renderOrders', 'connectAi', 'aiFirst', 'departments', 'desktopApp',
-  'waitingAccounts'];      // waitingAccounts: Ryan 11-21 11:30, sign-up OPEN at launch (branch web-signup-open-1122; LAUNCH-WED-1125 row 1); the server's join_open decides whether it works
+  'waitingAccounts', 'games'];      // waitingAccounts: Ryan 11-21 11:30, sign-up OPEN at launch (branch web-signup-open-1122; LAUNCH-WED-1125 row 1); the server's join_open decides whether it works
 // Permanently off and read by nothing (the config says so; tests/app-catalog.test.cjs fails if either turns true).
 // Switches that hold the string 'account' (on only for accounts an admin named; assets/app-switches.js featureOn). Each must be read through featureOn, and nothing else may be a string.
-const ACCOUNT_SWITCHES = ['myFilms', 'intake', 'testerFilmProgress', 'testerWizard', 'adminTesterDevices', 'liveEditor', 'games', 'compilations'];        // games: GAMES 11-27, the Games department live per account; compilations: WEB 11-27, the Compilations page per account
+const ACCOUNT_SWITCHES = ['myFilms', 'intake', 'testerFilmProgress', 'testerWizard', 'adminTesterDevices', 'liveEditor', 'compilations'];        // games: GAMES 11-27, the Games department live per account; compilations: WEB 11-27, the Compilations page per account
 const UNREAD_ON_PURPOSE = ['catalog', 'catalogComingSoon'];
 
 const stripComments = src => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1').replace(/<!--[\s\S]*?-->/g, ' ');
