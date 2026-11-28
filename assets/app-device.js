@@ -67,42 +67,6 @@
     ? `It needs about ${rel.unpackedMb} MB unpacked, plus the listening model (Balanced is about ${MODEL_MB} MB): about ${freeGb(rel.unpackedMb)} GB free in all.`
     : `It needs room for the unzipped app and the listening model (Balanced is about ${MODEL_MB} MB).`);
 
-  // SETUP EXE RECORDS (WEB 11-28, CONNECT's installer plan 11-27 section 4 item 2 and section 6; Ryan 23:49: a direct download from our own site, UNSIGNED for now). A record whose file name is
-  // Ryagram-Setup-<version>.exe is a setup program, not a zip: the card then shows the file name and SHA-256 beside the button and the six steps of "If Windows warns you" in place of the unzip steps.
-  // A .zip record keeps the zip steps exactly as before.
-  const SETUP_NAME = /^Ryagram-Setup-[A-Za-z0-9._-]+\.exe$/;
-  const isSetup = rel => !!rel && typeof rel.fileName === 'string' && SETUP_NAME.test(rel.fileName);
-
-  // THE DOOR (WEB 11-28). The server's eligibility is already live (migration 000300: request_app_download also lets in an account with Compilations on, keeping tester and admin). What is NOT live is the FILE: BUILDER's migration
-  // 20261128000300_app_setup_exe (app_releases.file_name may end in .exe) and CONNECT's release record. The card must not appear for a Compilations account until the node, the connector and this page are all live, so the button stays behind
-  // this constant (testers keep theirs). Flip it to true only when an active .exe release row exists.
-  // The one other way it is true is the mock: tests/fake-supabase.js sets window.ryagramAppDoorMock for ?appdoor (never in the live page, which does not load the mock).
-  const APP_DOWNLOAD_COMPILATIONS_DOOR = false;
-  const doorOpen = () => APP_DOWNLOAD_COMPILATIONS_DOOR === true || (typeof window !== 'undefined' && window.ryagramAppDoorMock === true);
-  // FOR RYAN'S YES (DRAFT, WEB 11-28): the honest line while the setup file is not released (BUILDER 11-28: the server's door for a Compilations account is already live, so this is about the FILE, not the account). It is the whole card
-  // for an account the button is not on for: no button, no file, no steps.
-  const NOT_OPEN = 'The Ryagram app is not ready to download yet.';
-  // The screenshot of the real Windows warning: there is NONE yet and none is invented (the stranger's walk, plan section 7, takes it). When a real file is committed, put its address here and the card shows it.
-  const WARNING_SHOT = null;
-
-  // FOR RYAN'S YES (DRAFT): every sentence below is new public wording, copied from CONNECT's plan section 6 (proposals/CONNECT-INSTALLER-PLAN-1127.md) and listed in docs/app-download-card-words-1127.md.
-  // It is true only while the setup is unsigned; the real dialog must be seen and screenshotted before these words are final.
-  const WARN_INTRO = 'Windows may warn you before it opens the Ryagram setup, because the file is new and not yet widely downloaded. Check that the file name and size are the ones on this page, then go on.';
-  // FOR RYAN'S YES (RENDERER 11-28 rules): SHA_NOTE says honestly what the SHA-256 is for (a damaged download, NOT a swapped file: this site serves both) and never calls it a signature; UPDATE_NOTE says the app updates only by installing a newer setup.
-  const SHA_NOTE = 'The SHA-256 shows that the file was not damaged on its way to you. It cannot show who made the file, because this same site gives you both.';
-  const UPDATE_NOTE = 'Ryagram does not update itself and does not download new program code. To update it, install a newer setup from this page; it upgrades the Ryagram you already have in place.';
-  const warnSteps = rel => {
-    const file = rel && isSetup(rel) ? rel.fileName : 'Ryagram-Setup-<version>.exe';
-    return [
-      ['Download the setup from this page. Its file name and its SHA-256 are shown next to the button. To check them, open PowerShell in the folder you downloaded to and paste: ', { code: `Get-FileHash ${file} -Algorithm SHA256` }, '. The 64 characters must match the ones on this page. If they do not, delete the file and do not run it.'],
-      ['When you open it, Windows may show a blue window, "Windows protected your PC". Press ', { strong: 'More info' }, '. It then shows the file name and "Publisher: Unknown publisher". If the file name is the one on this page, press ', { strong: 'Run anyway' }, '.'],
-      ['If anyone else, anywhere else, ever asks you to press Run anyway for a different file, say no.'],
-      ['Windows 11 has a feature called Smart App Control. If it is on, Windows may refuse to open the setup at all and show no Run anyway button. We do not ask you to turn a security feature off. If you see that message, write to us at the address on the Help page and we will help you another way.'],
-      ['The setup puts Ryagram in a folder you choose (it suggests a D: drive if you have one), adds one Start-menu entry, and adds an entry to Windows\' list of installed apps. You can remove it from there at any time; the setup asks whether to keep your films.'],
-      ['The first time you open Ryagram it shows a short code. You approve the code on uselai.com while signed in there. No password is typed into the app. It then offers to download the listening model (about 464 MB, once).']
-    ];
-  };
-
   // THE INVITE-ONLY DOWNLOAD (CONNECT's app-download function, Cloudflare R2, Ryan 2026-10-26 20:26). A record whose url is the function's own address makes the card's link a BUTTON: pressing it asks the
   // function (with the person's session) for a short-lived link, and the browser is sent there. Nothing is asked until the button is pressed. The page follows ONLY an https link on R2's own address.
   const APP_DOWNLOAD_FN = /^https:\/\/[a-z0-9-]+\.supabase\.co\/functions\/v1\/app-download$/;
@@ -256,32 +220,15 @@
         h('p', { class: 'form-note' }, 'Computers where you use the Ryagram app. Removing one signs it out at once.'), list, error);
     }
 
-    // ---- who may see the app card, and who may press its button (WEB 11-28; CONNECT's installer plan section 4 item 2).
-    // SEE it: a tester (the flag, as before) OR an account whose Compilations switch is on (the same signal the Compilations page uses: featureOn('compilations'), or my_departments() naming it as working).
-    // PRESS the button: a tester (the server lets testers in today) OR a Compilations account once the server door is open (APP_DOWNLOAD_COMPILATIONS_DOOR). Every failure reads as "no".
-    async function appAccess() {
-      let tester = false;
-      try { tester = data.myLocalCompute ? (await data.myLocalCompute()) === true : false; } catch { tester = false; }
-      let compilations = !!(window.ryagramSwitches && window.ryagramSwitches.featureOn('compilations') === true);
-      if (!compilations && typeof data.myDepartments === 'function') {
-        try { const rows = await data.myDepartments(); compilations = Array.isArray(rows) && rows.some(r => r && r.id === 'compilations' && r.status === 'working'); } catch { compilations = false; }
-      }
-      return { tester, compilations, show: tester || compilations, button: tester || (compilations && doorOpen()) };
-    }
-
-    // ---- "Ryagram for Windows": the download card, for testers and for accounts with Compilations on (NEXT-WEB 118; Ryan 17:12 and 17:18: download, double-click, done; WEB 11-28: Compilations accounts).
+    // ---- "Ryagram for Windows": the download card, for tester accounts only (NEXT-WEB 118; Ryan 17:12 and 17:18: download, double-click, done).
     // Everything the card says about the file comes from window.ryagramWindowsApp (assets/windows-release.js): until Ryan hosts the file the button is OFF and says so. The card makes no network call
     // when it is drawn. A record pointing straight at a file gives a plain link; a record pointing at the app-download function gives a BUTTON that asks it for a short-lived link when pressed (invite-only, R2).
     // The personal-use notice has a slot (hidden until the lawyer's wording is put in; no session writes it).
-    // An account with Compilations but no way in yet gets the heading and one honest line (NOT_OPEN), never a button the server would refuse.
     async function windowsAppSection() {
-      const access = await appAccess();
-      if (!access.show) return null;                                                          // neither a tester nor a Compilations account: no card
-      if (!access.button) return h('section', { class: 'account-section windows-card', 'aria-labelledby': 'acct-windows' }, h('h2', { id: 'acct-windows' }, 'Ryagram for Windows'),
-        h('p', { class: 'form-note windows-not-open', role: 'status', 'aria-live': 'polite' }, NOT_OPEN));
+      const tester = data.myLocalCompute ? await data.myLocalCompute() : false;
+      if (!tester) return null;                                                               // only an account with the tester flag sees the card
       const rel = (typeof window !== 'undefined' && window.ryagramWindowsApp) || {};
       const ready = windowsReady(rel);
-      const setup = ready && isSetup(rel);
       const name = ready ? rel.fileName : 'the file';
       // The invite-only download: a button that asks the function for a short-lived link when pressed (and makes no request before). The plain-link mode below stays for a record that points straight at a file.
       const downloadStatus = h('p', { class: 'form-note windows-download-status', role: 'status', 'aria-live': 'polite' });
@@ -296,32 +243,17 @@
           } catch (err) { downloadStatus.replaceChildren(h('span', { class: 'app-error', role: 'alert' }, (err && err.serverWords) || downloadErrorWords(err && err.status))); }
         });
       } }, 'Download Ryagram for Windows') : null;
-      const facts = h('dl', { class: 'windows-facts' },
-        h('dt', {}, 'File'), h('dd', {}, ready ? h('code', {}, rel.fileName) : 'shown here when the file is ready'),
-        h('dt', {}, 'Size'), h('dd', {}, ready && rel.sizeMb ? (setup ? `about ${rel.sizeMb} MB.` : `about ${rel.sizeMb} MB. The listening model is downloaded separately, the first time you run it.`) : 'shown here when the file is ready'),
-        h('dt', {}, 'SHA-256'), h('dd', {}, ready ? h('code', { class: 'windows-sha' }, rel.sha256) : 'shown here when the file is ready'));
-      const button = downloadButton ? h('div', {}, downloadButton, downloadStatus)
-        : ready
-        ? h('a', { class: 'button primary', href: rel.url, rel: 'noopener', download: rel.fileName }, 'Download Ryagram for Windows')
-        : h('div', {}, h('button', { class: 'button primary', type: 'button', disabled: true }, 'Not ready yet'), h('p', { class: 'form-note' }, 'The download appears here when it is ready.'));
-      const mac = window.ryagramMacNote && window.ryagramMacNote.on(window.ryagramConfig) ? [h('p', { class: 'form-note windows-mac-note', role: 'note' }, window.ryagramMacNote.LINES.join(' '))] : [];
-      const notice = h('p', { class: 'form-note windows-notice', hidden: !(rel.personalUseNotice), 'data-slot': 'personal-use-notice' }, rel.personalUseNotice ? String(rel.personalUseNotice).slice(0, 1200) : '');
-      if (setup) {                                                                            // a SETUP EXE: the six steps of "If Windows warns you" (FOR RYAN'S YES, DRAFT), no unzip
-        const piece = x => (typeof x === 'string' ? x : x.code ? h('code', {}, x.code) : h('strong', {}, x.strong));
-        return h('section', { class: 'account-section windows-card windows-setup', 'aria-labelledby': 'acct-windows' }, h('h2', { id: 'acct-windows' }, 'Ryagram for Windows'),
-          h('p', { class: 'form-note' }, 'The Ryagram app for your Windows computer. Your films are made on it.'),
-          ...mac, facts, h('p', { class: 'form-note windows-sha-note' }, SHA_NOTE), button,
-          h('p', { class: 'windows-warn-intro' }, h('strong', {}, WARN_INTRO)),
-          h('ol', { class: 'windows-steps windows-warn-steps' }, warnSteps(rel).map(parts => h('li', {}, ...parts.map(piece)))),
-          ...(WARNING_SHOT ? [h('img', { class: 'windows-warn-shot', src: WARNING_SHOT, alt: 'The Windows window that says Windows protected your PC, with the More info link.', loading: 'lazy' })] : []),
-          h('p', { class: 'form-note' }, 'Films from your own clips need nothing more. Films you order on the website and make on this computer also need Google Chrome installed and about 5 GB of free memory (Edge is untested).'),
-          h('p', { class: 'form-note windows-update-note' }, UPDATE_NOTE),
-          h('p', { class: 'form-note' }, 'To sign this computer out, press Remove this computer in the "Computers signed in" list just below this card.'),
-          notice);
-      }
       return h('section', { class: 'account-section windows-card', 'aria-labelledby': 'acct-windows' }, h('h2', { id: 'acct-windows' }, 'Ryagram for Windows'),
         h('p', { class: 'form-note' }, 'The Ryagram app for your Windows computer. Your films are made on it.'),
-        ...mac, facts, button,
+        ...(window.ryagramMacNote && window.ryagramMacNote.on(window.ryagramConfig) ? [h('p', { class: 'form-note windows-mac-note', role: 'note' }, window.ryagramMacNote.LINES.join(' '))] : []),
+        h('dl', { class: 'windows-facts' },
+          h('dt', {}, 'File'), h('dd', {}, ready ? h('code', {}, rel.fileName) : 'shown here when the file is ready'),
+          h('dt', {}, 'Size'), h('dd', {}, ready && rel.sizeMb ? `about ${rel.sizeMb} MB. The listening model is downloaded separately, the first time you run it.` : 'shown here when the file is ready'),
+          h('dt', {}, 'SHA-256'), h('dd', {}, ready ? h('code', { class: 'windows-sha' }, rel.sha256) : 'shown here when the file is ready')),
+        downloadButton ? h('div', {}, downloadButton, downloadStatus)
+          : ready
+          ? h('a', { class: 'button primary', href: rel.url, rel: 'noopener', download: rel.fileName }, 'Download Ryagram for Windows')
+          : h('div', {}, h('button', { class: 'button primary', type: 'button', disabled: true }, 'Not ready yet'), h('p', { class: 'form-note' }, 'The download appears here when it is ready.')),
         h('ol', { class: 'windows-steps' },
           h('li', {}, h('strong', {}, 'Download '), `${name} and unzip it into a folder on a drive with room to spare (right-click, Extract all). ${spaceWords(rel)}`),
           h('li', {}, h('strong', {}, 'Check it. '), 'Optional, but do it: open PowerShell in the folder you downloaded to and paste this line: ', h('code', {}, `Get-FileHash ${ready ? rel.fileName : '<the file>'} -Algorithm SHA256`),
@@ -331,7 +263,7 @@
           h('li', {}, h('strong', {}, 'First run. '), 'Press ', h('strong', {}, 'Download the listening model'), ' (Balanced is already chosen for you, about 464 MB), then press ', h('strong', {}, 'Sign in to Ryagram'), ' and approve the code on this website.')),
         h('p', { class: 'form-note' }, 'Films from your own clips need nothing more. Films you order on the website and make on this computer also need Google Chrome installed and about 5 GB of free memory (Edge is untested).'),
         h('p', { class: 'form-note' }, 'To remove it, delete the folder. To sign this computer out, press Remove this computer in the "Computers signed in" list just below this card.'),
-        notice);
+        h('p', { class: 'form-note windows-notice', hidden: !(rel.personalUseNotice), 'data-slot': 'personal-use-notice' }, rel.personalUseNotice ? String(rel.personalUseNotice).slice(0, 1200) : ''));
     }
 
     // ---- admin: who is a tester (an admin-only page; the server is the gate, every change is written to an audit row)
@@ -441,7 +373,7 @@
         h('h2', {}, 'History'), history, connectSection];
     }
 
-    return { deviceView, computersSection, windowsAppSection, appAccess, testerAdminView };
+    return { deviceView, computersSection, windowsAppSection, testerAdminView };
   }
 
   // ---- the admin's list of each tester's computers (NEXT-WEB 187). Pure: rows from admin_tester_devices() -> one entry per tester with its computers in words. "Ready" means the sign-in was used in the last 3
@@ -476,5 +408,5 @@
   const deviceLine = c => `${c.name}: ${c.state === 'seen' ? 'seen in the last 3 minutes' : `not seen for a while (last ${c.last})`}${c.holds ? `; holding ${c.holds} film${c.holds === 1 ? '' : 's'} now` : ''}${c.signedInUntil ? `; its sign-in ends ${c.signedInUntil}` : ''}`;
   const deviceNote = 'Whether a computer can render, and whether it paused under its disk floor, are not reported to the site by the app yet. This list shows only what the sign-in shows.';
 
-  window.ryagramDevice = { currentlyOn, deviceRows, deviceLine, deviceNote, SEEN_MS, windowsReady, isSetup, SETUP_NAME, NOT_OPEN, WARN_INTRO, SHA_NOTE, UPDATE_NOTE, warnSteps, WARNING_SHOT, APP_DOWNLOAD_COMPILATIONS_DOOR, viaDownloadFunction, parseDownloadAnswer, downloadErrorWords, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  window.ryagramDevice = { currentlyOn, deviceRows, deviceLine, deviceNote, SEEN_MS, windowsReady, viaDownloadFunction, parseDownloadAnswer, downloadErrorWords, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();

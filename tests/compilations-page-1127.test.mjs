@@ -105,8 +105,7 @@ test('WEB fold3 (FACES honest launch words; WORKER 11:49): no promise of a film,
     assert.ok(!/planning|finding the matches|making your film|Done|did not finish|Stopped|match|clip|second/i.test(line));
   }
   const pg = read('assets/app-compilations.js');
-  assert.ok(!pg.includes('/get-app/'), 'no link to the get-app page: that page is for invited testers');
-  assert.ok(/if \(acc && acc\.button\) appBlock = h\('p', \{ class: 'comp-getapp' \}, h\('a', \{ class: 'button secondary', href: '#\/account', id: 'comp-getapp' \}, 'Get the Ryagram app'\)\)/.test(pg), 'WEB 11-28: the Get the Ryagram app link goes to the Account card and only when the account may press its button (tests/app-download-card-1127.test.mjs)');
+  assert.ok(!pg.includes('/get-app/') && !pg.includes('Get the Ryagram app'), 'no get-app link: that page is for invited testers');
   // a song request: no "as a song", its own plain line, no edit promised
   assert.ok(!/as a song/.test(C.requestLine({ request: { phrase: 'x', folders: ['a'], song: true } })));
   assert.ok(C.isSong({ request: { song: true } }) && C.isSong({ request: { mode: 'song' } }) && !C.isSong({ request: { song: false } }));

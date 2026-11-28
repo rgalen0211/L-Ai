@@ -930,12 +930,6 @@
     // ?wzawake / ?wzquiet: a tester with one computer seen just now / seen two days ago (the first-run wizard, NEXT-WEB 192)
     if (typeof location !== 'undefined' && /[?&]wz(awake|quiet)/.test(location.search || '')) db.computers = [{ id: 'wz-1', computer_name: 'DESKTOP-WIZ', created_at: new Date(Date.now() - 5 * 86400000).toISOString(), expires_at: new Date(Date.now() + 20 * 86400000).toISOString(), revoked_at: null, last_used_at: new Date(Date.now() - (/[?&]wzawake/.test(location.search) ? 20000 : 2 * 86400000)).toISOString() }];
     if (typeof location !== 'undefined' && /[?&]tester/.test(location.search || '') && !db.account_settings.length) db.account_settings.push({ owner_id: 'u-ryan', upload_retention: 'keep', local_compute: true });      // ?tester: a tester account in mock mode
-    // ?appdoor (WEB 11-28): the mock of the day the SERVER lets a Compilations account download the app (CONNECT's/BUILDER's migration, NOT live): the card's door constant reads window.ryagramAppDoorMock, and the
-    // release record is a MOCK setup-exe record (made-up name, size and SHA-256: no such file exists). Never part of the live page, which does not load this file.
-    if (typeof location !== 'undefined' && typeof window !== 'undefined' && /[?&]appdoor/.test(location.search || '')) {
-      window.ryagramAppDoorMock = true;
-      window.ryagramWindowsApp = Object.freeze({ url: 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/app-download', fileName: 'Ryagram-Setup-0.0.0-mock.exe', sizeMb: 290, unpackedMb: null, sha256: 'd'.repeat(64), personalUseNotice: null });
-    }
     // (the account the mock switches to by signing in as 'other...' is a plain account, so a tab that goes admin -> sign out -> other account can be walked)
     const adminMock = () => !(seed.admin === false || (typeof location !== 'undefined' && /[?&]nonadmin/.test(location.search || '')) || (session && session.user && session.user.id === 'u-other'));
     let session = user ? { user } : null;

@@ -3,8 +3,6 @@
 // 64-hex SHA-256, a whole-number size and unzipped size, AND it must EQUAL the committed pins (assets/windows-release.pins.json: the built zip's file name, size and unzipped size in bytes, and SHA-256, written from the real zip by
 // tools/check-release-pins.py). The pins make this test need no file outside the repo, so it never turns main red on a PC without the 274 MB zip. When RYAGRAM_RELEASE_ZIP names the zip, the record and pins are ALSO compared with it;
 // without it that comparison is printed as SKIPPED, never a failure (tools/check-release-pins.py --zip and tools/check-release-asset.py do that comparison at release time).
-// A SETUP EXE RECORD (WEB 11-28): a file name Ryagram-Setup-<version>.exe is accepted beside the .zip rule (the zip path is unchanged). An exe has no unzipped size: unpackedMb may be null (or a whole number),
-// and its pins carry fileName, sizeBytes and sha256 only. With RYAGRAM_RELEASE_ZIP naming an exe, its size and SHA-256 are compared (no zip directory is read).
 // THE DOWNLOAD IS INVITE-ONLY ON CLOUDFLARE R2 (Ryan's Q248, 2026-10-26): the record's url is NOT a file, it is the app-download FUNCTION's address on the project's own functions host
 // (https://<project>.supabase.co/functions/v1/app-download), which hands a signed-in invitee a 15-minute link; the file itself is in a private bucket.
 import { test } from 'node:test';
@@ -39,7 +37,6 @@ function makeZip(name, data) {
 }
 
 const load = (src) => { const win = {}; vm.runInNewContext(src, { window: win }); return JSON.parse(JSON.stringify(win.ryagramWindowsApp)); };
-const isExe = (n) => typeof n === 'string' && /^Ryagram-Setup-[A-Za-z0-9._-]+\.exe$/.test(n);
 const rec = load(fs.readFileSync(new URL('../assets/windows-release.js', import.meta.url), 'utf8'));
 const filled = !!(rec.url || rec.fileName || rec.sha256);
 const pinsUrl = new URL('../assets/windows-release.pins.json', import.meta.url);
@@ -49,35 +46,32 @@ const pins = fs.existsSync(pinsUrl) ? JSON.parse(fs.readFileSync(pinsUrl, 'utf8'
 function problems(r, pins, zipPath) {
   const out = [];
   if (typeof r.url !== 'string' || !/^https:\/\/[a-z0-9]{20}\.supabase\.co\/functions\/v1\/app-download$/.test(r.url)) out.push('the address is not the project\'s app-download function (https://<project>.supabase.co/functions/v1/app-download)');
-  const exe = isExe(r.fileName);
-  if (typeof r.fileName !== 'string' || !(/^[A-Za-z0-9._-]+\.zip$/.test(r.fileName) || exe)) out.push('the file name is not a plain .zip name or a Ryagram-Setup-<version>.exe name');
+  if (typeof r.fileName !== 'string' || !/^[A-Za-z0-9._-]+\.zip$/.test(r.fileName)) out.push('the file name is not a plain .zip name');
   if (typeof r.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(r.sha256)) out.push('the SHA-256 is not 64 lowercase hex characters');
   if (!Number.isInteger(r.sizeMb) || r.sizeMb < 1) out.push('the size is not a whole number of MB');
-  if (exe && r.unpackedMb === null) { /* a setup exe has no unzipped size */ }
-  else if (!Number.isInteger(r.unpackedMb) || r.unpackedMb < 1 || r.unpackedMb > 20000) out.push('the unzipped size (unpackedMb) is not a whole number of MB between 1 and 20000 (the card works out the free space it asks for from it)');
+  if (!Number.isInteger(r.unpackedMb) || r.unpackedMb < 1 || r.unpackedMb > 20000) out.push('the unzipped size (unpackedMb) is not a whole number of MB between 1 and 20000 (the card works out the free space it asks for from it)');
   else if (Number.isInteger(r.sizeMb) && r.unpackedMb < r.sizeMb) out.push('the unzipped size is smaller than the zip');
   // the committed pins: the facts of the built zip, written once from the real file
   if (!pins) out.push('assets/windows-release.pins.json is missing: a filled record must equal the pins of the zip it names (tools/check-release-pins.py --write --zip <zip>)');
   else {
-    if (!(typeof pins.fileName === 'string' && Number.isInteger(pins.sizeBytes) && (Number.isInteger(pins.unzippedBytes) || (exe && pins.unzippedBytes === undefined)) && /^[0-9a-f]{64}$/.test(pins.sha256 || ''))) out.push('the pins file is malformed');
+    if (!(typeof pins.fileName === 'string' && Number.isInteger(pins.sizeBytes) && Number.isInteger(pins.unzippedBytes) && /^[0-9a-f]{64}$/.test(pins.sha256 || ''))) out.push('the pins file is malformed');
     else {
       if (r.fileName !== pins.fileName) out.push('the record\'s file name is not the pins\'');
       if (r.sha256 !== pins.sha256) out.push('the record\'s SHA-256 is not the pins\'');
       if (r.sizeMb !== Math.round(pins.sizeBytes / 1e6)) out.push(`the record's size (${r.sizeMb} MB) is not the pins' (${Math.round(pins.sizeBytes / 1e6)} MB)`);
-      if (!exe && r.unpackedMb !== Math.round(pins.unzippedBytes / 1e6)) out.push(`the record's unzipped size (${r.unpackedMb} MB) is not the pins' (${Math.round(pins.unzippedBytes / 1e6)} MB)`);
+      if (r.unpackedMb !== Math.round(pins.unzippedBytes / 1e6)) out.push(`the record's unzipped size (${r.unpackedMb} MB) is not the pins' (${Math.round(pins.unzippedBytes / 1e6)} MB)`);
     }
   }
   // the real zip, when it is on this PC and named: record AND pins must agree with the file itself
   if (zipPath && !fs.existsSync(zipPath)) out.push('the named zip does not exist');
   else if (zipPath) {
     const b = fs.readFileSync(zipPath);
-    const un = exe ? undefined : unzippedBytes(b);
+    const un = unzippedBytes(b);
     if (crypto.createHash('sha256').update(b).digest('hex') !== r.sha256) out.push('the record\'s SHA-256 is not the built zip\'s');
     if (Math.round(b.length / 1e6) !== r.sizeMb) out.push(`the record's size (${r.sizeMb} MB) is not the built zip's (${Math.round(b.length / 1e6)} MB)`);
-    if (exe) { /* a setup exe: size and SHA-256 only */ }
-    else if (un === null) out.push('the named file is not a readable zip');
+    if (un === null) out.push('the named file is not a readable zip');
     else if (Math.round(un / 1e6) !== r.unpackedMb) out.push(`the record's unzipped size (${r.unpackedMb} MB) is not the built zip's (${Math.round(un / 1e6)} MB)`);
-    if (pins && (pins.sizeBytes !== b.length || (!exe && pins.unzippedBytes !== un))) out.push('the pins\' byte sizes are not the built zip\'s');
+    if (pins && (pins.sizeBytes !== b.length || pins.unzippedBytes !== un)) out.push('the pins\' byte sizes are not the built zip\'s');
     if (zipPath.replace(/\\/g, '/').split('/').pop() !== r.fileName) out.push('the file name is not the built zip\'s name');
   }
   return out;
@@ -90,31 +84,6 @@ test('the committed record is either empty (all null) or fully agrees with its c
   }
   if (!process.env.RYAGRAM_RELEASE_ZIP) console.log('zip comparison SKIPPED (not passed): set RYAGRAM_RELEASE_ZIP to the built zip to compare the record and pins with it');
   assert.deepEqual(problems(rec, pins, process.env.RYAGRAM_RELEASE_ZIP), []);
-});
-
-test('A SETUP EXE RECORD (WEB 11-28): Ryagram-Setup-<version>.exe passes with no unzipped size and exe pins; the zip path still works; each exe fault is named', () => {
-  const dir = fs.mkdtempSync((process.env.TEMP || '.') + '/rel-');
-  const exeFile = dir + '/Ryagram-Setup-0.0.1.exe';
-  const eb = Buffer.alloc(3_456_789, 9);
-  fs.writeFileSync(exeFile, eb);
-  const sha = crypto.createHash('sha256').update(eb).digest('hex');
-  const good = { url: 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/app-download', fileName: 'Ryagram-Setup-0.0.1.exe', sha256: sha, sizeMb: 3, unpackedMb: null };
-  const goodPins = { fileName: 'Ryagram-Setup-0.0.1.exe', sizeBytes: eb.length, sha256: sha };
-  assert.deepEqual(problems(good, goodPins, null), [], 'an exe record and exe pins are enough');
-  assert.deepEqual(problems(good, goodPins, exeFile), [], 'and with the exe named, size and SHA-256 agree');
-  assert.deepEqual(problems({ ...good, unpackedMb: 8 }, goodPins, null), [], 'an exe may also carry a whole-number size on disk');
-  assert.ok(problems({ ...good, fileName: 'Setup.exe' }, { ...goodPins, fileName: 'Setup.exe' }, null).some((p) => /\.exe name/.test(p)), 'MUST-FAIL: an exe not named Ryagram-Setup-<version>.exe');
-  assert.ok(problems({ ...good, fileName: 'Ryagram-Setup-0.0.1.exe.zip' }, { ...goodPins, fileName: 'Ryagram-Setup-0.0.1.exe.zip' }, null).every((p) => !/\.exe name/.test(p)) === true, 'a .zip name is judged as a zip');
-  assert.ok(problems({ ...good, fileName: 'Ryagram-Setup-0.0.1.msi' }, goodPins, null).some((p) => /\.exe name/.test(p)), 'MUST-FAIL: another extension');
-  assert.ok(problems({ ...good, sha256: '0'.repeat(64) }, goodPins, null).some((p) => /not the pins/.test(p)), 'MUST-FAIL: an exe record hash that is not the pins\'');
-  assert.ok(problems({ ...good, unpackedMb: 1.5 }, goodPins, null).some((p) => /unpackedMb/.test(p)), 'a fractional size on disk');
-  assert.ok(problems({ ...good, sizeMb: 9 }, goodPins, null).some((p) => /size/.test(p)), 'a wrong exe size');
-  assert.ok(problems({ ...good, sha256: 'f'.repeat(64) }, { ...goodPins, sha256: 'f'.repeat(64) }, exeFile).some((p) => /not the built zip/.test(p)), 'MUST-FAIL: record and pins that agree with each other but not with the real exe');
-  assert.ok(problems(good, { ...goodPins, sizeBytes: eb.length + 1 }, exeFile).some((p) => /pins' byte sizes/.test(p)), 'exe pins whose byte size is not the file\'s');
-  assert.ok(problems(good, { ...goodPins, sizeBytes: 'x' }, null).some((p) => /malformed/.test(p)), 'malformed exe pins');
-  // an exe record against a ZIP's pins (and the reverse) cannot pass
-  assert.ok(problems(good, { fileName: 'app-1030e.zip', sizeBytes: eb.length, unzippedBytes: 1, sha256: sha }, null).some((p) => /file name is not the pins/.test(p)), 'MUST-FAIL: an exe record on zip pins');
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('the rules themselves: a good record passes WITHOUT the zip, each fault is named (the same code that guards a filled record)', () => {

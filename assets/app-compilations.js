@@ -99,7 +99,7 @@
   }
 
   // h(), data, busy, showError, errorLine: the page's own helpers (app-library.js). Returns { pageView } building the whole page body.
-  function create({ h, data, busy, showError, errorLine, date, appAccess }) {
+  function create({ h, data, busy, showError, errorLine, date }) {
     async function pageView() {
       const error = errorLine();
       const SAVED = WORDS.saved;
@@ -159,16 +159,7 @@
         rows = Array.isArray(rows) ? rows.slice(0, 50) : [];
         let haveApp = null;      // true/false only when the list of the person's signed-in computers loaded; the tester flag is not this question
         try { const mine = typeof data.myComputers === 'function' ? await data.myComputers() : null; haveApp = Array.isArray(mine) ? mine.length > 0 : null; } catch { haveApp = null; }
-        // FOR RYAN'S YES (WEB 11-28, DRAFT): the way to the app. An account the server lets download gets a link (44px) to the Ryagram for Windows card on the Account page; one it does not yet gets one honest line and no link.
-        // The question is the Account card's own (assets/app-device.js appAccess): a tester, or Compilations plus the server door; if it cannot be answered, no link and no line.
-        let appBlock = null;
-        try {
-          const acc = typeof appAccess === 'function' ? await appAccess() : null;
-          if (acc && acc.button) appBlock = h('p', { class: 'comp-getapp' }, h('a', { class: 'button secondary', href: '#/account', id: 'comp-getapp' }, 'Get the Ryagram app'));
-          else if (acc && acc.show) appBlock = h('p', { class: 'form-note comp-getapp-closed', role: 'status', 'aria-live': 'polite' }, window.ryagramDevice ? window.ryagramDevice.NOT_OPEN : '');
-        } catch { appBlock = null; }
         list.replaceChildren(...[
-          appBlock,
           haveApp === false && !rows.some(r => r && r.run && typeof r.run.state === 'string') ? h('p', { class: 'form-note comp-noapp' }, WORDS.noApp) : null,      // no get-app link: that page is for invited testers only (FACES 11-27)
           rows.length ? h('ul', { class: 'project-list comp-rows' }, rows.map(r => h('li', {},
             h('strong', {}, cut(r.title || 'A compilation', 120)), h('span', { class: 'meta' }, ` ${requestLine(r, date)}`),
