@@ -10,6 +10,7 @@ const SQL = read('supabase/migrations/20261127000300_compilations_for_everyone.s
 const DEPT = read('supabase/migrations/20261127000250_department_switches.sql');
 const ROUTER = read('supabase/functions/node-core/router.ts');
 const DB = read('supabase/functions/node/db.ts');
+const PROGRESS = read('supabase/migrations/20261128000100_compilation_progress.sql');   // the counts-only progress (11-argument form) on top of 0300
 const code = s => s.split('\n').filter(l => !l.trimStart().startsWith('--')).join('\n');
 const set = a => [...new Set(a)].sort();
 
@@ -70,13 +71,15 @@ test('the three signatures are exactly as posted to WEB, CONNECT and FACES', () 
 });
 
 test('the node route calls node_compilation_report with the SQL argument types and accepts exactly its body keys and states', () => {
-  const m = /this\.scalar\("node_compilation_report", (\[[^\]]+\])/.exec(DB);
-  assert.ok(m, 'db.ts calls node_compilation_report');
-  assert.deepEqual(JSON.parse(m[1]), ['text', 'uuid', 'text', 'text', 'int', 'int', 'numeric', 'text']);
-  const sqlTypes = /grant execute on function public\.node_compilation_report\(([^)]+)\)/.exec(SQL)[1].split(',').map(s => s.trim());
-  assert.deepEqual(JSON.parse(m[1]), sqlTypes, 'the route passes the types the SQL grant names');
+  // db.ts makes TWO calls: the 8-argument form of 0300 (no progress) and the 11-argument form of 20261128000100 (with progress); each matches its migration's grant
+  const calls = [...DB.matchAll(/this\.scalar\("node_compilation_report", (\[[^\]]+\])/g)].map(m => JSON.parse(m[1]));
+  assert.equal(calls.length, 2, 'db.ts calls node_compilation_report in its two forms');
+  const grant = (src) => /grant execute on function public\.node_compilation_report\(([^)]+)\)/.exec(src)[1].split(',').map(s => s.trim());
+  assert.deepEqual(set(calls.map(c => JSON.stringify(c))), set([JSON.stringify(grant(SQL)), JSON.stringify(grant(PROGRESS))]), 'the route passes the types the SQL grants name');
+  assert.deepEqual(grant(SQL), ['text', 'uuid', 'text', 'text', 'int', 'int', 'numeric', 'text']);
+  assert.deepEqual(grant(PROGRESS), [...grant(SQL), 'int', 'int', 'int']);
   const keys = JSON.parse(/const REPORT_KEYS = (\[[^\]]+\]);/.exec(ROUTER)[1]);
-  assert.deepEqual(set(keys), set(['project_id', 'request_sha256', 'state', 'matches', 'clips', 'film_seconds', 'error_code']));
+  assert.deepEqual(set(keys), set(['project_id', 'request_sha256', 'state', 'matches', 'clips', 'film_seconds', 'error_code', 'step_done', 'step_total', 'percent']));
   const routeStates = JSON.parse(/const RUN_STATES = (\[[^\]]+\]);/.exec(ROUTER)[1]);
   const sqlStates = /state text not null check \(state in \(([^)]+)\)\)/.exec(SQL)[1].split(',').map(s => s.trim().replace(/^'|'$/g, ''));
   assert.deepEqual(set(routeStates), set(sqlStates), 'the route and the table accept the same six states');
